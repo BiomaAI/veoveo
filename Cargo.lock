@@ -16573,15 +16573,22 @@ name = "veoveo-deployment-smoke"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
+ "chrono",
  "clap",
+ "futures",
  "hex",
+ "jsonwebtoken 11.0.0",
  "nix",
  "oci-spec",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "sha2 0.11.0",
+ "surrealdb",
  "tempfile",
+ "tokio",
+ "uuid",
  "veoveo-agent-runtime",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
@@ -16590,8 +16597,10 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
  "veoveo-modules",
+ "veoveo-platform-store",
  "veoveo-recording-mcp",
  "veoveo-simulation-contract",
+ "veoveo-types",
 ]
 
 [[package]]

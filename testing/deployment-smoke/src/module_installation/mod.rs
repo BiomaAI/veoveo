@@ -1,6 +1,7 @@
 //! Actual pinned composition image and chart Job lifecycle in an owned namespace.
 mod assertions;
 mod fixture;
+mod managed;
 mod process;
 
 use anyhow::{Context, Result, ensure};
@@ -16,18 +17,13 @@ pub(crate) struct PinnedImage {
 impl FromStr for PinnedImage {
     type Err = String;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let reference: oci_spec::distribution::Reference = value
-            .parse()
-            .map_err(|_| "gateway OCI reference is invalid")?;
+        let reference: oci_spec::distribution::Reference =
+            value.parse().map_err(|_| "OCI reference is invalid")?;
         if reference.tag().is_some() {
-            return Err("gateway image requires an untagged digest reference".into());
+            return Err("image requires an untagged digest reference".into());
         }
-        let digest = ArtifactDigest::parse(
-            reference
-                .digest()
-                .ok_or("gateway image requires a digest")?,
-        )
-        .map_err(|_| "gateway image requires a lowercase SHA-256 digest")?;
+        let digest = ArtifactDigest::parse(reference.digest().ok_or("image requires a digest")?)
+            .map_err(|_| "image requires a lowercase SHA-256 digest")?;
         Ok(Self {
             repository: format!("{}/{}", reference.registry(), reference.repository()),
             digest,
@@ -47,6 +43,10 @@ pub(crate) struct Args {
     #[arg(long)]
     pub gateway_image: PinnedImage,
     #[arg(long)]
+    pub manager_image: PinnedImage,
+    #[arg(long)]
+    pub kernel_image: PinnedImage,
+    #[arg(long)]
     pub evidence_output: PathBuf,
 }
 #[derive(Serialize)]
@@ -55,9 +55,13 @@ struct Evidence {
     schema_version: &'static str,
     context: String,
     namespace: Option<String>,
+    agent_namespace: Option<String>,
     image: String,
+    manager_image: String,
+    kernel_image: String,
     composition: String,
     cases: Vec<assertions::Case>,
+    managed_recovery: Option<managed::Recovery>,
     failure: Option<String>,
     cleanup_failure: Option<String>,
 }
@@ -71,9 +75,13 @@ pub(crate) fn verify(args: Args) -> Result<()> {
         schema_version: "veoveo.ai/module-installation-evidence/v1",
         context: args.context.clone(),
         namespace: None,
+        agent_namespace: None,
         image: args.gateway_image.reference(),
+        manager_image: args.manager_image.reference(),
+        kernel_image: args.kernel_image.reference(),
         composition: args.gateway_image.digest.as_str().into(),
         cases: Vec::new(),
+        managed_recovery: None,
         failure: None,
         cleanup_failure: None,
     };
@@ -81,10 +89,12 @@ pub(crate) fn verify(args: Args) -> Result<()> {
     let result = (|| {
         let owned = fixture::Fixture::create(&args)?;
         evidence.namespace = Some(owned.namespace.clone());
+        evidence.agent_namespace = Some(owned.managed_config.namespace.clone());
         fixture = Some(owned);
         let owned = fixture.as_mut().expect("fixture initialized");
         owned.initialize().context("installation prerequisites")?;
-        assertions::lifecycle(owned, &mut evidence.cases).context("installed module lifecycle")
+        assertions::lifecycle(owned, &mut evidence.cases, &mut evidence.managed_recovery)
+            .context("installed module lifecycle")
     })();
     if let Err(error) = &result {
         let diagnostics = fixture
@@ -94,9 +104,9 @@ pub(crate) fn verify(args: Args) -> Result<()> {
         evidence.failure = Some(format!("{error:#}\n{diagnostics}"));
     }
     if let Some(owned) = fixture.as_mut()
-        && owned.cleanup().is_err()
+        && let Err(error) = owned.cleanup()
     {
-        evidence.cleanup_failure = Some("owned namespace cleanup failed".into());
+        evidence.cleanup_failure = Some(error.to_string());
     }
     let mut file = fs::OpenOptions::new()
         .write(true)

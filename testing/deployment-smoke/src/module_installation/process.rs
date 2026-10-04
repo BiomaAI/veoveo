@@ -111,6 +111,67 @@ pub(super) fn checked(command: &mut Command, seconds: u64) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// A fixture-owned watch or port-forward. Output is file-backed and never logged.
+pub(super) struct Background {
+    owned: OwnedChild,
+    stdout: std::fs::File,
+    stderr: std::fs::File,
+    started: Instant,
+    seconds: u64,
+    offset: u64,
+}
+impl Background {
+    pub fn start(command: &mut Command, seconds: u64) -> Result<Self> {
+        let stdout = tempfile::tempfile()?;
+        let stderr = tempfile::tempfile()?;
+        command.process_group(0);
+        let child = command
+            .stdin(Stdio::null())
+            .stdout(stdout.try_clone()?)
+            .stderr(stderr.try_clone()?)
+            .spawn()
+            .context("start owned fixture observer")?;
+        Ok(Self {
+            owned: OwnedChild {
+                child,
+                settled: false,
+            },
+            stdout,
+            stderr,
+            started: Instant::now(),
+            seconds,
+            offset: 0,
+        })
+    }
+    pub fn read(&mut self) -> Result<Vec<u8>> {
+        ensure!(
+            self.started.elapsed() < Duration::from_secs(self.seconds),
+            "fixture observer deadline exceeded"
+        );
+        ensure!(
+            self.stdout.metadata()?.len() <= 2 * 1024 * 1024
+                && self.stderr.metadata()?.len() <= 2 * 1024 * 1024,
+            "fixture observer output exceeded 2 MiB"
+        );
+        ensure!(
+            matches!(
+                waitid(
+                    Id::Pid(Pid::from_raw(self.owned.child.id() as i32)),
+                    WaitPidFlag::WEXITED | WaitPidFlag::WNOHANG | WaitPidFlag::WNOWAIT
+                )?,
+                WaitStatus::StillAlive
+            ),
+            "fixture watch/forward ended; an observation gap cannot prove drain"
+        );
+        // pread keeps the child's shared open-file write offset untouched.
+        use std::os::unix::fs::FileExt;
+        let mut bytes = vec![0; (self.stdout.metadata()?.len() - self.offset) as usize];
+        self.stdout.read_exact_at(&mut bytes, self.offset)?;
+        self.offset += bytes.len() as u64;
+        Ok(bytes)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

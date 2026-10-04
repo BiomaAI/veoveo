@@ -1,5 +1,5 @@
 //! Namespace-owned public plans, disposable credentials and actual chart Jobs.
-use super::{Args, PinnedImage, process};
+use super::{Args, PinnedImage, managed, process};
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -31,6 +31,11 @@ pub(super) struct Fixture {
     runtime_password: String,
     serial: u32,
     prior_passwords: Vec<String>,
+    pub(super) managed_config: managed::Configuration,
+    pub(super) managed: Option<managed::Managed>,
+    agent_uid: Option<String>,
+    cluster_owned: Vec<(String, String)>,
+    kube_version: Option<String>,
 }
 #[derive(Deserialize)]
 struct Namespace {
@@ -53,6 +58,7 @@ impl Fixture {
             .to_str()
             .context("fixture namespace UTF-8")?
             .to_ascii_lowercase();
+        let managed_config = managed::Configuration::create(args, &namespace, directory.path())?;
         let fixture = Self {
             namespace,
             context: args.context.clone(),
@@ -63,10 +69,34 @@ impl Fixture {
             runtime_password: password()?,
             serial: 0,
             prior_passwords: Vec::new(),
+            managed_config,
+            managed: None,
+            agent_uid: None,
+            cluster_owned: Vec::new(),
+            kube_version: None,
         };
         Ok(fixture)
     }
     pub fn initialize(&mut self) -> Result<()> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Versions {
+            server_version: ServerVersion,
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ServerVersion {
+            git_version: String,
+        }
+        let version: Versions = serde_json::from_slice(&process::checked(
+            self.kubectl().args(["version", "--output=json"]),
+            20,
+        )?)?;
+        ensure!(
+            !version.server_version.git_version.is_empty(),
+            "selected server Kubernetes version absent"
+        );
+        self.kube_version = Some(version.server_version.git_version);
         let created = process::checked(
             self.kubectl()
                 .args(["create", "namespace", &self.namespace, "--output=json"]),
@@ -78,18 +108,25 @@ impl Fixture {
             "created namespace did not expose ownership UID"
         );
         self.uid = Some(namespace.metadata.uid);
+        // These values never appear in child command arguments or evidence.
+        self.prior_passwords
+            .extend(self.managed_config.installation_secrets.values().cloned());
+        self.managed_config.api_egress = managed::Configuration::observe_api_egress(self)?;
         self.credentials()?;
         self.control_plane()?;
         self.verify_network_policy()?;
         Ok(())
     }
     pub fn kubectl(&self) -> Command {
+        self.kubectl_in(&self.namespace)
+    }
+    pub(super) fn kubectl_in(&self, namespace: &str) -> Command {
         let mut command = Command::new("kubectl");
         command.args([
             "--context",
             &self.context,
             "--namespace",
-            &self.namespace,
+            namespace,
             "--request-timeout=10s",
         ]);
         command
@@ -106,12 +143,30 @@ impl Fixture {
     }
     pub fn apply(&mut self, object: &Value) -> Result<()> {
         let path = self.file(object)?;
-        process::checked(self.kubectl().args(["apply", "--filename"]).arg(path), 30)?;
+        process::checked(
+            self.kubectl_in(
+                object["metadata"]["namespace"]
+                    .as_str()
+                    .unwrap_or(&self.namespace),
+            )
+            .args(["apply", "--filename"])
+            .arg(path),
+            30,
+        )?;
         Ok(())
     }
     pub fn create_object(&mut self, object: &Value) -> Result<()> {
         let path = self.file(object)?;
-        process::checked(self.kubectl().args(["create", "--filename"]).arg(path), 30)?;
+        process::checked(
+            self.kubectl_in(
+                object["metadata"]["namespace"]
+                    .as_str()
+                    .unwrap_or(&self.namespace),
+            )
+            .args(["create", "--filename"])
+            .arg(path),
+            30,
+        )?;
         Ok(())
     }
     fn credentials(&mut self) -> Result<()> {
@@ -135,12 +190,14 @@ impl Fixture {
         self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"fixture-old-runtime"},"type":"Opaque","stringData":{"username":"fixture-runtime","password":self.runtime_password}}))?;
         self.prior_passwords.push(self.runtime_password.clone());
         self.runtime_password = password()?;
-        self.credentials()
+        self.credentials()?;
+        if self.agent_uid.is_some() {
+            self.agent_runtime_credentials()?;
+        }
+        Ok(())
     }
     fn control_plane(&mut self) -> Result<()> {
-        let control = json!({"identity_providers":[],"authorization_servers":[],"servers":[],"profiles":[],"tenants":[{"id":"fixture","metadata":{}}],"work_contexts":[{"id":"mission","tenant":"fixture","title":"Mission","policy_revision":"policy-fixture","output_policy":{"owner":{"kind":"group","id":"operations"},"initial_grants":[],"classification":null,"data_labels":[]},"memberships":[{"level":"contributor","groups":["operations"]}]}],"policies":[{"version":"policy-fixture","rules":[],"metadata":{}}],"data_labels":[],"oidc_clients":[]});
-        let control: veoveo_mcp_contract::GatewayControlPlane = serde_json::from_value(control)?;
-        self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"fixture-control-plane"},"data":{"gateway.json":serde_json::to_string(&control)?}}))
+        self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"fixture-control-plane"},"data":{"gateway.json":serde_json::to_string(&self.managed_config.plane)?,"jwks.json":self.managed_config.jwks}}))
     }
     fn verify_network_policy(&mut self) -> Result<()> {
         // Read the chart's qualified database image pin; do not maintain another pin.
@@ -263,12 +320,17 @@ impl Fixture {
             plan.selection()? == selection,
             "image producer changed installation selection"
         );
-        let values = json!({"installationPreset":"custom","components":["gateway","platform-store"],"mcpServers":[],"global":{"production":true},"gateway":{"image":{"repository":self.image.repository,"tag":"fixture","digest":self.image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","controlPlaneRevision":"1".repeat(64),"auditRetentionDays":1,"resources":{"requests":{"memory":"128Mi","cpu":"100m"},"limits":{"memory":"512Mi","cpu":"1"}}},"surrealdb":{"namespace":"fixture","database":"installation"},"moduleInstallation":{"planJson":String::from_utf8(raw)?}});
+        let config = &self.managed_config;
+        let values = json!({"installationPreset":"custom","components":["gateway","platform-store","agent-runtime-support"],"mcpServers":[],"global":{"production":true,"installationId":self.namespace,"publicBaseUrl":"https://gateway.invalid"},"gateway":{"image":{"repository":self.image.repository,"tag":"fixture","digest":self.image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","controlPlaneRevision":"1".repeat(64),"auditRetentionDays":1,"resources":{"requests":{"memory":"128Mi","cpu":"100m"},"limits":{"memory":"512Mi","cpu":"1"}},"agents":{"models":[config.model],"templates":[config.template],"modelSecrets":{"FIXTURE_MODEL_KEY":{"existingSecret":"fixture-model","key":"api-key"}}}},"agentManager":{"namespace":config.namespace,"image":{"repository":config.manager_image.repository,"tag":"fixture","digest":config.manager_image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","kubernetesApiEgress":config.api_egress,"modelEgress":[]},"surrealdb":{"namespace":"fixture","database":"installation"},"moduleInstallation":{"planJson":String::from_utf8(raw)?}});
         let path = self.file(&values)?;
         let rendered = process::checked(
             Command::new("helm")
                 .args([
                     "template",
+                    "--kube-version",
+                    self.kube_version
+                        .as_deref()
+                        .context("selected Kubernetes server version not observed")?,
                     "module-fixture",
                     "deploy/helm/veoveo",
                     "--namespace",
@@ -288,7 +350,8 @@ impl Fixture {
             let component = object["metadata"]["labels"]["app.kubernetes.io/component"]
                 .as_str()
                 .unwrap_or("");
-            if object["kind"] == "ServiceAccount"
+            if (object["kind"] == "ServiceAccount"
+                && object["metadata"]["namespace"] != self.managed_config.namespace)
                 || component == "surrealdb"
                 || component == "module-plan"
                 || (object["kind"] == "Job"
@@ -308,6 +371,7 @@ impl Fixture {
                 true,
             )?;
         }
+        self.install_managed_objects(render)?;
         Ok(())
     }
     pub fn wait_job(&self, name: &str, success: bool) -> Result<()> {
@@ -342,6 +406,104 @@ impl Fixture {
             );
             thread::sleep(Duration::from_millis(250));
         }
+    }
+    fn install_managed_objects(&mut self, render: &Render) -> Result<()> {
+        for object in render.objects.iter().filter(|o| o["kind"] == "Namespace") {
+            if self.agent_uid.is_none() {
+                let path = self.file(object)?;
+                let bytes = process::checked(
+                    self.kubectl()
+                        .args(["create", "--filename"])
+                        .arg(path)
+                        .arg("--output=json"),
+                    30,
+                )?;
+                let owned: Namespace = serde_json::from_slice(&bytes)?;
+                ensure!(!owned.metadata.uid.is_empty(), "agent namespace UID absent");
+                self.agent_uid = Some(owned.metadata.uid);
+            }
+        }
+        self.agent_runtime_credentials()?;
+        let namespace = self.managed_config.namespace.clone();
+        for target in [&self.namespace.clone(), &namespace] {
+            self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"fixture-model","namespace":target},"type":"Opaque","stringData":{"api-key":"fixture-only-unused"}}))?;
+        }
+        self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-installation-secrets"},"type":"Opaque","stringData":self.managed_config.installation_secrets}))?;
+        self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-audit-signing-key"},"type":"Opaque","stringData":{"seed-b64":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="}}))?;
+        self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"fixture-control-plane","namespace":namespace},"data":{"gateway.json":serde_json::to_string(&self.managed_config.plane)?,"jwks.json":self.managed_config.jwks}}))?;
+        self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":self.managed_config.template.workload.config_map,"namespace":namespace},"immutable":true,"data":self.managed_config.data}))?;
+        // Admission and egress policies precede every executable workload.
+        for kind in [
+            "ServiceAccount",
+            "Role",
+            "RoleBinding",
+            "ValidatingAdmissionPolicy",
+            "ValidatingAdmissionPolicyBinding",
+            "NetworkPolicy",
+            "ConfigMap",
+            "Service",
+            "Deployment",
+        ] {
+            for object in render.objects.iter().filter(|o| o["kind"] == kind) {
+                let component = object["metadata"]["labels"]["app.kubernetes.io/component"]
+                    .as_str()
+                    .unwrap_or("");
+                if component == "surrealdb" || component == "module-plan" {
+                    continue;
+                }
+                if kind.starts_with("ValidatingAdmissionPolicy") {
+                    let name = object["metadata"]["name"]
+                        .as_str()
+                        .context("cluster policy name")?;
+                    let path = format!(
+                        "/apis/admissionregistration.k8s.io/v1/{}/{name}",
+                        if kind == "ValidatingAdmissionPolicy" {
+                            "validatingadmissionpolicies"
+                        } else {
+                            "validatingadmissionpolicybindings"
+                        }
+                    );
+                    if !self.cluster_owned.iter().any(|(p, _)| p == &path) {
+                        let file = self.file(object)?;
+                        let bytes = process::checked(
+                            self.kubectl()
+                                .args(["create", "--filename"])
+                                .arg(file)
+                                .arg("--output=json"),
+                            30,
+                        )?;
+                        let created: Namespace = serde_json::from_slice(&bytes)?;
+                        ensure!(
+                            !created.metadata.uid.is_empty(),
+                            "cluster policy UID absent"
+                        );
+                        self.cluster_owned.push((path, created.metadata.uid));
+                    }
+                } else {
+                    self.apply(object)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn agent_runtime_credentials(&mut self) -> Result<()> {
+        self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-surreal-runtime","namespace":self.managed_config.namespace},"type":"Opaque","stringData":{"username":"fixture-runtime","password":self.runtime_password}}))
+    }
+    pub(super) fn store_config(
+        &self,
+        endpoint: &str,
+    ) -> Result<veoveo_platform_store::StoreConfig> {
+        veoveo_platform_store::StoreConfig::builder(
+            endpoint,
+            "fixture",
+            "installation",
+            veoveo_platform_store::StoreCredentials::root(
+                "fixture-admin",
+                self.root_password.clone(),
+            ),
+        )
+        .build()
+        .map_err(Into::into)
     }
     pub fn logs(&self, job: &str) -> Result<Vec<u8>> {
         process::checked(
@@ -408,37 +570,66 @@ impl Fixture {
             &namespace.metadata.uid == uid,
             "diagnostic namespace ownership changed"
         );
-        let bytes = process::checked(self.kubectl().args(["get", "pods", "--output=json"]), 30)?;
-        let pods: Value = serde_json::from_slice(&bytes)?;
         let mut output = String::new();
-        for pod in pods["items"]
-            .as_array()
-            .context("diagnostic pod inventory")?
-        {
-            let name = pod["metadata"]["name"]
-                .as_str()
-                .context("diagnostic pod name")?;
-            output.push_str(&format!("pod {name}: {}\n", pod["status"]["phase"]));
-            for status in pod["status"]["containerStatuses"]
-                .as_array()
-                .into_iter()
-                .flatten()
-            {
-                let state = &status["state"];
-                output.push_str(&format!("container {}: {}\n", status["name"], state));
-            }
-            if let Ok(logs) = process::checked(
+        let mut diagnostic_namespaces = vec![self.namespace.as_str()];
+        if let Some(uid) = &self.agent_uid {
+            let namespace: Namespace = serde_json::from_slice(&process::checked(
                 self.kubectl().args([
-                    "logs",
-                    name,
-                    "--all-containers=true",
-                    "--tail=10",
-                    "--limit-bytes=4096",
+                    "get",
+                    "namespace",
+                    &self.managed_config.namespace,
+                    "--output=json",
                 ]),
-                15,
-            ) {
-                output.push_str(&String::from_utf8_lossy(&logs));
-                output.push('\n');
+                20,
+            )?)?;
+            ensure!(
+                &namespace.metadata.uid == uid,
+                "diagnostic agent namespace ownership changed"
+            );
+            diagnostic_namespaces.push(&self.managed_config.namespace);
+        }
+        for namespace in diagnostic_namespaces {
+            let bytes = process::checked(
+                self.kubectl_in(namespace)
+                    .args(["get", "pods", "--output=json"]),
+                30,
+            )?;
+            let pods: Value = serde_json::from_slice(&bytes)?;
+            for pod in pods["items"]
+                .as_array()
+                .context("diagnostic pod inventory")?
+            {
+                let name = pod["metadata"]["name"]
+                    .as_str()
+                    .context("diagnostic pod name")?;
+                output.push_str(&format!(
+                    "pod {namespace}/{name}: {}\n",
+                    pod["status"]["phase"]
+                ));
+                for status in pod["status"]["containerStatuses"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                {
+                    let state = &status["state"];
+                    output.push_str(&format!("container {}: {}\n", status["name"], state));
+                }
+                if let Ok(logs) = process::checked(
+                    self.kubectl_in(namespace).args([
+                        "logs",
+                        name,
+                        "--all-containers=true",
+                        "--tail=10",
+                        "--limit-bytes=4096",
+                    ]),
+                    15,
+                ) {
+                    output.push_str(&String::from_utf8_lossy(&logs));
+                    output.push('\n');
+                }
+                if output.len() > 16384 {
+                    break;
+                }
             }
             if output.len() > 16384 {
                 break;
@@ -487,15 +678,92 @@ impl Fixture {
         Ok(ids)
     }
     pub fn cleanup(&mut self) -> Result<()> {
-        let Some(uid) = self.uid.clone() else {
+        let mut failures = Vec::new();
+        let mut kernels_gone = self.agent_uid.is_none();
+        if let Some(uid) = self.agent_uid.clone() {
+            let name = self.managed_config.namespace.clone();
+            match self.delete_owned_namespace(&name, &uid) {
+                Ok(()) => {
+                    self.agent_uid = None;
+                    kernels_gone = true;
+                }
+                Err(_) => failures.push("agent namespace deletion/observation"),
+            }
+        }
+        // The DB remains available until every kernel has exited. Sequences and
+        // episodes are monotonic in this qualified kernel path.
+        if let Some(mut managed) = self.managed.take() {
+            if kernels_gone {
+                if managed.final_zero_episodes().is_err() {
+                    failures.push("final episode observation");
+                }
+            } else {
+                failures.push("final drain/zero-inference proof unavailable");
+            }
+            if managed.close_live().is_err() {
+                failures.push("owned LIVE cleanup");
+            }
+        }
+        for index in (0..self.cluster_owned.len()).rev() {
+            let (path, uid) = self.cluster_owned[index].clone();
+            let result = (|| {
+                let file = self.file(&json!({"apiVersion":"v1","kind":"DeleteOptions","preconditions":{"uid":uid},"propagationPolicy":"Foreground"}))?;
+                process::checked(
+                    self.kubectl()
+                        .arg("delete")
+                        .arg(format!("--raw={path}"))
+                        .arg("--filename")
+                        .arg(file),
+                    30,
+                )?;
+                Ok::<_, anyhow::Error>(())
+            })();
+            if result.is_ok() {
+                self.cluster_owned.remove(index);
+            } else {
+                failures.push("UID-owned cluster policy deletion");
+            }
+        }
+        if let Some(uid) = self.uid.clone() {
+            let name = self.namespace.clone();
+            if self.delete_owned_namespace(&name, &uid).is_ok() {
+                self.uid = None;
+            } else {
+                failures.push("installation namespace deletion/observation");
+            }
+        }
+        ensure!(
+            failures.is_empty(),
+            "fixture cleanup failed: {}",
+            failures.join(", ")
+        );
+        Ok(())
+    }
+    fn delete_owned_namespace(&mut self, name: &str, uid: &str) -> Result<()> {
+        let existing = process::checked(
+            self.kubectl().args([
+                "get",
+                "namespace",
+                name,
+                "--ignore-not-found",
+                "--output=json",
+            ]),
+            20,
+        )?;
+        if existing.is_empty() {
             return Ok(());
-        };
+        }
+        let existing: Namespace = serde_json::from_slice(&existing)?;
+        ensure!(
+            existing.metadata.uid == uid,
+            "owned namespace UID changed before deletion"
+        );
         let options = json!({"apiVersion":"v1","kind":"DeleteOptions","preconditions":{"uid":uid},"propagationPolicy":"Foreground"});
         let path = self.file(&options)?;
         process::checked(
             self.kubectl()
                 .arg("delete")
-                .arg(format!("--raw=/api/v1/namespaces/{}", self.namespace))
+                .arg(format!("--raw=/api/v1/namespaces/{name}"))
                 .arg("--filename")
                 .arg(path),
             30,
@@ -504,12 +772,11 @@ impl Fixture {
             self.kubectl().args([
                 "wait",
                 "--for=delete",
-                &format!("namespace/{}", self.namespace),
+                &format!("namespace/{name}"),
                 "--timeout=60s",
             ]),
             70,
         )?;
-        self.uid = None;
         Ok(())
     }
 }

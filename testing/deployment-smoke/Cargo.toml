@@ -12,7 +12,16 @@ name = "gitops_convergence"
 harness = false
 
 [dependencies]
-veoveo-agent-runtime = { workspace = true, features = ["contract"] }
+veoveo-agent-runtime = { workspace = true, features = ["catalog"] }
+veoveo-platform-store.workspace = true
+veoveo-types.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
+chrono.workspace = true
+uuid.workspace = true
+base64.workspace = true
+futures.workspace = true
+# Matches the Store's qualified SDK; fixture-owned LIVE IDs are explicitly killed.
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"] }
 # OCI reference admission without registry/network clients; upstream v0.10.0 qualified by the owning harness.
 nix = { version = "=0.31.3", default-features = false, features = ["process", "signal"] }
 oci-spec = { version = "=0.10.0", default-features = false, features = ["distribution"] }
@@ -32,6 +41,7 @@ veoveo-image-build-control.workspace = true
 veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
+jsonwebtoken.workspace = true
 veoveo-gateway-catalog.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["gateway"] }
 veoveo-recording-mcp = { path = "../../servers/recording-mcp", default-features = false, features = ["gateway"] }

@@ -148,7 +148,11 @@ fn credential_confinement(render: &Render) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn lifecycle(fixture: &mut Fixture, cases: &mut Vec<Case>) -> Result<()> {
+pub(super) fn lifecycle(
+    fixture: &mut Fixture,
+    cases: &mut Vec<Case>,
+    recovery: &mut Option<super::managed::Recovery>,
+) -> Result<()> {
     let first = fixture.generate(1, &["time"])?;
     let mut prior: Option<Vec<Lane>> = None;
     for (generation, enabled, name) in [
@@ -165,6 +169,9 @@ pub(super) fn lifecycle(fixture: &mut Fixture, cases: &mut Vec<Case>) -> Result<
         let render = render.as_ref().unwrap_or(&first);
         credential_confinement(render)?;
         fixture.install(render)?;
+        if generation == 2 {
+            super::managed::recover(fixture)?;
+        }
         let installed = status(fixture, render, generation)?;
         if generation == 1 {
             ensure!(
@@ -202,6 +209,9 @@ pub(super) fn lifecycle(fixture: &mut Fixture, cases: &mut Vec<Case>) -> Result<
         let published = publication(fixture, render)?;
         let before = fixture.snapshot()?;
         fixture.install(render)?;
+        if generation == 2 {
+            *recovery = Some(super::managed::replay_and_stop(fixture)?);
+        }
         ensure!(
             before == fixture.snapshot()?,
             "unchanged installation recreated live Job/ConfigMap/database objects"
@@ -325,6 +335,9 @@ pub(super) fn lifecycle(fixture: &mut Fixture, cases: &mut Vec<Case>) -> Result<
             observed_image_ids: fixture.image_ids()?,
         });
         prior = Some(installed.lanes);
+        if generation == 1 {
+            super::managed::start(fixture)?;
+        }
     }
     Ok(())
 }

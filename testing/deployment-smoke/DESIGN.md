@@ -6,7 +6,9 @@
 |---|---|
 | `veoveo.ai/module-installation-evidence/v1` | Typed setup, installed DB/Job outcomes, runtime image observations, redacted failure excerpts and UID-owned cleanup |
 | Kubernetes `networking.k8s.io/v1` NetworkPolicy | Producer-only deny-all ingress/egress; positive and rejected native health probes qualify enforcement |
-| OCI distribution digest references | Maintained OCI parsing admits untagged SHA-256 gateway images and derives the supplied composition binding |
+| OCI distribution digest references | Maintained OCI parsing admits untagged SHA-256 gateway, manager and kernel images; the gateway image supplies the composition binding |
+| Kubernetes admissionregistration `v1` | Actual chart ValidatingAdmissionPolicy and Binding objects restrict managed workload identities and configuration; UID-owned fixture cleanup |
+| SurrealDB 3.3.0 LIVE and Store authoring APIs | Privileged fixture publication/provision, ordered runtime lease observations and explicit owned LIVE query cancellation |
 | `veoveo.ai/module-selection/v1` and `veoveo.ai/module-plan/v1` | Checked camelCase JSON; optional selection, decimal-string generation, nonsecret credential revision and composition-generated lane/runtime bindings |
 | Flux source and Kustomization APIs `v1`, HelmRelease API `v2` | exact Git artifact and applied revision, observed generation, readiness, terminal Helm failure, and release inventory |
 | Kubernetes apps `v1` | Deployment rollout status and Available condition through kubectl |
@@ -179,8 +181,11 @@ cargo xtask smoke component-scope-verify \
 
 `module-installation-verify` uses the supplied digest-only gateway OCI reference,
 derives its composition binding and generates plans with that actual image. The
-fixture requires a reachable registry, an enforced NetworkPolicy CNI, default
-local-path storage and permission to create an isolated namespace and its resources.
+fixture also takes digest-only manager and kernel images. It requires a reachable
+registry, an enforced NetworkPolicy CNI, local-path storage and permission to create
+two isolated namespaces and their resources, including cluster-scoped admission
+policies. Local OpenSSL generates disposable signing keys. Helm renders against
+the selected Kubernetes server version observed during setup.
 Positive and denied probes use the chart's pinned SurrealDB 3.3.0 CLI. A deadline,
 scheduling failure or unavailable canary cannot establish policy enforcement.
 
@@ -191,13 +196,57 @@ preparation/migration/publication rejection, preserved disabled Time history and
 later Media enablement in generation 3. Current-publication replay after stale Jobs
 checks the persisted revision, hash and counts. The initial owner lanes are empty;
 these checks establish initialized headers rather than fabricate migration bodies.
-Hosted product workloads and GPU execution are outside this DB/Job fixture.
+The same chart starts a gateway and lifecycle manager. The fixture uses privileged
+Store authoring APIs to create, publish and provision one managed agent; this setup
+does not qualify gateway authoring authorization. A real kernel authenticates
+through the gateway's OAuth and managed registration routes. No GPU or provider
+workload is selected.
+The authenticated profile exposes no MCP servers and grants no server-scoped
+actions. Its discovery catalog is empty; the kernel has no subscriptions or
+pending tasks that require domain calls. Native setup checks keep capability
+admission strict and verify both generated signing keys through gateway APIs.
+
+Generation 1 requires persisted managed readiness correlated with the ready Pod UID
+and two advancing lease expiries under one owner and fence. The fixture writes a
+content witness to the retained PVC. Generation 2 rotates the actual database
+account and both owned runtime Secrets, verifies fresh connection rejection with
+the old credential, and observes foreground workload retirement. Pod and Deployment
+watches begin with resourceVersion-bearing lists; a replacement cannot overlap its
+old object in either ordered stream. A watch error, unknown identity or disconnected
+observer fails qualification.
+
+The runtime's ordered LIVE stream must show old-owner release or expiry before a
+new owner acquires a newer fence. These observations establish workload and lease
+non-overlap within their respective providers. Independent watch streams and
+database/Kubernetes clocks do not establish a cross-provider total order. The
+manager's native recovery tests separately qualify its rule that replacement waits
+for both Pod drain and released/expired lease, including unknown observations.
+The installed gate requires the observed replacement to use generation 2's
+credential revision and renew twice. Registration, client identity, managed
+generation, signing Secret UID/public JWK and PVC UID/content must match generation
+1. Replaying the installation keeps the replacement Pod, Deployment and lease fence
+for more than two renewal intervals.
+
+The approved HTTPS model uses the reserved `.invalid` domain and a disposable
+fixture Secret. Chart policy denies external model egress. The manifest has no
+startup prompt or subscriptions and delays heartbeat for one hour; setup produces
+no actionable wakes, Task results or input requests. From before launch through
+terminal archive and namespace cleanup, the fixture requires no persisted episodes
+and an unchanged next-episode sequence of 1 for every kernel runtime. The kernel's
+native persistence-before-dispatch test qualifies the implication that these
+observations prove zero model dispatch. Controls alone do not establish that claim.
 
 Every account and namespace belongs to the fixture. Secret JSON files have mode
 0600. Errors retain capped pod state/log excerpts with current, root and prior
 fixture passwords redacted before namespace deletion. JSON evidence includes setup
 failure, observed runtime image IDs, each installed outcome and cleanup failure.
-Namespace deletion sends the created UID as a Kubernetes DeleteOptions precondition.
+Namespace and cluster policy deletion send their created UIDs as Kubernetes
+DeleteOptions preconditions. A failed final observation is recorded while cleanup
+still attempts every owned resource. The database stays available for the final
+episode read after kernel workloads exit. Fixture database futures have a 30-second
+transport budget, watches reject gaps, and background observers own their process
+groups. Readiness, recovery and terminal archive each have a 180-second observation
+budget; individual native commands retain their own shorter deadlines.
 Commands have deadlines, file-backed output capped at 2 MiB and owned process-group
 cleanup on timeout; no blind mutation retries are added.
 
@@ -210,5 +259,7 @@ signals; neither dependency adds a registry transport client.
 cargo xtask smoke module-installation-verify \
   --context "$FIXTURE_CONTEXT" \
   --gateway-image "$PINNED_GATEWAY_IMAGE" \
+  --manager-image "$PINNED_MANAGER_IMAGE" \
+  --kernel-image "$PINNED_KERNEL_IMAGE" \
   --evidence-output "$FIXTURE_EVIDENCE"
 ```

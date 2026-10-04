@@ -17,8 +17,9 @@ transfer conditions, and installed acceptance remain open. Phase 1 is active: th
 module declarations, native runner, execution commands and rendered installation Jobs
 pass their native checks. The staged gateway image passes isolated installed checks
 for fresh preparation, lane completion, publication, credential rotation, stale Job
-rejection and later module enablement. Managed-agent credential recovery and product
-activation remain open. Phase 2 Task contributions, versioned kernel SQL admission and
+rejection and later module enablement. The managed-agent recovery fixture passes
+native checks; installed credential recovery and product activation remain open.
+Phase 2 Task contributions, versioned kernel SQL admission and
 Optimization's catalog reads pass their native checks. The gateway composition split
 and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
 Agents and Workspace own their HTTP handlers; contributed route authentication and
@@ -758,7 +759,12 @@ Three installed generations qualify fresh preparation and publication, runtime a
 rotation, unchanged Job identity, disabled-lane history, stale preparation/lane/publication
 rejection and later module enablement. The fixture applies selected chart resources
 directly; it does not qualify full Helm rollback, hosted workload startup or reference
-activation. Managed-agent credential recovery still needs installed qualification.
+activation. The recovery extension starts a real gateway, manager and idle kernel
+and checks workload and lease replacement, retained signing identity and PVC content,
+unchanged-installation replay, and zero episodes through teardown. Its native
+configuration, signing-key, ordered-watch and observer-failure checks pass. The
+kernel's native admission check also proves episode persistence precedes dispatch.
+Installed managed-agent credential recovery still needs qualification.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
