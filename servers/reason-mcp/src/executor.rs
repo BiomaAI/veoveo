@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result, ensure};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
@@ -128,8 +129,10 @@ impl ReasonExecutor {
             decode_start_index: analysis.decode_start_index,
             sampling: analysis.sampling,
             decode: analysis.decode,
-            max_events: self.max_events,
-            max_answer_bytes: self.max_answer_bytes,
+            max_events: u64::try_from(self.max_events)
+                .context("max_events exceeds the runner wire limit")?,
+            max_answer_bytes: u64::try_from(self.max_answer_bytes)
+                .context("max_answer_bytes exceeds the runner wire limit")?,
             max_response_bytes: self.max_response_bytes,
         };
         tokio::fs::write(&request_path, serde_json::to_vec_pretty(&request)?)
@@ -243,7 +246,7 @@ impl ReasonExecutor {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RunnerRequest {
     schema: String,
@@ -261,12 +264,15 @@ struct RunnerRequest {
     decode_start_index: i64,
     sampling: ObservationSampling,
     decode: DecodePolicy,
-    max_events: usize,
-    max_answer_bytes: usize,
+    #[schemars(range(min = 1))]
+    max_events: u64,
+    #[schemars(range(min = 1))]
+    max_answer_bytes: u64,
+    #[schemars(range(min = 1))]
     max_response_bytes: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RunnerPipeline {
     pipeline_id: PipelineId,
@@ -275,7 +281,7 @@ struct RunnerPipeline {
     observation: ObservationConfig,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RunnerModel {
     model_id: ModelId,
@@ -286,7 +292,7 @@ struct RunnerModel {
     engine: EngineConfig,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RunnerResponse {
     schema: String,
@@ -582,5 +588,72 @@ mod tests {
             !captured.exists(),
             "mismatched source must not dispatch the runner"
         );
+    }
+    #[test]
+    fn private_protocol_schema_snapshot() {
+        let snapshot = serde_json::json!({
+            "request": schemars::generate::SchemaSettings::draft2020_12()
+                .for_serialize().into_generator().into_root_schema_for::<RunnerRequest>(),
+            "response": schemars::generate::SchemaSettings::draft2020_12()
+                .for_deserialize().into_generator().into_root_schema_for::<RunnerResponse>(),
+        });
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/private-protocol.schema.json");
+        if std::env::var_os("UPDATE_PRIVATE_PROTOCOL_SCHEMAS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string_pretty(&snapshot).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let maintained: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&path)
+                .expect("generate the maintained private protocol schema snapshot"),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot, maintained,
+            "private protocol schema snapshot drift"
+        );
+    }
+    #[test]
+    fn runner_response_rejects_nested_additions_and_integer_overflow() {
+        let response = serde_json::json!({
+            "schema": RUNNER_RESPONSE_SCHEMA,
+            "answer": {"kind": "events", "events": [{
+                "range": {"start": 0, "end": 1}, "label": "event",
+                "description": "observed", "track_ids": [1]
+            }]}, "observed_frames": 1, "elapsed_ms": 0
+        });
+        assert!(serde_json::from_value::<RunnerResponse>(response.clone()).is_ok());
+        for pointer in ["", "/answer", "/answer/events/0", "/answer/events/0/range"] {
+            let mut changed = response.clone();
+            changed
+                .pointer_mut(pointer)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert("unexpected".into(), true.into());
+            assert!(
+                serde_json::from_value::<RunnerResponse>(changed).is_err(),
+                "{pointer}"
+            );
+        }
+        for pointer in [
+            "/observed_frames",
+            "/elapsed_ms",
+            "/answer/events/0/track_ids/0",
+        ] {
+            let mut changed = response.clone();
+            *changed.pointer_mut(pointer).unwrap() = (-1).into();
+            assert!(
+                serde_json::from_value::<RunnerResponse>(changed).is_err(),
+                "{pointer}"
+            );
+        }
+        let mut changed = response;
+        changed["answer"]["events"][0]["range"]["end"] = serde_json::json!(u64::MAX);
+        assert!(serde_json::from_value::<RunnerResponse>(changed).is_err());
     }
 }

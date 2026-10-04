@@ -300,6 +300,14 @@ kind must match the requested task, events must lie inside the requested
 range in strict order, and event counts, label lengths, and response bytes
 are all capped.
 
+The response envelope, answer variants, events and index ranges reject undeclared
+fields. Descriptions and answers carry free-form text; event detection converts model
+output into the declared event shape before publication. The private request and
+response snapshot in `testdata/private-protocol.schema.json` uses the shared
+[producer/consumer checks](../../testing/python/DESIGN.md). Those checks cover the
+declared shapes and bounds; task, source-range and grounding relationships are
+validated by the executor.
+
 ## MCP surface
 
 The gateway mounts the server at `/reason/mcp` and exposes:

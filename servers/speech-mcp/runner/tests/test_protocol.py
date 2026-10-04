@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from testing.python.protocol_schema import assert_peer_snapshot
+
 """Private decode tests; this suite performs no GPU inference."""
 import unittest
 from pydantic import ValidationError
@@ -54,3 +60,28 @@ class ProtocolTests(unittest.TestCase):
             for definition in adapter.json_schema()["$defs"].values():
                 if definition.get("type") == "object":
                     self.assertFalse(definition["additionalProperties"])
+
+
+class PrivateProtocolSchemaTests(unittest.TestCase):
+    def test_complete_reachable_private_protocol_schema(self):
+        assert_peer_snapshot(
+            Path(__file__).resolve().parents[2] / "testdata/private-protocol.schema.json",
+            REQUEST_ADAPTER.json_schema(mode="validation"),
+            EVENT_ADAPTER.json_schema(mode="serialization"),
+        )
+
+
+class NumericAdmissionTests(unittest.TestCase):
+    def test_request_width_and_transcript_finiteness(self):
+        for value in [-1, 2**32, True]:
+            with self.assertRaises(ValidationError):
+                REQUEST_ADAPTER.validate_python({"operation": "live", "sample_rate": value, "max_duration_seconds": 1})
+        for value in [float("nan"), float("inf"), -float("inf")]:
+            with self.assertRaises(ValueError):
+                encode({"kind": "transcript", "complete": True, "transcript": {
+                    "text": "observed", "duration_seconds": value, "segments": []}})
+            with self.assertRaises(ValueError):
+                encode({"kind": "transcript", "complete": True, "transcript": {
+                    "text": "observed", "duration_seconds": 1.0, "segments": [{
+                        "text": "observed", "start": 0.0, "end": 1.0, "words": [{
+                            "word": "observed", "start": value, "end": 1.0}]}]}})

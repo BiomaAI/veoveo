@@ -15,10 +15,18 @@ fn public_solver_schemas_preserve_the_published_contract() {
     "OptimizationRunRecord": schemars::schema_for!(OptimizationRunRecord),
     "OptimizationSolution": schemars::schema_for!(OptimizationSolution)
     });
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/contract-schemas.json");
+    if std::env::var_os("UPDATE_CONTRACT_SCHEMAS").is_some() {
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&schemas).unwrap() + "\n",
+        )
+        .unwrap();
+    }
     assert_eq!(
         schemas,
-        serde_json::from_str::<serde_json::Value>(include_str!("fixtures/contract-schemas.json"))
-            .unwrap()
+        serde_json::from_slice::<serde_json::Value>(&std::fs::read(path).unwrap()).unwrap()
     );
 }
 
@@ -62,4 +70,18 @@ fn solver_source_variants_and_nested_artifact_models_are_closed() {
     }
     let extra = serde_json::json!({"source":"artifact","model":{"uri":veoveo_artifact_contract::ArtifactId::new().plane_uri(),"format":"optimization_json_v1","undeclared":true}});
     assert!(serde_json::from_value::<ConvexProblemSource>(extra).is_err());
+}
+
+#[test]
+fn nonnegative_number_schema_matches_admission() {
+    use schemars::JsonSchema;
+    assert_eq!(NonNegativeF64::schema_name(), f64::schema_name());
+    assert_eq!(NonNegativeF64::inline_schema(), f64::inline_schema());
+    assert_ne!(NonNegativeF64::schema_id(), f64::schema_id());
+    let schema = serde_json::to_value(schemars::schema_for!(NonNegativeF64)).unwrap();
+    assert_eq!(schema["type"], "number");
+    assert_eq!(schema["format"], "double");
+    assert_eq!(schema["minimum"], 0.0);
+    assert!(serde_json::from_str::<NonNegativeF64>("0").is_ok());
+    assert!(serde_json::from_str::<NonNegativeF64>("-1").is_err());
 }

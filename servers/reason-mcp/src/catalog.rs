@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{
@@ -30,11 +31,13 @@ pub struct ModelConfig {
     pub engine: EngineConfig,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EngineConfig {
     Vllm {
+        #[schemars(range(min = 0.1, max = 1.0))]
         gpu_memory_utilization: f32,
+        #[schemars(range(min = 1024, max = 1048576))]
         max_model_len: u32,
     },
 }
@@ -52,11 +55,12 @@ pub struct PipelineConfig {
     pub observation: ObservationConfig,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, serde::Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ObservationConfig {
     pub width: u32,
     pub height: u32,
+    #[schemars(range(min = 1, max = 1024))]
     pub maximum_frames: u32,
 }
 

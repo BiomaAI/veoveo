@@ -1,5 +1,6 @@
 //! Private Unix-socket inference protocol. Credentials never enter this boundary.
 use anyhow::{Context, Result, ensure};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
@@ -18,7 +19,7 @@ pub const PROTOCOL: &str = "veoveo.speech-worker/v1";
 pub const MAX_FRAME_BYTES: usize = 192_000;
 pub const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerRequest {
     Probe,
@@ -67,7 +68,7 @@ impl<'de> Deserialize<'de> for WorkerRequest {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WorkerEvent {
     Accepted,
@@ -131,7 +132,7 @@ impl<'de> Deserialize<'de> for WorkerEvent {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkerError {
     InvalidInput,
@@ -230,5 +231,33 @@ mod strict_protocol_tests {
                 .is_err()
         );
         assert!(serde_json::from_str::<WorkerEvent>(r#"{"kind":"transcript","complete":true,"transcript":{"text":"","duration_seconds":0,"segments":[],"unexpected":true}}"#).is_err());
+    }
+    #[test]
+    fn private_protocol_schema_snapshot() {
+        let snapshot = serde_json::json!({
+            "request": schemars::generate::SchemaSettings::draft2020_12()
+                .for_serialize().into_generator().into_root_schema_for::<WorkerRequest>(),
+            "response": schemars::generate::SchemaSettings::draft2020_12()
+                .for_deserialize().into_generator().into_root_schema_for::<WorkerEvent>(),
+        });
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/private-protocol.schema.json");
+        if std::env::var_os("UPDATE_PRIVATE_PROTOCOL_SCHEMAS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string_pretty(&snapshot).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let maintained: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&path)
+                .expect("generate the maintained private protocol schema snapshot"),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot, maintained,
+            "private protocol schema snapshot drift"
+        );
     }
 }

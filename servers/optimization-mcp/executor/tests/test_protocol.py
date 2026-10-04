@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from testing.python.protocol_schema import assert_peer_snapshot
+
 import asyncio
 import json
 import unittest
@@ -98,3 +104,33 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivateProtocolSchemaTests(unittest.TestCase):
+    def test_complete_reachable_private_protocol_schema(self):
+        assert_peer_snapshot(
+            Path(__file__).resolve().parents[2] / "testdata/private-protocol.schema.json",
+            ExecutorRequest.model_json_schema(mode="validation"),
+            ExecutorResponse.model_json_schema(mode="serialization"),
+        )
+
+
+class NumericAdmissionTests(unittest.TestCase):
+    def test_nested_width_and_nonnegative_admission(self):
+        from veoveo_cuopt_executor.protocol import (
+            CompiledCapacityDimension, CompiledDenseMatrix, ExecutorIncumbent,
+            RoutingSolverSettings,
+        )
+        valid = {"vehicle_type": 255, "dimension": 1, "values": [0.0]}
+        CompiledDenseMatrix.model_validate(valid)
+        for changed in [{**valid, "vehicle_type": 256}, {**valid, "dimension": -1}, {**valid, "dimension": 2**32}, {**valid, "dimension": True}]:
+            with self.assertRaises(ValidationError):
+                CompiledDenseMatrix.model_validate(changed)
+        CompiledCapacityDimension.model_validate({"dimension_id": "capacity-fixture", "demand": [-(2**31)], "capacity": [2**32 - 1]})
+        with self.assertRaises(ValidationError):
+            CompiledCapacityDimension.model_validate({"dimension_id": "capacity-fixture", "demand": [2**31], "capacity": [0]})
+        for value in [-1.0, float("nan"), float("inf")]:
+            with self.assertRaises(ValidationError):
+                RoutingSolverSettings(time_limit_seconds=value)
+        with self.assertRaises(ValidationError):
+            ExecutorIncumbent(sequence=2**64, values=[], objective=0.0, bound=0.0, found_at_seconds=0.0)

@@ -1,0 +1,1633 @@
+{
+  "request": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ExecutorRequest",
+    "type": "object",
+    "properties": {
+      "protocol": {
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ExecutorProfile"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "operation": {
+        "$ref": "#/$defs/ExecutorOperation"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "protocol",
+      "run_id",
+      "operation"
+    ],
+    "$defs": {
+      "ExecutorProfile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "routing": {
+            "$ref": "#/$defs/RoutingSolverSettings"
+          },
+          "convex": {
+            "$ref": "#/$defs/ConvexSolverSettings"
+          },
+          "milp": {
+            "$ref": "#/$defs/MilpSolverSettings"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "routing",
+          "convex",
+          "milp"
+        ]
+      },
+      "RoutingSolverSettings": {
+        "type": "object",
+        "properties": {
+          "time_limit_seconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "verbose": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "time_limit_seconds",
+          "verbose"
+        ]
+      },
+      "ConvexSolverSettings": {
+        "type": "object",
+        "properties": {
+          "time_limit_seconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "method": {
+            "$ref": "#/$defs/ConvexMethod"
+          },
+          "optimality_tolerance": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "presolve": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "time_limit_seconds",
+          "method",
+          "optimality_tolerance",
+          "presolve"
+        ]
+      },
+      "ConvexMethod": {
+        "type": "string",
+        "enum": [
+          "pdlp",
+          "barrier"
+        ]
+      },
+      "MilpSolverSettings": {
+        "type": "object",
+        "properties": {
+          "time_limit_seconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "relative_gap": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "absolute_gap": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "integrality_tolerance": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          },
+          "presolve": {
+            "type": "boolean"
+          },
+          "retain_incumbents": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "time_limit_seconds",
+          "relative_gap",
+          "absolute_gap",
+          "integrality_tolerance",
+          "presolve",
+          "retain_incumbents"
+        ]
+      },
+      "ExecutorOperation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "const": "health"
+              }
+            },
+            "required": [
+              "operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "target_run_id": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string",
+                "const": "cancel"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "operation",
+              "target_run_id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "problem": {
+                "$ref": "#/$defs/CompiledRoutingProblem"
+              },
+              "operation": {
+                "type": "string",
+                "const": "solve_routes"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "operation",
+              "problem"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "cases": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/CompiledRouteCase"
+                }
+              },
+              "operation": {
+                "type": "string",
+                "const": "solve_route_scenarios"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "operation",
+              "cases"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "family": {
+                "$ref": "#/$defs/ExecutorModelFamily"
+              },
+              "model": {
+                "$ref": "#/$defs/CompiledMathematicalModel"
+              },
+              "operation": {
+                "type": "string",
+                "const": "solve_model"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "operation",
+              "family",
+              "model"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "family": {
+                "$ref": "#/$defs/ExecutorModelFamily"
+              },
+              "staged_path": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string",
+                "const": "solve_model_file"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "operation",
+              "family",
+              "staged_path"
+            ]
+          }
+        ]
+      },
+      "CompiledRoutingProblem": {
+        "type": "object",
+        "properties": {
+          "location_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledRouteNode"
+            }
+          },
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledVehicle"
+            }
+          },
+          "vehicle_type_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cost_matrices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledDenseMatrix"
+            }
+          },
+          "transit_time_matrices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledDenseMatrix"
+            }
+          },
+          "capacity_dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledCapacityDimension"
+            }
+          },
+          "pickup_delivery_pairs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledPickupDeliveryPair"
+            }
+          },
+          "order_vehicle_matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledOrderVehicleMatch"
+            }
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledRouteObjective"
+            }
+          },
+          "minimum_vehicles": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "initial_solution": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CompiledInitialRoutingSolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "location_ids",
+          "nodes",
+          "vehicles",
+          "vehicle_type_ids",
+          "cost_matrices",
+          "objectives",
+          "minimum_vehicles"
+        ]
+      },
+      "CompiledRouteNode": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "location_index": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "kind": {
+            "$ref": "#/$defs/RouteNodeKind"
+          },
+          "service_duration": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "earliest": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "latest": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "prize": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "order_id",
+          "location_id",
+          "location_index",
+          "kind",
+          "service_duration",
+          "earliest",
+          "latest",
+          "prize"
+        ]
+      },
+      "RouteNodeKind": {
+        "type": "string",
+        "enum": [
+          "depot",
+          "service",
+          "pickup",
+          "delivery",
+          "break"
+        ]
+      },
+      "CompiledVehicle": {
+        "type": "object",
+        "properties": {
+          "vehicle_id": {
+            "type": "string"
+          },
+          "vehicle_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "start_location": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "end_location": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "earliest": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "latest": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "fixed_cost": {
+            "type": "number",
+            "format": "float"
+          },
+          "maximum_cost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "maximum_time": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "omit_first_trip": {
+            "type": "boolean"
+          },
+          "omit_last_trip": {
+            "type": "boolean"
+          },
+          "breaks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledVehicleBreak"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "vehicle_id",
+          "vehicle_type",
+          "start_location",
+          "end_location",
+          "earliest",
+          "latest",
+          "fixed_cost",
+          "omit_first_trip",
+          "omit_last_trip"
+        ]
+      },
+      "CompiledVehicleBreak": {
+        "type": "object",
+        "properties": {
+          "earliest": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "latest": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "duration": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "allowed_locations": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "earliest",
+          "latest",
+          "duration"
+        ]
+      },
+      "CompiledDenseMatrix": {
+        "type": "object",
+        "properties": {
+          "vehicle_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "dimension": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "unavailable_cells": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "vehicle_type",
+          "dimension",
+          "values"
+        ]
+      },
+      "CompiledCapacityDimension": {
+        "type": "object",
+        "properties": {
+          "dimension_id": {
+            "type": "string"
+          },
+          "demand": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "capacity": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "dimension_id",
+          "demand",
+          "capacity"
+        ]
+      },
+      "CompiledPickupDeliveryPair": {
+        "type": "object",
+        "properties": {
+          "pickup_node": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "delivery_node": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "pickup_node",
+          "delivery_node"
+        ]
+      },
+      "CompiledOrderVehicleMatch": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "node",
+          "vehicles"
+        ]
+      },
+      "CompiledRouteObjective": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "$ref": "#/$defs/RouteObjectiveMetric"
+          },
+          "weight": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "metric",
+          "weight"
+        ]
+      },
+      "RouteObjectiveMetric": {
+        "type": "string",
+        "enum": [
+          "cost",
+          "travel_time",
+          "route_size_variance",
+          "route_service_time_variance",
+          "prize",
+          "vehicle_fixed_cost"
+        ]
+      },
+      "CompiledInitialRoutingSolution": {
+        "type": "object",
+        "properties": {
+          "vehicle_indices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "route_nodes": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "node_kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledInitialRouteNodeKind"
+            }
+          },
+          "solution_offsets": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "vehicle_indices",
+          "route_nodes",
+          "node_kinds",
+          "solution_offsets"
+        ]
+      },
+      "CompiledInitialRouteNodeKind": {
+        "type": "string",
+        "enum": [
+          "depot",
+          "delivery",
+          "pickup",
+          "break"
+        ]
+      },
+      "CompiledRouteCase": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "problem": {
+            "$ref": "#/$defs/CompiledRoutingProblem"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "problem"
+        ]
+      },
+      "ExecutorModelFamily": {
+        "type": "string",
+        "enum": [
+          "convex",
+          "milp"
+        ]
+      },
+      "CompiledMathematicalModel": {
+        "type": "object",
+        "properties": {
+          "variable_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "variable_kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/VariableKind"
+            }
+          },
+          "variable_lower_bounds": {
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          "variable_upper_bounds": {
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          "objective_direction": {
+            "$ref": "#/$defs/ObjectiveDirection"
+          },
+          "objective_offset": {
+            "type": "number",
+            "format": "double"
+          },
+          "objective_coefficients": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "constraint_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constraint_matrix": {
+            "$ref": "#/$defs/CsrMatrix"
+          },
+          "constraint_lower_bounds": {
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          "constraint_upper_bounds": {
+            "type": "array",
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          "quadratic_objective": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CsrMatrix"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quadratic_constraints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CompiledQuadraticConstraint"
+            }
+          },
+          "initial_primal_solution": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "initial_dual_solution": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "variable_ids",
+          "variable_kinds",
+          "variable_lower_bounds",
+          "variable_upper_bounds",
+          "objective_direction",
+          "objective_offset",
+          "objective_coefficients",
+          "constraint_ids",
+          "constraint_matrix",
+          "constraint_lower_bounds",
+          "constraint_upper_bounds"
+        ]
+      },
+      "VariableKind": {
+        "type": "string",
+        "enum": [
+          "continuous",
+          "integer",
+          "semi_continuous"
+        ]
+      },
+      "ObjectiveDirection": {
+        "type": "string",
+        "enum": [
+          "minimize",
+          "maximize"
+        ]
+      },
+      "CsrMatrix": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "columns": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "offsets": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "indices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "rows",
+          "columns",
+          "offsets",
+          "indices",
+          "values"
+        ]
+      },
+      "CompiledQuadraticConstraint": {
+        "type": "object",
+        "properties": {
+          "constraint_id": {
+            "type": "string"
+          },
+          "linear_indices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "linear_values": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "sense": {
+            "$ref": "#/$defs/QuadraticConstraintSense"
+          },
+          "rhs": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "constraint_id",
+          "linear_indices",
+          "linear_values",
+          "rows",
+          "columns",
+          "values",
+          "sense",
+          "rhs"
+        ]
+      },
+      "QuadraticConstraintSense": {
+        "type": "string",
+        "enum": [
+          "less_than_or_equal",
+          "greater_than_or_equal"
+        ]
+      }
+    }
+  },
+  "response": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ExecutorResponse",
+    "type": "object",
+    "properties": {
+      "protocol": {
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "result": {
+        "$ref": "#/$defs/ExecutorResult"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "protocol",
+      "run_id",
+      "result"
+    ],
+    "$defs": {
+      "ExecutorResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "health": {
+                "$ref": "#/$defs/ExecutorHealth"
+              },
+              "result": {
+                "type": "string",
+                "const": "health"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "result",
+              "health"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "solution": {
+                "$ref": "#/$defs/ExecutorRoutingSolution"
+              },
+              "result": {
+                "type": "string",
+                "const": "routes"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "result",
+              "solution"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "solutions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ExecutorRouteCaseSolution"
+                }
+              },
+              "result": {
+                "type": "string",
+                "const": "route_scenarios"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "result",
+              "solutions"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "solution": {
+                "$ref": "#/$defs/ExecutorMathematicalSolution"
+              },
+              "result": {
+                "type": "string",
+                "const": "model"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "result",
+              "solution"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "$ref": "#/$defs/ExecutorError"
+              },
+              "result": {
+                "type": "string",
+                "const": "error"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "result",
+              "error"
+            ]
+          }
+        ]
+      },
+      "ExecutorHealth": {
+        "type": "object",
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          },
+          "cuopt_version": {
+            "type": "string"
+          },
+          "cuda_runtime_version": {
+            "type": "string"
+          },
+          "gpu_name": {
+            "type": "string"
+          },
+          "gpu_uuid": {
+            "type": "string"
+          },
+          "compute_capability": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "ready",
+          "cuopt_version",
+          "cuda_runtime_version",
+          "gpu_name",
+          "gpu_uuid",
+          "compute_capability"
+        ]
+      },
+      "ExecutorRoutingSolution": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/$defs/ExecutorRoutingStatus"
+          },
+          "message": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "number",
+            "format": "double"
+          },
+          "objective_components": {
+            "type": "object",
+            "properties": {
+              "cost": {
+                "type": "number",
+                "format": "double"
+              },
+              "prize": {
+                "type": "number",
+                "format": "double"
+              },
+              "route_service_time_variance": {
+                "type": "number",
+                "format": "double"
+              },
+              "route_size_variance": {
+                "type": "number",
+                "format": "double"
+              },
+              "travel_time": {
+                "type": "number",
+                "format": "double"
+              },
+              "vehicle_fixed_cost": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "additionalProperties": false
+          },
+          "vehicles_used": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ExecutorVehicleRoute"
+            }
+          },
+          "undeliverable_nodes": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "solve_seconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "message",
+          "objective",
+          "objective_components",
+          "vehicles_used",
+          "solve_seconds"
+        ]
+      },
+      "ExecutorRoutingStatus": {
+        "type": "string",
+        "enum": [
+          "success",
+          "timeout",
+          "infeasible",
+          "failed",
+          "empty"
+        ]
+      },
+      "ExecutorVehicleRoute": {
+        "type": "object",
+        "properties": {
+          "vehicle": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ExecutorRouteVisit"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "vehicle",
+          "nodes"
+        ]
+      },
+      "ExecutorRouteVisit": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "$ref": "#/$defs/ExecutorRouteNode"
+          },
+          "arrival": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "node",
+          "arrival"
+        ]
+      },
+      "ExecutorRouteNode": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0
+              },
+              "kind": {
+                "type": "string",
+                "const": "depot"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "location"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "node": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0
+              },
+              "kind": {
+                "type": "string",
+                "const": "order"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "node"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0
+              },
+              "kind": {
+                "type": "string",
+                "const": "break"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "location"
+            ]
+          }
+        ]
+      },
+      "ExecutorRouteCaseSolution": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "solution": {
+            "$ref": "#/$defs/ExecutorRoutingSolution"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "solution"
+        ]
+      },
+      "ExecutorMathematicalSolution": {
+        "type": "object",
+        "properties": {
+          "family": {
+            "$ref": "#/$defs/ProblemFamily"
+          },
+          "status": {
+            "$ref": "#/$defs/ExecutorModelStatus"
+          },
+          "primal_solution": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "dual_solution": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "primal_objective": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "dual_objective": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "best_bound": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "relative_gap": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "minimum": 0.0
+          },
+          "primal_residual": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "minimum": 0.0
+          },
+          "dual_residual": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "minimum": 0.0
+          },
+          "iterations": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "nodes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "incumbents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ExecutorIncumbent"
+            }
+          },
+          "solve_seconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "family",
+          "status",
+          "solve_seconds"
+        ]
+      },
+      "ProblemFamily": {
+        "type": "string",
+        "enum": [
+          "routing",
+          "route_scenarios",
+          "convex",
+          "milp"
+        ]
+      },
+      "ExecutorModelStatus": {
+        "type": "string",
+        "enum": [
+          "optimal",
+          "feasible",
+          "infeasible",
+          "unbounded",
+          "infeasible_or_unbounded",
+          "time_limit",
+          "iteration_limit",
+          "node_limit",
+          "numerical_failure",
+          "cancelled",
+          "failed"
+        ]
+      },
+      "ExecutorIncumbent": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "objective": {
+            "type": "number",
+            "format": "double"
+          },
+          "bound": {
+            "type": "number",
+            "format": "double"
+          },
+          "found_at_seconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "sequence",
+          "values",
+          "objective",
+          "bound",
+          "found_at_seconds"
+        ]
+      },
+      "ExecutorError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/ExecutorErrorCode"
+          },
+          "message": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/VerificationFinding"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "ExecutorErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_request",
+          "unsupported_problem",
+          "out_of_memory",
+          "solver_failure",
+          "protocol_failure",
+          "gpu_unavailable"
+        ]
+      },
+      "VerificationFinding": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/VerificationCode"
+          },
+          "severity": {
+            "$ref": "#/$defs/VerificationSeverity"
+          },
+          "message": {
+            "type": "string"
+          },
+          "variable_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "constraint_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vehicle_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ]
+      },
+      "VerificationCode": {
+        "type": "string",
+        "enum": [
+          "missing_variable",
+          "duplicate_variable",
+          "unknown_variable",
+          "variable_lower_bound",
+          "variable_upper_bound",
+          "variable_integrality",
+          "constraint_lower_bound",
+          "constraint_upper_bound",
+          "objective_mismatch",
+          "unknown_vehicle",
+          "duplicate_vehicle_route",
+          "invalid_route_endpoint",
+          "unknown_route_node",
+          "duplicate_route_node",
+          "missing_mandatory_order",
+          "partial_pickup_delivery",
+          "pickup_delivery_precedence",
+          "vehicle_order_restriction",
+          "order_time_window",
+          "vehicle_time_window",
+          "vehicle_capacity",
+          "vehicle_maximum_cost",
+          "vehicle_maximum_time",
+          "unavailable_travel_arc",
+          "arrival_sequence",
+          "solver_reported_failure"
+        ]
+      },
+      "VerificationSeverity": {
+        "type": "string",
+        "enum": [
+          "information",
+          "warning",
+          "error"
+        ]
+      }
+    }
+  }
+}

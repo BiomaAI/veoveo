@@ -682,6 +682,11 @@ independent verification, private protocol framing, resources, prompts, task
 behavior, artifacts, and control-server startup checks. Python unit tests cover
 framing, health, GPU failure mapping, and executor dispatch.
 
+`testdata/private-protocol.schema.json` describes every private executor request and
+response variant. The Python suite applies the shared
+[producer/consumer comparison](../../testing/python/DESIGN.md), including integer
+widths and nonnegative solver values. GPU tests establish execution behavior.
+
 The ignored `cuopt_gpu` test is acceptance evidence only when run against the
 pinned executor image on an NVIDIA GPU. It performs a health request and real
 routing, convex LP, and MILP solves through the Rust client. A software solver

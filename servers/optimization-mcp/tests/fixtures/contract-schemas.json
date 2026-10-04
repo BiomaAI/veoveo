@@ -57,7 +57,8 @@
           },
           "found_at_seconds": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "objective": {
             "format": "double",
@@ -149,32 +150,38 @@
           "preparation_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "publication_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "queue_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "solve_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "transfer_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "verification_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           }
         },
         "type": "object"
@@ -331,7 +338,8 @@
           },
           "found_at_seconds": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "objective": {
             "format": "double",
@@ -364,7 +372,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "best_bound": {
             "format": "double",
@@ -385,7 +394,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "iterations": {
             "format": "uint64",
@@ -400,21 +410,24 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_constraint_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_integrality_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "nodes": {
             "format": "uint64",
@@ -436,7 +449,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "proven_optimal": {
             "type": "boolean"
@@ -446,7 +460,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           }
         },
         "required": [
@@ -580,15 +595,18 @@
         "properties": {
           "arrival": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "cumulative_cost": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "departure": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "load": {
             "additionalProperties": {
@@ -630,32 +648,38 @@
           "preparation_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "publication_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "queue_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "solve_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "transfer_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "verification_seconds": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           }
         },
         "type": "object"
@@ -903,7 +927,8 @@
         "properties": {
           "absolute_tolerance": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "findings": {
             "items": {
@@ -916,25 +941,29 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_constraint_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_integrality_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "relative_tolerance": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "verification_id": {
             "type": "string"
@@ -1342,7 +1371,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "best_bound": {
             "format": "double",
@@ -1363,7 +1393,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "iterations": {
             "format": "uint64",
@@ -1378,21 +1409,24 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_constraint_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_integrality_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "nodes": {
             "format": "uint64",
@@ -1414,7 +1448,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "proven_optimal": {
             "type": "boolean"
@@ -1424,7 +1459,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           }
         },
         "required": [
@@ -1739,7 +1775,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "relative_gap": {
             "format": "double",
@@ -1814,7 +1851,8 @@
           },
           "weight": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           }
         },
         "required": [
@@ -1856,7 +1894,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "order": {
             "$ref": "#/$defs/RouteOrderKind"
@@ -2007,7 +2046,8 @@
           "fixed_cost": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "maximum_cost": {
             "format": "double",
@@ -2420,7 +2460,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "relative_gap": {
             "format": "double",
@@ -2495,7 +2536,8 @@
           },
           "weight": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           }
         },
         "required": [
@@ -2537,7 +2579,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "order": {
             "$ref": "#/$defs/RouteOrderKind"
@@ -2666,7 +2709,8 @@
           "fixed_cost": {
             "default": 0.0,
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "maximum_cost": {
             "format": "double",
@@ -3321,7 +3365,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "relative_gap": {
             "format": "double",
@@ -3676,7 +3721,8 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "relative_gap": {
             "format": "double",
@@ -3806,11 +3852,13 @@
           },
           "convex_optimality_tolerance": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "milp_absolute_gap": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "milp_deadline_seconds": {
             "format": "uint32",
@@ -4370,7 +4418,8 @@
         "properties": {
           "absolute_tolerance": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "findings": {
             "items": {
@@ -4383,25 +4432,29 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_constraint_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "maximum_integrality_violation": {
             "format": "double",
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0.0
           },
           "relative_tolerance": {
             "format": "double",
-            "type": "number"
+            "type": "number",
+            "minimum": 0.0
           },
           "verification_id": {
             "type": "string"
@@ -4471,14 +4524,16 @@
         "type": [
           "number",
           "null"
-        ]
+        ],
+        "minimum": 0.0
       },
       "relative_tolerance": {
         "format": "double",
         "type": [
           "number",
           "null"
-        ]
+        ],
+        "minimum": 0.0
       },
       "solution_uri": {
         "type": "string"

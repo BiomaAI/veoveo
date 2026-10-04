@@ -1,0 +1,571 @@
+{
+  "request": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RunnerRequest",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "task_id": {
+        "type": "string"
+      },
+      "input_mp4": {
+        "type": "string"
+      },
+      "input_width": {
+        "type": "integer",
+        "format": "uint16",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "input_height": {
+        "type": "integer",
+        "format": "uint16",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "response_json": {
+        "type": "string"
+      },
+      "pipeline": {
+        "$ref": "#/$defs/RunnerPipeline"
+      },
+      "model": {
+        "$ref": "#/$defs/RunnerModel"
+      },
+      "task": {
+        "$ref": "#/$defs/ReasoningTask"
+      },
+      "grounding": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/GroundingDetections"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "requested_range": {
+        "$ref": "#/$defs/IndexRange"
+      },
+      "decode_start_index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "sampling": {
+        "$ref": "#/$defs/ObservationSampling"
+      },
+      "decode": {
+        "$ref": "#/$defs/DecodePolicy"
+      },
+      "max_events": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 1
+      },
+      "max_answer_bytes": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 1
+      },
+      "max_response_bytes": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 1
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "schema",
+      "task_id",
+      "input_mp4",
+      "input_width",
+      "input_height",
+      "response_json",
+      "pipeline",
+      "model",
+      "task",
+      "requested_range",
+      "decode_start_index",
+      "sampling",
+      "decode",
+      "max_events",
+      "max_answer_bytes",
+      "max_response_bytes"
+    ],
+    "$defs": {
+      "RunnerPipeline": {
+        "type": "object",
+        "properties": {
+          "pipeline_id": {
+            "type": "string"
+          },
+          "prompt_template_path": {
+            "type": "string"
+          },
+          "prompt_revision": {
+            "type": "string"
+          },
+          "observation": {
+            "$ref": "#/$defs/ObservationConfig"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "pipeline_id",
+          "prompt_template_path",
+          "prompt_revision",
+          "observation"
+        ]
+      },
+      "ObservationConfig": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "height": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maximum_frames": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 1,
+            "maximum": 1024
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "width",
+          "height",
+          "maximum_frames"
+        ]
+      },
+      "RunnerModel": {
+        "type": "object",
+        "properties": {
+          "model_id": {
+            "type": "string"
+          },
+          "model_path": {
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/$defs/ModelFormat"
+          },
+          "model_digest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "engine": {
+            "$ref": "#/$defs/EngineConfig"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "model_id",
+          "model_path",
+          "format",
+          "engine"
+        ]
+      },
+      "ModelFormat": {
+        "oneOf": [
+          {
+            "description": "A locally mounted world-model checkpoint directory or file, supplied\nby the deployment. Runtime optimization belongs to the runner image,\nnever to the request path.",
+            "type": "string",
+            "const": "local_checkpoint"
+          }
+        ]
+      },
+      "EngineConfig": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "gpu_memory_utilization": {
+                "type": "number",
+                "format": "float",
+                "minimum": 0.1,
+                "maximum": 1.0
+              },
+              "max_model_len": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 1024,
+                "maximum": 1048576
+              },
+              "kind": {
+                "type": "string",
+                "const": "vllm"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "gpu_memory_utilization",
+              "max_model_len"
+            ]
+          }
+        ]
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "description": "Describe what happens in the selected range.",
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "const": "describe_segment"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "description": "Detect events matching the prompt inside the selected range.",
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "detect_events"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "prompt"
+            ]
+          },
+          {
+            "description": "Answer one question about the selected range.",
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "answer_question"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "question"
+            ]
+          }
+        ]
+      },
+      "GroundingDetections": {
+        "description": "Bounded typed subset of perception detections embedded in the durable\nrequest at submission time.",
+        "type": "object",
+        "properties": {
+          "schema": {
+            "$ref": "#/$defs/GroundingSchema"
+          },
+          "source_artifact_uri": {
+            "type": "string"
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/GroundingFrame"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "schema",
+          "source_artifact_uri",
+          "frames"
+        ]
+      },
+      "GroundingSchema": {
+        "type": "string",
+        "enum": [
+          "veoveo.reason-grounding/v1"
+        ]
+      },
+      "GroundingFrame": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/GroundingDetection"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "detections"
+        ]
+      },
+      "GroundingDetection": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "label"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "ObservationSampling": {
+        "description": "How many decoded frames the model observes across the requested range.",
+        "type": "object",
+        "properties": {
+          "max_frames": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "max_frames"
+        ]
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "greedy"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "format": "float"
+              },
+              "top_p": {
+                "type": "number",
+                "format": "float"
+              },
+              "seed": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "mode": {
+                "type": "string",
+                "const": "sampled"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RunnerResponse",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "answer": {
+        "$ref": "#/$defs/ReasoningAnswer"
+      },
+      "observed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "elapsed_ms": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "schema",
+      "answer",
+      "observed_frames",
+      "elapsed_ms"
+    ],
+    "$defs": {
+      "ReasoningAnswer": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "description"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "text"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ReasonedEvent"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "const": "events"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "events"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "answer"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "text"
+            ]
+          }
+        ]
+      },
+      "ReasonedEvent": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "description": "Inclusive source-timeline index range of the event.",
+            "$ref": "#/$defs/IndexRange"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "track_ids": {
+            "description": "Perception track identities cited from the request's grounding.",
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "range",
+          "label",
+          "description"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      }
+    }
+  }
+}

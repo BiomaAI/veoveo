@@ -534,7 +534,8 @@
         "required": [
           "kind",
           "text"
-        ]
+        ],
+        "additionalProperties": false
       },
       {
         "type": "object",
@@ -553,7 +554,8 @@
         "required": [
           "kind",
           "events"
-        ]
+        ],
+        "additionalProperties": false
       },
       {
         "type": "object",
@@ -569,7 +571,8 @@
         "required": [
           "kind",
           "text"
-        ]
+        ],
+        "additionalProperties": false
       }
     ],
     "$defs": {
@@ -600,7 +603,8 @@
           "range",
           "label",
           "description"
-        ]
+        ],
+        "additionalProperties": false
       },
       "IndexRange": {
         "type": "object",
@@ -671,7 +675,8 @@
           "end"
         ]
       }
-    }
+    },
+    "additionalProperties": false
   },
   "ConfidenceBasis": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -956,7 +961,8 @@
             "required": [
               "kind",
               "text"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -975,7 +981,8 @@
             "required": [
               "kind",
               "events"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -991,7 +998,8 @@
             "required": [
               "kind",
               "text"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -1022,7 +1030,8 @@
           "range",
           "label",
           "description"
-        ]
+        ],
+        "additionalProperties": false
       },
       "DecodePolicy": {
         "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",

@@ -181,7 +181,7 @@ pub struct GroundingDetection {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReasoningAnswer {
     Description { text: String },
     Events { events: Vec<ReasonedEvent> },
@@ -206,6 +206,7 @@ impl ReasoningAnswer {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ReasonedEvent {
     /// Inclusive source-timeline index range of the event.
     pub range: IndexRange,

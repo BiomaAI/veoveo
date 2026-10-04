@@ -971,6 +971,11 @@ modules, their query owners and their qualification paths.
 
 ## Verification
 
+Rust and Python qualify the helper's complete schemas in
+`testdata/private-protocol.schema.json` through the
+[private protocol checks](../../testing/python/DESIGN.md). Filesystem confinement,
+release labels and digests use owner behavioral checks.
+
 The implementation is checked at several boundaries:
 
 - Rust contract tests cover ids, quantities, geometry, mobility taxonomy,

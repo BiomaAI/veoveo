@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from testing.python.protocol_schema import assert_peer_snapshot
+
 import json
 from pathlib import Path
 import tempfile
@@ -211,3 +217,25 @@ class NormalizeCommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivateProtocolSchemaTests(unittest.TestCase):
+    def test_complete_reachable_private_protocol_schema(self):
+        assert_peer_snapshot(
+            Path(__file__).resolve().parents[2] / "testdata/private-protocol.schema.json",
+            NormalizeCommand.model_json_schema(mode="validation"),
+            NormalizeResult.model_json_schema(mode="serialization"),
+        )
+
+
+class NumericAdmissionTests(unittest.TestCase):
+    def test_command_model_bounds_and_adapter_vocabulary(self):
+        from pydantic import ValidationError
+        valid = {"schema_version": 1, "acquisition_id": "acquisition-fixture",
+                 "adapter_kind": "gtfs_schedule", "source_path": "/tmp/source",
+                 "output_dir": "/tmp/output", "maximum_elapsed_seconds": 1,
+                 "maximum_output_bytes": 2**64 - 1}
+        NormalizeCommand.model_validate(valid)
+        for field, value in [("maximum_output_bytes", 2**64), ("maximum_elapsed_seconds", -1), ("maximum_elapsed_seconds", True), ("adapter_kind", "uncontrolled"), ("schema_version", 2**32)]:
+            with self.assertRaises(ValidationError):
+                NormalizeCommand.model_validate({**valid, field: value})

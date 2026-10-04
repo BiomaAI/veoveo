@@ -52,6 +52,13 @@ def test_normalize_events_drops_what_the_server_would_reject() -> None:
             ]
         }
     )
+    document = json.loads(raw)
+    valid = {"range": {"start": 10, "end": 20}, "label": "invalid", "description": "invalid"}
+    for field, value in [("label", 123), ("unexpected", True), ("track_ids", [True]), ("track_ids", [-1]), ("track_ids", [2**64])]:
+        document["events"].append({**valid, field: value})
+    for field, value in [("start", "10"), ("start", True), ("end", 2**63), ("unexpected", True)]:
+        document["events"].append({**valid, "range": {**valid["range"], field: value}})
+    raw = json.dumps(document)
     answer = normalize_events(raw, span, max_events=10, grounded_tracks={7})
     assert [event.label for event in answer.events] == ["first", "second"]
     assert answer.events[1].track_ids == [7]

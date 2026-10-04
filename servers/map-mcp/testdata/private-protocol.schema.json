@@ -1,0 +1,112 @@
+{
+  "request": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "NormalizeCommand",
+    "type": "object",
+    "properties": {
+      "schema_version": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      },
+      "acquisition_id": {
+        "type": "string"
+      },
+      "adapter_kind": {
+        "$ref": "#/$defs/SourceAdapterKind"
+      },
+      "source_path": {
+        "type": "string"
+      },
+      "output_dir": {
+        "type": "string"
+      },
+      "maximum_elapsed_seconds": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "maximum_output_bytes": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "schema_version",
+      "acquisition_id",
+      "adapter_kind",
+      "source_path",
+      "output_dir",
+      "maximum_elapsed_seconds",
+      "maximum_output_bytes"
+    ],
+    "$defs": {
+      "SourceAdapterKind": {
+        "type": "string",
+        "enum": [
+          "open_street_map",
+          "authority_vector",
+          "gtfs_schedule",
+          "gtfs_realtime",
+          "s57_enc",
+          "s100",
+          "aixm",
+          "faa_nasr",
+          "environmental"
+        ]
+      }
+    }
+  },
+  "response": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "NormalizeResult",
+    "type": "object",
+    "properties": {
+      "schema_version": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      },
+      "acquisition_id": {
+        "$ref": "#/$defs/AcquisitionId"
+      },
+      "source_digest_sha256": {
+        "type": "string"
+      },
+      "version_label": {
+        "type": "string"
+      },
+      "normalized_paths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "quality_report_path": {
+        "type": "string"
+      },
+      "routing_build_path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "schema_version",
+      "acquisition_id",
+      "source_digest_sha256",
+      "version_label",
+      "normalized_paths",
+      "quality_report_path"
+    ],
+    "$defs": {
+      "AcquisitionId": {
+        "type": "string"
+      }
+    }
+  }
+}

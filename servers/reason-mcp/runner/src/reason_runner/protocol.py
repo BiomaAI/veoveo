@@ -10,18 +10,25 @@ REQUEST_SCHEMA = "veoveo.reason-runner-request/v3"
 RESPONSE_SCHEMA = "veoveo.reason-runner-response/v1"
 
 
+I64 = Annotated[int, Field(ge=-(2**63), le=2**63 - 1)]
+U16 = Annotated[int, Field(ge=0, le=2**16 - 1)]
+U32 = Annotated[int, Field(ge=0, le=2**32 - 1)]
+U64 = Annotated[int, Field(ge=0, le=2**64 - 1)]
+PositiveU64 = Annotated[int, Field(ge=1, le=2**64 - 1)]
+
+
 class _Model(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True)
 
 
 class IndexRange(_Model):
-    start: int
-    end: int
+    start: I64
+    end: I64
 
 
 class Observation(_Model):
-    width: int
-    height: int
+    width: U32
+    height: U32
     maximum_frames: int = Field(ge=1, le=1_024)
 
 
@@ -33,33 +40,33 @@ class RunnerPipeline(_Model):
 
 
 class VllmEngine(_Model):
-    kind: Literal["vllm"] = "vllm"
+    kind: Literal["vllm"]
     gpu_memory_utilization: float = Field(ge=0.1, le=1.0)
     max_model_len: int = Field(ge=1_024, le=1_048_576)
 
 
 class RunnerModel(_Model):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", protected_namespaces=())
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True, protected_namespaces=())
 
     model_id: str
     model_path: str
-    format: str
+    format: Literal["local_checkpoint"]
     model_digest: str | None = None
     engine: VllmEngine
 
 
 class DescribeSegment(_Model):
-    kind: Literal["describe_segment"] = "describe_segment"
+    kind: Literal["describe_segment"]
     prompt: str | None = None
 
 
 class DetectEvents(_Model):
-    kind: Literal["detect_events"] = "detect_events"
+    kind: Literal["detect_events"]
     prompt: str
 
 
 class AnswerQuestion(_Model):
-    kind: Literal["answer_question"] = "answer_question"
+    kind: Literal["answer_question"]
     question: str
 
 
@@ -70,16 +77,16 @@ ReasoningTask = Annotated[
 
 class GroundingDetection(_Model):
     label: str
-    track_id: int | None = None
+    track_id: U64 | None = None
 
 
 class GroundingFrame(_Model):
-    index: int
+    index: I64
     detections: list[GroundingDetection]
 
 
 class GroundingDetections(_Model):
-    schema_: str = Field(alias="schema")
+    schema_: Literal["veoveo.reason-grounding/v1"] = Field(alias="schema")
     source_artifact_uri: str
     frames: list[GroundingFrame]
 
@@ -93,50 +100,50 @@ class GroundingDetections(_Model):
 
 
 class GreedyDecode(_Model):
-    mode: Literal["greedy"] = "greedy"
+    mode: Literal["greedy"]
 
 
 class SampledDecode(_Model):
-    mode: Literal["sampled"] = "sampled"
+    mode: Literal["sampled"]
     temperature: float
     top_p: float
-    seed: int
+    seed: U64
 
 
 DecodePolicy = Annotated[Union[GreedyDecode, SampledDecode], Field(discriminator="mode")]
 
 
 class ObservationSampling(_Model):
-    max_frames: int
+    max_frames: U32
 
 
 class RunnerRequest(_Model):
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", protected_namespaces=())
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", strict=True, allow_inf_nan=False, json_schema_serialization_defaults_required=True, protected_namespaces=())
 
     schema_: str = Field(alias="schema")
     task_id: str
     input_mp4: str
-    input_width: int
-    input_height: int
+    input_width: U16
+    input_height: U16
     response_json: str
     pipeline: RunnerPipeline
     model: RunnerModel
     task: ReasoningTask
     grounding: GroundingDetections | None = None
     requested_range: IndexRange
-    decode_start_index: int
+    decode_start_index: I64
     sampling: ObservationSampling
     decode: DecodePolicy
-    max_events: int
-    max_answer_bytes: int
-    max_response_bytes: int
+    max_events: PositiveU64
+    max_answer_bytes: PositiveU64
+    max_response_bytes: PositiveU64
 
 
 class ReasonedEvent(_Model):
     range: IndexRange
     label: str
     description: str
-    track_ids: list[int] = Field(default_factory=list)
+    track_ids: list[U64] = Field(default_factory=list)
 
 
 class DescriptionAnswer(_Model):
@@ -162,8 +169,8 @@ ReasoningAnswer = Annotated[
 class RunnerResponse(_Model):
     schema_: str = Field(alias="schema", default=RESPONSE_SCHEMA)
     answer: ReasoningAnswer
-    observed_frames: int
-    elapsed_ms: int
+    observed_frames: U64
+    elapsed_ms: U64
 
     def to_json(self) -> str:
         return self.model_dump_json(by_alias=True)

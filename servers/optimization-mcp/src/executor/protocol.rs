@@ -565,4 +565,32 @@ mod strict_protocol_tests {
             assert!(serde_json::from_value::<ExecutorResponse>(changed).is_err());
         }
     }
+    #[test]
+    fn private_protocol_schema_snapshot() {
+        let snapshot = serde_json::json!({
+            "request": schemars::generate::SchemaSettings::draft2020_12()
+                .for_serialize().into_generator().into_root_schema_for::<ExecutorRequest>(),
+            "response": schemars::generate::SchemaSettings::draft2020_12()
+                .for_deserialize().into_generator().into_root_schema_for::<ExecutorResponse>(),
+        });
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/private-protocol.schema.json");
+        if std::env::var_os("UPDATE_PRIVATE_PROTOCOL_SCHEMAS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string_pretty(&snapshot).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let maintained: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&path)
+                .expect("generate the maintained private protocol schema snapshot"),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot, maintained,
+            "private protocol schema snapshot drift"
+        );
+    }
 }

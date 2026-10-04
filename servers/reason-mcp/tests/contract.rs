@@ -1,8 +1,10 @@
-fn check_schema<T: schemars::JsonSchema>(baseline: &serde_json::Value, name: &str) {
-    assert_eq!(
+fn check_schema<T: schemars::JsonSchema>(
+    current: &mut serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) {
+    current.insert(
+        name.to_owned(),
         serde_json::to_value(schemars::schema_for!(T)).unwrap(),
-        baseline[name],
-        "{name}"
     );
 }
 #[path = "contract/findings.rs"]
@@ -90,34 +92,49 @@ fn answer_kinds_and_confidence_provenance_preserve_the_public_wire() {
 
 #[test]
 fn schemas_preserve_the_published_contract() {
-    let baseline: serde_json::Value =
-        serde_json::from_str(include_str!("../testdata/contract.schema.json")).unwrap();
+    let mut current = serde_json::Map::new();
 
-    check_schema::<AnalyzeRecordingRequest>(&baseline, stringify!(AnalyzeRecordingRequest));
-    check_schema::<ReasoningTask>(&baseline, stringify!(ReasoningTask));
-    check_schema::<ObservationSampling>(&baseline, stringify!(ObservationSampling));
-    check_schema::<DecodePolicy>(&baseline, stringify!(DecodePolicy));
-    check_schema::<GroundingReference>(&baseline, stringify!(GroundingReference));
-    check_schema::<GroundingDetections>(&baseline, stringify!(GroundingDetections));
-    check_schema::<GroundingFrame>(&baseline, stringify!(GroundingFrame));
-    check_schema::<GroundingDetection>(&baseline, stringify!(GroundingDetection));
-    check_schema::<ReasoningAnswer>(&baseline, stringify!(ReasoningAnswer));
-    check_schema::<ReasonedEvent>(&baseline, stringify!(ReasonedEvent));
-    check_schema::<ConfidenceBasis>(&baseline, stringify!(ConfidenceBasis));
-    check_schema::<ReasoningResults>(&baseline, stringify!(ReasoningResults));
-    check_schema::<AnalyzeRecordingOutput>(&baseline, stringify!(AnalyzeRecordingOutput));
-    check_schema::<ReasoningSummary>(&baseline, stringify!(ReasoningSummary));
-    check_schema::<PipelineView>(&baseline, stringify!(PipelineView));
-    check_schema::<PipelineOperation>(&baseline, stringify!(PipelineOperation));
-    check_schema::<ModelView>(&baseline, stringify!(ModelView));
-    check_schema::<ModelFormat>(&baseline, stringify!(ModelFormat));
-    check_schema::<AnalysisView>(&baseline, stringify!(AnalysisView));
-    check_schema::<IndexRange>(&baseline, stringify!(IndexRange));
-    check_schema::<RecordingSourceIdentity>(&baseline, stringify!(RecordingSourceIdentity));
-    check_schema::<RecordingSourceIdentityKind>(&baseline, stringify!(RecordingSourceIdentityKind));
-    check_schema::<RecordingSourceSnapshot>(&baseline, stringify!(RecordingSourceSnapshot));
-    check_schema::<RecordingVideoSelection>(&baseline, stringify!(RecordingVideoSelection));
-    check_schema::<VideoTimelineKind>(&baseline, stringify!(VideoTimelineKind));
-    check_schema::<FindingData>(&baseline, stringify!(FindingData));
-    check_schema::<FindingSummary>(&baseline, stringify!(FindingSummary));
+    check_schema::<AnalyzeRecordingRequest>(&mut current, stringify!(AnalyzeRecordingRequest));
+    check_schema::<ReasoningTask>(&mut current, stringify!(ReasoningTask));
+    check_schema::<ObservationSampling>(&mut current, stringify!(ObservationSampling));
+    check_schema::<DecodePolicy>(&mut current, stringify!(DecodePolicy));
+    check_schema::<GroundingReference>(&mut current, stringify!(GroundingReference));
+    check_schema::<GroundingDetections>(&mut current, stringify!(GroundingDetections));
+    check_schema::<GroundingFrame>(&mut current, stringify!(GroundingFrame));
+    check_schema::<GroundingDetection>(&mut current, stringify!(GroundingDetection));
+    check_schema::<ReasoningAnswer>(&mut current, stringify!(ReasoningAnswer));
+    check_schema::<ReasonedEvent>(&mut current, stringify!(ReasonedEvent));
+    check_schema::<ConfidenceBasis>(&mut current, stringify!(ConfidenceBasis));
+    check_schema::<ReasoningResults>(&mut current, stringify!(ReasoningResults));
+    check_schema::<AnalyzeRecordingOutput>(&mut current, stringify!(AnalyzeRecordingOutput));
+    check_schema::<ReasoningSummary>(&mut current, stringify!(ReasoningSummary));
+    check_schema::<PipelineView>(&mut current, stringify!(PipelineView));
+    check_schema::<PipelineOperation>(&mut current, stringify!(PipelineOperation));
+    check_schema::<ModelView>(&mut current, stringify!(ModelView));
+    check_schema::<ModelFormat>(&mut current, stringify!(ModelFormat));
+    check_schema::<AnalysisView>(&mut current, stringify!(AnalysisView));
+    check_schema::<IndexRange>(&mut current, stringify!(IndexRange));
+    check_schema::<RecordingSourceIdentity>(&mut current, stringify!(RecordingSourceIdentity));
+    check_schema::<RecordingSourceIdentityKind>(
+        &mut current,
+        stringify!(RecordingSourceIdentityKind),
+    );
+    check_schema::<RecordingSourceSnapshot>(&mut current, stringify!(RecordingSourceSnapshot));
+    check_schema::<RecordingVideoSelection>(&mut current, stringify!(RecordingVideoSelection));
+    check_schema::<VideoTimelineKind>(&mut current, stringify!(VideoTimelineKind));
+    check_schema::<FindingData>(&mut current, stringify!(FindingData));
+    check_schema::<FindingSummary>(&mut current, stringify!(FindingSummary));
+    let current = serde_json::Value::Object(current);
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/contract.schema.json");
+    if std::env::var_os("UPDATE_CONTRACT_SCHEMAS").is_some() {
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&current).unwrap() + "\n",
+        )
+        .unwrap();
+    }
+    let baseline: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(current, baseline, "published Reason contract schema drift");
 }

@@ -118,6 +118,13 @@ def finite_or_none(value: Any) -> float | None:
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+U8 = Annotated[int, Field(ge=0, le=2**8 - 1)]
+U32 = Annotated[int, Field(ge=0, le=2**32 - 1)]
+U64 = Annotated[int, Field(ge=0, le=2**64 - 1)]
+I32 = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
+NonNegative = Annotated[float, Field(ge=0)]
+
+
 class _Model(BaseModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True, allow_inf_nan=False, protected_namespaces=())
 
@@ -184,22 +191,22 @@ class ExecutorProfile(_Model):
     milp: MilpSolverSettings
 
 class RoutingSolverSettings(_Model):
-    time_limit_seconds: float
+    time_limit_seconds: NonNegative
     verbose: bool = False
 
 ConvexMethod = Literal['pdlp', 'barrier']
 
 class ConvexSolverSettings(_Model):
-    time_limit_seconds: float
+    time_limit_seconds: NonNegative
     method: ConvexMethod
-    optimality_tolerance: float
+    optimality_tolerance: NonNegative
     presolve: bool
 
 class MilpSolverSettings(_Model):
-    time_limit_seconds: float
-    relative_gap: float
-    absolute_gap: float
-    integrality_tolerance: float
+    time_limit_seconds: NonNegative
+    relative_gap: NonNegative
+    absolute_gap: NonNegative
+    integrality_tolerance: NonNegative
     presolve: bool
     retain_incumbents: bool
 
@@ -218,34 +225,34 @@ class CompiledRoutingProblem(_Model):
     pickup_delivery_pairs: list[CompiledPickupDeliveryPair] = Field(default_factory=list)
     order_vehicle_matches: list[CompiledOrderVehicleMatch] = Field(default_factory=list)
     objectives: list[CompiledRouteObjective]
-    minimum_vehicles: int
+    minimum_vehicles: U32
     initial_solution: CompiledInitialRoutingSolution | None = None
 
 class CompiledInitialRoutingSolution(_Model):
-    vehicle_indices: list[int]
-    route_nodes: list[int]
+    vehicle_indices: list[U32]
+    route_nodes: list[U32]
     node_kinds: list[CompiledInitialRouteNodeKind]
-    solution_offsets: list[int]
+    solution_offsets: list[U32]
 
 CompiledInitialRouteNodeKind = Literal['depot', 'delivery', 'pickup', 'break']
 
 class CompiledRouteNode(_Model):
     order_id: str
     location_id: str
-    location_index: int
+    location_index: U32
     kind: RouteNodeKind
-    service_duration: int
-    earliest: int
-    latest: int
+    service_duration: U32
+    earliest: U32
+    latest: U32
     prize: float
 
 class CompiledVehicle(_Model):
     vehicle_id: str
-    vehicle_type: int
-    start_location: int
-    end_location: int
-    earliest: int
-    latest: int
+    vehicle_type: U8
+    start_location: U32
+    end_location: U32
+    earliest: U32
+    latest: U32
     fixed_cost: float
     maximum_cost: float | None = None
     maximum_time: float | None = None
@@ -254,29 +261,29 @@ class CompiledVehicle(_Model):
     breaks: list[CompiledVehicleBreak] = Field(default_factory=list)
 
 class CompiledVehicleBreak(_Model):
-    earliest: int
-    latest: int
-    duration: int
-    allowed_locations: list[int] = Field(default_factory=list)
+    earliest: U32
+    latest: U32
+    duration: U32
+    allowed_locations: list[U32] = Field(default_factory=list)
 
 class CompiledDenseMatrix(_Model):
-    vehicle_type: int
-    dimension: int
+    vehicle_type: U8
+    dimension: U32
     values: list[float]
-    unavailable_cells: list[int] = Field(default_factory=list)
+    unavailable_cells: list[U32] = Field(default_factory=list)
 
 class CompiledCapacityDimension(_Model):
     dimension_id: str
-    demand: list[int]
-    capacity: list[int]
+    demand: list[I32]
+    capacity: list[U32]
 
 class CompiledPickupDeliveryPair(_Model):
-    pickup_node: int
-    delivery_node: int
+    pickup_node: U32
+    delivery_node: U32
 
 class CompiledOrderVehicleMatch(_Model):
-    node: int
-    vehicles: list[int]
+    node: U32
+    vehicles: list[U32]
 
 class CompiledRouteObjective(_Model):
     metric: RouteObjectiveMetric
@@ -302,18 +309,18 @@ class CompiledMathematicalModel(_Model):
     initial_dual_solution: list[float] | None = None
 
 class CsrMatrix(_Model):
-    rows: int
-    columns: int
-    offsets: list[int]
-    indices: list[int]
+    rows: U32
+    columns: U32
+    offsets: list[U32]
+    indices: list[U32]
     values: list[float]
 
 class CompiledQuadraticConstraint(_Model):
     constraint_id: str
-    linear_indices: list[int]
+    linear_indices: list[U32]
     linear_values: list[float]
-    rows: list[int]
-    columns: list[int]
+    rows: list[U32]
+    columns: list[U32]
     values: list[float]
     sense: QuadraticConstraintSense
     rhs: float
@@ -369,34 +376,34 @@ class ExecutorRoutingSolution(_Model):
     message: str
     objective: float
     objective_components: dict[RouteObjectiveMetric, float]
-    vehicles_used: int
+    vehicles_used: U32
     routes: list[ExecutorVehicleRoute] = Field(default_factory=list)
-    undeliverable_nodes: list[int] = Field(default_factory=list)
-    solve_seconds: float
+    undeliverable_nodes: list[U32] = Field(default_factory=list)
+    solve_seconds: NonNegative
 
 class ExecutorRouteCaseSolution(_Model):
     case_id: str
     solution: ExecutorRoutingSolution
 
 class ExecutorVehicleRoute(_Model):
-    vehicle: int
+    vehicle: U32
     nodes: list[ExecutorRouteVisit]
 
 class ExecutorRouteVisit(_Model):
     node: ExecutorRouteNode
-    arrival: float
+    arrival: NonNegative
 
 class ExecutorRouteNodeDepot(_Model):
     kind: Literal['depot']
-    location: int
+    location: U32
 
 class ExecutorRouteNodeOrder(_Model):
     kind: Literal['order']
-    node: int
+    node: U32
 
 class ExecutorRouteNodeBreak(_Model):
     kind: Literal['break']
-    location: int
+    location: U32
 
 ExecutorRouteNode = Annotated[ExecutorRouteNodeDepot | ExecutorRouteNodeOrder | ExecutorRouteNodeBreak, Field(discriminator='kind')]
 
@@ -410,20 +417,20 @@ class ExecutorMathematicalSolution(_Model):
     primal_objective: float | None = None
     dual_objective: float | None = None
     best_bound: float | None = None
-    relative_gap: float | None = None
-    primal_residual: float | None = None
-    dual_residual: float | None = None
-    iterations: int | None = None
-    nodes: int | None = None
+    relative_gap: NonNegative | None = None
+    primal_residual: NonNegative | None = None
+    dual_residual: NonNegative | None = None
+    iterations: U64 | None = None
+    nodes: U64 | None = None
     incumbents: list[ExecutorIncumbent] = Field(default_factory=list)
-    solve_seconds: float
+    solve_seconds: NonNegative
 
 class ExecutorIncumbent(_Model):
-    sequence: int
+    sequence: U64
     values: list[float]
     objective: float
     bound: float
-    found_at_seconds: float
+    found_at_seconds: NonNegative
 
 VerificationFinding.model_rebuild()
 ExecutorRequest.model_rebuild()

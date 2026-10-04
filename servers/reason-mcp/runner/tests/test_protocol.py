@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from testing.python.protocol_schema import assert_peer_snapshot
+
 import json
 
 import pytest
@@ -113,9 +119,9 @@ def test_response_serializes_the_tagged_answer() -> None:
 
 
 def test_answer_kind_mapping_matches_the_rust_contract() -> None:
-    assert protocol.answer_kind_for(protocol.DescribeSegment()) == "description"
+    assert protocol.answer_kind_for(protocol.DescribeSegment(kind="describe_segment")) == "description"
     assert (
-        protocol.answer_kind_for(protocol.AnswerQuestion(question="what happened?")) == "answer"
+        protocol.answer_kind_for(protocol.AnswerQuestion(kind="answer_question", question="what happened?")) == "answer"
     )
 
 @pytest.mark.parametrize("path", [
@@ -130,3 +136,36 @@ def test_owned_request_shapes_reject_nested_additions(path) -> None:
     target["unexpected"] = True
     with pytest.raises(ValueError):
         protocol.parse_request(json.dumps(document).encode())
+
+
+def test_private_protocol_schema_compatibility():
+    assert_peer_snapshot(
+        Path(__file__).resolve().parents[2] / "testdata/private-protocol.schema.json",
+        protocol.RunnerRequest.model_json_schema(mode="validation"),
+        protocol.RunnerResponse.model_json_schema(mode="serialization"),
+    )
+
+
+def test_nested_integer_widths_and_closed_model_vocabulary():
+    import copy
+    for location, key, value in [
+        ((), "input_width", 2**16), ((), "decode_start_index", 2**63),
+        ((), "max_events", 0), ((), "max_answer_bytes", 0), ((), "max_response_bytes", 0),
+        (("sampling",), "max_frames", 2**32),
+        (("model",), "format", "uncontrolled"),
+        (("grounding",), "schema", "uncontrolled"),
+        (("grounding", "frames", 0, "detections", 0), "track_id", -1),
+        (("model", "engine"), "gpu_memory_utilization", float("nan")),
+    ]:
+        changed = copy.deepcopy(request_document())
+        target = changed
+        for segment in location:
+            target = target[segment]
+        target[key] = value
+        with pytest.raises(ValueError):
+            protocol.parse_request(json.dumps(changed).encode())
+    for key in ("observed_frames", "elapsed_ms"):
+        response = {"answer": {"kind": "description", "text": "observed"}, "observed_frames": 1, "elapsed_ms": 0}
+        response[key] = 2**64
+        with pytest.raises(ValueError):
+            protocol.RunnerResponse.model_validate(response)

@@ -122,10 +122,29 @@ impl From<FiniteF64> for f64 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(try_from = "f64", into = "f64")]
-#[schemars(with = "f64")]
 pub struct NonNegativeF64(f64);
+
+impl JsonSchema for NonNegativeF64 {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        f64::schema_name()
+    }
+
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        concat!(module_path!(), "::NonNegativeF64").into()
+    }
+
+    fn inline_schema() -> bool {
+        f64::inline_schema()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        let mut schema = f64::json_schema(generator);
+        schema.insert("minimum".into(), 0.0.into());
+        schema
+    }
+}
 
 impl NonNegativeF64 {
     pub fn new(value: f64) -> Result<Self, OptimizationContractError> {

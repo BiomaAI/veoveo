@@ -35,7 +35,7 @@ def text(value: object) -> str:
 
 
 class _Wire(BaseModel):
-    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True, allow_inf_nan=False)
 
 
 class ProbeRequest(_Wire):
@@ -45,13 +45,13 @@ class ProbeRequest(_Wire):
 class FileRequest(_Wire):
     operation: Literal["file"]
     path: str
-    max_duration_seconds: int
+    max_duration_seconds: Annotated[int, Field(ge=0, le=2**32 - 1)]
 
 
 class LiveRequest(_Wire):
     operation: Literal["live"]
-    sample_rate: int
-    max_duration_seconds: int
+    sample_rate: Annotated[int, Field(ge=0, le=2**32 - 1)]
+    max_duration_seconds: Annotated[int, Field(ge=0, le=2**32 - 1)]
 
 
 RequestWire = Annotated[ProbeRequest | FileRequest | LiveRequest, Field(discriminator="operation")]
@@ -117,8 +117,8 @@ def validate_wire(adapter: TypeAdapter, value: object, *, encoded: bool = False)
 class Request:
     operation: str
     path: Path | None = None
-    sample_rate: int | None = None
-    max_duration_seconds: int = 0
+    sample_rate: Annotated[int, Field(ge=0, le=2**32 - 1)] | None = None
+    max_duration_seconds: Annotated[int, Field(ge=0, le=2**32 - 1)] = 0
 
     @classmethod
     def parse(cls, line: bytes, work: Path) -> Request:

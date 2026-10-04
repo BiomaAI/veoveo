@@ -9,6 +9,7 @@ use nix::{
     sys::signal::{Signal, killpg},
     unistd::Pid,
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -34,7 +35,8 @@ pub struct AcquisitionHelper {
     config: AcquisitionHelperConfig,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct NormalizeCommand {
     schema_version: u32,
     acquisition_id: String,
@@ -45,7 +47,7 @@ struct NormalizeCommand {
     maximum_output_bytes: u64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct NormalizeResult {
     pub schema_version: u32,
@@ -232,6 +234,34 @@ mod tests {
                 maximum_output_bytes: 1024,
             })
             .is_err()
+        );
+    }
+    #[test]
+    fn private_protocol_schema_snapshot() {
+        let snapshot = serde_json::json!({
+            "request": schemars::generate::SchemaSettings::draft2020_12()
+                .for_serialize().into_generator().into_root_schema_for::<NormalizeCommand>(),
+            "response": schemars::generate::SchemaSettings::draft2020_12()
+                .for_deserialize().into_generator().into_root_schema_for::<NormalizeResult>(),
+        });
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/private-protocol.schema.json");
+        if std::env::var_os("UPDATE_PRIVATE_PROTOCOL_SCHEMAS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                serde_json::to_string_pretty(&snapshot).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let maintained: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(&path)
+                .expect("generate the maintained private protocol schema snapshot"),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot, maintained,
+            "private protocol schema snapshot drift"
         );
     }
 }

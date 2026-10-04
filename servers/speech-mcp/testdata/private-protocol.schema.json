@@ -1,0 +1,241 @@
+{
+  "request": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "WorkerRequest",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "const": "probe"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "max_duration_seconds": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "operation": {
+            "type": "string",
+            "const": "file"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "path",
+          "max_duration_seconds"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "sample_rate": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "max_duration_seconds": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "operation": {
+            "type": "string",
+            "const": "live"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "sample_rate",
+          "max_duration_seconds"
+        ]
+      }
+    ]
+  },
+  "response": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "WorkerEvent",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "accepted"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "string"
+          },
+          "device": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "ready"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "protocol",
+          "device",
+          "model",
+          "revision"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "transcript": {
+            "$ref": "#/$defs/Transcript"
+          },
+          "kind": {
+            "type": "string",
+            "const": "transcript"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "complete",
+          "transcript"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/WorkerError"
+          },
+          "kind": {
+            "type": "string",
+            "const": "error"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "code"
+        ]
+      }
+    ],
+    "$defs": {
+      "Transcript": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Segment"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "duration_seconds",
+          "segments"
+        ]
+      },
+      "Segment": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "format": "double"
+          },
+          "end": {
+            "type": "number",
+            "format": "double"
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Word"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "start",
+          "end",
+          "words"
+        ]
+      },
+      "Word": {
+        "type": "object",
+        "properties": {
+          "word": {
+            "type": "string"
+          },
+          "start": {
+            "type": "number",
+            "format": "double"
+          },
+          "end": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "word",
+          "start",
+          "end"
+        ]
+      },
+      "WorkerError": {
+        "type": "string",
+        "enum": [
+          "invalid_input",
+          "capacity",
+          "inference_failed",
+          "timed_out"
+        ]
+      }
+    }
+  }
+}

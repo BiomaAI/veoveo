@@ -174,6 +174,12 @@ private writable PyTorch and Triton cache directories on the temporary volume.
 
 ## Qualification Limits
 
+The Rust worker protocol and Python models share
+[schema compatibility checks](../../testing/python/DESIGN.md) through
+`testdata/private-protocol.schema.json`. They cover every request and event variant,
+integer widths and closed object fields. Workspace confinement, source duration,
+sample-rate policy and transcript chronology require the owning behavioral tests.
+
 Installed browser acceptance uses fixture microphone audio. Physical devices,
 permission prompts and additional browser/OS combinations need device qualification.
 Long recordings, video-container diversity, full capacity, sustained dictation and

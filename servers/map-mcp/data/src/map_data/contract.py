@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 import json
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from map_data import SCHEMA_VERSION
 
@@ -12,15 +12,19 @@ class ContractError(ValueError):
     pass
 
 
+U64 = Annotated[int, Field(ge=0, le=2**64 - 1, strict=True)]
+AdapterKind = Literal["open_street_map", "authority_vector", "gtfs_schedule", "gtfs_realtime", "s57_enc", "s100", "aixm", "faa_nasr", "environmental"]
+
+
 class NormalizeCommand(BaseModel):
-    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", frozen=True)
-    schema_version: int = SCHEMA_VERSION
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", frozen=True, json_schema_serialization_defaults_required=True)
+    schema_version: Annotated[int, Field(ge=0, le=2**32 - 1, strict=True)] = SCHEMA_VERSION
     acquisition_id: str
-    adapter_kind: str
+    adapter_kind: AdapterKind
     source_path: Path
     output_dir: Path
-    maximum_elapsed_seconds: int
-    maximum_output_bytes: int
+    maximum_elapsed_seconds: U64
+    maximum_output_bytes: U64
 
     @classmethod
     def parse(cls, value: Any) -> "NormalizeCommand":
@@ -52,8 +56,8 @@ class NormalizeCommand(BaseModel):
 
 
 class NormalizeResult(BaseModel):
-    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", frozen=True)
-    schema_version: int = SCHEMA_VERSION
+    model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", frozen=True, json_schema_serialization_defaults_required=True)
+    schema_version: Annotated[int, Field(ge=0, le=2**32 - 1, strict=True)] = SCHEMA_VERSION
     acquisition_id: str
     source_digest_sha256: str
     version_label: str
