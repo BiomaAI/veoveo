@@ -30,7 +30,7 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         (
             "agent-control",
             "apps/console/web/src/generated",
-            serde_json::to_value(veoveo_mcp_contract::agents::schema_bundle())?,
+            serde_json::to_value(veoveo_agent_runtime::contract::control::schema_bundle())?,
         ),
         (
             "artifact-transfer",
@@ -50,7 +50,7 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         (
             "agent-management",
             "apps/console/web/src/generated",
-            serde_json::to_value(veoveo_mcp_contract::agent_management::schema_bundle())?,
+            serde_json::to_value(veoveo_agent_runtime::contract::authoring::schema_bundle())?,
         ),
         (
             "computers",
@@ -65,7 +65,7 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         (
             "workspace",
             "apps/workspace/src/generated",
-            serde_json::to_value(veoveo_mcp_contract::workspace::schema_bundle())?,
+            serde_json::to_value(veoveo_workspace::contract::schema_bundle())?,
         ),
     ];
     // Generate all artifacts before touching an output. Failed conversion leaves no partial set.

@@ -20,7 +20,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
-use veoveo_mcp_contract::workspace as wire;
+use veoveo_workspace::contract as wire;
 
 use crate::{AppState, api};
 

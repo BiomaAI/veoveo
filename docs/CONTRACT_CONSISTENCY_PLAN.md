@@ -21,8 +21,11 @@ Recording owns its catalog and ingest policy; optional modules own their policy
 actions through a shared registry. Native owner, admission and schema tests pass,
 including exported-schema validation of all five installation catalogs. Affected
 consumer checks and independent contract/runtime builds pass. Installed catalog
-startup admission remains open. Agents' authoring and dependent Workspace contracts
-still require extraction before Phase 3. Five additional browser contract
+startup admission remains open. Agents' authoring and operator-control models and the
+dependent Workspace contracts have moved to their owners. Native tests, affected
+consumer checks and isolated contract/adapter builds pass; generated browser schemas
+are unchanged. Production persistence ownership is the next implementation concern.
+Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
 This is the single implementation plan for the former Foundations, Contract
@@ -306,7 +309,7 @@ qualified profile; D12 records the separate Apple proposal.
 | Leak | Evidence |
 |---|---|
 | Module persistence in the kernel store | `platform/store/src`: Workspace 1,885 lines and 27 query files; Agent management 1,634 and 7; Map 3,800 across `map`, `map_authoring`, `map_presentations`, `map_derivations`, `map_projection`; Recordings 3,861 across `recording_catalog`, `recording_ingest`, `recordings`, `recording_blueprints` |
-| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply HTTP handlers, public token claims, Recording configuration and optional policy actions through shared ports. Native checks, isolated builds and affected consumers pass. Agents' authoring and dependent Workspace models still require extraction. Store/Audit's existing Computers contract edges remain for Phase 3 |
+| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply HTTP handlers, public token claims, Recording configuration and optional policy actions through shared ports. Agents' authoring/operator-control models and dependent Workspace models have moved to their owners. Native checks, isolated builds, affected consumers and generated schema checks pass. Store/Audit's existing Computers contract edges remain for Phase 3 |
 | Module schema in the kernel catalog | Every table is defined in `platform/store/migrations`; Optimization and UAV add indexes to `task` (migrations `0042`, `0093`) |
 | Module SQL on kernel tables | Statements reading or writing `task`, `artifact_occurrence` and identity tables directly: Computers 27, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream, Artifact |
 
@@ -718,9 +721,12 @@ configuration and optional policy actions have moved to their owners and pass na
 admission, policy and schema checks. The real conformance export validates the five
 installation catalogs. Affected consumers and seven independent contract/runtime
 builds pass; the existing Store/Audit Computers contract edges belong to Phase 3.
-Installed catalog startup admission remains open. Agents' authoring contract and its
-dependent Workspace models still require extraction before the extension
-architecture is complete.
+Installed catalog startup admission remains open. Agents' authoring and operator-control
+contracts and dependent Workspace models have moved out of MCP. Native tests and
+affected consumer checks pass. Independent builds qualify both pure contracts, the
+Workspace App SDK profile and the Agent catalog adapter. Generated browser schemas
+are unchanged. Kubernetes admission and the native-binary blob-projection check were
+not executed in this batch; they require their declared environments.
 The route registration builder supplies a typed shared context and validates required
 bindings before starting factories. Each domain supplies its own handlers. Independent
 route fixtures qualify a nested namespace without a core prefix declaration, bearer
@@ -802,15 +808,20 @@ domains. Qualify a real full catalog and the same unknown/unbound failures throu
 both gateway and standalone readers. Check package cycles before placing the recipe;
 feature flags do not remove Cargo package cycles.
 
-The remaining `mcp/contract/src/agent_management` authoring DTOs, managed-instance
-operations, template validation, model connections and configuration digests also
-belong to Agents' contract. Move them and their browser/schema consumers before the
+Authoring DTOs, managed-instance operations, operator-control and conversation models,
+template validation, model connections and configuration digests belong to Agents'
+contract. Move them and their browser/schema consumers before the
 Phase 3 ownership audit. Their separate installation inputs do not require additional
 gateway catalog sections. A dependency graph without owner crates does not prove
 modularity while core still defines an optional owner's domain model.
 The pure contract admits models and templates against typed facts from one catalog
 revision: context-to-tenant relationships, installed profiles and approved secret
 purposes. Callers project authenticated tenant and scope facts for visibility checks.
+Agents' separate `catalog` adapter validates the complete control-plane revision
+against the supplied registry before projecting installation facts. Manager and the
+gateway use this adapter; Manager does not acquire a gateway runtime dependency for
+configuration validation. Facts describe the admitted snapshot and do not establish
+current authorization or installation readiness.
 Move the projected `GatewayToolName` below MCP with its parser and schema identity.
 Qualify the existing model, template and ConfigMap digest profiles with fixed expected
 values, preserve public-field redaction and regenerate the browser contract. An
@@ -821,9 +832,10 @@ the same cut; leaving them in MCP would create a reverse dependency on Agents.
 Store uses independent persistence IDs and introduces no package cycle here, so
 this extraction needs no new contract crate. Workspace's `contract` feature enables
 only Agents' contract. Its separate `app-contract` feature owns the native MCP App
-envelopes and complete browser schema bundle, because the pinned SDK brings async
-dependencies even with defaults disabled. Preserve those typed SDK results. Gateway
-and transport feature activation belongs in Workspace's `gateway` feature. Qualify
+envelopes and complete browser schema bundle. This profile includes the pinned SDK's
+default features and async dependencies; it is separate from the pure contract.
+Preserve those typed SDK results. Explicit client and HTTP transport features belong
+in Workspace's `gateway` feature. Qualify
 both lightweight contracts independently and preserve the Workspace-to-Agents
 dependency direction, existing browser filenames and wire schemas.
 
@@ -890,6 +902,23 @@ Reader and RRD own different runtime concerns. The new library has independent s
 and persistence features and adds no process. The server reexports its schema declaration
 under the existing module identity. Move each owner's native tests with its repository,
 and qualify the complete dependency chain against fresh owner lanes in one batch.
+
+Owner repositories wrap the shared Store connection; they cannot retain inherent
+methods on the foreign `PlatformStore` type. Establish the shared observation and
+transaction-error APIs before parallel owner edits. Fresh qualification fixtures
+must bootstrap their selected owner lanes directly. The current fixture's mixed
+`migrate_on_connect(true)` bootstrap cannot prove owner independence or disabled-owner
+absence. Qualify those cases and prerequisites before accepting the moved suites.
+
+Audit's Computer target also crosses this dependency cut. Computers must own its
+typed target codec and lookup-reference projection. Composition binds that codec to
+Audit's extension slot; persisted and query decoding reject unbound targets. Preserve
+the existing target JSON without an extra wrapper, canonical record bytes and the
+same-transaction append path. Audit's owner lane admits a checked record reference
+without enumerating optional tables. Preserve the target index and existing exact
+draft-target list matching. Qualify independent registration, malformed targets,
+canonical hashes, commit/rollback and Audit-only bootstrap before removing the
+Computers contract dependency.
 
 ## Phase 4: Database Field Types
 

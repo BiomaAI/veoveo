@@ -77,3 +77,7 @@ mod tests {
         );
     }
 }
+
+pub mod authoring;
+
+pub mod control;

@@ -1,6 +1,6 @@
 use super::*;
+use veoveo_agent_runtime::contract::control::{AgentConversationEntryState, AgentConversationRole};
 use veoveo_agent_runtime::{AgentControl, AgentControlTarget, OperatorMessageDraft};
-use veoveo_mcp_contract::{AgentConversationEntryState, AgentConversationRole};
 
 /// The agent-kernel keystone: durable detach and resume across processes.
 ///

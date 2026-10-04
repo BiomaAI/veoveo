@@ -1,13 +1,43 @@
-# Workspace Persistence Module
+# Workspace Contracts And Services
 
 ## Standards And Protocols
 
-This crate exposes the internal Rust module declaration contract from
-[`veoveo-modules`](../modules/DESIGN.md). It has no browser, protocol or database
-runtime dependency. Current Workspace persistence executes the qualified SurrealDB
-3.3.0 profile through the [Store Workspace implementation](../store/src/workspace/DESIGN.md).
+Workspace publishes an HTTP JSON application contract with camelCase object fields,
+closed enum spellings and UUID identities. Its operation views project MCP Tasks and
+tool continuations into browser records. The `app-contract` feature preserves native
+MCP `2026-07-28` App results and input responses through the repository's pinned
+RMCP 3.5.0 adapter. These envelopes form the browser edge of an App session; Workspace
+HTTP routes do not implement an MCP server.
 
-## Ownership
+The `schema` feature exposes the internal Rust module declaration contract from
+[`veoveo-modules`](../modules/DESIGN.md). Current Workspace persistence executes the
+qualified SurrealDB 3.3.0 profile through the
+[Store Workspace implementation](../store/src/workspace/DESIGN.md).
+
+## Application Contracts
+
+The [`contract`](src/contract/mod.rs) module owns chat, invitation, participation,
+agent-run and operation DTOs. Its identities admit the UUID parser's complete version
+and alias profile and preserve the existing string schemas. Agents supplies model
+references and budgets through its contract-only library. Gateway supplies the typed
+hosted tool name. Artifact references use the Artifact contract.
+
+`contract` activates model, serialization and schema dependencies, including the
+shared Chrono clock profile. It does not activate MCP integration, asynchronous
+execution, Store or runtime services. `app-contract` adds
+[`apps.rs`](src/contract/apps.rs) and the pinned RMCP SDK's default features
+(base64, macros and server) with schema support. This SDK profile includes its server
+transport dependencies. Workspace enables the SDK's client and HTTP client transport
+features through `gateway`.
+`AppToolResult` preserves the SDK's typed Task, input-required and completed result
+variants. `schema_bundle()` is available with `app-contract` and includes the complete
+browser contract, including native App envelopes.
+
+Workspace wire identities and Store persistence identities are distinct types. Gateway
+adapters convert between them at the application service boundary. Store and Workspace
+do not depend on each other's packages for these identities.
+
+## Schema Ownership
 
 The `schema` feature exports `schema::module_setup(execution)` for the optional
 `workspace` module. It claims `workspace_*` tables and the explicit functions
@@ -45,5 +75,6 @@ and audit. The empty declaration does not certify the current reverse writes.
 
 The optional `gateway` feature owns the Workspace HTTP application API in
 [`src/gateway/DESIGN.md`](src/gateway/DESIGN.md). Its dependencies are gated separately
-from schema declarations. Workspace consumes the Agents library and reusable gateway
-HTTP services. The Agents library can initialize and serve without Workspace.
+from schema declarations. `gateway` activates `app-contract`, the Agents gateway profile,
+and RMCP client and HTTP transport features. Workspace consumes reusable gateway HTTP
+services and the Agents library. Agents can initialize and serve without Workspace.

@@ -14,9 +14,9 @@ use std::{
 };
 use surrealdb::types::{RecordId, RecordIdKey, ToSql, Value};
 use uuid::Uuid;
+use veoveo_agent_runtime::contract::authoring::RuntimeTemplate;
 use veoveo_agent_runtime::gateway::runtime_template_revision;
 use veoveo_bioma_acceptance::pilot_cutover::{PilotAdoption, adopt};
-use veoveo_mcp_contract::agent_management::RuntimeTemplate;
 use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_platform_store::{
     AgentRecord, PlatformStore, PrincipalRecord, StoreConfig, StoreCredentials,

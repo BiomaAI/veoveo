@@ -1,14 +1,14 @@
 use crate::contract::AgentAction;
+use crate::contract::control::{
+    AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest, AgentWakeReceipt,
+};
 use crate::{
     AgentControlReceipt, AgentControlTarget, AgentRuntimeError, GovernedInputRequest,
     InputRequestAnswer, InputRequestDecisionDraft, OperatorMessageDraft, json_object,
 };
 use std::{str::FromStr, time::Instant};
 use veoveo_mcp_contract::audit::AdministrativeOperation;
-use veoveo_mcp_contract::{
-    AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest,
-    AgentWakeReceipt, GatewayProfile, PolicyTarget,
-};
+use veoveo_mcp_contract::{GatewayProfile, PolicyTarget};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_mcp_gateway::http::auth_support::internal_error_response;
 use veoveo_platform_store::{AgentInputRequestId, AgentInputRequestState};

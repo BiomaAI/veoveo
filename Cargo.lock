@@ -16025,6 +16025,8 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "veoveo-agent-runtime",
+ "veoveo-gateway-catalog",
  "veoveo-mcp-contract",
  "veoveo-modules",
  "veoveo-platform-store",
@@ -16127,6 +16129,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-artifact-service",
  "veoveo-deploy-contract",
+ "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
@@ -16507,6 +16510,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "veoveo-agent-runtime",
  "veoveo-artifact-contract",
  "veoveo-computers-contract",
  "veoveo-computers-transport",
@@ -16516,6 +16520,7 @@ dependencies = [
  "veoveo-recording-mcp",
  "veoveo-speech-contract",
  "veoveo-types",
+ "veoveo-workspace",
 ]
 
 [[package]]
@@ -16844,6 +16849,7 @@ dependencies = [
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "thiserror 2.0.20",
  "url",
  "veoveo-types",
 ]
@@ -16990,6 +16996,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-deploy-contract",
  "veoveo-duckdb-runtime",
+ "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
@@ -17912,6 +17919,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-deploy-contract",
+ "veoveo-gateway-contract",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
@@ -18088,6 +18096,7 @@ dependencies = [
  "rig",
  "rmcp",
  "rustls",
+ "schemars 1.2.2",
  "secrecy",
  "serde",
  "serde_json",
@@ -18135,6 +18144,7 @@ dependencies = [
  "tempfile",
  "url",
  "uuid",
+ "veoveo-agent-runtime",
  "veoveo-audit-contract",
  "veoveo-computers-contract",
  "veoveo-console-bff",
@@ -18146,6 +18156,7 @@ dependencies = [
  "veoveo-recording-contract",
  "veoveo-simulation-contract",
  "veoveo-speech-contract",
+ "veoveo-workspace",
 ]
 
 [[package]]

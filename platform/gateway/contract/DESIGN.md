@@ -17,7 +17,7 @@ directly. MCP owns the MetaObject adapter and sorted/deduplicated degradation wr
 
 A separate crate prevents a dependency cycle: MCP contract already feeds gateway
 runtime, while browser schema generation must not enable MCP transports. This library
-depends only on foundational types, Serde, JSON Schema support and the qualified URL library. The extraction preserves the
+depends only on foundational types, Serde, JSON Schema support, typed error derivation and the qualified URL library. The extraction preserves the
 published spellings and schema names. Derived schema collision IDs follow the current
 owning Rust module; they do not change serialized JSON or schema definition names.
 
@@ -48,3 +48,11 @@ policy actions.
 `transport`. MCP owns its separate endpoint with the required MCP transport selector.
 Both profiles reuse the same URL, TLS, CA and secret-reference types. Decoding and
 schema generation preserve existing URL and certificate-path admission.
+
+## Tool Names
+
+`GatewayToolName` composes typed server and local tool names through `from_parts`.
+Its parser admits nonempty lowercase ASCII letters, digits, hyphens and underscores,
+including existing unqualified names. Serde uses the same admission and the public
+schema keeps its string shape and `GatewayToolName` title. Invalid names return the
+owner error type with the existing identifier diagnostic.

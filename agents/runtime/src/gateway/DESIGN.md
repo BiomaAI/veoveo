@@ -17,6 +17,12 @@ The `gateway` feature exposes `ManagedOAuthClientResolver` and
 The adapter depends on the reusable gateway library. Composition supplies the Store
 connection and an immutable template catalog, then binds the resolver once to
 `GatewayState`. Authoring surfaces keep the same template catalog for their choices.
+The owner catalog adapter validates a complete control-plane snapshot against its
+supplied registry before collecting typed context tenants, installed profiles and
+secret purposes. Gateway model and template loading use that snapshot together;
+caller facts borrow the admitted principal's tenant and scopes. These facts describe
+configuration relationships. Handlers still perform current policy and authority
+checks before reading, publishing or dispatching an agent.
 The generic port carries OAuth registrations and authority behavior; managed Store
 records and template packages stay in this module. The owner-only
 `AdmittedManagedOAuthClient` exposes a checked registration to managed dispatch.
@@ -29,8 +35,9 @@ and binds its typed codec in the same immutable registry used for verification a
 issuance. Current registration and template admission precede execution attribution.
 The signed generation and epoch become checked positive counters in the internal
 `AuditManagedExecution`; task observation preserves the token's epoch, while tool
-dispatch checks it against the current instance. Authoring HTTP vocabulary still
-belongs to the shared MCP contract and requires a separate ownership transfer.
+dispatch checks it against the current instance. The
+[Agents authoring contract](../contract/authoring/DESIGN.md) owns the HTTP vocabulary,
+installation model and template admission, and browser schema.
 
 ## Effective Registration
 

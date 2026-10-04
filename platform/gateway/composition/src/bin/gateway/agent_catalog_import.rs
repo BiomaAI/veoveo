@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde::{Deserialize, Serialize};
 use std::{fs::OpenOptions, io::Write, path::PathBuf};
-use veoveo_mcp_contract::agent_management as wire;
+use veoveo_agent_runtime::contract::authoring as wire;
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayControlStore};
 use veoveo_platform_store::{
     StoreAuthLevel, WorkContextMembershipLevel, agent_management as domain,
@@ -46,7 +46,7 @@ struct Definition {
     description: String,
     model: wire::AgentModelId,
     instructions: String,
-    tools: Vec<veoveo_mcp_contract::GatewayToolName>,
+    tools: Vec<veoveo_gateway_contract::GatewayToolName>,
     budgets: wire::Budgets,
     source_digests: Vec<String>,
 }

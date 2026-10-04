@@ -1,8 +1,8 @@
 //! Workspace presentation and persisted chat bindings use admitted Agent facts.
+use crate::contract as wire;
 use veoveo_agent_runtime::gateway::http::execution::{
     ExecutableAgentCatalog, PublishedAgentRevision, ResolvedAgent,
 };
-use veoveo_mcp_contract::workspace as wire;
 use veoveo_platform_store::workspace::WorkspaceAgentAdmission;
 pub(super) fn admission(agent: &ResolvedAgent) -> WorkspaceAgentAdmission {
     WorkspaceAgentAdmission {

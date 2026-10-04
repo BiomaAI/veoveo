@@ -6,8 +6,8 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
+use veoveo_gateway_contract::GatewayToolName;
 use veoveo_mcp_conformance::{knowledge_probes::*, *};
-use veoveo_mcp_contract::GatewayToolName;
 use veoveo_time_mcp::{
     CancelTemporalEventRequest, TemporalEvent, TemporalEventId, TemporalEventState,
     TimeKnowledgeCollection, TimeResource,

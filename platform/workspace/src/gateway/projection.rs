@@ -1,6 +1,6 @@
+use crate::contract as wire;
 use axum::http::StatusCode;
 use uuid::Uuid;
-use veoveo_mcp_contract::workspace as wire;
 use veoveo_platform_store::{RecordId, RecordIdKey, workspace as stored};
 
 pub(super) fn uuid(record: &RecordId) -> Result<Uuid, StatusCode> {

@@ -17,6 +17,7 @@ use super::{
     Api, WorkspaceState, authority, fault,
     operations::{Caller, OperationState},
 };
+use crate::contract as wire;
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, State},
@@ -30,7 +31,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::set_header::SetResponseHeaderLayer;
 use uuid::Uuid;
 use veoveo_agent_runtime::gateway::http::{AgentManagementState, execution::ResolvedAgent};
-use veoveo_mcp_contract::{GatewayProfileId, workspace as wire};
+use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
 use veoveo_platform_store::{
     PlatformStore, WorkspaceAgentId, WorkspaceChatId, WorkspaceMessageId, WorkspaceRunId,

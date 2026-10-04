@@ -4,7 +4,7 @@
 
 The edge projects Veoveo's typed agent-management HTTP JSON and contentless SSE
 contracts through the existing OAuth/PKCE, application cookie and CSRF boundaries.
-Canonical DTOs live in `mcp/contract/src/agent_management`. This is an application
+Canonical DTOs live in `agents/runtime/src/contract/authoring`. This is an application
 projection, not an MCP server or a provider credential endpoint.
 
 ## Authority And Forwarding

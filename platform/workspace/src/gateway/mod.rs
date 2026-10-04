@@ -6,6 +6,7 @@ pub(crate) mod runs;
 #[cfg(test)]
 pub(crate) mod tests;
 
+use crate::contract as wire;
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, Query, State},
@@ -15,7 +16,6 @@ use axum::{
 use serde::Deserialize;
 use tower_http::set_header::SetResponseHeaderLayer;
 use uuid::Uuid;
-use veoveo_mcp_contract::workspace as wire;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     PlatformStore, PrincipalId, WorkspaceChatId, WorkspaceInvitationId,

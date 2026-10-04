@@ -13,6 +13,8 @@ default = ["runtime"]
 contract = []
 runtime = [
     "contract",
+    "dep:veoveo-agent-runtime",
+    "dep:veoveo-workspace",
     "dep:veoveo-artifact-contract",
     "dep:veoveo-mcp-contract",
     "veoveo-mcp-contract/analytics",
@@ -41,6 +43,8 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-agent-runtime = { workspace = true, features = ["contract"], optional = true }
+veoveo-workspace = { workspace = true, features = ["app-contract"], optional = true }
 veoveo-gateway-contract.workspace = true
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types.workspace = true

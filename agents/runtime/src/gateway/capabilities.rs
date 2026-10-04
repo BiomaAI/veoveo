@@ -3,7 +3,8 @@ use axum::http::{HeaderMap, StatusCode};
 use futures::future::BoxFuture;
 use secrecy::SecretString;
 use std::{num::NonZeroU16, sync::Arc};
-use veoveo_mcp_contract::{GatewayProfileId, GatewayToolName, PublicDeployment};
+use veoveo_gateway_contract::GatewayToolName;
+use veoveo_mcp_contract::{GatewayProfileId, PublicDeployment};
 use veoveo_mcp_gateway::{AuthenticatedSubject, http::native_mcp};
 
 #[derive(Clone)]

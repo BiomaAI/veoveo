@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
+use crate::contract::authoring as wire;
 use anyhow::{Context, Result, ensure};
-use veoveo_mcp_contract::{Principal, agent_management as wire};
+use veoveo_mcp_contract::Principal;
 use veoveo_types::WorkContextId;
 
-pub use veoveo_mcp_contract::agent_management::runtime_template_revision;
+pub use crate::contract::authoring::runtime_template_revision;
 use veoveo_mcp_gateway::GatewayCatalog;
 
 #[derive(Clone, Debug, Default)]
@@ -26,9 +27,10 @@ impl ManagedTemplateCatalog {
         let templates: Vec<wire::RuntimeTemplate> =
             serde_json::from_str(value).context("invalid managed templates")?;
         ensure!(templates.len() <= 64, "too many managed templates");
+        let facts = crate::gateway::installation::installation_facts(catalog)?;
         let mut result = Self::default();
         for template in templates {
-            template.validate(catalog.control_plane())?;
+            template.validate(&facts)?;
             ensure!(
                 result
                     .templates
@@ -51,7 +53,12 @@ impl ManagedTemplateCatalog {
     ) -> Vec<wire::TemplateChoice> {
         self.templates
             .values()
-            .filter(|t| t.permits(principal, context))
+            .filter(|t| {
+                t.permits(
+                    crate::gateway::installation::caller_facts(principal),
+                    context,
+                )
+            })
             .map(|t| wire::TemplateChoice {
                 roles: t.roles.iter().cloned().collect(),
                 id: t.id.clone(),

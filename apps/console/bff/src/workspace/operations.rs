@@ -9,7 +9,7 @@ use axum::{
 };
 use serde::Deserialize;
 use uuid::Uuid;
-use veoveo_mcp_contract::workspace as wire;
+use veoveo_workspace::contract as wire;
 
 pub(super) fn router() -> Router<AppState> {
     Router::new()

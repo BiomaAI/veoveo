@@ -6,12 +6,12 @@ The management surface uses authenticated HTTP JSON and cursor-based SSE. Rust o
 closed request/response DTOs and JSON Schema 2020-12 definitions used to generate the
 browser's TypeScript types. SHA-256 values use the shared `sha256:` representation.
 Management is a Veoveo application API; MCP `2026-07-28` remains the protocol for
-capability execution and native Tasks, as specified by the parent server contract.
+capability execution and native Tasks, as specified by the [MCP server contract](../../../../../mcp/contract/DESIGN.md).
 
 ## Boundary
 
 Definition creation, draft editing, publication and instance control are distinct from
-the message/input-request projections in `../agents.rs`. IDs are bounded installation
+the runtime-owned message/input-request projections. IDs are bounded installation
 keys; the tenant and actor always come from authentication. Provider connections and
 runtime templates are approved references. Browser input cannot select a provider URL,
 credential value, container command or invocation authority.
@@ -21,7 +21,7 @@ permission. Publication binds both a management revision and an executable diges
 Every mutation carries a UUIDv7 request identity; it is independent of the definition
 ID. Native MCP Tasks keep their own identities and cancellation semantics.
 
-The [manager design](../../../../agents/manager/DESIGN.md) owns lifecycle behavior
+The [manager design](../../../../manager/DESIGN.md) owns lifecycle behavior
 and qualification. These types alone do not establish installed support.
 
 `templates.rs` separates installation-owned runtime packages from their public
@@ -31,7 +31,7 @@ omit image, namespace, Secret and environment bindings. The gateway and manager
 must validate the full template before admitting an instance.
 
 `instances.rs` owns asynchronous provisioning and generation-preconditioned lifecycle
-requests. Agents' [contract library](../../../../agents/runtime/src/contract/DESIGN.md) owns the
+requests. Agents' [contract library](../DESIGN.md) owns the
 signed managed access-token claim and its instance, generation and dispatch-epoch
 admission. Current registration determines whether the signed claim can be used.
 
@@ -66,7 +66,7 @@ a provider's job status. Public projections omit deployment Secret and image det
 lifecycle manager consume this contract, so the manager does not need to link the entire
 gateway to reproduce model or template admission. Model digests retain the existing
 serialized tuple; names and visibility remain outside executable identity. Template
-validation uses the typed control-plane catalog and restricts integer parameters to
+validation uses immutable `InstallationFacts` and restricts integer parameters to
 the browser's exact integer range.
 
 Immutable ConfigMap content is a sorted string map serialized as compact UTF-8 JSON.
@@ -75,3 +75,22 @@ RFC 8785 canonicalization for arbitrary JSON. The shared hashing implementation 
 workspace pins [`sha2` 0.11.0](https://docs.rs/crate/sha2/0.11.0) and
 [`hex` 0.4.3](https://docs.rs/crate/hex/0.4.3), verified against upstream stable releases
 on September 19, 2026.
+
+## Installation And Caller Facts
+
+The `contract` feature exposes authoring DTOs, template validation and digest functions
+without MCP, Store, gateway runtime or asynchronous dependencies. `InstallationFacts`
+contains context-to-tenant relationships, installed profiles and secret purposes from
+one admitted revision. Its typed constructor rejects duplicate keys. It does not certify
+current installation readiness. `CallerFacts` borrows the caller's tenant and scopes;
+current authentication and authorization belong to the adapter.
+
+The separately gated `catalog` adapter validates a control-plane revision and projects
+these facts. The gateway reads one admitted catalog snapshot for that projection. The
+lifecycle manager uses the same adapter without linking the gateway runtime. Model and
+template validation never read a mutable catalog or principal directly.
+
+Model revision hashes serialize the existing destination/model/secret-reference/budgets
+tuple. Template hashes serialize declared struct fields in order and sorted maps.
+Owner tests fix both digest profiles and the sorted immutable ConfigMap profile. Moving
+the types does not change the public JSON field names or browser schema titles.

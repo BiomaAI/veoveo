@@ -3,6 +3,7 @@
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use veoveo_gateway_contract::AuthorizationServerId;
 
+use crate::contract::ChatWake;
 use axum::{
     Router,
     extract::{Extension, Path, State},
@@ -18,7 +19,7 @@ use futures::StreamExt;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayProfileId, workspace::ChatWake};
+use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::http::stream_limits::Limits;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
 use veoveo_platform_store::{PlatformStore, RecordId, WorkspaceChatId};

@@ -14,8 +14,9 @@ The lightweight `contract` feature owns fourteen closed Agent actions and their
 catalog descriptors. Agent handlers resolve typed keys from the admitted registry
 before authorization or audit. Read access covers conversations, definitions and
 instruction content; all other Agent actions declare write access. The owner keeps
-the existing administrative-operation audit mapping. Authoring and managed-instance
-HTTP DTOs still live in the shared MCP contract pending their separate owner transfer.
+the existing administrative-operation audit mapping. The same feature owns
+[authoring and managed-instance DTOs](src/contract/authoring/DESIGN.md), operator-control
+and conversation DTOs, template/model admission and configuration digests.
 Contract-only builds enable no MCP, database, async runtime or GPU dependency.
 
 ## Gateway Integration
@@ -23,7 +24,9 @@ Contract-only builds enable no MCP, database, async runtime or GPU dependency.
 The optional `gateway` feature owns current managed OAuth registration, installed
 template ceilings and authority admission through the gateway's resolver port.
 Its [adapter design](src/gateway/DESIGN.md) specifies token issuance, current-request
-checks and the remaining shared token vocabulary. Schema-only consumers enable
+checks and the owner token claim. The separate `catalog` adapter validates a complete
+catalog revision and projects installation facts for gateway and Manager consumers.
+Schema-only consumers enable
 neither this adapter nor runtime dependencies.
 
 ## Episode Ownership

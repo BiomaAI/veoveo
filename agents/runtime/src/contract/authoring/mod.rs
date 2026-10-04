@@ -3,7 +3,9 @@ mod ids;
 pub use ids::*;
 mod instances;
 pub use instances::*;
+mod facts;
 mod installation;
+pub use facts::*;
 pub use installation::*;
 mod template_validation;
 mod templates;
@@ -16,7 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::GatewayToolName;
+use veoveo_gateway_contract::GatewayToolName;
 use veoveo_types::{Sha256Digest, WorkContextId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -322,3 +324,7 @@ mod tests {
         assert!(AgentDefinitionId::new("a".repeat(129)).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod installation_tests;

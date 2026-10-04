@@ -21,7 +21,7 @@ use veoveo_types::{ScopeDefinition, WorkContextId, WorkContextMembershipLevel};
 
 pub struct RequestAuthority {
     catalog: PolicyCatalog,
-    allowed_tools: Option<std::collections::BTreeSet<veoveo_mcp_contract::GatewayToolName>>,
+    allowed_tools: Option<std::collections::BTreeSet<veoveo_gateway_contract::GatewayToolName>>,
     pub(crate) control_digest: String,
     pub(crate) collections: Vec<CollectionRegistration>,
     pub(crate) approvals: BTreeMap<
@@ -75,7 +75,8 @@ impl RequestAuthority {
     ) -> bool {
         if let (Some(allowed), PolicyTarget::Tool { server, tool }) = (&self.allowed_tools, target)
         {
-            let Ok(name) = veoveo_mcp_contract::GatewayToolName::from_parts(server, tool) else {
+            let Ok(name) = veoveo_gateway_contract::GatewayToolName::from_parts(server, tool)
+            else {
                 return false;
             };
             if !allowed.contains(&name) {

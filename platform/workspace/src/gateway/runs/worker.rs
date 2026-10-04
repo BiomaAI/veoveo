@@ -1,6 +1,7 @@
 //! Bounded model streaming under the initiating human's current authority.
 use super::super::{authority, projection::uuid};
 use super::{Caller, ResolvedAgent, RunState};
+use crate::contract as wire;
 use axum::http::StatusCode;
 use chrono::Utc;
 use futures::StreamExt;
@@ -15,7 +16,6 @@ use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::OwnedSemaphorePermit;
 use uuid::Uuid;
-use veoveo_mcp_contract::workspace as wire;
 use veoveo_platform_store::{
     WorkspaceChatId, WorkspaceRunId,
     workspace::{

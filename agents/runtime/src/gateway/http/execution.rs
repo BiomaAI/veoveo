@@ -1,7 +1,9 @@
 //! Resolve immutable publications under current use, model and context authority.
 use crate::contract::AgentAction;
+use crate::contract::authoring as wire;
 use axum::http::StatusCode;
-use veoveo_mcp_contract::{GatewayProfileId, GatewayToolName, agent_management as wire};
+use veoveo_gateway_contract::GatewayToolName;
+use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::agent_management as domain;
 
@@ -92,7 +94,10 @@ impl AgentManagementState {
             .find(|model| {
                 model.id == content.model.id
                     && model.revision() == content.model.revision
-                    && model.permits(&subject.principal, &subject.authority.work_context)
+                    && model.permits(
+                        crate::gateway::installation::caller_facts(&subject.principal),
+                        &subject.authority.work_context,
+                    )
                     && model.admits(&content.budgets)
             })
             .ok_or(StatusCode::FORBIDDEN)?
@@ -184,7 +189,10 @@ impl AgentManagementState {
             let Some(model) = self.models.iter().find(|m| {
                 m.id.as_str() == entry.model.id
                     && m.revision().hex() == entry.model.revision
-                    && m.permits(&subject.principal, &subject.authority.work_context)
+                    && m.permits(
+                        crate::gateway::installation::caller_facts(&subject.principal),
+                        &subject.authority.work_context,
+                    )
             }) else {
                 continue;
             };

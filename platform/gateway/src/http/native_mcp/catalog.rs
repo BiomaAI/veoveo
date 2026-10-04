@@ -3,7 +3,8 @@ use axum::http::StatusCode;
 use rmcp::model::{PaginatedRequestParams, ServerNotification, SubscriptionFilter, Tool};
 use std::time::Duration;
 use veoveo_gateway_contract::GatewayDiscoverySurface;
-use veoveo_mcp_contract::{GatewayDiscoveryDegradation, GatewayToolName};
+use veoveo_gateway_contract::GatewayToolName;
+use veoveo_mcp_contract::GatewayDiscoveryDegradation;
 
 use super::{NativeClient, mcp_error};
 

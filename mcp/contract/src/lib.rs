@@ -9,8 +9,6 @@
 pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.ai/hosted-mcp/v3";
 
 pub mod access;
-pub mod agent_management;
-pub mod agents;
 #[cfg(feature = "analytics")]
 pub mod analytics;
 pub mod artifact_service;
@@ -34,16 +32,10 @@ pub mod uri;
 pub mod usage;
 pub mod waiters;
 pub mod work_context;
-pub mod workspace;
 
 pub use access::{
     AccessDecision, AccessRequest, GroupMembership, GroupRole, decide, grant_level_for_caller,
     mac_satisfied, role_in_group,
-};
-pub use agents::{
-    AgentConversationEntry, AgentConversationEntryState, AgentConversationRole,
-    AgentConversationView, AgentInputRequestDecision, AgentInputRequestView,
-    AgentOperatorMessageRequest, AgentWakeReceipt,
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
@@ -89,8 +81,8 @@ pub use gateway::{
     GatewayJwtRevocationAdminStatus, GatewayJwtRevocationApplyResult,
     GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
     GatewayRefreshFamilyId, GatewayRefreshGrant, GatewayRefreshRevocationRequest,
-    GatewayResourceProjection, GatewayResourceSubscription, GatewayToolName, HttpsUrl,
-    IdentityProvider, IdentityProviderClaimMapping, IdentityProviderEndpoint, IdentityProviderId,
+    GatewayResourceProjection, GatewayResourceSubscription, HttpsUrl, IdentityProvider,
+    IdentityProviderClaimMapping, IdentityProviderEndpoint, IdentityProviderId,
     IdentityProviderOidcClientRegistration, IdentityProviderSubjectClaim,
     IdentityProviderTenantClaim, IdentityProviderTenantClaimMapping, JwksFilePath, JwksSource,
     JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,

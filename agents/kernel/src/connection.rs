@@ -40,7 +40,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, watch};
 use veoveo_agent_runtime::AgentRuntime;
-use veoveo_mcp_contract::agent_management::ManagedDispatch;
+use veoveo_agent_runtime::contract::authoring::ManagedDispatch;
 use veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding;
 
 use crate::{

@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use std::{collections::BTreeMap, fs};
-use veoveo_mcp_contract::agent_management::{RuntimeTemplate, runtime_config_revision};
+use veoveo_agent_runtime::contract::authoring::{RuntimeTemplate, runtime_config_revision};
 
 pub(super) fn verify(rendered: &str) -> Result<()> {
     let documents: Vec<Value> = serde_yaml_ng::Deserializer::from_str(rendered)

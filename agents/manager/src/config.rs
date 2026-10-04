@@ -4,7 +4,8 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
 };
-use veoveo_mcp_contract::{GatewayControlPlane, agent_management as wire};
+use veoveo_agent_runtime::contract::authoring as wire;
+use veoveo_mcp_contract::GatewayControlPlane;
 use veoveo_platform_store::agent_management::{
     AgentExecution, AgentTemplateParameter, instances::ManagedAgentReconciliation,
 };
@@ -32,14 +33,18 @@ impl Config {
         );
         let config: Self = serde_json::from_slice(&bytes)?;
         let control: GatewayControlPlane = serde_json::from_slice(&std::fs::read(control)?)?;
-        wire::validate_model_connections(&config.models, &control)?;
+        let facts = veoveo_agent_runtime::catalog::installation_facts(
+            &control,
+            &veoveo_gateway_catalog::registry()?,
+        )?;
+        wire::validate_model_connections(&config.models, &facts)?;
         let mut ids = BTreeSet::new();
         ensure!(
             !config.templates.is_empty() && config.templates.len() <= 32,
             "manager requires one to 32 templates"
         );
         for template in &config.templates {
-            template.validate(&control)?;
+            template.validate(&facts)?;
             ensure!(
                 template.workload.namespace == config.namespace && ids.insert(&template.id),
                 "template namespace or identity mismatch"

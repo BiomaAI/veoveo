@@ -1,4 +1,6 @@
-//! Workspace persistence ownership, separate from the browser application.
+//! Workspace application contracts, gateway services and persistence declarations.
+#[cfg(feature = "contract")]
+pub mod contract;
 #[cfg(feature = "schema")]
 pub mod schema;
 

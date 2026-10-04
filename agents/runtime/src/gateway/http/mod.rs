@@ -20,6 +20,7 @@ mod validation;
 
 use std::sync::Arc;
 
+use crate::contract::authoring as wire;
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, Query, State},
@@ -29,7 +30,6 @@ use axum::{
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::set_header::SetResponseHeaderLayer;
-use veoveo_mcp_contract::agent_management as wire;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
 use veoveo_platform_store::{PlatformStore, agent_management as domain};
 
@@ -365,7 +365,7 @@ async fn authoring(
             .iter()
             .filter(|m| {
                 m.permits(
-                    &actor.subject.principal,
+                    crate::gateway::installation::caller_facts(&actor.subject.principal),
                     &actor.subject.authority.work_context,
                 )
             })

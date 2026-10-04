@@ -6,7 +6,7 @@ The Agents runtime library owns authoring, publication and conversation HTTP rou
 ## Standards And Protocols
 
 The service exposes the typed Veoveo HTTP JSON authoring contract in
-`mcp/contract/src/agent_management`. Existing OAuth session/JWT verification admits
+`agents/runtime/src/contract/authoring`. Existing OAuth session/JWT verification admits
 each request. Model connections use the repository-qualified Rig adapter; MCP
 `2026-07-28` discovery validates tools under the caller's current gateway profile.
 The platform-store catalog owns atomic mutation replay and executable revisions.

@@ -222,6 +222,7 @@ veoveo-gateway-contract = { path = "platform/gateway/contract" }
 veoveo-computers-contract = { path = "platform/computers/contract" }
 veoveo-gateway-catalog = { path = "platform/gateway/catalog" }
 veoveo-workspace = { path = "platform/workspace", default-features = false }
+veoveo-agent-runtime = { path = "agents/runtime", default-features = false }
 veoveo-artifact-contract = { path = "platform/artifacts/contract" }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-deploy-runtime = { path = "deploy/runtime" }

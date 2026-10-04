@@ -8,7 +8,9 @@ use uuid::Uuid;
 use veoveo_types::{PrincipalId, TenantId, WorkContextId};
 mod operations;
 pub use operations::*;
+#[cfg(feature = "app-contract")]
 mod apps;
+#[cfg(feature = "app-contract")]
 pub use apps::*;
 
 // Workspace identities admit the UUID parser's full version and alias profile.
@@ -265,7 +267,7 @@ pub struct AgentDefinition {
     pub provider: String,
     pub model: String,
     pub revision: veoveo_types::Sha256Digest,
-    pub tools: Vec<crate::GatewayToolName>,
+    pub tools: Vec<veoveo_gateway_contract::GatewayToolName>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -367,9 +369,9 @@ pub struct UpdateChatAgent {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentRevisionView {
     pub revision: veoveo_types::Sha256Digest,
-    pub model: crate::agent_management::ModelReference,
-    pub tools: Vec<crate::GatewayToolName>,
-    pub budgets: crate::agent_management::Budgets,
+    pub model: veoveo_agent_runtime::contract::authoring::ModelReference,
+    pub tools: Vec<veoveo_gateway_contract::GatewayToolName>,
+    pub budgets: veoveo_agent_runtime::contract::authoring::Budgets,
     pub instructions_digest: veoveo_types::Sha256Digest,
     pub instructions: Option<String>,
     pub published_by: PersonId,
@@ -426,6 +428,7 @@ pub struct PersonalOperation {
     pub revision: i64,
 }
 
+#[cfg(feature = "app-contract")]
 #[derive(JsonSchema)]
 #[allow(dead_code)]
 struct WorkspaceSchema {
@@ -459,6 +462,7 @@ struct WorkspaceSchema {
     update_app_task: UpdateAppTask,
 }
 
+#[cfg(feature = "app-contract")]
 pub fn schema_bundle() -> schemars::Schema {
     schemars::schema_for!(WorkspaceSchema)
 }

@@ -3,7 +3,7 @@ mod admission;
 use super::*;
 use kubernetes_types::*;
 use serde_json::json;
-use veoveo_mcp_contract::agent_management as wire;
+use veoveo_agent_runtime::contract::authoring as wire;
 use veoveo_platform_store::agent_management::{AgentRevision, instances::*};
 
 fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {

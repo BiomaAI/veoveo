@@ -4,7 +4,8 @@ use rmcp::model::{
     ErrorData as McpError, PaginatedRequestParams, Prompt, Resource, ResourceTemplate, Tool,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use veoveo_mcp_contract::{GatewayToolName, Page};
+use veoveo_gateway_contract::GatewayToolName;
+use veoveo_mcp_contract::Page;
 use veoveo_types::{PromptName, ResourceTemplateUri, ResourceUri};
 
 use crate::mcp_support::{mcp_internal, mcp_invalid_params};

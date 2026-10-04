@@ -4,12 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_types::OAuthClientId;
 
+use crate::contract::authoring as wire;
 use chrono::{TimeDelta, Utc};
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     AccessTokenSubject, GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalKind,
-    ServerSlug, TokenIssuer, TokenSubject, agent_management as wire,
+    ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
     PlatformStore, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,

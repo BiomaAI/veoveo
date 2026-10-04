@@ -3,6 +3,7 @@ use crate::contract::AgentAction as Action;
 mod admission;
 mod projection;
 
+use crate::contract::authoring as wire;
 use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
@@ -10,7 +11,7 @@ use axum::{
     routing::get,
 };
 use uuid::Uuid;
-use veoveo_mcp_contract::{PolicyTarget, agent_management as wire};
+use veoveo_mcp_contract::PolicyTarget;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{RecordId, agent_management::instances::*};
 

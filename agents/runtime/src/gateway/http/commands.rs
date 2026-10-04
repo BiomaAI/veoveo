@@ -1,10 +1,11 @@
 use crate::contract::AgentAction as Action;
+use crate::contract::authoring as wire;
 use axum::{
     Json,
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
-use veoveo_mcp_contract::{PolicyTarget, agent_management as wire};
+use veoveo_mcp_contract::PolicyTarget;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{PrincipalId, agent_management as domain};
 

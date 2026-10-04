@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::contract::authoring as wire;
 use surrealdb::types::{RecordId, SurrealValue, ToSql};
-use veoveo_mcp_contract::agent_management as wire;
 use veoveo_platform_store::agent_management::instances::*;
 
 use super::super::{AgentManagementState, Fault, authority::Admission, projection as common};

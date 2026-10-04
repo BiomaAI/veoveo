@@ -115,8 +115,8 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
         let definitions = ["duplicate", "cancel"].map(|id| {
             let mut definition = tests::definition(id, &origin);
             definition.tools = vec![
-                veoveo_mcp_contract::GatewayToolName::new("fixture__task").unwrap(),
-                veoveo_mcp_contract::GatewayToolName::new("fixture__unavailable").unwrap(),
+                veoveo_gateway_contract::GatewayToolName::new("fixture__task").unwrap(),
+                veoveo_gateway_contract::GatewayToolName::new("fixture__unavailable").unwrap(),
             ];
             definition
         });

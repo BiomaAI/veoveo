@@ -1,10 +1,10 @@
+use crate::contract as wire;
 use axum::http::StatusCode;
 use rmcp::model::{
     ElicitRequestParams, ElicitResult, ElicitationAction, InputRequest, InputRequests,
     InputResponses,
 };
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::workspace as wire;
 
 fn digest(request: &InputRequest) -> Result<String, StatusCode> {
     Ok(hex::encode(Sha256::digest(

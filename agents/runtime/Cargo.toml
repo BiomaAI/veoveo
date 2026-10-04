@@ -8,14 +8,16 @@ name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
 [features]
-contract = ["dep:veoveo-gateway-contract", "dep:veoveo-types", "dep:serde", "dep:serde_json", "dep:schemars"]
-gateway = ["runtime", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
+contract = ["dep:veoveo-gateway-contract", "dep:veoveo-types", "dep:serde", "dep:serde_json", "dep:schemars", "dep:chrono", "dep:uuid", "dep:sha2", "dep:hex", "dep:url", "dep:anyhow"]
+catalog = ["contract", "dep:veoveo-mcp-contract"]
+gateway = ["runtime", "catalog", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
     "contract",
     "dep:async-stream",
     "dep:chrono",
+    "chrono/clock",
     "dep:futures",
     "dep:serde",
     "dep:serde_json",
@@ -30,7 +32,7 @@ runtime = [
 
 [dependencies]
 veoveo-gateway-contract = { workspace = true, optional = true }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true, features = ["chrono04", "uuid1"], optional = true }
 axum = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
@@ -48,19 +50,20 @@ jsonwebtoken = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 async-stream = { version = "=0.3.6", optional = true }
-chrono = { workspace = true, optional = true }
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }
 futures = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
 thiserror = { version = "2.0.20", optional = true }
 tokio = { workspace = true, features = ["time"], optional = true }
-uuid = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["serde", "v7"], optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
 veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+chrono.workspace = true
 veoveo-computers-contract.workspace = true
 veoveo-recording-contract.workspace = true
 tower.workspace = true

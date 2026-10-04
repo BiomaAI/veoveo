@@ -10,6 +10,9 @@ extern crate self as veoveo_agent_runtime;
 #[cfg(feature = "contract")]
 pub mod contract;
 
+#[cfg(feature = "catalog")]
+pub mod catalog;
+
 #[cfg(feature = "runtime")]
 mod control;
 #[cfg(feature = "runtime")]

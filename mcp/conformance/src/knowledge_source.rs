@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use anyhow::{Result, ensure};
 use rmcp::model::{ResourceTemplate, Tool};
 use url::Url;
-use veoveo_mcp_contract::GatewayToolName;
+use veoveo_gateway_contract::GatewayToolName;
 use veoveo_mcp_knowledge_extension::client;
 use veoveo_types::{LocalToolName, ResourceScheme, ServerSlug};
 

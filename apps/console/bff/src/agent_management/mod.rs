@@ -17,7 +17,7 @@ use axum::{
 };
 use futures::StreamExt;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use veoveo_mcp_contract::agent_management as wire;
+use veoveo_agent_runtime::contract::authoring as wire;
 
 pub(crate) fn router(app: BrowserApp) -> Router<AppState> {
     Router::new().nest(

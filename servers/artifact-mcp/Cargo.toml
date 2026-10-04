@@ -87,6 +87,7 @@ veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], op
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 
 [dev-dependencies]
+veoveo-gateway-contract.workspace = true
 axum.workspace = true
 object_store.workspace = true
 rcgen.workspace = true

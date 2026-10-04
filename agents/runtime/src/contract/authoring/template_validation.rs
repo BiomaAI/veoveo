@@ -1,11 +1,11 @@
 use super as wire;
-use crate::{GatewayControlPlane, Principal};
+use super::{CallerFacts, InstallationFacts};
 use anyhow::{Context, Result, ensure};
 use std::collections::{BTreeMap, BTreeSet};
 use veoveo_types::{Sha256Digest, WorkContextId};
 
 impl wire::RuntimeTemplate {
-    pub fn validate(&self, catalog: &GatewayControlPlane) -> Result<()> {
+    pub fn validate(&self, facts: &InstallationFacts) -> Result<()> {
         let template = self;
         ensure!(
             !template.name.trim().is_empty() && template.name.len() <= 200,
@@ -17,16 +17,12 @@ impl wire::RuntimeTemplate {
         );
         for context in &template.work_contexts {
             ensure!(
-                catalog
-                    .work_contexts
-                    .iter()
-                    .find(|c| c.id == *context)
-                    .is_some_and(|c| c.tenant == template.tenant),
+                facts.context_tenant(context) == Some(&template.tenant),
                 "template context belongs to another tenant"
             );
         }
         ensure!(
-            catalog.profiles.iter().any(|p| p.id == template.profile),
+            facts.profile_installed(&template.profile),
             "template profile is not installed"
         );
         ensure!(
@@ -76,13 +72,8 @@ impl wire::RuntimeTemplate {
         for binding in &w.model_secrets {
             ensure!(
                 secrets.insert(&binding.reference)
-                    && catalog
-                        .secrets
-                        .iter()
-                        .find(|s| s.id == binding.reference)
-                        .is_some_and(
-                            |s| s.purpose == veoveo_gateway_contract::SecretPurpose::ProviderApiKey
-                        ),
+                    && facts.secret_purpose(&binding.reference)
+                        == Some(&veoveo_gateway_contract::SecretPurpose::ProviderApiKey),
                 "template requires unique approved model credentials"
             );
             kubernetes_name(&binding.secret)?;
@@ -145,10 +136,10 @@ impl wire::RuntimeTemplate {
         Ok(())
     }
 
-    pub fn permits(&self, principal: &Principal, context: &WorkContextId) -> bool {
-        principal.tenant.as_ref() == Some(&self.tenant)
+    pub fn permits(&self, caller: CallerFacts<'_>, context: &WorkContextId) -> bool {
+        caller.tenant == Some(&self.tenant)
             && self.work_contexts.contains(context)
-            && self.required_deployer_scopes.is_subset(&principal.scopes)
+            && self.required_deployer_scopes.is_subset(caller.scopes)
     }
 
     pub fn accepts_parameters(

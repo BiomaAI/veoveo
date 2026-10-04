@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use surrealdb::types::ToSql;
 
-use veoveo_mcp_contract::agent_management as wire;
+use crate::contract::authoring as wire;
 use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_platform_store::{
     RecordId, RecordIdKey, agent_management as domain, deterministic_work_context_id,
@@ -79,7 +79,9 @@ pub(super) fn public_content(value: domain::AgentContent) -> Result<wire::Conten
         tools: value
             .tools
             .into_iter()
-            .map(|t| veoveo_mcp_contract::GatewayToolName::new(t).map_err(|_| Fault::unavailable()))
+            .map(|t| {
+                veoveo_gateway_contract::GatewayToolName::new(t).map_err(|_| Fault::unavailable())
+            })
             .collect::<Result<_, _>>()?,
         budgets: wire::Budgets {
             max_output_tokens: value.budgets.max_output_tokens,

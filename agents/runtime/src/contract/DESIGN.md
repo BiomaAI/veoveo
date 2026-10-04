@@ -38,3 +38,18 @@ requesting authorization. Shared policy code evaluates the rule and principal.
 `src/gateway/tests/policy_actions.rs` qualifies the selector restrictions through the
 full catalog validator. The vocabulary's own tests check its wire spellings. These
 tests do not establish installed instance lifecycle behavior.
+
+## Authoring Contract
+
+The [authoring contract](authoring/DESIGN.md) owns definitions, revisions, model choices,
+runtime templates and instance-control DTOs. Its installation facts and borrowed
+caller facts keep validation independent of gateway catalog and principal types.
+The `contract` feature gates every dependency it uses and excludes runtime services;
+the optional `catalog` feature provides the MCP-model projection adapter.
+
+## Operator Control
+
+`control.rs` owns authenticated operator messages, input-request decisions, wake
+receipts and conversation views. Closed JSON request shapes reject supplied authority.
+Conversation entries expose runtime wakes and episodes without server-domain fields.
+The browser schema bundle keeps the `agent-control` filename and existing DTO shapes.

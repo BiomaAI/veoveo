@@ -1,10 +1,10 @@
 use crate::contract::AgentAction as Action;
+use crate::contract::authoring as wire;
 use axum::{
     Json,
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
-use veoveo_mcp_contract::agent_management as wire;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::agent_management::{AgentDefinition, AgentPublicationContext};
 use veoveo_types::WorkContextId;
@@ -73,7 +73,7 @@ pub(super) async fn check(
     match state.models.iter().find(|m| {
         m.id == content.model.id
             && m.permits(
-                &actor.subject.principal,
+                crate::gateway::installation::caller_facts(&actor.subject.principal),
                 &actor.subject.authority.work_context,
             )
     }) {
@@ -97,10 +97,12 @@ pub(super) async fn check(
                     "The requested budgets exceed this model's approved limits.",
                 );
             }
-            if audience
-                .iter()
-                .any(|c| !model.permits(&actor.subject.principal, c))
-            {
+            if audience.iter().any(|c| {
+                !model.permits(
+                    crate::gateway::installation::caller_facts(&actor.subject.principal),
+                    c,
+                )
+            }) {
                 finding(
                     wire::FindingCode::ModelUnavailable,
                     "audience",
@@ -119,7 +121,7 @@ pub(super) async fn check(
         use crate::gateway::runtime_template_revision;
         match state.templates.get(template).filter(|t| {
             t.permits(
-                &actor.subject.principal,
+                crate::gateway::installation::caller_facts(&actor.subject.principal),
                 &actor.subject.authority.work_context,
             ) && runtime_template_revision(t) == *template_revision
         }) {
@@ -255,7 +257,7 @@ pub(super) async fn capabilities(
         .take(512)
         .map(|t| {
             Ok(wire::CapabilityChoice {
-                name: veoveo_mcp_contract::GatewayToolName::new(t.name.to_string())
+                name: veoveo_gateway_contract::GatewayToolName::new(t.name.to_string())
                     .map_err(|_| Fault::unavailable())?,
                 title: t.title.unwrap_or_else(|| t.name.to_string()),
                 description: t.description.map(|d| d.into_owned()).unwrap_or_default(),

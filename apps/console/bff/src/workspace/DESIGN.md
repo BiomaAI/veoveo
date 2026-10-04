@@ -4,7 +4,7 @@
 
 The browser edge exposes `/workspace/api` as same-origin HTTP JSON. It uses the
 shared OAuth authorization-code/PKCE implementation with a dedicated Workspace
-client/profile, encrypted session cookie and CSRF header. DTOs come from `mcp/contract/src/workspace.rs`; the browser never receives
+client/profile, encrypted session cookie and CSRF header. DTOs come from `veoveo_workspace::contract` with its `app-contract` feature; the browser never receives
 an access token. Workspace is a separate application using the existing edge
 deployment.
 

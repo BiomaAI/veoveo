@@ -1,6 +1,6 @@
+use crate::contract::authoring as wire;
 use crate::gateway::runtime_template_revision;
 use axum::http::StatusCode;
-use veoveo_mcp_contract::agent_management as wire;
 use veoveo_platform_store::agent_management::{self as domain, instances::*};
 use veoveo_types::WorkContextMembershipLevel;
 
@@ -52,7 +52,7 @@ pub(super) async fn template(
         .get(template)
         .filter(|t| {
             t.permits(
-                &actor.subject.principal,
+                crate::gateway::installation::caller_facts(&actor.subject.principal),
                 &actor.subject.authority.work_context,
             ) && runtime_template_revision(t) == *template_revision
                 && t.accepts_parameters(parameters)
@@ -70,7 +70,7 @@ pub(super) async fn template(
             m.id == content.model.id
                 && m.revision() == content.model.revision
                 && m.permits(
-                    &actor.subject.principal,
+                    crate::gateway::installation::caller_facts(&actor.subject.principal),
                     &actor.subject.authority.work_context,
                 )
                 && m.required_scopes.is_subset(&template.scopes)

@@ -6,9 +6,9 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
+use veoveo_gateway_contract::GatewayToolName;
 use veoveo_map_mcp::contract::*;
 use veoveo_mcp_conformance::knowledge_probes::{KnowledgeChangeDriver, KnowledgeProbeFuture};
-use veoveo_mcp_contract::GatewayToolName;
 
 pub enum Mutation {
     Layer(FeatureLayerId),

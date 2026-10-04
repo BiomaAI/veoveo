@@ -2,7 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use rmcp::{Peer, RoleClient, model::CallToolRequestParams};
 use serde::{Serialize, de::DeserializeOwned};
-use veoveo_mcp_contract::GatewayToolName;
+use veoveo_gateway_contract::GatewayToolName;
 
 pub async fn call<I: Serialize, O: DeserializeOwned>(
     peer: &Peer<RoleClient>,

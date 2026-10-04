@@ -102,14 +102,14 @@ pub(super) fn catalog() -> GatewayCatalog {
     crate::agent_catalog::fixture_catalog()
 }
 pub(super) fn definition(id: &str, base_url: &str) -> ResolvedAgent {
-    let budgets = veoveo_mcp_contract::agent_management::Budgets {
+    let budgets = veoveo_agent_runtime::contract::authoring::Budgets {
         max_output_tokens: 128,
         max_completion_calls: 4,
         max_tool_calls: 8,
         deadline_seconds: 120,
     };
     let model = veoveo_agent_runtime::gateway::http::models::ModelConnection {
-        id: veoveo_mcp_contract::agent_management::AgentModelId::new(format!("{id}-model"))
+        id: veoveo_agent_runtime::contract::authoring::AgentModelId::new(format!("{id}-model"))
             .unwrap(),
         name: id.into(),
         provider: "Fixture".into(),

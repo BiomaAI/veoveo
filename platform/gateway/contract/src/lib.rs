@@ -17,3 +17,6 @@ pub use catalog::*;
 
 mod actions;
 pub use actions::*;
+
+mod tool_name;
+pub use tool_name::*;

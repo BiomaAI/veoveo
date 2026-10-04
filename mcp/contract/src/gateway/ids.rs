@@ -34,30 +34,6 @@ use super::wire::{
 #[id(string, validate = validate_path_id, error = IdentifierError)]
 pub struct IdentityProviderId(String);
 
-/// Gateway-scoped tool name after server namespace projection.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    veoveo_types::Id,
-)]
-#[serde(try_from = "String", into = "String")]
-#[id(string, validate = validate_gateway_name, error = IdentifierError)]
-pub struct GatewayToolName(String);
-impl GatewayToolName {
-    /// Compose the gateway namespace from typed server and local tool names.
-    pub fn from_parts(server: &ServerSlug, tool: &LocalToolName) -> Result<Self, IdentifierError> {
-        Self::new(format!("{server}__{tool}"))
-    }
-}
-
 /// Artifact-service audience admitted for one hosted server.
 #[derive(
     Debug,

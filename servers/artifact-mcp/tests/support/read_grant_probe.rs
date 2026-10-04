@@ -15,8 +15,8 @@ use veoveo_artifact_contract::ArtifactId;
 use veoveo_artifact_mcp::contract::{
     ArtifactGrantsOutput, ArtifactResource, GrantArtifactRequest, RevokeArtifactGrantRequest,
 };
+use veoveo_gateway_contract::GatewayToolName;
 use veoveo_mcp_conformance::knowledge_probes::{KnowledgeChangeDriver, KnowledgeProbeFuture};
-use veoveo_mcp_contract::GatewayToolName;
 use veoveo_types::{AccessLevel, AccessSubject};
 
 #[derive(Deserialize)]

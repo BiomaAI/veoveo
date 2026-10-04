@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, ensure};
 use uuid::Uuid;
 use veoveo_agent_runtime::ManagedRuntimeBinding;
-use veoveo_mcp_contract::agent_management as wire;
+use veoveo_agent_runtime::contract::authoring as wire;
 use veoveo_platform_store::{
     PlatformStore,
     agent_management::{AgentExecution, instances::ManagedAgentRegistration},

@@ -2,8 +2,8 @@
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, fs::File, path::Path, process::Command};
+use veoveo_agent_runtime::contract::authoring::RuntimeTemplate;
 use veoveo_bioma_acceptance::pilot_cutover::PilotAdoption;
-use veoveo_mcp_contract::agent_management::RuntimeTemplate;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

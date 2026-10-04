@@ -1,7 +1,7 @@
 //! Fixed workload composition from an admitted template and immutable revision.
 use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
-use veoveo_mcp_contract::agent_management as wire;
+use veoveo_agent_runtime::contract::authoring as wire;
 use veoveo_platform_store::agent_management::{
     AgentExecution, AgentTemplateParameter,
     instances::{ManagedAgentInstance, ManagedAgentReconciliation},

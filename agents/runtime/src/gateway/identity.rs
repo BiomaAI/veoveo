@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_gateway_contract::OAuthClientId;
 
+use crate::contract::authoring as wire;
 use anyhow::{Context, Result, ensure};
 use jsonwebtoken::jwk::{
     AlgorithmParameters, CommonParameters, Jwk, JwkSet, KeyAlgorithm, PublicKeyUse,
@@ -9,7 +10,7 @@ use jsonwebtoken::jwk::{
 };
 use veoveo_mcp_contract::{
     OAuthClientAuthMethod, OAuthClientRegistration, OAuthClientSurface, OAuthGrantType,
-    PolicyTarget, Principal, agent_management as wire,
+    PolicyTarget, Principal,
 };
 use veoveo_platform_store::{
     agent_management::{AgentExecution, instances::ManagedAgentRegistration},

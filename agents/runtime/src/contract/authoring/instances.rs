@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{AgentDefinitionId, AgentManagedInstanceId, AgentTemplateId};
-use crate::OAuthClientId;
+use veoveo_gateway_contract::OAuthClientId;
 use veoveo_types::{Sha256Digest, WorkContextId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

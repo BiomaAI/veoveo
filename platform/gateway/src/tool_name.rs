@@ -1,7 +1,8 @@
 use std::fmt;
 
 use anyhow::Result;
-use veoveo_mcp_contract::{GatewayToolName, LocalToolName, ServerSlug};
+use veoveo_gateway_contract::GatewayToolName;
+use veoveo_mcp_contract::{LocalToolName, ServerSlug};
 
 use crate::GatewayCatalog;
 
@@ -42,7 +43,7 @@ pub enum GatewayNameError {
     InvalidNamespaceShape(GatewayToolName),
     InvalidServerSlug(veoveo_types::IdentifierError),
     InvalidLocalToolName(veoveo_types::IdentifierError),
-    InvalidProjectedToolName(veoveo_types::IdentifierError),
+    InvalidProjectedToolName(veoveo_gateway_contract::GatewayToolNameError),
 }
 
 impl fmt::Display for GatewayNameError {
@@ -55,9 +56,8 @@ impl fmt::Display for GatewayNameError {
             Self::InvalidNamespaceShape(name) => {
                 write!(f, "gateway tool `{name}` has an invalid namespace shape")
             }
-            Self::InvalidServerSlug(err)
-            | Self::InvalidLocalToolName(err)
-            | Self::InvalidProjectedToolName(err) => err.fmt(f),
+            Self::InvalidServerSlug(err) | Self::InvalidLocalToolName(err) => err.fmt(f),
+            Self::InvalidProjectedToolName(err) => err.fmt(f),
         }
     }
 }

@@ -4,7 +4,7 @@
 
 `/workspace-api/{profile}` is a Veoveo HTTP JSON application contract. It uses the
 gateway's current OAuth access-token, session-family and Work Context admission.
-Rust DTOs are defined in `mcp/contract/src/workspace.rs`. Change notifications use
+Rust DTOs are defined in the Workspace [`contract`](../contract/mod.rs) module. Change notifications use
 Server-Sent Events with committed chat sequence cursors. The endpoint is not MCP;
 capability execution continues through the platform's existing MCP profile.
 

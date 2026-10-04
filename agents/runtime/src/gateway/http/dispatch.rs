@@ -1,11 +1,12 @@
 //! Current managed model authority; this preflight never invokes a model.
+use crate::contract::authoring as wire;
 use axum::{
     Json,
     extract::{Extension, Path, State},
     http::StatusCode,
 };
 use veoveo_gateway_contract::SecretPurpose;
-use veoveo_mcp_contract::{GatewayProfileId, agent_management as wire};
+use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
 use super::{AgentManagementState, Fault, authority, projection};
@@ -76,7 +77,10 @@ pub(super) async fn check(
         .find(|model| {
             model.id == content.model.id
                 && model.revision() == content.model.revision
-                && model.permits(&subject.principal, &subject.authority.work_context)
+                && model.permits(
+                    crate::gateway::installation::caller_facts(&subject.principal),
+                    &subject.authority.work_context,
+                )
                 && model.admits(&content.budgets)
         })
         .ok_or_else(forbidden)?;

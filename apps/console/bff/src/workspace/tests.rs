@@ -700,18 +700,19 @@ async fn task_answers_and_cancellation_use_cookie_authority_and_closed_request_s
 
 #[tokio::test]
 async fn app_tasks_use_workspace_cookie_profile_and_csrf_without_forwarding_browser_auth() {
-    let upstream = Router::new().route(
-        "/workspace-api/workspace/app-tasks/cancel",
-        post(
-            |headers: HeaderMap,
-             Json(body): Json<veoveo_mcp_contract::workspace::AppTaskRequest>| async move {
-                assert_eq!(headers["authorization"], "Bearer cookie-access");
-                assert_eq!(body.app_uri, "ui://fixture/task.html");
-                assert_eq!(body.task_id, "opaque-app-task");
-                Json(rmcp::model::TaskAckResult::new())
-            },
-        ),
-    );
+    let upstream =
+        Router::new().route(
+            "/workspace-api/workspace/app-tasks/cancel",
+            post(
+                |headers: HeaderMap,
+                 Json(body): Json<veoveo_workspace::contract::AppTaskRequest>| async move {
+                    assert_eq!(headers["authorization"], "Bearer cookie-access");
+                    assert_eq!(body.app_uri, "ui://fixture/task.html");
+                    assert_eq!(body.task_id, "opaque-app-task");
+                    Json(rmcp::model::TaskAckResult::new())
+                },
+            ),
+        );
     let edge = Edge::new(upstream).await;
     let body = r#"{"appUri":"ui://fixture/task.html","taskId":"opaque-app-task"}"#;
     let path = "/workspace/api/app-tasks/cancel";
@@ -741,34 +742,33 @@ async fn app_tasks_use_workspace_cookie_profile_and_csrf_without_forwarding_brow
 async fn agent_authoring_keeps_cookie_csrf_profile_and_typed_validation() {
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
-    let upstream =
-        Router::new().route(
-            "/admin/workspace/agent-definitions/researcher/publish",
-            post(
-                move |headers: HeaderMap,
-                      Json(body): Json<
-                    veoveo_mcp_contract::agent_management::PublishDefinition,
-                >| {
-                    let observed = observed.clone();
-                    async move {
-                        observed.fetch_add(1, Ordering::SeqCst);
-                        assert_eq!(headers["authorization"], "Bearer cookie-access");
-                        assert_ne!(headers["host"], "untrusted.invalid");
-                        (
-                            StatusCode::UNPROCESSABLE_ENTITY,
-                            Json(veoveo_mcp_contract::agent_management::Validation {
-                                revision: body.expected_revision,
-                                digest: body.digest,
-                                findings: vec![veoveo_mcp_contract::agent_management::Finding {
-                    code: veoveo_mcp_contract::agent_management::FindingCode::ModelChanged,
+    let upstream = Router::new().route(
+        "/admin/workspace/agent-definitions/researcher/publish",
+        post(
+            move |headers: HeaderMap,
+                  Json(body): Json<
+                veoveo_agent_runtime::contract::authoring::PublishDefinition,
+            >| {
+                let observed = observed.clone();
+                async move {
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(headers["authorization"], "Bearer cookie-access");
+                    assert_ne!(headers["host"], "untrusted.invalid");
+                    (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        Json(veoveo_agent_runtime::contract::authoring::Validation {
+                            revision: body.expected_revision,
+                            digest: body.digest,
+                            findings: vec![veoveo_agent_runtime::contract::authoring::Finding {
+                    code: veoveo_agent_runtime::contract::authoring::FindingCode::ModelChanged,
                     field: "model".into(), message: "Select the approved model revision.".into(),
                 }],
-                            }),
-                        )
-                    }
-                },
-            ),
-        );
+                        }),
+                    )
+                }
+            },
+        ),
+    );
     let edge = Edge::new(upstream).await;
     let path = "/workspace/api/agent-definitions/researcher/publish";
     let body = json!({"requestId":uuid::Uuid::now_v7(),"expectedRevision":2,"digest":format!("sha256:{}", "a".repeat(64)),"audience":["operations"]}).to_string();
@@ -789,11 +789,11 @@ async fn agent_authoring_keeps_cookie_csrf_profile_and_typed_validation() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(response.headers()["cache-control"], "no-store");
     let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
-    let validation: veoveo_mcp_contract::agent_management::Validation =
+    let validation: veoveo_agent_runtime::contract::authoring::Validation =
         serde_json::from_slice(&bytes).unwrap();
     assert!(matches!(
         validation.findings[0].code,
-        veoveo_mcp_contract::agent_management::FindingCode::ModelChanged
+        veoveo_agent_runtime::contract::authoring::FindingCode::ModelChanged
     ));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     let mut forged: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -809,7 +809,7 @@ async fn agent_authoring_keeps_cookie_csrf_profile_and_typed_validation() {
 
 #[tokio::test]
 async fn managed_provisioning_preserves_accepted_operation_and_rejects_browser_authority() {
-    use veoveo_mcp_contract::agent_management as wire;
+    use veoveo_agent_runtime::contract::authoring as wire;
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
     let operation_id = uuid::Uuid::now_v7();

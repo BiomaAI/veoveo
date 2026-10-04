@@ -9,7 +9,7 @@ use axum::{
     routing::{delete, get, post},
 };
 use uuid::Uuid;
-use veoveo_mcp_contract::workspace as wire;
+use veoveo_workspace::contract as wire;
 
 pub(super) fn router() -> Router<AppState> {
     Router::new()
@@ -30,7 +30,7 @@ pub(super) fn router() -> Router<AppState> {
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct CatalogPage {
-    pub after: Option<veoveo_mcp_contract::agent_management::AgentDefinitionId>,
+    pub after: Option<veoveo_agent_runtime::contract::authoring::AgentDefinitionId>,
 }
 async fn catalog(
     State(state): State<AppState>,

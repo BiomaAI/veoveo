@@ -6,7 +6,7 @@ Workspace consumes the Veoveo same-origin HTTP JSON API at `/workspace/api` and
 Server-Sent Events for chat changes. OAuth authorization code with PKCE runs through
 the existing Rust browser edge at `/workspace/auth/`, using Workspace's own
 OAuth client and encrypted cookie. Generated JSON Schema and TypeScript come from
-`mcp/contract/src/workspace.rs`. The browser never implements MCP Tasks transport;
+`platform/workspace/src/contract` with the `app-contract` feature. The browser never implements MCP Tasks transport;
 the Rust platform owns that boundary. Embedded capability views retain MCP Apps
 `2026-01-26` and Veoveo's declared App extensions.
 

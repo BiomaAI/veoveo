@@ -15,6 +15,7 @@ pub(super) mod test_domain;
 mod tests;
 
 use super::{Api, WorkspaceState, authority, fault};
+use crate::contract as wire;
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, Query, State},
@@ -29,7 +30,8 @@ use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 use tower_http::set_header::SetResponseHeaderLayer;
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayProfileId, GatewayToolName, workspace as wire};
+use veoveo_gateway_contract::GatewayToolName;
+use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
 use veoveo_platform_store::{
     PlatformStore, WorkspaceChatId, WorkspaceOperationId,

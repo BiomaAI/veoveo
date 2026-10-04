@@ -116,7 +116,7 @@ fn model_revision_changes_only_when_execution_configuration_changes() {
     changed.work_contexts.clear();
     assert_eq!(changed.revision(), original);
     assert!(!changed.permits(
-        &fixture_subject("Alice").principal,
+        crate::gateway::installation::caller_facts(&fixture_subject("Alice").principal),
         &"shared".parse().unwrap()
     ));
     changed.model = "another-model".into();

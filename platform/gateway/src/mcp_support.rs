@@ -11,9 +11,10 @@ use rmcp::model::{
     ResourceContents, ResourceTemplate, ServerResult, Tool,
 };
 use serde_json::Value;
+use veoveo_gateway_contract::GatewayToolName;
 use veoveo_mcp_contract::{
-    GatewayResourceProjection, GatewayToolName, PolicyTarget, ResourceProjectionMode,
-    ServerManifest, ServerResourceUri, ServerSlug,
+    GatewayResourceProjection, PolicyTarget, ResourceProjectionMode, ServerManifest,
+    ServerResourceUri, ServerSlug,
 };
 use veoveo_types::{DataLabelId, ResourceTemplateUri, ResourceUri, ScopeName};
 

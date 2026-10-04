@@ -1,7 +1,7 @@
 //! Gateway startup loads the installation-owned model contract.
+pub use crate::contract::authoring::ModelConnection;
+use crate::contract::authoring::validate_model_connections;
 use anyhow::{Context, Result, ensure};
-pub use veoveo_mcp_contract::agent_management::ModelConnection;
-use veoveo_mcp_contract::agent_management::validate_model_connections;
 use veoveo_mcp_gateway::GatewayCatalog;
 
 pub fn from_env(catalog: &GatewayCatalog) -> Result<Vec<ModelConnection>> {
@@ -17,5 +17,8 @@ pub fn from_env(catalog: &GatewayCatalog) -> Result<Vec<ModelConnection>> {
 }
 
 pub fn validate(models: &[ModelConnection], catalog: &GatewayCatalog) -> Result<()> {
-    validate_model_connections(models, catalog.control_plane())
+    validate_model_connections(
+        models,
+        &crate::gateway::installation::installation_facts(catalog)?,
+    )
 }

@@ -473,9 +473,19 @@ Schema composition uses type identity and advertises only bound declarations.
 Recording's HTTP endpoint configuration excludes the MCP `transport` field. This
 configuration cut requires coordinated installation inputs and readers; it has no
 compatibility alias. The [active plan](CONTRACT_CONSISTENCY_PLAN.md#phase-2-kernel-extension-points)
-tracks remaining installation qualification, plus extraction of Agents' authoring
-models, installation validation and dependent Workspace models from MCP. Shared-host changes follow
-the user-directed review recorded in that plan.
+tracks remaining installation qualification. Shared-host changes follow the
+user-directed review recorded in that plan.
+
+Agents owns authoring and operator-control models, model and template validation,
+and executable digests through its contract feature. Immutable installation facts carry typed context/tenant,
+profile and secret-purpose relationships; borrowed caller facts support visibility
+without authenticating a caller. A separate catalog adapter validates and projects
+one control-plane revision for Manager and gateway. Manager consumes that adapter
+without linking the gateway runtime. Workspace owns its dependent DTOs and schema
+producer. Its pure contract consumes Agents' pure contract; native MCP App envelopes
+and the complete browser schema use the separate `app-contract` feature. These moves
+preserve wire names, digest profiles and generated browser filenames. Qualification
+is tracked in the active plan.
 
 Media owns its prediction summaries and generation result DTOs. Protocol utilities
 consume Media's contract feature directly; extracting those DTOs preserves their

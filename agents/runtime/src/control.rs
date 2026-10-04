@@ -8,14 +8,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::contract::control::{
+    AgentConversationEntry, AgentConversationEntryState, AgentConversationRole,
+    AgentConversationView,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    AgentConversationEntry, AgentConversationEntryState, AgentConversationRole,
-    AgentConversationView,
-};
 use veoveo_platform_store::{
     AgentEpisodeRecord, AgentEpisodeState, AgentInputRequestId, AgentInputRequestRecord,
     AgentInputRequestState, AgentRecord, AgentState, AgentTaskRecord, OpenObject, PlatformStore,

@@ -1,6 +1,6 @@
 //! Installation-owned model connections and executable configuration digests.
 use super::{self as wire, RuntimeTemplate};
-use crate::{GatewayControlPlane, Principal};
+use super::{CallerFacts, InstallationFacts};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -25,10 +25,10 @@ pub struct ModelConnection {
 }
 
 impl ModelConnection {
-    pub fn permits(&self, principal: &Principal, context: &WorkContextId) -> bool {
-        principal.tenant.as_ref() == Some(&self.tenant)
+    pub fn permits(&self, caller: CallerFacts<'_>, context: &WorkContextId) -> bool {
+        caller.tenant == Some(&self.tenant)
             && self.work_contexts.contains(context)
-            && self.required_scopes.is_subset(&principal.scopes)
+            && self.required_scopes.is_subset(caller.scopes)
     }
     pub fn revision(&self) -> Sha256Digest {
         Sha256Digest::from_hex(hex::encode(Sha256::digest(
@@ -62,7 +62,7 @@ impl ModelConnection {
 
 pub fn validate_model_connections(
     models: &[ModelConnection],
-    catalog: &GatewayControlPlane,
+    facts: &InstallationFacts,
 ) -> Result<()> {
     ensure!(
         models.len() <= 64,
@@ -97,19 +97,12 @@ pub fn validate_model_connections(
         );
         for context in &model.work_contexts {
             ensure!(
-                catalog
-                    .work_contexts
-                    .iter()
-                    .any(|c| c.id == *context && c.tenant == model.tenant),
+                facts.context_tenant(context) == Some(&model.tenant),
                 "model context does not belong to its tenant"
             );
         }
         ensure!(
-            catalog
-                .secrets
-                .iter()
-                .find(|s| s.id == model.api_key)
-                .is_some_and(|s| s.purpose == SecretPurpose::ProviderApiKey),
+            facts.secret_purpose(&model.api_key) == Some(&SecretPurpose::ProviderApiKey),
             "model requires registered provider_api_key reference"
         );
         let limits = &model.limits;
@@ -156,6 +149,99 @@ mod tests {
             model.revision().hex(),
             "d72e1cf67be43b0a8531631684d5f4bb0283af603207d1845e15872926de6811"
         );
+    }
+
+    #[test]
+    fn model_validation_and_public_projection_keep_installation_restrictions() {
+        let model: ModelConnection = serde_json::from_value(serde_json::json!({
+            "id":"approved", "name":"Approved model", "provider":"Fixture", "tenant":"test",
+            "work_contexts":["shared"], "required_scopes":["operator:use"], "base_url":"https://provider.test/v1", "model":"model",
+            "api_key":"fixture-secret", "limits":{"maxOutputTokens":128,"maxCompletionCalls":4,"maxToolCalls":8,"deadlineSeconds":120}
+        })).unwrap();
+        let facts = InstallationFacts::new(
+            [("shared".parse().unwrap(), "test".parse().unwrap())],
+            [],
+            [(
+                "fixture-secret".parse().unwrap(),
+                SecretPurpose::ProviderApiKey,
+            )],
+        )
+        .unwrap();
+        validate_model_connections(std::slice::from_ref(&model), &facts).unwrap();
+        let empty = InstallationFacts::new([], [], []).unwrap();
+        assert!(validate_model_connections(std::slice::from_ref(&model), &empty).is_err());
+        let wrong_tenant = InstallationFacts::new(
+            [("shared".parse().unwrap(), "other-tenant".parse().unwrap())],
+            [],
+            [(
+                "fixture-secret".parse().unwrap(),
+                SecretPurpose::ProviderApiKey,
+            )],
+        )
+        .unwrap();
+        assert!(validate_model_connections(std::slice::from_ref(&model), &wrong_tenant).is_err());
+        let wrong_secret = InstallationFacts::new(
+            [("shared".parse().unwrap(), "test".parse().unwrap())],
+            [],
+            [(
+                "fixture-secret".parse().unwrap(),
+                SecretPurpose::WebhookSecret,
+            )],
+        )
+        .unwrap();
+        assert!(validate_model_connections(std::slice::from_ref(&model), &wrong_secret).is_err());
+        let mut credential_url = model.clone();
+        credential_url.base_url = "https://user:secret@provider.test/v1".into();
+        assert!(validate_model_connections(&[credential_url], &facts).is_err());
+        let mut unlimited = model.clone();
+        unlimited.limits.deadline_seconds = 901;
+        assert!(validate_model_connections(&[unlimited], &facts).is_err());
+        let public = serde_json::to_value(model.public()).unwrap();
+        for private in [
+            "api_key",
+            "apiKey",
+            "base_url",
+            "baseUrl",
+            "work_contexts",
+            "tenant",
+        ] {
+            assert!(public.get(private).is_none());
+        }
+        assert!(
+            !serde_json::to_string(&public)
+                .unwrap()
+                .contains("fixture-secret")
+        );
+        let tenant = "test".parse().unwrap();
+        let scopes = BTreeSet::from(["operator:use".parse().unwrap()]);
+        assert!(model.permits(
+            CallerFacts {
+                tenant: Some(&tenant),
+                scopes: &scopes
+            },
+            &"shared".parse().unwrap()
+        ));
+        assert!(!model.permits(
+            CallerFacts {
+                tenant: Some(&tenant),
+                scopes: &BTreeSet::new()
+            },
+            &"shared".parse().unwrap()
+        ));
+        assert!(!model.permits(
+            CallerFacts {
+                tenant: Some(&tenant),
+                scopes: &scopes
+            },
+            &"other-context".parse().unwrap()
+        ));
+        assert!(!model.permits(
+            CallerFacts {
+                tenant: None,
+                scopes: &scopes
+            },
+            &"shared".parse().unwrap()
+        ));
     }
 
     #[test]

@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| JSON Schema 2020-12 | Schemars output from the owning Audit, Computers, Speech and MCP contract crates |
+| JSON Schema 2020-12 | Schemars output from the owning Audit, Computers, Speech, Agents, Workspace and MCP contracts |
 | TypeScript | Committed interfaces and aliases rendered by `json-schema-to-typescript` 16.0.0 |
 | `tsType` | Converter-local extension for closed empty objects and impossible schemas; it is absent from the published schemas |
 
@@ -15,6 +15,9 @@ compares those outputs without modifying them. The command imports only the pure
 Computers contract, without the provider or domain-store dependency closure. The BFF
 contract-only library selects App catalog and cluster inventory DTOs, and the Recording
 contract supplies playback manifests.
+Agents' pure authoring contract supplies agent-management models. Workspace's
+`app-contract` profile supplies its DTOs and native RMCP App envelopes. The Workspace
+pure contract does not enable that SDK profile.
 
 Rust selects schema owners and fixed output paths. The Node converter reads one
 schema from stdin and writes types to stdout. It requires the exact installed package
@@ -27,7 +30,7 @@ A closed empty JSON object becomes `Record<string, never>` because TypeScript's
 empty interface also admits scalars. Named boolean schemas become equivalent object
 schemas in the converter's input because its reference resolver requires object targets.
 False definitions render as `never`; true definitions accept arbitrary values.
-Agent-control models come from the operator-control DTOs in the MCP contract.
+Agent-control models come from the operator-control DTOs in the Agents contract.
 Artifact-transfer models cover upload policy, admission, status, part receipts, completed
 receipts, access requests and share links. Browser camelCase presentation models derive
 their fields from those generated HTTP shapes. Selected-file descriptors require a known

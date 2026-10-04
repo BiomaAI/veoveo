@@ -2,6 +2,7 @@
 use crate::contract::AgentAction as Action;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 
+use crate::contract::authoring::CatalogWake;
 use axum::{
     Router,
     extract::{Extension, Path, State},
@@ -14,7 +15,6 @@ use axum::{
 };
 use futures::StreamExt;
 use tokio::sync::watch;
-use veoveo_mcp_contract::agent_management::CatalogWake;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{ChangefeedConsumerId, ChangefeedDelivery, PlatformTable};
 use veoveo_types::Sha256Digest;
