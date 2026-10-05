@@ -607,3 +607,58 @@ fn current_field_kinds_defaults_and_relations_inspect_nested_targets() {
         );
     }
 }
+
+#[test]
+fn pure_byte_length_and_regex_inspect_every_argument() {
+    assert!(admitted(include_str!(
+        "queries/admission/pure_byte_length_and_regex_inspect_every_argument/admitted.surql"
+    )));
+    for sql in [
+        include_str!(
+            "queries/admission/pure_byte_length_and_regex_inspect_every_argument/bytes_foreign.surql"
+        ),
+        include_str!(
+            "queries/admission/pure_byte_length_and_regex_inspect_every_argument/bytes_write.surql"
+        ),
+        include_str!(
+            "queries/admission/pure_byte_length_and_regex_inspect_every_argument/regex_foreign.surql"
+        ),
+        include_str!(
+            "queries/admission/pure_byte_length_and_regex_inspect_every_argument/regex_write.surql"
+        ),
+    ] {
+        assert!(!admitted(sql));
+    }
+}
+
+#[test]
+fn closed_object_value_fields_preserve_owner_and_target_checks() {
+    assert!(admitted(include_str!(
+        "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/agent_envelopes.surql"
+    )));
+    for sql in [
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/scalar_union.surql"
+        ),
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/record_union.surql"
+        ),
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/deeper_dereference.surql"
+        ),
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/foreign_target.surql"
+        ),
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/unproven_target.surql"
+        ),
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/graph_traversal.surql"
+        ),
+        include_str!(
+            "queries/admission/closed_object_value_fields_preserve_owner_and_target_checks/foreign_kind.surql"
+        ),
+    ] {
+        assert!(!admitted(sql));
+    }
+}

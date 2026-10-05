@@ -1,5 +1,18 @@
 //! Native scalar methods, field-row context and closure children with no record traversal.
 use super::*;
+
+fn object_value_kind(kind: &Kind) -> bool {
+    match kind {
+        Kind::Object | Kind::Literal(surrealdb_sql::kind::KindLiteral::Object(_)) => true,
+        Kind::Either(kinds) => {
+            kinds.iter().any(object_value_kind)
+                && kinds
+                    .iter()
+                    .all(|kind| matches!(kind, Kind::None | Kind::Null) || object_value_kind(kind))
+        }
+        _ => false,
+    }
+}
 impl Visitor<'_> {
     pub(super) fn value_idiom(
         &mut self,
@@ -10,7 +23,7 @@ impl Visitor<'_> {
             && (self.objects.contains(parameter.as_str())
                 || (parameter.as_str() == "this" && self.this_table.is_some())
                 || (parameter.as_str() == "value"
-                    && matches!(self.field_value, Some(Kind::Object))))
+                    && self.field_value.as_ref().is_some_and(object_value_kind)))
         {
             return self.expr(&Expr::Param(parameter.clone()), depth + 1);
         }

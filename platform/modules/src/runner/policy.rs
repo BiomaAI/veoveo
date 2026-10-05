@@ -443,6 +443,7 @@ impl<'a> Visitor<'a> {
                     surrealdb_sql::Function::Normal(name)
                         if [
                             "array::len",
+                            "bytes::len",
                             "record::tb",
                             "record::id",
                             "object::keys",
@@ -456,6 +457,7 @@ impl<'a> Visitor<'a> {
                             "string::len",
                             "string::lowercase",
                             "string::contains",
+                            "string::matches",
                             "string::uppercase",
                             "math::abs",
                             "math::floor",

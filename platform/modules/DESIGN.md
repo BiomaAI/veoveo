@@ -80,6 +80,11 @@ the migration execution graph stays acyclic. The visitor carries this permission
 through union, array and set field types and validates every static table claim.
 A generic `record` kind permits opaque storage only in an owned field type without
 `REFERENCE`; it supplies no executable target, cast, signature or dereference privilege.
+Field assertions may inspect one static child of `$value` when the field kind is
+an ordinary object, a closed object literal, or a nullable union containing only
+object shapes and `NONE`/`NULL`. The runner still inspects every kind child. A scalar
+or record alternative cannot establish this proof; deeper paths and unproven record
+targets fail admission.
 Fields with `REFERENCE` use declared dependencies, as do optional owners and
 `table<table>` types. Casts, variable and function types, record literals and every
 executable field child use the ordinary admission policy. Runner history tables
@@ -87,8 +92,10 @@ cannot appear in either profile. Optional modules cannot directly read kernel da
 call under the callee's ownership. Calls between optional owners require a declared
 dependency, a concrete minimum covering introduction and a read-only callee. Optional
 calls into a kernel use declared versioned `KernelSqlApi` leaves. The builtin profile
-excludes network, file, scripting and provider effects. `record::exists` checks the
-same admitted target and read policy as SELECT. Static `type::record` constructors
+excludes network, file, scripting and provider effects. Pure `bytes::len` and
+`string::matches` support UTF-8 byte limits and Unicode control-character admission;
+the runner inspects every argument under its read-only owner rules before admitting
+either call. `record::exists` checks the same admitted target and read policy as SELECT. Static `type::record` constructors
 validate the table claim and every key expression.
 
 SELECT ordering admits static parsed keys, collation, numeric comparison and either

@@ -1,0 +1,9 @@
+DEFINE TABLE own;
+DEFINE FIELD managed_ready ON own TYPE none | { generation: int, pod_uid: uuid } ASSERT $value = NONE OR $value.generation > 0;
+DEFINE FIELD managed ON own TYPE none | { instance: record<own>, revision: record<own>, generation: int, epoch: int } ASSERT $value = NONE OR ($value.generation > 0 AND $value.epoch >= 0);
+DEFINE FIELD descriptor ON own TYPE {} | { version: 1, backendType: string, executionId: string, payload: any } ASSERT IF $this.descriptor_complete THEN $value.version = 1 AND string::len($value.backendType) > 0 AND $value.executionId = $this.task_id ELSE array::len(object::keys($value)) = 0 END;
+DEFINE FIELD result ON own TYPE none | { output: any, delivered: option<'in_run' | 'watcher'> } | { error: string, delivered: option<'in_run' | 'watcher'> } | { value: { error: string } } ASSERT $value = NONE OR $value.delivered = NONE OR $value.delivered = 'watcher';
+DEFINE FIELD payload ON own TYPE { task_id: string } | { uri: string } | { name: string, timer_kind: option<'heartbeat'> } | { text: string, request_id: option<string>, actor_id: option<string>, work_context: option<string> } | { input_request_id: string, phase: 'pending' | 'answered', request_id: option<string>, actor_id: option<string>, work_context: option<string> } ASSERT ($this.kind = 'task_result' AND $value.task_id != NONE) OR ($this.kind = 'resource_changed' AND $value.uri != NONE) OR ($this.kind = 'timer' AND $value.name != NONE) OR ($this.kind = 'operator_message' AND $value.text != NONE) OR ($this.kind = 'input_request' AND $value.input_request_id != NONE);
+DEFINE FIELD optional ON own TYPE option<{ child: string }> ASSERT $value = NONE OR $value.child != NONE;
+DEFINE FIELD nullable ON own TYPE none | null | { child: string } ASSERT $value = NONE OR $value = NULL OR $value.child != NONE;
+DEFINE FIELD ordinary ON own TYPE option<object> ASSERT $value = NONE OR $value.child != NONE;
