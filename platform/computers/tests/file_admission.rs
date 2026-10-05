@@ -50,7 +50,7 @@ fn payload(path: &str) -> FileTransferPayload {
 
 #[tokio::test]
 async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = setup(&db).await;
     let request = veoveo_computers::api::RequestId::new();
     let keys = command_support::keys();
@@ -95,7 +95,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         keys.open_file_transfer(found[0].binding(), &{
             let mut row =
                 db.a.client()
-                    .query("SELECT VALUE payload.sealed FROM ONLY $record;")
+                    .query(include_str!("queries/file_admission/replicas_reserve_one_file_slot_and_recover_the_same_private_task/statement_1.surql"))
                     .bind((
                         "record",
                         surrealdb::types::RecordId::new(
@@ -176,7 +176,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         .await,
         Err(ComputerError::OperationBusy)
     ));
-    let mut response=db.a.client().query("SELECT * FROM computer_file_transfer; SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'queued'; SELECT * FROM computer_execution_slot; SELECT * FROM computer_file_transfer_payload;").await.unwrap().check().unwrap();
+    let mut response=db.a.client().query(include_str!("queries/file_admission/replicas_reserve_one_file_slot_and_recover_the_same_private_task/statement_2.surql")).await.unwrap().check().unwrap();
     for i in 0..4 {
         let rows: Vec<veoveo_platform_store::OpenObject> = response.take(i).unwrap();
         assert_eq!(rows.len(), 1);
@@ -187,7 +187,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
 
 #[tokio::test]
 async fn delegated_file_admission_enforces_bounds_and_revocation_at_commit() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = setup(&db).await;
     assert!(
         b.file_transfer_authority(&agent, computer, None)
@@ -263,7 +263,7 @@ async fn delegated_file_admission_enforces_bounds_and_revocation_at_commit() {
 
 #[tokio::test]
 async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, _, computer) = setup(&db).await;
     let keys = command_support::keys();
     let input = FileTransferPayload::new(
@@ -332,7 +332,7 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
     );
     let mut response =
         db.a.client()
-            .query("SELECT * FROM computer_file_transfer;")
+            .query(include_str!("queries/file_admission/artifact_access_is_task_bound_private_and_first_adequate_receipt_wins/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -345,7 +345,7 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
 
 #[tokio::test]
 async fn stale_policy_and_changed_process_cannot_reserve_file_work() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, _, computer) = setup(&db).await;
     let keys = command_support::keys();
     let authority = a
@@ -373,7 +373,7 @@ async fn stale_policy_and_changed_process_cannot_reserve_file_work() {
         .await
         .unwrap();
     db.a.client()
-        .query("UPDATE $computer SET process_id='different-run-fixture';")
+        .query(include_str!("queries/file_admission/stale_policy_and_changed_process_cannot_reserve_file_work/statement_1.surql"))
         .bind(("computer", command_support::computer_record(computer)))
         .await
         .unwrap()

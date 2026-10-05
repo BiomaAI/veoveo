@@ -216,7 +216,7 @@ async fn access_loss_invalidates_members_and_roots_for_revocation_and_expiry() {
         let hidden_author = f.signing.caller("hidden-author", "private");
         let hidden = f.artifacts.put(&hidden_author, PutArtifactRequest::default(), b"hidden".to_vec()).await.unwrap();
         let hidden_deadline = chrono::Utc::now() + chrono::TimeDelta::minutes(1);
-        db.b.client().query("UPDATE $artifact SET retention_expires_at = $expiry RETURN NONE;")
+        db.b.client().query(include_str!("../../../../queries/bin/server/subscription_tests/mod/access_loss_invalidates_members_and_roots_for_revocation_and_expiry.surql"))
             .bind(("expiry", hidden_deadline)).bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(hidden.artifact_id().as_uuid()).record_id()))
             .await.unwrap().check().unwrap();
         assert_eq!(f.subscriptions.deadline(&reader, None).await.unwrap(), reader.identity.expires_at,
@@ -229,7 +229,7 @@ async fn access_loss_invalidates_members_and_roots_for_revocation_and_expiry() {
             if expire { grant(&f, id, &reader).await; }
             let expiry = chrono::Utc::now() + chrono::TimeDelta::seconds(8);
             if expire {
-                db.b.client().query("UPDATE artifact_grant SET expires_at = $expiry WHERE in = $artifact AND subject_key = 'reader' RETURN NONE;")
+                db.b.client().query(include_str!("../../../../queries/bin/server/subscription_tests/mod/access_loss_invalidates_members_and_roots_for_revocation_and_expiry_2.surql"))
                     .bind(("expiry", expiry)).bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(id.as_uuid()).record_id()))
                     .await.unwrap().check().unwrap();
             }
@@ -257,7 +257,7 @@ async fn access_loss_invalidates_members_and_roots_for_revocation_and_expiry() {
         assert!(first.next_cursor.is_some());
         assert!(!first.items.iter().any(|item| item.uri == member));
         let retention = chrono::Utc::now() + chrono::TimeDelta::seconds(8);
-        db.b.client().query("UPDATE $artifact SET retention_expires_at = $expiry RETURN NONE; UPDATE artifact_grant SET expires_at = $expiry WHERE in = $artifact AND subject_key = 'author' RETURN NONE;")
+        db.b.client().query(include_str!("../../../../queries/bin/server/subscription_tests/mod/access_loss_invalidates_members_and_roots_for_revocation_and_expiry_3.surql"))
             .bind(("expiry", retention)).bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(id.as_uuid()).record_id()))
             .await.unwrap().check().unwrap();
         assert_eq!(f.subscriptions.deadline(&f.owner, None).await.unwrap(), retention);

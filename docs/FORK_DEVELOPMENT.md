@@ -14,7 +14,7 @@ separate Git repository; Bioma provides the maintained reference configuration.
 | OCI Distribution | digest-pinned images and application charts, with build provenance |
 | Helm and Kubernetes | application releases with explicit ownership, security and GPU requirements |
 | `veoveo.ai/deployment/v8` and `veoveo.ai/deployment-lock/v8` | local source publication, typed component selection and immutable artifact reuse |
-| SurrealDB 3.3.0 | separate checksummed upstream and downstream migration histories |
+| SurrealDB 3.3.0 | checksummed owner module lanes with declared dependencies and introducing minima |
 
 ## Code Placement
 
@@ -42,7 +42,7 @@ git merge --no-ff upstream/main
 ```
 
 Resolve conflicts in code, schema and deployment configuration together. Review the
-upstream migration sequence before running it against downstream data. A clean Git
+affected owner lanes and their dependencies before running them against fork data. A clean Git
 merge does not establish that two schema changes compose safely.
 
 Run the owning component checks with their native commands. Changes to shared
@@ -117,17 +117,18 @@ instances. Creating replacement instances or deleting retained memory is unneces
 
 ## Downstream Data Migrations
 
-Append fork SQL and entries to `platform/store/downstream/catalog.rs`. That catalog
-starts empty upstream and numbers migrations from zero independently of upstream.
-Each entry declares the upstream version it needs. The normal store runner validates
-both histories, applies pending upstream steps, then applies pending fork steps.
+Declare fork schema additions in an owning module's `ModuleSetup` and keep its SQL
+in that owner's migration folder. Register the module in the installation composition
+and select it in the generated plan. Each module numbers its lane independently from
+zero and declares the owner dependencies and introducing minimum versions it needs.
 A deployed entry cannot be edited, removed or renumbered. Correct it with a new step.
 
-The [migration runner design](../platform/store/src/migrations/DESIGN.md) specifies
-transaction rollback, upgrade ordering and recovery. A fork must test retained data
-against each upstream merge. When a change needs preparatory data conversion before
-an upstream migration, perform that conversion in a coordinated maintenance step.
-Drain the previous migration owner before upgrading its catalog.
+The [module runner design](../platform/modules/DESIGN.md) specifies SQL admission,
+transaction rollback, lane ordering and checksum drift rejection. A fork must test
+retained lane data against each upstream merge. Drain the previous migration owner
+before changing its execution image. Data conversions require an explicit owner plan
+and a qualified recovery path. The fresh selected-lane profile refuses mixed-catalog
+databases; it supplies no historical catalog backfill or migration adapter.
 
 ## Rollback
 

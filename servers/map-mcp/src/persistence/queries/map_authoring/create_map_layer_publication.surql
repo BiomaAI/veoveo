@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $layer = (SELECT * FROM ONLY $layer_record WHERE tenant = $tenant AND work_context = $context AND revision = $layer_revision AND archived_at = NONE); IF $layer = NONE { THROW 'map_feature_layer_conflict'; }; CREATE ONLY $publication_record CONTENT $publication RETURN NONE; COMMIT TRANSACTION;

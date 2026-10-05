@@ -1,0 +1,1 @@
+LET $pointer_updated = (UPDATE ONLY $active MERGE { release_key: $release_key, previous_release_key: $previous, activated_by: $owner, activated_at: time::now(), record_version: $next } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER); IF $pointer_updated = NONE { THROW 'map_active_release_conflict'; };

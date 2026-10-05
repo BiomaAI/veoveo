@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; UPDATE ONLY $task SET state = 'pending', lease_owner = NONE, lease_expires_at = NONE, next_retry_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'watching' AND revision = $revision RETURN NONE; COMMIT TRANSACTION;

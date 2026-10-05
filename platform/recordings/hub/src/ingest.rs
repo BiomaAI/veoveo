@@ -18,13 +18,7 @@ use veoveo_mcp_contract::{
     GatewayInternalResourceIdentity, PrincipalKind as ContractPrincipalKind, PutArtifactRequest,
 };
 use veoveo_platform_store::{
-    PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey,
-    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft, RecordingDatasetId,
-    RecordingDraft, RecordingId, RecordingIngestBatchDraft, RecordingIngestBatchState,
-    RecordingIngestQuota, RecordingIngestQuotaCheckpoint, RecordingIngestStreamId,
-    RecordingIngestStreamRecord, RecordingIngestStreamState, RecordingLayerDraft, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerRecord, RecordingLayerState, RecordingState, StoreError,
-    TenantId,
+    PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey, TenantId,
 };
 use veoveo_recording_contract::RecordingProducerScope;
 use veoveo_recording_protocol::{
@@ -34,6 +28,14 @@ use veoveo_recording_protocol::{
         RecordingBatch, RecordingBlueprint, RecordingStream, RecordingStreamFinishMode,
         RecordingStreamState, RerunPayloadFormat,
     },
+};
+use veoveo_recording_store::{
+    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft, RecordingDatasetId,
+    RecordingDraft, RecordingId, RecordingIngestBatchDraft, RecordingIngestBatchState,
+    RecordingIngestQuota, RecordingIngestQuotaCheckpoint, RecordingIngestStreamId,
+    RecordingIngestStreamRecord, RecordingIngestStreamState, RecordingLayerDraft, RecordingLayerId,
+    RecordingLayerKind, RecordingLayerRecord, RecordingLayerState, RecordingState,
+    RecordingStoreError,
 };
 use veoveo_types::ScopeDefinition;
 
@@ -150,6 +152,7 @@ fn live_segment_byte_len_from_parts(parts_directory: &Path) -> Result<u64> {
 #[derive(Clone)]
 pub struct RecordingIngestService {
     store: PlatformStore,
+    recordings: veoveo_recording_store::RecordingRepository,
     config: RecordingIngestServiceConfig,
     materialization: Arc<tokio::sync::Mutex<()>>,
     authorized_streams:
@@ -189,6 +192,7 @@ impl RecordingIngestService {
         config.journal_root = config.journal_root.canonicalize()?;
         config.spool_root = config.spool_root.canonicalize()?;
         Ok(Self {
+            recordings: veoveo_recording_store::RecordingRepository::new(store.clone()),
             store,
             config,
             materialization: Arc::new(tokio::sync::Mutex::new(())),
@@ -251,7 +255,7 @@ impl RecordingIngestService {
         let classification = governed_classification(&authority, &producer.classification);
         let labels = governed_labels(&authority, &producer.labels);
         let dataset = self
-            .store
+            .recordings
             .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
                 identity.clone(),
                 producer.dataset.clone(),
@@ -260,7 +264,7 @@ impl RecordingIngestService {
         let dataset_id =
             typed_record_uuid::<RecordingDatasetId>(&dataset.id, RecordingDatasetId::TABLE)?;
         let recording = self
-            .store
+            .recordings
             .create_recording(RecordingDraft {
                 identity: identity.clone(),
                 authority,
@@ -284,8 +288,8 @@ impl RecordingIngestService {
             .await?;
         let recording_id = typed_record_uuid::<RecordingId>(&recording.id, RecordingId::TABLE)?;
         let stream = self
-            .store
-            .open_recording_ingest_stream(veoveo_platform_store::RecordingIngestStreamDraft {
+            .recordings
+            .open_recording_ingest_stream(veoveo_recording_store::RecordingIngestStreamDraft {
                 identity,
                 recording_id,
                 producer_id: producer.producer_id.clone(),
@@ -308,7 +312,7 @@ impl RecordingIngestService {
         recording_key: &str,
     ) -> Result<usize> {
         let streams = self
-            .store
+            .recordings
             .superseded_recording_ingest_streams(
                 identity.tenant_id,
                 &producer.producer_id,
@@ -330,7 +334,7 @@ impl RecordingIngestService {
                 .await?;
             match stream.state {
                 RecordingIngestStreamState::Open => {
-                    self.store
+                    self.recordings
                         .finish_recording_ingest_stream(identity.tenant_id, stream_id)
                         .await?;
                 }
@@ -348,7 +352,7 @@ impl RecordingIngestService {
         let finalized = recordings.len();
         for recording_id in recordings {
             let recording = self
-                .store
+                .recordings
                 .recording(identity.tenant_id, recording_id)
                 .await?
                 .context("superseded recording has no catalog entry")?;
@@ -356,11 +360,11 @@ impl RecordingIngestService {
                 continue;
             }
             let layers = self
-                .store
+                .recordings
                 .recording_layers(identity.tenant_id, recording_id, 10_000)
                 .await?;
             if failed_recordings.contains(&recording_id) || layers.is_empty() {
-                self.store
+                self.recordings
                     .interrupt_recording(
                         identity,
                         recording_id,
@@ -373,7 +377,7 @@ impl RecordingIngestService {
                     )
                     .await?;
             } else {
-                self.store
+                self.recordings
                     .finish_recording(identity, recording_id, chrono::Utc::now())
                     .await?;
             }
@@ -416,7 +420,7 @@ impl RecordingIngestService {
             let quota = if cached.quota.is_current(now) {
                 cached.quota
             } else {
-                self.store
+                self.recordings
                     .recording_ingest_quota_checkpoint(
                         cached.identity.tenant_id,
                         &producer.producer_id,
@@ -431,24 +435,21 @@ impl RecordingIngestService {
                 .authorized_stream(&identity, producer, stream_id)
                 .await?;
             let quota = self
-                .store
+                .recordings
                 .recording_ingest_quota_checkpoint(identity.tenant_id, &producer.producer_id, now)
                 .await?;
             (identity, stream, quota)
         };
         if now > stream.opened_at + chrono::TimeDelta::days(i64::from(producer.open_stream_days)) {
             return Err(
-                veoveo_platform_store::StoreError::RecordingIngestStreamExpired(
-                    stream_id.to_string(),
-                )
-                .into(),
+                RecordingStoreError::RecordingIngestStreamExpired(stream_id.to_string()).into(),
             );
         }
         if stream.byte_len
             + i64::try_from(batch.encoded_rrd.len()).context("batch length exceeds i64")?
             > i64::try_from(producer.maximum_stream_bytes).context("stream limit exceeds i64")?
         {
-            return Err(StoreError::RecordingIngestQuotaExceeded {
+            return Err(RecordingStoreError::RecordingIngestQuotaExceeded {
                 quota: RecordingIngestQuota::MaximumStreamBytes,
             }
             .into());
@@ -477,7 +478,7 @@ impl RecordingIngestService {
         let (journal_path, relative_path) =
             self.write_journal(identity.tenant_id, stream_id, batch)?;
         let outcome = self
-            .store
+            .recordings
             .commit_recording_ingest_batch_at_checkpoints(
                 stream,
                 quota.clone(),
@@ -576,13 +577,13 @@ impl RecordingIngestService {
         ) {
             return Err(match error {
                 BatchValidationError::PayloadTooLarge { .. } => {
-                    StoreError::RecordingIngestQuotaExceeded {
+                    RecordingStoreError::RecordingIngestQuotaExceeded {
                         quota: RecordingIngestQuota::MaximumBlueprintBytes,
                     }
                     .into()
                 }
                 BatchValidationError::MessageCountTooLarge { .. } => {
-                    StoreError::RecordingIngestQuotaExceeded {
+                    RecordingStoreError::RecordingIngestQuotaExceeded {
                         quota: RecordingIngestQuota::MaximumBlueprintMessages,
                     }
                     .into()
@@ -601,7 +602,7 @@ impl RecordingIngestService {
         );
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         let recording = self
-            .store
+            .recordings
             .recording(identity.tenant_id, recording_id)
             .await?
             .context("recording Blueprint target was not found")?;
@@ -635,7 +636,7 @@ impl RecordingIngestService {
         }
         publish_blueprint_segment(&path, &blueprint.encoded_rrd, blueprint.revision)?;
         let outcome = self
-            .store
+            .recordings
             .commit_recording_blueprint(RecordingBlueprintCommit {
                 draft: RecordingBlueprintDraft {
                     identity,
@@ -680,7 +681,7 @@ impl RecordingIngestService {
         self.freeze_active_segment(&identity, stream_id, &open_stream)
             .await?;
         let stream = self
-            .store
+            .recordings
             .finish_recording_ingest_stream(identity.tenant_id, stream_id)
             .await?;
         if mode == RecordingStreamFinishMode::CompleteRecording {
@@ -688,11 +689,11 @@ impl RecordingIngestService {
                 typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
             let finished_at = stream.finished_at.unwrap_or_else(chrono::Utc::now);
             let layers = self
-                .store
+                .recordings
                 .recording_layers(identity.tenant_id, recording_id, 10_000)
                 .await?;
             if layers.is_empty() {
-                self.store
+                self.recordings
                     .interrupt_recording(
                         &identity,
                         recording_id,
@@ -701,7 +702,7 @@ impl RecordingIngestService {
                     )
                     .await?;
             } else {
-                self.store
+                self.recordings
                     .finish_recording(&identity, recording_id, finished_at)
                     .await?;
             }
@@ -751,7 +752,7 @@ impl RecordingIngestService {
                     stream_entry.file_name().to_string_lossy().as_ref(),
                 )?);
                 let stream = self
-                    .store
+                    .recordings
                     .recording_ingest_stream(tenant_id, stream_id)
                     .await?
                     .context("journal references an unknown recording ingest stream")?;
@@ -775,7 +776,7 @@ impl RecordingIngestService {
                         .context("journal path is not UTF-8")?
                         .to_owned();
                     let outcome = self
-                        .store
+                        .recordings
                         .commit_recording_ingest_batch(RecordingIngestBatchDraft {
                             identity: identity.clone(),
                             stream_id,
@@ -807,7 +808,7 @@ impl RecordingIngestService {
             }
         }
         let pending_layers = self
-            .store
+            .recordings
             .pending_recording_layers_for_recovery(10_000)
             .await?;
         ensure!(
@@ -825,7 +826,7 @@ impl RecordingIngestService {
             let recording_id =
                 typed_record_uuid::<RecordingId>(&layer.recording, RecordingId::TABLE)?;
             let recording_layers = self
-                .store
+                .recordings
                 .recording_layers(
                     typed_record_uuid::<TenantId>(&layer.tenant, TenantId::TABLE)?,
                     recording_id,
@@ -840,7 +841,7 @@ impl RecordingIngestService {
             );
             let tenant_id = typed_record_uuid::<TenantId>(&layer.tenant, TenantId::TABLE)?;
             let stream = self
-                .store
+                .recordings
                 .recording_ingest_stream(tenant_id, stream_id)
                 .await?
                 .with_context(|| {
@@ -940,7 +941,7 @@ impl RecordingIngestService {
         stream_id: RecordingIngestStreamId,
     ) -> Result<RecordingIngestStreamRecord> {
         let stream = self
-            .store
+            .recordings
             .recording_ingest_stream(identity.tenant_id, stream_id)
             .await?
             .context("recording ingest stream was not found")?;
@@ -1035,7 +1036,7 @@ impl RecordingIngestService {
             "materialized ingest part identity or digest changed"
         );
         let stream = self
-            .store
+            .recordings
             .mark_recording_ingest_materialized_at_checkpoint(
                 identity.tenant_id,
                 stream_id,
@@ -1070,7 +1071,7 @@ impl RecordingIngestService {
         }
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         let layers = self
-            .store
+            .recordings
             .recording_layers(identity.tenant_id, recording_id, 10_000)
             .await?;
         if let Some(layer) = pending_capture_layer(&layers)?.cloned() {
@@ -1105,7 +1106,7 @@ impl RecordingIngestService {
             .context("segment path is not UTF-8")?
             .to_owned();
         let layer = self
-            .store
+            .recordings
             .open_recording_layer(RecordingLayerDraft::capture(
                 identity.clone(),
                 recording_id,
@@ -1131,7 +1132,7 @@ impl RecordingIngestService {
         }
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         let layers = self
-            .store
+            .recordings
             .recording_layers(identity.tenant_id, recording_id, 10_000)
             .await?;
         if let Some(layer) = pending_capture_layer(&layers)?.cloned() {
@@ -1157,7 +1158,7 @@ impl RecordingIngestService {
         self.forget_active_segment(stream_id)?;
         let layer_id = typed_record_uuid::<RecordingLayerId>(&layer.id, RecordingLayerId::TABLE)?;
         let current = self
-            .store
+            .recordings
             .recording_layer(identity.tenant_id, layer_id)
             .await?
             .context("recording layer disappeared before publication")?;
@@ -1184,7 +1185,7 @@ impl RecordingIngestService {
         );
         let recording_id = typed_record_uuid::<RecordingId>(&layer.recording, RecordingId::TABLE)?;
         let recording = self
-            .store
+            .recordings
             .recording(identity.tenant_id, recording_id)
             .await?
             .context("recording layer target disappeared")?;
@@ -1206,7 +1207,7 @@ impl RecordingIngestService {
         .await
         .context("joining recording layer materialization")??;
         let staged = self
-            .store
+            .recordings
             .stage_recording_layer(
                 identity,
                 layer_id,
@@ -1240,7 +1241,7 @@ impl RecordingIngestService {
                 &inspection.sha256,
             )
             .await?;
-        self.store
+        self.recordings
             .commit_recording_layer(
                 identity,
                 layer_id,
@@ -1544,7 +1545,9 @@ fn publish_blueprint_segment(path: &Path, bytes: &[u8], revision: u64) -> Result
         Ok(()) => Ok(()),
         Err(error) => {
             if path.exists() && Sha256::digest(std::fs::read(path)?) != Sha256::digest(bytes) {
-                return Err(StoreError::RecordingBlueprintRevisionConflict { revision }.into());
+                return Err(
+                    RecordingStoreError::RecordingBlueprintRevisionConflict { revision }.into(),
+                );
             }
             Err(error)
         }
@@ -1939,8 +1942,8 @@ mod tests {
         let error = publish_blueprint_segment(&path, b"second", 1).unwrap_err();
 
         assert!(matches!(
-            error.downcast_ref::<StoreError>(),
-            Some(StoreError::RecordingBlueprintRevisionConflict { revision: 1 })
+            error.downcast_ref::<RecordingStoreError>(),
+            Some(RecordingStoreError::RecordingBlueprintRevisionConflict { revision: 1 })
         ));
         assert_eq!(std::fs::read(path).unwrap(), b"first");
     }
@@ -1982,8 +1985,8 @@ mod tests {
                 .filter(|result| matches!(
                     result,
                     Err(error) if matches!(
-                        error.downcast_ref::<StoreError>(),
-                        Some(StoreError::RecordingBlueprintRevisionConflict { revision: 1 })
+                        error.downcast_ref::<RecordingStoreError>(),
+                        Some(RecordingStoreError::RecordingBlueprintRevisionConflict { revision: 1 })
                     )
                 ))
                 .count(),

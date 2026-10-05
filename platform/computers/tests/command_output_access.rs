@@ -8,7 +8,7 @@ use veoveo_task_runtime::TaskRuntime;
 #[tokio::test]
 async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_enters_task_or_audit()
 {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -91,7 +91,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
     let mut response = db
         .a
         .client()
-        .query("SELECT * FROM computer_execution; SELECT * FROM task; SELECT * FROM audit_record;")
+        .query(include_str!("queries/command_output_access/output_capability_precedes_dispatch_survives_replica_loss_and_never_enters_task_or_audit/statement_1.surql"))
         .await
         .unwrap()
         .check()
@@ -114,7 +114,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
 #[tokio::test]
 async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued_renewal_is_fenced()
 {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -137,7 +137,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
     let object: veoveo_platform_store::OpenObject =
         serde_json::from_value(serde_json::to_value(sealed).unwrap()).unwrap();
     db.a.client()
-        .query("UPDATE computer_execution SET output_access=$sealed;")
+        .query(include_str!("queries/command_output_access/unavailable_or_short_lived_output_authority_never_dispatches_and_queued_renewal_is_fenced/statement_1.surql"))
         .bind(("sealed", object))
         .await
         .unwrap()
@@ -155,7 +155,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
     // Cipher corruption is an operational fault, never permission to silently
     // replace an unreadable key/capability or execute without output controls.
     db.a.client()
-        .query("UPDATE computer_execution SET output_access.ciphertext='corrupt';")
+        .query(include_str!("queries/command_output_access/unavailable_or_short_lived_output_authority_never_dispatches_and_queued_renewal_is_fenced/statement_2.surql"))
         .await
         .unwrap()
         .check()
@@ -166,7 +166,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
             .await
             .is_err()
     );
-    let mut result = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+    let mut result = db.a.client().query(include_str!("queries/command_output_access/unavailable_or_short_lived_output_authority_never_dispatches_and_queued_renewal_is_fenced/statement_3.surql")).await.unwrap().check().unwrap();
     let events: Vec<surrealdb::types::Value> = result.take(0).unwrap();
     let slots: Vec<surrealdb::types::Value> = result.take(1).unwrap();
     assert!(events.is_empty());
@@ -176,7 +176,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
 #[tokio::test]
 async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_command() {
     use veoveo_computers::commands::{CommandOutcome, CommandRefusal};
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -195,7 +195,7 @@ async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_comma
     // Age only this isolated queued fixture. The database clock decides both the
     // dispatch and refusal boundaries, independently of a worker's wall clock.
     db.a.client()
-        .query("UPDATE computer_execution SET created_at=time::now()-301s;")
+        .query(include_str!("queries/command_output_access/preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_command/statement_1.surql"))
         .await
         .unwrap()
         .check()
@@ -211,7 +211,7 @@ async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_comma
             CommandRefusal::PreparationExpired
         ))
     ));
-    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched';")
+    let mut response = db.a.client().query(include_str!("queries/command_output_access/preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_command/statement_2.surql"))
         .await.unwrap().check().unwrap();
     let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     let dispatches: Vec<surrealdb::types::Value> = response.take(1).unwrap();
@@ -220,7 +220,7 @@ async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_comma
     let _dispatch = a.begin_command_dispatch(&claim, &keys()).await.unwrap();
     db.a.client()
         .query(
-            "UPDATE computer_execution SET created_at=time::now()-301s WHERE stage='dispatched';",
+            include_str!("queries/command_output_access/preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_command/statement_3.surql"),
         )
         .await
         .unwrap()
@@ -237,7 +237,7 @@ async fn preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_comma
     );
     let mut response =
         db.a.client()
-            .query("SELECT * FROM computer_execution_slot;")
+            .query(include_str!("queries/command_output_access/preparation_expiry_is_store_fenced_and_never_expires_a_dispatched_command/statement_4.surql"))
             .await
             .unwrap()
             .check()

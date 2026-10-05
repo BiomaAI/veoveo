@@ -1,6 +1,7 @@
 //! Native MCP over real HTTP and the durable Task runtime over isolated SurrealDB.
 //! The hosted domain is explicit test data; this is not installed acceptance.
 use super::*;
+use crate::persistence::WorkspaceRepository;
 use axum::{
     body::{Body, to_bytes},
     http::Request,
@@ -77,7 +78,17 @@ async fn detail(app: &Router, id: Uuid) -> wire::OperationView {
 
 #[tokio::test]
 async fn model_capability_admission_checks_only_required_discovery_surfaces() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            crate::test_store::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+        crate::schema::module_setup(
+            crate::test_store::module_lanes::execution("workspace").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     super::super::tests::setup(&db.a).await;
     let subject = alice();
     let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
@@ -121,7 +132,17 @@ async fn authoring_picker_waits_for_complete_native_catalog_without_dispatch() {
 
 async fn reactive_catalog_admission(required: Vec<GatewayToolName>) {
     tokio::time::timeout(Duration::from_secs(15), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                crate::test_store::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("workspace").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         super::super::tests::setup(&db.a).await;
         let subject = alice();
         let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
@@ -163,7 +184,7 @@ async fn reactive_catalog_admission(required: Vec<GatewayToolName>) {
 async fn native_tasks_survive_restart_require_current_input_and_confirm_cancellation() {
     tokio::time::timeout(Duration::from_secs(45), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![veoveo_agent_runtime::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap()).unwrap(), crate::schema::module_setup(crate::test_store::module_lanes::execution("workspace").unwrap()).unwrap()]).await;
         super::super::tests::setup(&db.a).await;
         let subject = alice();
         let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
@@ -172,7 +193,7 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         let state = new_state(db.a.clone(), port);
         let authority = state.authority(&subject, &GatewayProfileId::parse("operator").unwrap()).await.unwrap();
         let chat = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&authority, chat, "Native Tasks").await.unwrap();
+        WorkspaceRepository::new(db.a.clone()).create_workspace_chat(&authority, chat, "Native Tasks").await.unwrap();
         let app = new_app(state.clone());
         let id = Uuid::now_v7();
         let path = format!("/chats/{}/operations", chat.as_uuid());
@@ -254,7 +275,17 @@ mod personal;
 async fn request_progress_arrives_before_tool_receipt_and_ends_with_it() {
     tokio::time::timeout(Duration::from_secs(30), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                crate::test_store::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("workspace").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         super::super::tests::setup(&db.a).await;
         let subject = alice();
         let fixture = super::test_domain::Fixture::start(db.a.clone(), &subject).await;
@@ -265,7 +296,8 @@ async fn request_progress_arrives_before_tool_receipt_and_ends_with_it() {
             .await
             .unwrap();
         let chat = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&authority, chat, "Measured work")
+        WorkspaceRepository::new(db.a.clone())
+            .create_workspace_chat(&authority, chat, "Measured work")
             .await
             .unwrap();
         let app = new_app(state);
@@ -307,7 +339,17 @@ async fn request_progress_arrives_before_tool_receipt_and_ends_with_it() {
 
 #[tokio::test]
 async fn closed_module_refuses_operation_before_persisting_intent() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            crate::test_store::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+        crate::schema::module_setup(
+            crate::test_store::module_lanes::execution("workspace").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     super::super::tests::setup(&db.a).await;
     let state = new_state(db.a.clone(), 1);
     let caller = Caller {
@@ -320,7 +362,8 @@ async fn closed_module_refuses_operation_before_persisting_intent() {
         .await
         .unwrap();
     let chat = WorkspaceChatId::new();
-    db.a.create_workspace_chat(&actor, chat, "Closed module")
+    WorkspaceRepository::new(db.a.clone())
+        .create_workspace_chat(&actor, chat, "Closed module")
         .await
         .unwrap();
     let id = WorkspaceOperationId::new();
@@ -329,7 +372,7 @@ async fn closed_module_refuses_operation_before_persisting_intent() {
         state.clone(),
         caller,
         id,
-        veoveo_platform_store::workspace::WorkspaceOperationIntent {
+        crate::persistence::WorkspaceOperationIntent {
             app_uri: None,
             chat,
             run: None,
@@ -342,8 +385,10 @@ async fn closed_module_refuses_operation_before_persisting_intent() {
     .await;
     assert!(matches!(result, Err(StatusCode::SERVICE_UNAVAILABLE)));
     assert!(matches!(
-        db.a.workspace_operation(&actor, id).await,
-        Err(veoveo_platform_store::workspace::WorkspaceError::NotFound)
+        WorkspaceRepository::new(db.a.clone())
+            .workspace_operation(&actor, id)
+            .await,
+        Err(crate::persistence::WorkspaceError::NotFound)
     ));
     state.scope.cancel();
     tokio::time::timeout(Duration::from_secs(2), state.scope.wait())

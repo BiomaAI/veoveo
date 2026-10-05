@@ -5,7 +5,7 @@ use veoveo_types::{DataLabelId, ResourceScheme};
 
 #[tokio::test]
 async fn attachment_requires_its_own_resource_policy_and_current_contributor_membership() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, _, computer) = ready(&db, &actor).await;
     for change in ["attach", "read", "membership", "labels"] {
@@ -59,7 +59,7 @@ async fn attachment_requires_its_own_resource_policy_and_current_contributor_mem
 
 #[tokio::test]
 async fn expired_ticket_grant_and_family_cannot_be_revived_by_activity() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
     for field in ["ticket", "absolute", "idle", "family"] {
@@ -76,7 +76,7 @@ async fn expired_ticket_grant_and_family_cannot_be_revived_by_activity() {
                 .parse()
                 .unwrap();
             db.b.client()
-                .query("UPDATE ONLY $grant SET ticket_expires_at = time::now() - 1s;")
+                .query(include_str!("../queries/support/grant_limits/expired_ticket_grant_and_family_cannot_be_revived_by_activity/statement_1.surql"))
                 .bind(("grant", grant_record(id)))
                 .await
                 .unwrap()
@@ -87,9 +87,15 @@ async fn expired_ticket_grant_and_family_cannot_be_revived_by_activity() {
         }
         let handle = a.redeem_browser_grant(&actor, &ticket.token).await.unwrap();
         let statement = match field {
-            "absolute" => "UPDATE ONLY $grant SET expires_at = time::now() - 1s;",
-            "idle" => "UPDATE ONLY $grant SET idle_expires_at = time::now() - 1s;",
-            _ => "UPDATE ONLY $family SET expires_at = time::now() - 1s;",
+            "absolute" => include_str!(
+                "../queries/support/grant_limits/expired_ticket_grant_and_family_cannot_be_revived_by_activity/statement_2.surql"
+            ),
+            "idle" => include_str!(
+                "../queries/support/grant_limits/expired_ticket_grant_and_family_cannot_be_revived_by_activity/statement_3.surql"
+            ),
+            _ => include_str!(
+                "../queries/support/grant_limits/expired_ticket_grant_and_family_cannot_be_revived_by_activity/statement_4.surql"
+            ),
         };
         let family = gateway_refresh_family_record_id(
             identity
@@ -122,7 +128,7 @@ async fn expired_ticket_grant_and_family_cannot_be_revived_by_activity() {
 
 #[tokio::test]
 async fn passive_renewal_preserves_idle_expiry_and_activity_cannot_slide_absolute_expiry() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
     let short = SessionGrantPolicy {

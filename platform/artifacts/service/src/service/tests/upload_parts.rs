@@ -118,7 +118,7 @@ async fn upload_parts_fence_stale_attempts_preserve_receipts_and_bound_shared_me
         .unwrap();
     store
         .client()
-        .query("UPDATE ONLY $part SET lease_until = $past;")
+        .query(include_str!("../../../tests/queries/service/tests/upload_parts/upload_parts_fence_stale_attempts_preserve_receipts_and_bound_shared_memory.surql"))
         .bind(("part", second.id.clone()))
         .bind(("past", Utc::now() - TimeDelta::seconds(1)))
         .await

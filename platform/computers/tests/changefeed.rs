@@ -13,16 +13,16 @@ use veoveo_platform_store::{
 };
 use veoveo_types::TaskId;
 
-const SCHEMA: &str = "
-    REMOVE TABLE task; DEFINE TABLE task SCHEMALESS CHANGEFEED 30d;
-    REMOVE TABLE computer_automation_grant; DEFINE TABLE computer_automation_grant SCHEMALESS CHANGEFEED 30d INCLUDE ORIGINAL;
-";
+const SCHEMA: &str = include_str!("queries/changefeed/changefeed/statement_1.surql");
 
 #[tokio::test]
 async fn computer_changes_catch_baseline_races_restarts_and_deleted_grant_parents() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db =
-            fixture::TestDb::with_backend_and_schema(fixture::StoreBackend::RocksDb, SCHEMA).await;
+            fixture::TestDb::with_composition(fixture::StoreBackend::RocksDb,
+                vec![veoveo_computers::schema::module_setup(fixture::module_lanes::execution("computers").unwrap()).unwrap()],
+                veoveo_gateway_catalog::audit_target_registry().unwrap()).await;
+        db.admin().await.client().query(SCHEMA).await.unwrap().check().unwrap();
         let consumer = ChangefeedConsumerId::new("qualification/native-reader").unwrap();
         let tables = vec![
             ObservationTable::from(PlatformTable::Task),
@@ -43,10 +43,7 @@ async fn computer_changes_catch_baseline_races_restarts_and_deleted_grant_parent
         // Writes occur while the source is paused at its baseline yield.
         db.b.client()
             .query(
-                "BEGIN TRANSACTION;
-            CREATE ONLY $task SET content = 'never decoded by the identity reader';
-            CREATE ONLY $computer_grant SET computer_id = $computer, grant_id = $grant;
-            COMMIT TRANSACTION;",
+                include_str!("queries/changefeed/computer_changes_catch_baseline_races_restarts_and_deleted_grant_parents/statement_1.surql"),
             )
             .bind(("task", task_record_id(task)))
             .bind(("computer_grant", computer_grant.clone()))
@@ -92,7 +89,7 @@ async fn computer_changes_catch_baseline_races_restarts_and_deleted_grant_parent
         drop(changes);
         fixture::wait_for_no_live(&db.b, &tables).await;
         db.b.client()
-            .query("BEGIN TRANSACTION; DELETE ONLY $c; COMMIT TRANSACTION;")
+            .query(include_str!("queries/changefeed/computer_changes_catch_baseline_races_restarts_and_deleted_grant_parents/statement_2.surql"))
             .bind(("c", computer_grant))
             .await
             .unwrap()

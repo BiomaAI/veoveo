@@ -1,0 +1,1 @@
+CREATE ONLY $context SET tenant = $tenant, context_key = 'integration-mission', title = 'Mission', policy_revision = 'r1', memberships = [], output_policy = {owner_kind: 'principal', owner_key: 'alice', initial_grants: [], data_labels: []};

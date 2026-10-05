@@ -1,7 +1,8 @@
 //! Service wiring for current caller authority and optional grant reuse.
 use super::{GatewayInternalIdentity, RecordingDatasetId, RecordingId, RecordingService};
-use veoveo_platform_store::{RecordingReadGrantClass, deterministic_work_context_id};
+use veoveo_platform_store::deterministic_work_context_id;
 use veoveo_recording_mcp::contract::RecordingReadGrantId;
+use veoveo_recording_store::RecordingReadGrantClass;
 use veoveo_types::{PolicyVersion, WorkContextId};
 
 pub(super) async fn qualify(

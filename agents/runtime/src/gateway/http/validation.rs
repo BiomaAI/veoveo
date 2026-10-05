@@ -1,5 +1,7 @@
 use crate::contract::AgentAction as Action;
 use crate::contract::authoring as wire;
+use crate::persistence::AgentRepository;
+use crate::persistence::{AgentDefinition, AgentPublicationContext};
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -7,7 +9,6 @@ use axum::{
 };
 use veoveo_http::RequestJson;
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::agent_management::{AgentDefinition, AgentPublicationContext};
 use veoveo_types::WorkContextId;
 
 use super::{
@@ -229,8 +230,7 @@ pub(super) async fn validate(
     RequestJson(request): RequestJson<wire::ValidateDefinition>,
 ) -> Api<wire::Validation> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsPublish).await?;
-    let definition = state
-        .store()
+    let definition = AgentRepository::new(state.store().clone())
         .agent_definition(&actor.authority, &id)
         .await?;
     if definition.revision != request.expected_revision {

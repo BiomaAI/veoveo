@@ -67,7 +67,7 @@ impl MediaState {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/record_usage.surql"))
             .bind(("usage", id.record_id()))
             .bind(("content", record))
             .await?
@@ -80,12 +80,15 @@ impl MediaState {
         task: TaskId,
         external_job_id: &MediaPredictionId,
     ) -> Result<bool, StoreError> {
-        let mut response = self.store.client()
-            .query("RETURN count((SELECT VALUE id FROM media_usage WHERE task = $task AND tenant = task.tenant AND task.server = mcp_server:media AND provider_job.task = task AND provider_job.tenant = tenant AND provider_job.provider = $provider AND provider_job.external_job_id = $prediction AND provider_job.provider_payload.id = $prediction AND kind = 'actual' LIMIT 1)) > 0;")
+        let mut response = self
+            .store
+            .client()
+            .query(include_str!("queries/has_actual_usage.surql"))
             .bind(("task", task_record_id(task)))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("prediction", external_job_id.to_string()))
-            .await?.check()?;
+            .await?
+            .check()?;
         Ok(response.take::<Option<bool>>(0)?.unwrap_or(false))
     }
 
@@ -93,7 +96,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("DELETE media_usage WHERE recorded_at < $cutoff RETURN BEFORE;")
+            .query(include_str!("queries/delete_expired_usage.surql"))
             .bind(("cutoff", cutoff))
             .await?
             .check()?;
@@ -106,14 +109,18 @@ impl MediaState {
         &self,
         after: Option<ProviderJobId>,
     ) -> Result<MediaBillingPage, StoreError> {
-        let position = if after.is_some() {
-            "AND id > $after AND id != $after"
-        } else {
-            ""
-        };
-        let mut response = self.store.client().query(format!(
-            "SELECT * FROM provider_job WHERE provider = $provider AND task.server = mcp_server:media AND tenant = task.tenant AND external_job_id = provider_payload.id AND provider_payload.status IN ['completed', 'failed'] AND (SELECT VALUE id FROM media_usage WHERE task = $parent.task AND tenant = $parent.tenant AND provider_job = $parent.id AND kind = 'actual' LIMIT 1) = [] {position} ORDER BY id ASC LIMIT 101;"
-        )).bind(("provider", PROVIDER.to_owned())).bind(("after", after.map(|id| id.record_id()))).await?.check()?;
+        let mut response = self
+            .store
+            .client()
+            .query(if after.is_some() {
+                include_str!("queries/billing_candidates_after.surql")
+            } else {
+                include_str!("queries/billing_candidates.surql")
+            })
+            .bind(("provider", PROVIDER.to_owned()))
+            .bind(("after", after.map(|id| id.record_id())))
+            .await?
+            .check()?;
         let mut records: Vec<ProviderJobRecord> = response.take(0)?;
         let has_more = records.len() > 100;
         records.truncate(100);

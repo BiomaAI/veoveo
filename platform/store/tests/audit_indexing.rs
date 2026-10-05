@@ -85,16 +85,7 @@ async fn expire_windows(store: &PlatformStore) {
     // finalizer still uses the database clock and the real immutable append path.
     store
         .client()
-        .query(
-            "BEGIN TRANSACTION;
-        LET $windows = SELECT * FROM audit_indexing_window;
-        FOR $window IN $windows {
-            DELETE ONLY $window.id;
-            CREATE ONLY $window.id CONTENT object::extend($window, {
-                start: $window.start - 5m, end: $window.end - 5m
-            });
-        }; COMMIT TRANSACTION;",
-        )
+        .query(include_str!("queries/audit_indexing/expire_windows.surql"))
         .await
         .unwrap()
         .check()
@@ -121,7 +112,7 @@ async fn windows_deduplicate_retries_separate_authority_and_close_once_across_re
         let mut altered = serde_json::to_value(reads[0].draft()).unwrap();
         altered["authority"]["profile"] = serde_json::json!("other");
         let conflict = IndexingRead::new(
-            serde_json::from_value(altered.clone()).unwrap(),
+            db.a.audit_targets().decoder().from_value(altered.clone()).unwrap(),
             reads[0].collection().clone(),
         )
         .unwrap();
@@ -136,7 +127,7 @@ async fn windows_deduplicate_retries_separate_authority_and_close_once_across_re
         );
         altered["id"] = serde_json::to_value(AuditRecordId::new()).unwrap();
         let other = IndexingRead::new(
-            serde_json::from_value(altered).unwrap(),
+            db.a.audit_targets().decoder().from_value(altered).unwrap(),
             reads[0].collection().clone(),
         )
         .unwrap();
@@ -190,7 +181,7 @@ async fn windows_deduplicate_retries_separate_authority_and_close_once_across_re
         expired["occurred_at"] =
             serde_json::to_value(chrono::Utc::now() - chrono::Duration::days(2)).unwrap();
         let expired = IndexingRead::new(
-            serde_json::from_value(expired).unwrap(),
+            db.a.audit_targets().decoder().from_value(expired).unwrap(),
             reads[0].collection().clone(),
         )
         .unwrap();
@@ -202,8 +193,7 @@ async fn windows_deduplicate_retries_separate_authority_and_close_once_across_re
             .unwrap();
         db.a.client()
             .query(
-                "FOR $n IN 0..1030 { CREATE type::record('audit_indexing_receipt', $n)
-            SET fingerprint = 'fixture', recorded_at = time::now() - 2d; };",
+                include_str!("queries/audit_indexing/windows_deduplicate_retries_separate_authority_and_close_once_across_replicas.surql"),
             )
             .await
             .unwrap()
@@ -217,7 +207,7 @@ async fn windows_deduplicate_retries_separate_authority_and_close_once_across_re
         assert_eq!(db.a.prune_audit_indexing_receipts().await.unwrap(), 0);
         let mut pending =
             db.b.client()
-                .query("SELECT VALUE reads FROM audit_indexing_window;")
+                .query(include_str!("queries/audit_indexing/windows_deduplicate_retries_separate_authority_and_close_once_across_replicas_2.surql"))
                 .await
                 .unwrap()
                 .check()

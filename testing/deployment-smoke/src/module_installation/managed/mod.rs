@@ -1,4 +1,5 @@
 //! One real managed kernel, observed across installation credential recovery.
+use veoveo_agent_runtime::persistence::AgentRepository;
 mod configuration;
 mod observations;
 mod provision;
@@ -16,10 +17,11 @@ use std::{
     time::{Duration, Instant},
 };
 use surrealdb::{Notification, types::Uuid as LiveId};
-use veoveo_platform_store::agent_management::instances::{
+use veoveo_agent_runtime::persistence::AgentRecord;
+use veoveo_agent_runtime::persistence::instances::{
     ManagedAgentDesired, ManagedAgentLimits, ManagedAgentMutation, ManagedAgentPhase,
 };
-use veoveo_platform_store::{AgentRecord, PlatformStore};
+use veoveo_platform_store::PlatformStore;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,7 +70,7 @@ impl AgentLive {
         let (id, stream) = database(&runtime, async {
             let mut response = store
                 .client()
-                .query("LIVE SELECT * FROM agent;")
+                .query(include_str!("queries/live_select_from_agent.surql"))
                 .await?
                 .check()?;
             let id: Option<LiveId> = response.take(0)?;
@@ -79,7 +81,7 @@ impl AgentLive {
                     let cleanup = async {
                         store
                             .client()
-                            .query("KILL $query;")
+                            .query(include_str!("queries/kill_query.surql"))
                             .bind(("query", id))
                             .await?
                             .check()?;
@@ -106,7 +108,7 @@ impl AgentLive {
             database(&self.runtime, async {
                 self.store
                     .client()
-                    .query("KILL $query;")
+                    .query(include_str!("queries/kill_query.surql"))
                     .bind(("query", id))
                     .await?
                     .check()?;
@@ -257,7 +259,7 @@ impl Managed {
         loop {
             let instance = database(
                 &self.runtime,
-                self.store
+                AgentRepository::new(self.store.clone())
                     .managed_agent(&self.provisioned.authority, "recovery"),
             )?;
             let agents = self.observe()?;
@@ -324,7 +326,7 @@ impl Managed {
                     )?;
                     let registration = database(
                         &self.runtime,
-                        self.store
+                        AgentRepository::new(self.store.clone())
                             .managed_agent_registration(&instance.identity.client_id),
                     )?
                     .context("managed OAuth registration absent")?;
@@ -537,7 +539,7 @@ impl Managed {
             .instance_generation;
         database(
             &self.runtime,
-            self.store.mutate_managed_agent(
+            AgentRepository::new(self.store.clone()).mutate_managed_agent(
                 &self.provisioned.authority,
                 "recovery",
                 uuid::Uuid::now_v7(),
@@ -558,7 +560,7 @@ impl Managed {
             self.deployments.advance()?;
             let instance = database(
                 &self.runtime,
-                self.store
+                AgentRepository::new(self.store.clone())
                     .managed_agent(&self.provisioned.authority, "recovery"),
             )?;
             if instance.observed == ManagedAgentPhase::Archived
@@ -591,7 +593,7 @@ impl Managed {
 // A Ready write and independent DB/watch deliveries can be observed in different
 // samples. Missing healthy observations wait; contradictory observations fail.
 fn select_readiness<'a>(
-    instance: &veoveo_platform_store::agent_management::instances::ManagedAgentInstance,
+    instance: &veoveo_agent_runtime::persistence::instances::ManagedAgentInstance,
     agents: &'a [AgentRecord],
     pods: &'a std::collections::BTreeMap<uuid::Uuid, observations::Pod>,
 ) -> Result<Option<(&'a AgentRecord, &'a observations::Pod)>> {

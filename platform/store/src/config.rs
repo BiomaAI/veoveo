@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
+use veoveo_audit_contract::AuditTargetRegistry;
 
 use secrecy::{ExposeSecret, SecretString};
 use url::Url;
@@ -30,7 +32,7 @@ pub struct StoreConfig {
     websocket_write_buffer: usize,
     websocket_max_write_buffer: usize,
     websocket_max_message: usize,
-    migrate_on_connect: bool,
+    audit_targets: Arc<AuditTargetRegistry>,
 }
 
 impl StoreConfig {
@@ -52,8 +54,18 @@ impl StoreConfig {
             websocket_write_buffer: DEFAULT_WS_BUFFER,
             websocket_max_write_buffer: DEFAULT_WS_MAX_WRITE_BUFFER,
             websocket_max_message: DEFAULT_WS_MAX_MESSAGE,
-            migrate_on_connect: false,
+            audit_targets: Arc::new(AuditTargetRegistry::empty()),
         }
+    }
+
+    /// Replace transport endpoint while preserving identity, codecs and connection limits.
+    pub fn with_endpoint(mut self, endpoint: &str) -> Result<Self, StoreConfigError> {
+        self.endpoint = checked_endpoint(endpoint)?;
+        Ok(self)
+    }
+
+    pub fn audit_targets(&self) -> &AuditTargetRegistry {
+        &self.audit_targets
     }
 
     pub fn endpoint(&self) -> &Url {
@@ -107,10 +119,27 @@ impl StoreConfig {
     pub fn websocket_max_message(&self) -> usize {
         self.websocket_max_message
     }
+}
 
-    pub fn migrate_on_connect(&self) -> bool {
-        self.migrate_on_connect
+fn checked_endpoint(value: &str) -> Result<Url, StoreConfigError> {
+    let endpoint =
+        Url::parse(value).map_err(|error| StoreConfigError::InvalidEndpoint(error.to_string()))?;
+    if !matches!(endpoint.scheme(), "ws" | "wss") {
+        return Err(StoreConfigError::UnsupportedEndpointScheme(
+            endpoint.scheme().to_owned(),
+        ));
     }
+    if endpoint.host_str().is_none() {
+        return Err(StoreConfigError::MissingEndpointHost);
+    }
+    if !endpoint.username().is_empty()
+        || endpoint.password().is_some()
+        || endpoint.query().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err(StoreConfigError::UnsafeEndpoint);
+    }
+    Ok(endpoint)
 }
 
 impl fmt::Debug for StoreConfig {
@@ -131,7 +160,6 @@ impl fmt::Debug for StoreConfig {
                 &self.websocket_max_write_buffer,
             )
             .field("websocket_max_message", &self.websocket_max_message)
-            .field("migrate_on_connect", &self.migrate_on_connect)
             .finish()
     }
 }
@@ -148,10 +176,16 @@ pub struct StoreConfigBuilder {
     websocket_write_buffer: usize,
     websocket_max_write_buffer: usize,
     websocket_max_message: usize,
-    migrate_on_connect: bool,
+    audit_targets: Arc<AuditTargetRegistry>,
 }
 
 impl StoreConfigBuilder {
+    /// Immutable target codecs belong to the composition, shared by every connection clone.
+    pub fn audit_targets(mut self, value: Arc<AuditTargetRegistry>) -> Self {
+        self.audit_targets = value;
+        self
+    }
+
     pub fn query_timeout(mut self, value: Duration) -> Self {
         self.query_timeout = value;
         self
@@ -179,29 +213,8 @@ impl StoreConfigBuilder {
         self
     }
 
-    pub fn migrate_on_connect(mut self, value: bool) -> Self {
-        self.migrate_on_connect = value;
-        self
-    }
-
     pub fn build(self) -> Result<StoreConfig, StoreConfigError> {
-        let endpoint = Url::parse(&self.endpoint)
-            .map_err(|error| StoreConfigError::InvalidEndpoint(error.to_string()))?;
-        if !matches!(endpoint.scheme(), "ws" | "wss") {
-            return Err(StoreConfigError::UnsupportedEndpointScheme(
-                endpoint.scheme().to_owned(),
-            ));
-        }
-        if endpoint.host_str().is_none() {
-            return Err(StoreConfigError::MissingEndpointHost);
-        }
-        if !endpoint.username().is_empty()
-            || endpoint.password().is_some()
-            || endpoint.query().is_some()
-            || endpoint.fragment().is_some()
-        {
-            return Err(StoreConfigError::UnsafeEndpoint);
-        }
+        let endpoint = checked_endpoint(&self.endpoint)?;
         validate_name("namespace", &self.namespace)?;
         validate_name("database", &self.database)?;
         if self.credentials.username().trim().is_empty() {
@@ -233,9 +246,6 @@ impl StoreConfigBuilder {
         if self.websocket_max_write_buffer <= self.websocket_write_buffer {
             return Err(StoreConfigError::InvalidWriteBuffer);
         }
-        if self.migrate_on_connect && self.credentials.auth_level() != StoreAuthLevel::Root {
-            return Err(StoreConfigError::MigrationRequiresRootCredentials);
-        }
 
         Ok(StoreConfig {
             endpoint,
@@ -249,7 +259,7 @@ impl StoreConfigBuilder {
             websocket_write_buffer: self.websocket_write_buffer,
             websocket_max_write_buffer: self.websocket_max_write_buffer,
             websocket_max_message: self.websocket_max_message,
-            migrate_on_connect: self.migrate_on_connect,
+            audit_targets: self.audit_targets,
         })
     }
 }
@@ -443,28 +453,38 @@ mod tests {
     }
 
     #[test]
-    fn migration_is_explicit_and_root_only() {
-        let runtime = StoreConfig::builder(
+    fn endpoint_replacement_preserves_configuration_and_registry() {
+        let targets = Arc::new(AuditTargetRegistry::empty());
+        let original = StoreConfig::builder(
             "ws://127.0.0.1:8000",
-            "veoveo",
-            "platform",
-            StoreCredentials::database("runtime", "secret"),
+            "fixture",
+            "database",
+            StoreCredentials::database("editor", "secret"),
         )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap_err();
-        assert_eq!(runtime, StoreConfigError::MigrationRequiresRootCredentials);
-
-        let root = StoreConfig::builder(
-            "ws://127.0.0.1:8000",
-            "veoveo",
-            "platform",
-            StoreCredentials::root("root", "secret"),
-        )
-        .migrate_on_connect(true)
+        .query_timeout(Duration::from_secs(7))
+        .connection_capacity(23)
+        .audit_targets(targets.clone())
         .build()
         .unwrap();
-        assert_eq!(root.auth_level(), StoreAuthLevel::Root);
+        let replaced = original
+            .clone()
+            .with_endpoint("wss://store.example/rpc")
+            .unwrap();
+        assert_eq!(replaced.endpoint().as_str(), "wss://store.example/rpc");
+        assert_eq!(replaced.query_timeout(), original.query_timeout());
+        assert_eq!(
+            replaced.connection_capacity(),
+            original.connection_capacity()
+        );
+        assert_eq!(replaced.username(), original.username());
+        assert_eq!(replaced.namespace(), original.namespace());
+        assert_eq!(replaced.database(), original.database());
+        assert!(Arc::ptr_eq(&replaced.audit_targets, &targets));
+        assert!(
+            original
+                .with_endpoint("ws://editor:secret@store.example")
+                .is_err()
+        );
     }
 
     #[test]

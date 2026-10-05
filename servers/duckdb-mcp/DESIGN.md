@@ -1176,3 +1176,10 @@ types keep distinct schema descriptions; the engine owns SQL grammar and identif
 quoting. Task error helpers settle a Succeeded Task carrying MCP `isError=true`, then
 the caller returns before any normal completion. A result serialization failure uses
 the existing Failed transition.
+
+## Native Query Fixture Placement
+
+Store-backed native fixture statements live in `tests/queries/`, grouped by the
+calling harness. Colocated fixtures include those files with their existing bindings
+and result slots. Complete static statements cover finite SQL grammar choices.
+Analytical DuckDB query inputs and engine adapters keep their separate SQL contract.

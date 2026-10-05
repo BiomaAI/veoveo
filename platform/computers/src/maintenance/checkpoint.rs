@@ -54,7 +54,7 @@ impl ComputersStore {
         let binding = self.maintenance_binding(&operation).await?;
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $policy;",
+                include_str!("../../queries/maintenance/checkpoint/maintenance_checkpoint.surql"),
                 vec![("policy", policy_record(operation.operation_id).into_value())],
             )
             .await?;

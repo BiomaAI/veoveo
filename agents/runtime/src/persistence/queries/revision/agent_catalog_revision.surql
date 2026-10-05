@@ -1,0 +1,1 @@
+RETURN SELECT key, revision FROM agent_definition WHERE tenant = $authority.tenant AND status = 'enabled' AND disabled = false AND $authority.work_context IN audience AND published != NONE ORDER BY key;

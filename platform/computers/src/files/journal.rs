@@ -104,6 +104,7 @@ impl ComputersStore {
             _ => None,
         };
         params.push(crate::audit::binding(
+            self.platform.audit_targets(),
             &operation.authority,
             operation.computer_id(),
             event.transition(

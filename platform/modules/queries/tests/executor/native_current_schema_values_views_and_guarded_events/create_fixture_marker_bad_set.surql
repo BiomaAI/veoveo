@@ -1,0 +1,1 @@
+CREATE fixture_marker:bad SET state='invalid';

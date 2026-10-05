@@ -65,7 +65,7 @@ fn source(n: usize, at: DateTime<Utc>) -> RegisteredSource {
 #[tokio::test]
 async fn source_pages_and_completion_select_tenant_before_limits_and_recheck_access() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "sources", "author").await;
@@ -79,7 +79,7 @@ async fn source_pages_and_completion_select_tenant_before_limits_and_recheck_acc
                 .await
                 .unwrap();
             db.a.client()
-                .query("UPDATE ONLY $id SET canonical_json = '{' RETURN NONE;")
+                .query(include_str!("../../queries/catalog/sources/tests/source_pages_and_completion_select_tenant_before_limits_and_recheck_access/statement_1.surql"))
                 .bind(("id", RecordId::new("map_source", record.source_id.as_str())))
                 .await
                 .unwrap()
@@ -177,7 +177,7 @@ async fn source_pages_and_completion_select_tenant_before_limits_and_recheck_acc
         );
         // A cursor grants no authority when a record moves to a different tenant.
         db.a.client()
-            .query("UPDATE ONLY $id SET tenant = $tenant RETURN NONE;")
+            .query(include_str!("../../queries/catalog/sources/tests/source_pages_and_completion_select_tenant_before_limits_and_recheck_access/statement_2.surql"))
             .bind((
                 "id",
                 RecordId::new("map_source", selected.source_id.as_str()),
@@ -218,7 +218,7 @@ async fn source_pages_and_completion_select_tenant_before_limits_and_recheck_acc
 #[tokio::test]
 async fn selected_source_documents_must_agree_with_indexed_metadata() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let catalog = MapCatalog::new(db.a.clone());
         let access = scope(&db.a, "source-corruption", "author").await;
         let record = source(1, Utc::now());
@@ -242,7 +242,7 @@ async fn selected_source_documents_must_agree_with_indexed_metadata() {
             let mut bad = wire.clone();
             bad[field] = value;
             db.a.client()
-                .query("UPDATE ONLY $id SET canonical_json = $json RETURN NONE;")
+                .query(include_str!("../../queries/catalog/sources/tests/selected_source_documents_must_agree_with_indexed_metadata/statement_1.surql"))
                 .bind(("id", RecordId::new("map_source", record.source_id.as_str())))
                 .bind(("json", serde_json::to_string(&bad).unwrap()))
                 .await
@@ -264,9 +264,7 @@ async fn selected_source_documents_must_agree_with_indexed_metadata() {
         // A matching key/document cannot hide the wrong physical record identity.
         db.a.client()
             .query(
-                "BEGIN; LET $content = (SELECT * OMIT id FROM ONLY $id); DELETE $id;
-             CREATE $wrong CONTENT $content;
-             UPDATE ONLY $wrong SET canonical_json = $json RETURN NONE; COMMIT;",
+                include_str!("../../queries/catalog/sources/tests/selected_source_documents_must_agree_with_indexed_metadata/statement_2.surql"),
             )
             .bind(("id", RecordId::new("map_source", record.source_id.as_str())))
             .bind((

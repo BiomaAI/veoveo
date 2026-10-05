@@ -1,0 +1,1 @@
+SELECT VALUE operation_id FROM computer_maintenance_policy;

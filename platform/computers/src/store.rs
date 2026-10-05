@@ -74,7 +74,10 @@ impl ComputersStore {
         platform: PlatformStore,
         provider_instance_id: crate::api::ProviderInstanceId,
         catalog_registry: veoveo_gateway_contract::CatalogRegistry,
-    ) -> Result<Self> {
+    ) -> std::result::Result<Self, veoveo_audit_contract::AuditTargetError> {
+        platform
+            .audit_targets()
+            .registration::<crate::api::ComputerAuditTarget>()?;
         Ok(Self {
             platform,
             catalog_registry,

@@ -1,7 +1,8 @@
 //! Tenant-scoped restriction reads and operational selection owned by Map.
+use crate::persistence::MapRestrictionRecord;
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
-use veoveo_platform_store::{MapRestrictionRecord, RecordId};
+use veoveo_platform_store::RecordId;
 
 use super::{MapAccessContext, MapCatalog, decode, integer_version, validate_restriction, wire};
 use crate::contract::{
@@ -77,26 +78,28 @@ impl MapCatalog {
         scope: &MapAccessContext,
         selection: Selection<'_>,
     ) -> Result<Vec<Restriction>> {
-        let (predicate, limit) = match selection {
-            Selection::Exact(_) => ("AND restriction_key = $key", 2),
-            Selection::Page(None) => ("", RESTRICTION_PAGE_SIZE + 1),
-            Selection::Page(Some(_)) => ("AND restriction_key > $after", RESTRICTION_PAGE_SIZE + 1),
+        let (sql, limit) = match selection {
+            Selection::Exact(_) => (
+                include_str!("../queries/catalog/restrictions/exact.surql"),
+                2,
+            ),
+            Selection::Page(None) => (
+                include_str!("../queries/catalog/restrictions/first_page.surql"),
+                RESTRICTION_PAGE_SIZE + 1,
+            ),
+            Selection::Page(Some(_)) => (
+                include_str!("../queries/catalog/restrictions/after_page.surql"),
+                RESTRICTION_PAGE_SIZE + 1,
+            ),
             Selection::Effective { .. } => (
-                "AND cancelled_by = NONE AND valid_from <= $at
-                AND (valid_until = NONE OR valid_until > $at)
-                AND ($family = NONE OR affected_mobility_families CONTAINS $family)",
+                include_str!("../queries/catalog/restrictions/effective.surql"),
                 MAX_EFFECTIVE_RESTRICTIONS + 1,
             ),
         };
-        // The statement fragments are closed above. Domain values reach text only
-        // when bound to the driver, never while composing a statement.
         let query = self
             .store()
             .client()
-            .query(format!(
-                "SELECT * FROM map_restriction WHERE tenant = $tenant {predicate}
-             ORDER BY restriction_key ASC LIMIT $limit TIMEOUT 5s;"
-            ))
+            .query(sql)
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("limit", limit));
         let query = match selection {
@@ -131,11 +134,9 @@ impl MapCatalog {
         let mut response = self
             .store()
             .client()
-            .query(
-                "SELECT VALUE restriction_key FROM map_restriction WHERE tenant = $tenant
-             AND string::lowercase(restriction_key) CONTAINS $needle
-             GROUP BY restriction_key ORDER BY restriction_key ASC LIMIT 101 TIMEOUT 5s;",
-            )
+            .query(include_str!(
+                "../queries/catalog/restrictions/complete_restrictions/statement_1.surql"
+            ))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("needle", needle.to_lowercase()))
             .await?

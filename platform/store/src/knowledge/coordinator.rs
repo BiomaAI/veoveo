@@ -54,9 +54,6 @@ impl CoordinatorLease {
         }
     }
 }
-pub(super) fn fenced(sql: &str) -> String {
-    sql.replace("__LEASE__", include_str!("lease_guard.surql"))
-}
 pub(super) fn sync_record(generation: GenerationId, collection: &CollectionId) -> RecordId {
     RecordId::new(
         "knowledge_sync",
@@ -76,7 +73,10 @@ impl PlatformStore {
             mutations: Default::default(),
         };
         let mut response = candidate
-            .bind(self.client().query(include_str!("claim.surql")))
+            .bind(
+                self.client()
+                    .query(include_str!("../queries/knowledge/claim.surql")),
+            )
             .await?
             .knowledge_check()?;
         let epoch: Option<i64> = response.take(response.num_statements() - 2)?;
@@ -87,7 +87,12 @@ impl PlatformStore {
         lease: &CoordinatorLease,
     ) -> Result<(), StoreError> {
         let _mutation = lease.mutation().await;
-        lease.bind(self.client().query(fenced("BEGIN TRANSACTION; __LEASE__ UPDATE ONLY $coordinator SET expires_at = time::now() + 30s; COMMIT TRANSACTION;"))).await?.knowledge_check()?;
+        lease
+            .bind(self.client().query(include_str!(
+                "../queries/knowledge/coordinator/renew_knowledge_coordinator.surql"
+            )))
+            .await?
+            .knowledge_check()?;
         Ok(())
     }
     /// A departing worker cannot expire its successor's lease.
@@ -96,8 +101,12 @@ impl PlatformStore {
         lease: &CoordinatorLease,
     ) -> Result<(), StoreError> {
         let _mutation = lease.mutation().await;
-        lease.bind(self.client().query("UPDATE ONLY $coordinator SET expires_at = time::now() WHERE owner = $owner AND epoch = $owner_epoch;"))
-            .await?.knowledge_check()?;
+        lease
+            .bind(self.client().query(include_str!(
+                "../queries/knowledge/coordinator/release_knowledge_coordinator.surql"
+            )))
+            .await?
+            .knowledge_check()?;
         Ok(())
     }
 }

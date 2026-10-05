@@ -48,7 +48,7 @@ async fn import_admission_repairs_actual_caller_access_and_keeps_task_authority_
     exercise(true).await;
 }
 async fn exercise(import: bool) {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, old_agent, computer) = support::automation::setup(&db).await;
     let mut control = support::automation::control();
     for name in ["transfer_file", "update_template"] {
@@ -67,7 +67,9 @@ async fn exercise(import: bool) {
         "f".repeat(64)
     ));
     db.a.client()
-        .query("UPDATE ONLY $computer SET template_fingerprint=$fingerprint;")
+        .query(include_str!(
+            "../queries/support/file_projection/exercise.surql"
+        ))
         .bind(("computer", command_support::computer_record(computer)))
         .bind(("fingerprint", selected.fingerprint()))
         .await
@@ -251,7 +253,9 @@ async fn exercise(import: bool) {
     );
     assert!(active.busy && active.can_stop && !active.can_transfer_files);
     db.a.client()
-        .query("UPDATE ONLY $computer SET phase='stopped';")
+        .query(include_str!(
+            "../queries/support/file_projection/exercise_2.surql"
+        ))
         .bind(("computer", command_support::computer_record(computer)))
         .await
         .unwrap()
@@ -268,7 +272,9 @@ async fn exercise(import: bool) {
         .unwrap();
     assert!(stopped.busy && !stopped.can_start && !stopped.can_transfer_files);
     db.a.client()
-        .query("UPDATE ONLY $computer SET phase='ready';")
+        .query(include_str!(
+            "../queries/support/file_projection/exercise_3.surql"
+        ))
         .bind(("computer", command_support::computer_record(computer)))
         .await
         .unwrap()

@@ -47,7 +47,7 @@ impl PlatformStore {
     ) -> Result<ArtifactUploadRecord, StoreError> {
         check_lease_seconds(seconds)?;
         self.mutate_upload(
-            include_str!("lease.surql"),
+            include_str!("../queries/artifact_uploads/lease.surql"),
             upload_id,
             Mutation {
                 owner: Some(owner),
@@ -66,7 +66,7 @@ impl PlatformStore {
     ) -> Result<ArtifactUploadRecord, StoreError> {
         check_lease_seconds(seconds)?;
         self.mutate_upload(
-            include_str!("lease.surql"),
+            include_str!("../queries/artifact_uploads/lease.surql"),
             fence.upload_id,
             Mutation {
                 seconds,
@@ -82,7 +82,7 @@ impl PlatformStore {
         fence: &ArtifactUploadFence,
     ) -> Result<(), StoreError> {
         self.mutate_upload(
-            include_str!("lease.surql"),
+            include_str!("../queries/artifact_uploads/lease.surql"),
             fence.upload_id,
             Mutation {
                 operation: "release",
@@ -102,7 +102,7 @@ impl PlatformStore {
             return Err(conflict());
         }
         self.mutate_upload(
-            include_str!("lease.surql"),
+            include_str!("../queries/artifact_uploads/lease.surql"),
             fence.upload_id,
             Mutation {
                 operation: "initialize",
@@ -131,7 +131,7 @@ impl PlatformStore {
             return Err(conflict());
         }
         self.mutate_upload(
-            include_str!("freeze.surql"),
+            include_str!("../queries/artifact_uploads/freeze.surql"),
             upload_id,
             Mutation {
                 manifest: Some(manifest),
@@ -148,7 +148,7 @@ impl PlatformStore {
         fence: &ArtifactUploadFence,
     ) -> Result<ArtifactUploadRecord, StoreError> {
         self.mutate_upload(
-            include_str!("lease.surql"),
+            include_str!("../queries/artifact_uploads/lease.surql"),
             fence.upload_id,
             Mutation {
                 operation: "verify",
@@ -165,7 +165,7 @@ impl PlatformStore {
         upload_id: Uuid,
     ) -> Result<ArtifactUploadRecord, StoreError> {
         self.mutate_upload(
-            include_str!("terminate.surql"),
+            include_str!("../queries/artifact_uploads/terminate.surql"),
             upload_id,
             Mutation {
                 terminal: Some(ArtifactUploadState::Cancelled),
@@ -186,7 +186,7 @@ impl PlatformStore {
             ArtifactUploadState::Failed
         };
         self.mutate_upload(
-            include_str!("terminate.surql"),
+            include_str!("../queries/artifact_uploads/terminate.surql"),
             fence.upload_id,
             Mutation {
                 terminal: Some(terminal),
@@ -203,9 +203,17 @@ impl PlatformStore {
         &self,
         fence: &ArtifactUploadFence,
     ) -> Result<bool, StoreError> {
-        let mut response = self.db.query("LET $item = SELECT * FROM ONLY $upload; LET $parts = SELECT VALUE id FROM artifact_upload_part WHERE upload = $upload AND lease_owner != NONE LIMIT 1; LET $blobs = SELECT VALUE id FROM artifact_blob WHERE tenant = $item.tenant AND object_key = $item.object_key LIMIT 1; RETURN $item.cleanup_pending AND $item.state IN ['completed', 'cancelled', 'expired', 'failed'] AND $item.lease_owner = $owner AND $item.generation = $generation AND $item.lease_until > $now AND array::len($parts) = 0 AND array::len($blobs) = 0;")
-            .bind(("upload", upload_record_id(fence.upload_id))).bind(("owner", fence.owner))
-            .bind(("generation", fence.generation)).bind(("now", Utc::now())).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "../queries/artifact_uploads/lifecycle/artifact_upload_cleanup_ready.surql"
+            ))
+            .bind(("upload", upload_record_id(fence.upload_id)))
+            .bind(("owner", fence.owner))
+            .bind(("generation", fence.generation))
+            .bind(("now", Utc::now()))
+            .await?
+            .check()?;
         Ok(response.take::<Option<bool>>(3)?.unwrap_or(false))
     }
 
@@ -215,7 +223,7 @@ impl PlatformStore {
         fence: &ArtifactUploadFence,
     ) -> Result<ArtifactUploadRecord, StoreError> {
         self.mutate_upload(
-            include_str!("cleanup.surql"),
+            include_str!("../queries/artifact_uploads/cleanup.surql"),
             fence.upload_id,
             Mutation::fenced(fence),
         )
@@ -227,8 +235,15 @@ impl PlatformStore {
         after: Option<RecordId>,
         limit: u32,
     ) -> Result<Vec<ArtifactUploadRecord>, StoreError> {
-        let mut response = self.db.query("SELECT * FROM artifact_upload WHERE (state IN ['open', 'finalizing', 'verifying'] OR cleanup_pending) AND ($after = NONE OR id > $after) ORDER BY id ASC LIMIT $limit;")
-            .bind(("after", after)).bind(("limit", i64::from(limit.clamp(1, 256)))).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "../queries/artifact_uploads/lifecycle/artifact_upload_recovery_page.surql"
+            ))
+            .bind(("after", after))
+            .bind(("limit", i64::from(limit.clamp(1, 256))))
+            .await?
+            .check()?;
         response.take(0).map_err(Into::into)
     }
 

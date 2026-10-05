@@ -10,7 +10,7 @@ use veoveo_mcp_contract::hosting::{
 async fn unknown_tool_arguments_complete_before_time_resolution() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.a.clone());
         let acquisitions = crate::acquisition::AcquisitionService::new(

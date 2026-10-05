@@ -21,21 +21,6 @@ use crate::{
     task_records::OptimizationTaskRequest,
 };
 
-const VISIBLE: &str = include_str!("../queries/catalog_visible.surql");
-const COMPLETED: &str = include_str!("../queries/catalog_completed.surql");
-
-fn catalog_query(template: &str, predicate: &str, completed: bool) -> String {
-    let selection = include_str!("../queries/catalog_selection.surql")
-        .replace("/* catalog predicate */", predicate);
-    template
-        .replace("/* selection */", &selection)
-        .replace("/* visible */", VISIBLE)
-        .replace(
-            "/* completed */",
-            if completed { COMPLETED } else { "true" },
-        )
-}
-
 pub struct OptimizationReads<'a> {
     tasks: &'a TaskRuntime,
 }
@@ -90,14 +75,15 @@ impl<'a> OptimizationReads<'a> {
         owner: &TaskOwner,
         request: &OptimizationCollectionUri,
     ) -> anyhow::Result<VisibleOptimizationTaskPage> {
-        let completed = request.collection() == OptimizationCollection::Solutions;
-        let after = if request.cursor().is_some() {
-            "AND (created_at > $after_created_at OR (created_at = $after_created_at AND task > $after_task))"
-        } else {
-            ""
+        let sql = match (
+            request.collection() == OptimizationCollection::Solutions,
+            request.cursor().is_some(),
+        ) {
+            (false, false) => include_str!("../queries/catalog/page_visible.surql"),
+            (false, true) => include_str!("../queries/catalog/page_visible_cursor.surql"),
+            (true, false) => include_str!("../queries/catalog/page_completed.surql"),
+            (true, true) => include_str!("../queries/catalog/page_completed_cursor.surql"),
         };
-        let sql = catalog_query(include_str!("../queries/catalog_page.surql"), "", completed)
-            .replace("/* after cursor */", after);
         let query = transaction.query(sql);
         let mut query =
             bind_owner(query, owner)?.bind(("limit", (OPTIMIZATION_INDEX_PAGE_SIZE + 1) as i64));
@@ -186,16 +172,11 @@ impl<'a> OptimizationReads<'a> {
         owner: &TaskOwner,
         selection: Selection,
     ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
-        let predicate = match &selection {
-            Selection::Problem(_) => "WHERE identity.problem_id = $identity",
-            Selection::Run(_) => "WHERE identity.run_id = $identity",
-            Selection::Solution(_) => "WHERE settlement.result_uri = $identity",
+        let sql = match &selection {
+            Selection::Problem(_) => include_str!("../queries/catalog/exact_problem.surql"),
+            Selection::Run(_) => include_str!("../queries/catalog/exact_run.surql"),
+            Selection::Solution(_) => include_str!("../queries/catalog/exact_solution.surql"),
         };
-        let sql = catalog_query(
-            include_str!("../queries/catalog_exact.surql"),
-            predicate,
-            matches!(&selection, Selection::Solution(_)),
-        );
         let query = bind_owner(transaction.query(sql), owner)?;
         // Domain identities stay typed until this driver binding.
         let query = match selection {
@@ -296,18 +277,15 @@ impl<'a> OptimizationReads<'a> {
             (1..=100).contains(&limit),
             "Optimization completion limit must be between 1 and 100"
         );
-        let field = match collection {
-            OptimizationCollection::Problems => "identity.problem_id",
-            OptimizationCollection::Runs => "identity.run_id",
-            OptimizationCollection::Solutions => "settlement.result_uri",
+        let sql = match collection {
+            OptimizationCollection::Problems => {
+                include_str!("../queries/catalog/completion_problem.surql")
+            }
+            OptimizationCollection::Runs => include_str!("../queries/catalog/completion_run.surql"),
+            OptimizationCollection::Solutions => {
+                include_str!("../queries/catalog/completion_solution.surql")
+            }
         };
-        let completed = collection == OptimizationCollection::Solutions;
-        let sql = catalog_query(
-            include_str!("../queries/catalog_completion.surql"),
-            "",
-            completed,
-        )
-        .replace("/* completion field */", field);
         let mut response = bind_owner(transaction.query(sql), owner)?
             .bind(("needle", needle.to_ascii_lowercase()))
             .bind(("limit", (limit + 1) as i64))
@@ -317,16 +295,17 @@ impl<'a> OptimizationReads<'a> {
         let has_more = values.len() > limit;
         let values = values.into_iter().take(limit).collect::<Vec<_>>();
         if !values.is_empty() {
-            let predicate = match collection {
-                OptimizationCollection::Problems => "WHERE identity.problem_id IN $values",
-                OptimizationCollection::Runs => "WHERE identity.run_id IN $values",
-                OptimizationCollection::Solutions => "WHERE settlement.result_uri IN $values",
+            let sql = match collection {
+                OptimizationCollection::Problems => {
+                    include_str!("../queries/catalog/completion_rows_problem.surql")
+                }
+                OptimizationCollection::Runs => {
+                    include_str!("../queries/catalog/completion_rows_run.surql")
+                }
+                OptimizationCollection::Solutions => {
+                    include_str!("../queries/catalog/completion_rows_solution.surql")
+                }
             };
-            let sql = catalog_query(
-                include_str!("../queries/catalog_completion_rows.surql"),
-                predicate,
-                completed,
-            );
             let mut response = bind_owner(transaction.query(sql), owner)?
                 .bind(("values", values.clone()))
                 .await?

@@ -62,7 +62,7 @@ fn stopped(operation: &veoveo_computers::maintenance::MaintenanceOperation) -> E
 
 #[tokio::test]
 async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks, mut claim) = queued(&db).await;
     let operation = a.maintenance_for_claim(&claim).await.unwrap();
     let before = a
@@ -230,7 +230,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
     assert!(b.pending_maintenance(None, 100).await.unwrap().is_empty());
     let retained: Vec<i64> =
         db.a.client()
-            .query("SELECT VALUE retained FROM computer_usage;")
+            .query(include_str!("../queries/maintenance/journal/durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -242,7 +242,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
 
 #[tokio::test]
 async fn lost_worker_ticket_allows_observation_under_new_lease_without_redispatch() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks, claim) = queued(&db).await;
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();
     let operation = ticket.operation().clone();
@@ -293,7 +293,7 @@ async fn lost_worker_ticket_allows_observation_under_new_lease_without_redispatc
     );
     let mut read =
         db.a.client()
-            .query("SELECT VALUE operation_id FROM computer_maintenance_policy;")
+            .query(include_str!("../queries/maintenance/journal/lost_worker_ticket_allows_observation_under_new_lease_without_redispatch/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -384,12 +384,12 @@ pub(super) async fn initial_failure_retains_unknown_source_through_cancel_and_ad
 
 #[tokio::test]
 async fn observation_count_budget_is_durable_and_independent_of_worker_restarts() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, _tasks, claim) = queued(&db).await;
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();
     let operation = ticket.operation().clone();
     drop(ticket);
-    db.a.client().query("UPDATE ONLY $operation SET progress.steps[0].observation_reads = 7, progress.steps[0].last_observation_id = $id, progress.steps[0].next_observation_at = <string>(time::now() - 1s);")
+    db.a.client().query(include_str!("../queries/maintenance/journal/observation_count_budget_is_durable_and_independent_of_worker_restarts/statement_1.surql"))
         .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id.as_uuid()))))
         .bind(("id",Uuid::now_v7().to_string())).await.unwrap().check().unwrap();
     let ReadAdmission::Read(ticket) = b.observe_maintenance_step(&claim).await.unwrap() else {
@@ -409,13 +409,13 @@ async fn observation_count_budget_is_durable_and_independent_of_worker_restarts(
 
 #[tokio::test]
 async fn exhausted_step_budget_retains_the_fence_and_cannot_cancel_or_redispatch() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, _tasks, claim) = queued(&db).await;
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();
     let operation = ticket.operation().clone();
     drop(ticket);
     // Isolated journal clock fault: preserve a valid 180-second historical window.
-    db.a.client().query("LET $now = time::now(); UPDATE ONLY $operation SET progress.steps[0].dispatched_at = <string>($now - 181s), progress.steps[0].observation_started_at = <string>($now - 181s), progress.steps[0].observation_deadline = <string>($now - 1s);")
+    db.a.client().query(include_str!("../queries/maintenance/journal/exhausted_step_budget_retains_the_fence_and_cannot_cancel_or_redispatch/statement_1.surql"))
         .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(operation.operation_id.as_uuid()))))
         .await.unwrap().check().unwrap();
     assert!(matches!(
@@ -441,7 +441,7 @@ async fn exhausted_step_budget_retains_the_fence_and_cannot_cancel_or_redispatch
 
 #[tokio::test]
 async fn cancellation_before_dispatch_preserves_run_and_policy_revocation_blocks_next_step() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks, claim) = queued(&db).await;
     let operation = a.maintenance_for_claim(&claim).await.unwrap();
     tasks.cancel(operation.task_id()).await.unwrap();

@@ -54,11 +54,10 @@ impl PlatformStore {
         ticket: &MemberReadTicket,
     ) -> Result<(), StoreError> {
         let _mutation = ticket.lease.mutation().await;
-        let sql = include_str!("delete_member.surql")
-            .replace("__TABLE__", &chunk_table(ticket.generation));
+        let sql = include_str!("../queries/knowledge/delete_member.surql");
         ticket
             .lease
-            .bind(self.client().query(fenced(&sql)))
+            .bind(self.client().query(sql))
             .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
             .bind(("source_epoch", ticket.source_epoch))
             .bind(("tenant", ticket.tenant.to_string()))
@@ -68,6 +67,7 @@ impl PlatformStore {
                 collection_record(&ticket.tenant, &ticket.collection),
             ))
             .bind(("approval", ticket.approval.to_string()))
+            .bind(("chunk_table", chunk_table(ticket.generation)))
             .bind(("member", ticket.record()))
             .bind(("epoch", ticket.epoch))
             .await?
@@ -90,11 +90,10 @@ impl PlatformStore {
         ticket
             .lease
             .bind(
-                self.client().query(
-                    fenced(include_str!("revalidate.surql"))
-                        .replace("__TABLE__", &chunk_table(ticket.generation)),
-                ),
+                self.client()
+                    .query(include_str!("../queries/knowledge/revalidate.surql")),
             )
+            .bind(("chunk_table", chunk_table(ticket.generation)))
             .bind(("member", ticket.record()))
             .bind(("epoch", ticket.epoch))
             .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
@@ -128,7 +127,7 @@ impl PlatformStore {
         let mut response = lease
             .bind(
                 self.client()
-                    .query(fenced(include_str!("begin_read.surql"))),
+                    .query(include_str!("../queries/knowledge/begin_read.surql")),
             )
             .bind(("sync", sync_record(generation, collection)))
             .bind(("member", member_record(generation, collection, uri)))
@@ -225,8 +224,9 @@ impl PlatformStore {
             .lease
             .bind(
                 self.client()
-                    .query(fenced(include_str!("replace.surql")).replace("__TABLE__", &table)),
+                    .query(include_str!("../queries/knowledge/replace.surql")),
             )
+            .bind(("chunk_target", surrealdb::types::Table::new(table)))
             .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
             .bind(("source_epoch", ticket.source_epoch))
             .bind(("title", member.title().as_str().to_owned()))
@@ -242,6 +242,7 @@ impl PlatformStore {
                 collection_record(&ticket.tenant, &ticket.collection),
             ))
             .bind(("approval", ticket.approval.to_string()))
+            .bind(("chunk_table", chunk_table(ticket.generation)))
             .bind(("member", ticket.record()))
             .bind(("epoch", ticket.epoch))
             .bind(("chunks", chunks))

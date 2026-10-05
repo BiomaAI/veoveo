@@ -149,7 +149,7 @@ fn declarations_and_cursors_preserve_domain_scope_and_member_identity() {
 #[tokio::test]
 async fn authoring_knowledge_uses_current_parent_access_before_decoding_and_pages_features() {
     tokio::time::timeout(Duration::from_secs(120), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let root = tempfile::TempDir::new().unwrap();
         let analytics = analytics(&root);
         let authoring = AuthoringService::new(db.a.clone(), analytics.clone());
@@ -205,7 +205,7 @@ async fn authoring_knowledge_uses_current_parent_access_before_decoding_and_page
         wrong_context.authority.work_context = "other".parse().unwrap();
         assert!(read(&catalog, &analytics, &wrong_context, &scope, &member).await.unwrap().is_none());
         // A malformed denied parent and its 105 children must never reach decoding.
-        db.a.client().query("UPDATE map_feature_layer SET data_labels = ['secret'], canonical_json = 'invalid'; UPDATE map_feature_head SET canonical_json = 'invalid';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/knowledge/tests/authoring_knowledge_uses_current_parent_access_before_decoding_and_pages_features/statement_1.surql")).await.unwrap().check().unwrap();
         for collection in [MapKnowledgeCollection::Layers, MapKnowledgeCollection::Features, MapKnowledgeCollection::Publications] {
             assert!(enumerate(&catalog, &analytics, &identity, &scope, &MapKnowledgePageUri::new(collection)).await.unwrap().items.is_empty());
         }

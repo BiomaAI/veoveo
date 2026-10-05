@@ -136,7 +136,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         "veoveo_computers_mcp=debug",
     )
     .unwrap();
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let mut control = support::automation::control();
     let file_tool = veoveo_mcp_contract::LocalToolName::parse("transfer_file").unwrap();
     control.servers[0].tools.push(file_tool.clone());
@@ -239,7 +239,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .await
         .unwrap();
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/native_files/governed_file_worker_moves_real_artifacts_and_contains_lost_attempts.surql"))
         .bind((
             "computer",
             surrealdb::types::RecordId::new(

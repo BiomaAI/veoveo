@@ -4,20 +4,27 @@ use chrono::{TimeDelta, Utc};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeMap, time::Duration};
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_platform_store::{
+use veoveo_recording_mcp::{RecordingService, service::ProjectionRuntimeLimits};
+use veoveo_recording_reader::access::record_uuid;
+use veoveo_recording_reader::cache::LayerCacheLimits;
+use veoveo_recording_store::RecordingRepository;
+use veoveo_recording_store::{
     RecordingAccessScope, RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId,
     RecordingProjectionReceiptDraft, RecordingProjectionReceiptId, RecordingProjectionRequest,
     RecordingReadGrantClass, RecordingReadGrantDraft, RecordingReadGrantId,
 };
-use veoveo_recording_mcp::{RecordingService, service::ProjectionRuntimeLimits};
-use veoveo_recording_reader::access::record_uuid;
-use veoveo_recording_reader::cache::LayerCacheLimits;
 use veoveo_types::{PolicyVersion, WorkContextId};
 
 #[tokio::test]
 async fn projection_download_admits_current_authority_and_parents_before_decode() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = fixture::TestDb::new().await;
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_recording_store::schema::module_setup(
+            fixture::module_lanes::execution("recordings").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     tokio::time::timeout(Duration::from_secs(90), assert_download_admission(&db))
         .await
         .expect("projection download admission exceeded 90 seconds");
@@ -61,8 +68,8 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         policy_revision: caller.authority.policy_revision.clone(),
         data_labels: caller.actor.data_labels.clone(),
     };
-    let dataset =
-        db.a.ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+    let dataset = RecordingRepository::new(db.a.clone())
+        .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
             platform.clone(),
             "projection-query",
         ))
@@ -70,8 +77,8 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         .unwrap();
     let dataset_id =
         RecordingDatasetId::from_uuid(record_uuid(&dataset.id, RecordingDatasetId::TABLE).unwrap());
-    let recording =
-        db.a.create_recording(RecordingDraft {
+    let recording = RecordingRepository::new(db.a.clone())
+        .create_recording(RecordingDraft {
             identity: platform.clone(),
             authority: authority.clone(),
             dataset_id,
@@ -86,10 +93,10 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         .unwrap();
     let recording_id =
         RecordingId::from_uuid(record_uuid(&recording.id, RecordingId::TABLE).unwrap());
-    let grant =
-        db.a.create_recording_read_grant(RecordingReadGrantDraft {
+    let grant = RecordingRepository::new(db.a.clone())
+        .create_recording_read_grant(RecordingReadGrantDraft {
             scope: scope.clone(),
-            request: veoveo_platform_store::RecordingReadGrantRequest::new(
+            request: veoveo_recording_store::RecordingReadGrantRequest::new(
                 dataset_id,
                 RecordingReadGrantClass::AppProjection,
                 vec![recording_id],
@@ -103,8 +110,8 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     let grant_id = RecordingReadGrantId::from_uuid(
         record_uuid(&grant.id, RecordingReadGrantId::TABLE).unwrap(),
     );
-    let reserved =
-        db.a.reserve_recording_projection(RecordingProjectionReceiptDraft {
+    let reserved = RecordingRepository::new(db.a.clone())
+        .reserve_recording_projection(RecordingProjectionReceiptDraft {
             scope: scope.clone(),
             request: RecordingProjectionRequest::new(
                 dataset_id,
@@ -129,7 +136,8 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             .unwrap()
             .is_none()
     );
-    db.a.begin_recording_projection(&scope, recording_id, projection_id)
+    RecordingRepository::new(db.a.clone())
+        .begin_recording_projection(&scope, recording_id, projection_id)
         .await
         .unwrap();
     assert!(
@@ -142,8 +150,8 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     // This fixture qualifies download integrity, not Arrow generation or decoding.
     let bytes = b"projection download integrity fixture";
     let digest = hex::encode(Sha256::digest(bytes));
-    let baseline =
-        db.a.complete_recording_projection(
+    let baseline = RecordingRepository::new(db.a.clone())
+        .complete_recording_projection(
             &scope,
             recording_id,
             projection_id,
@@ -182,8 +190,15 @@ async fn assert_download_admission(db: &fixture::TestDb) {
 
     // An unrelated malformed field proves denial happens before typed decoding.
     // Only this disposable fixture changes the schema to inject corrupt data.
-    db.a.client().query("DEFINE FIELD OVERWRITE manifest_digest ON recording_projection_receipt TYPE any; UPDATE $projection SET manifest_digest = 17 RETURN NONE;")
-            .bind(("projection", projection_id.record_id())).await.unwrap().check().unwrap();
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission.surql"
+        ))
+        .bind(("projection", projection_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     assert!(
         service
             .projection_download(&caller, recording_id, projection_id)
@@ -218,27 +233,39 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     for (name, sql) in [
         (
             "expired receipt",
-            "UPDATE $projection SET expires_at = time::now() - 1s RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_2.surql"
+            ),
         ),
         (
             "failed receipt",
-            "UPDATE $projection SET state = 'failed' RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_3.surql"
+            ),
         ),
         (
             "cancelled receipt",
-            "UPDATE $projection SET state = 'cancelled' RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_4.surql"
+            ),
         ),
         (
             "empty recording set",
-            "UPDATE $projection SET recordings = [] RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_5.surql"
+            ),
         ),
         (
             "extra recording",
-            "UPDATE $projection SET recordings += $other_recording RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_6.surql"
+            ),
         ),
         (
             "wrong dataset",
-            "UPDATE $projection SET dataset = $other_dataset RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_7.surql"
+            ),
         ),
     ] {
         db.a.client()
@@ -258,52 +285,84 @@ async fn assert_download_admission(db: &fixture::TestDb) {
                 .is_none(),
             "{name}"
         );
-        db.a.client().query("UPDATE $projection CONTENT $baseline RETURN NONE; UPDATE $projection SET manifest_digest = 17 RETURN NONE;")
-                .bind(("projection", projection_id.record_id())).bind(("baseline", baseline.clone()))
-                .await.unwrap().check().unwrap();
+        db.a.client()
+            .query(include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_8.surql"
+            ))
+            .bind(("projection", projection_id.record_id()))
+            .bind(("baseline", baseline.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
     }
     for (name, sql) in [
         (
             "expired grant",
-            "UPDATE $grant SET expires_at = time::now() - 1s RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_9.surql"
+            ),
         ),
         (
             "shortened grant",
-            "UPDATE $grant SET expires_at = time::now() + 1m RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_10.surql"
+            ),
         ),
         (
             "wrong grant class",
-            "UPDATE $grant SET grant_class = 'catalog_dataset' RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_11.surql"
+            ),
         ),
         (
             "wrong grant actor",
-            "UPDATE $grant SET actor = $other_actor RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_12.surql"
+            ),
         ),
         (
             "wrong grant tenant",
-            "UPDATE $grant SET tenant = $other_tenant RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_13.surql"
+            ),
         ),
         (
             "wrong grant context",
-            "UPDATE $grant SET work_context = $other_context RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_14.surql"
+            ),
         ),
         (
             "wrong grant policy",
-            "UPDATE $grant SET policy_revision = 'r2' RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_15.surql"
+            ),
         ),
         (
             "wrong grant dataset",
-            "UPDATE $grant SET dataset = $other_dataset RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_16.surql"
+            ),
         ),
         (
             "wrong grant recordings",
-            "UPDATE $grant SET recordings = [$other_recording] RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_17.surql"
+            ),
         ),
         (
             "wrong grant catalog",
-            "UPDATE $grant SET catalog_revision = 'catalog-2' RETURN NONE;",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_18.surql"
+            ),
         ),
-        ("missing grant", "DELETE $grant RETURN NONE;"),
+        (
+            "missing grant",
+            include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_19.surql"
+            ),
+        ),
     ] {
         db.a.client()
             .query(sql)
@@ -335,7 +394,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             "{name}"
         );
         db.a.client()
-            .query("UPSERT $grant CONTENT $baseline RETURN NONE;")
+            .query(include_str!(
+                "../queries/catalog_queries/projections/assert_download_admission_20.surql"
+            ))
             .bind(("grant", grant_id.record_id()))
             .bind(("baseline", grant.clone()))
             .await
@@ -344,7 +405,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             .unwrap();
     }
     db.a.client()
-        .query("UPDATE $recording SET labels = ['restricted'] RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_21.surql"
+        ))
         .bind(("recording", recording_id.record_id()))
         .await
         .unwrap()
@@ -358,7 +421,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             .is_none()
     );
     db.a.client()
-        .query("UPDATE $recording CONTENT $baseline RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_22.surql"
+        ))
         .bind(("recording", recording_id.record_id()))
         .bind(("baseline", recording.clone()))
         .await
@@ -366,7 +431,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         .check()
         .unwrap();
     db.a.client()
-        .query("DELETE $dataset RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_23.surql"
+        ))
         .bind(("dataset", dataset_id.record_id()))
         .await
         .unwrap()
@@ -380,7 +447,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             .is_none()
     );
     db.a.client()
-        .query("CREATE $dataset CONTENT $baseline RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_24.surql"
+        ))
         .bind(("dataset", dataset_id.record_id()))
         .bind(("baseline", dataset))
         .await
@@ -388,7 +457,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         .check()
         .unwrap();
     db.a.client()
-        .query("DELETE $recording RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_25.surql"
+        ))
         .bind(("recording", recording_id.record_id()))
         .await
         .unwrap()
@@ -402,7 +473,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             .is_none()
     );
     db.a.client()
-        .query("CREATE $recording CONTENT $baseline RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_26.surql"
+        ))
         .bind(("recording", recording_id.record_id()))
         .bind(("baseline", recording))
         .await
@@ -410,7 +483,9 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         .check()
         .unwrap();
     db.a.client()
-        .query("UPDATE $projection CONTENT $baseline RETURN NONE;")
+        .query(include_str!(
+            "../queries/catalog_queries/projections/assert_download_admission_27.surql"
+        ))
         .bind(("projection", projection_id.record_id()))
         .bind(("baseline", baseline))
         .await

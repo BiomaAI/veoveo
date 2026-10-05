@@ -47,7 +47,7 @@ async fn setup(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime) {
 #[tokio::test]
 async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_settlement() {
     use surrealdb::types::{RecordId, Uuid as StoreUuid};
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, tasks) = setup(&db).await;
     let actor = owner("alice");
     let computer = store
@@ -66,7 +66,7 @@ async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_sett
     for invalid in [Uuid::nil(), computer.computer_id.as_uuid()] {
         assert!(
             db.a.client()
-                .query("UPDATE $computer SET replacement_instance_id=$instance;")
+                .query(include_str!("queries/lifecycle/replacement_lifecycle_keeps_instance_identity_through_dispatch_and_settlement/statement_1.surql"))
                 .bind(("computer", record.clone()))
                 .bind(("instance", invalid))
                 .await
@@ -79,7 +79,7 @@ async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_sett
     // It does not authorize maintenance or mutate installed Computer state.
     let instance = Uuid::now_v7();
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/lifecycle/replacement_lifecycle_keeps_instance_identity_through_dispatch_and_settlement/statement_2.surql"))
         .bind(("computer", record.clone()))
         .bind(("instance", instance))
         .await
@@ -119,7 +119,7 @@ async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_sett
     let (stop, stop_claim) = queue(&store, &tasks, computer.computer_id, Action::Stop).await;
     assert_eq!(stop.instance_id(), instance);
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/lifecycle/replacement_lifecycle_keeps_instance_identity_through_dispatch_and_settlement/statement_3.surql"))
         .bind(("computer", record))
         .bind(("instance", Uuid::now_v7()))
         .await
@@ -190,7 +190,7 @@ fn reached(op: &Operation, phase: ReachedPhase, process: &str) -> ReachedState {
 }
 async fn due(db: &TestDb, op: &Operation) {
     db.a.client()
-        .query("UPDATE ONLY $operation SET next_observation_at = time::now() - 1s;")
+        .query(include_str!("queries/lifecycle/due/statement_1.surql"))
         .bind((
             "operation",
             surrealdb::types::RecordId::new(
@@ -206,7 +206,7 @@ async fn due(db: &TestDb, op: &Operation) {
 
 #[tokio::test]
 async fn only_one_replica_receives_dispatch_and_domain_settles_before_task_projection() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks) = setup(&db).await;
     let (op, claimed) = create(&a, &tasks).await;
     let (left, right) = tokio::join!(a.begin_dispatch(&claimed), b.begin_dispatch(&claimed));
@@ -251,7 +251,7 @@ async fn only_one_replica_receives_dispatch_and_domain_settles_before_task_proje
 
 #[tokio::test]
 async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_replay() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks) = setup(&db).await;
     let (op, claimed) = create(&a, &tasks).await;
     drop(a.begin_dispatch(&claimed).await.unwrap());
@@ -259,7 +259,7 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
     denied.policies[0].rules[0].effect = veoveo_mcp_contract::PolicyEffect::Deny;
     support::policy::install(&db.b, denied).await;
     db.a.client()
-        .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
+        .query(include_str!("queries/lifecycle/lost_dispatch_receipt_recovers_by_one_charged_observation_without_replay/statement_1.surql"))
         .bind(("task", task_record_id(op.task_id())))
         .await
         .unwrap()
@@ -277,7 +277,7 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
     assert_eq!(ticket.operation().observation_reads, 1);
     assert!(ticket.remaining() <= Duration::from_secs(10));
     db.a.client()
-        .query("UPDATE ONLY $operation SET next_observation_at = time::now() + 1h;")
+        .query(include_str!("queries/lifecycle/lost_dispatch_receipt_recovers_by_one_charged_observation_without_replay/statement_2.surql"))
         .bind((
             "operation",
             surrealdb::types::RecordId::new(
@@ -302,7 +302,7 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
 
 #[tokio::test]
 async fn exhausted_budget_survives_replica_change_and_retains_the_computer_fence() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks) = setup(&db).await;
     let (op, claimed) = create(&a, &tasks).await;
     drop(a.begin_dispatch(&claimed).await.unwrap());
@@ -342,7 +342,7 @@ async fn exhausted_budget_survives_replica_change_and_retains_the_computer_fence
     let (expired, claim) = create(&a, &tasks).await;
     drop(a.begin_dispatch(&claim).await.unwrap());
     db.a.client()
-        .query("UPDATE ONLY $operation SET observation_deadline = time::now() - 1s;")
+        .query(include_str!("queries/lifecycle/exhausted_budget_survives_replica_change_and_retains_the_computer_fence/statement_1.surql"))
         .bind((
             "operation",
             surrealdb::types::RecordId::new(
@@ -374,7 +374,7 @@ async fn exhausted_budget_survives_replica_change_and_retains_the_computer_fence
 
 #[tokio::test]
 async fn cancellation_blocks_dispatch_and_stale_process_cannot_complete_start() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, _, tasks) = setup(&db).await;
     let (cancelled, claim) = create(&a, &tasks).await;
     tasks.cancel(cancelled.task_id()).await.unwrap();

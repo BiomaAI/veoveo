@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'token_replay' WHERE revoked_at = NONE RETURN NONE; UPDATE ONLY $refresh_record SET replay_detected_at = $now WHERE replay_detected_at = NONE RETURN NONE; COMMIT TRANSACTION;

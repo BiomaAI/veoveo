@@ -76,7 +76,9 @@ impl ComputersStore {
         let request = request_record(actor, input)?;
         let mut exists = self
             .query(
-                "SELECT VALUE id FROM ONLY $request;",
+                include_str!(
+                    "../../queries/maintenance/resume/maintenance_resume_for_request.surql"
+                ),
                 vec![("request", request.clone().into_value())],
             )
             .await?;
@@ -243,6 +245,7 @@ impl ComputersStore {
                         ("computer_updated_at", computer.updated_at.into_value()),
                         ("source_owner", object(&computer.owner)?.into_value()),
                         crate::audit::binding(
+                            self.platform.audit_targets(),
                             actor.accepted(),
                             input.computer_id,
                             crate::audit::Transition::accepted(

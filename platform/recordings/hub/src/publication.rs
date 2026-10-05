@@ -10,12 +10,12 @@ use secrecy::ExposeSecret as _;
 use url::Url;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
 use veoveo_mcp_contract::{PutArtifactRequest, StreamArtifactRequest};
-use veoveo_platform_store::RecordingLayerId;
 use veoveo_recording_contract::RecordingProducerScope;
 use veoveo_recording_forwarder::{
     config::ClientAssertionAlgorithm,
     oauth::{OAuthTokenProvider, OAuthTokenProviderConfig},
 };
+use veoveo_recording_store::RecordingLayerId;
 
 const MAXIMUM_PUBLICATION_SECONDS: u64 = 300;
 

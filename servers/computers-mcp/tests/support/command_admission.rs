@@ -42,7 +42,7 @@ async fn availability(
 
 #[tokio::test]
 async fn public_command_admission_repairs_one_task_with_actual_artifact_authority() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, old_agent, computer) = support::automation::setup(&db).await;
     let mut identity = support::identity(old_agent.owner());
     identity.authority.output_policy = support::automation::control().work_contexts[0]
@@ -54,7 +54,7 @@ async fn public_command_admission_repairs_one_task_with_actual_artifact_authorit
         "f".repeat(64)
     ));
     db.a.client()
-        .query("UPDATE ONLY $computer SET template_fingerprint = $fingerprint;")
+        .query(include_str!("../queries/support/command_admission/public_command_admission_repairs_one_task_with_actual_artifact_authority.surql"))
         .bind(("computer", command_support::computer_record(computer)))
         .bind(("fingerprint", selected.fingerprint()))
         .await

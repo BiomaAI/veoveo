@@ -18,14 +18,13 @@ impl ComputersStore {
         }
         let mut response = self
             .query(
-                "SELECT *, payload.sealed AS sealed FROM computer_execution WHERE provider_instance_id = $provider
-             AND ($after = NONE OR execution_id > $after)
-             AND (stage != 'recovery_required' OR task.status = NONE OR task.status IN ['queued', 'running'])
-             AND (task_projected_at = NONE OR task.retention_pins CONTAINS string::concat('computer-execution/', <string>execution_id))
-             ORDER BY execution_id LIMIT $limit;",
+                include_str!("../../queries/commands/tasks/pending_commands.surql"),
                 vec![
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
-                    ("after", after.map(crate::api::ExecutionId::as_uuid).into_value()),
+                    (
+                        "after",
+                        after.map(crate::api::ExecutionId::as_uuid).into_value(),
+                    ),
                     ("limit", limit.into_value()),
                 ],
             )

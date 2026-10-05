@@ -200,7 +200,7 @@ async fn findings_conform_across_service_restarts_and_artifact_grant_revocation(
         let artifact = veoveo_platform_store::ArtifactId::from_uuid(driver.finding.artifact.as_uuid()).record_id();
         let principal = veoveo_platform_store::deterministic_principal_id("reason-fixture", "reader").unwrap().record_id();
         let expiry = chrono::Utc::now() + chrono::TimeDelta::seconds(8);
-        db.b.client().query("UPDATE artifact_grant SET expires_at = $expiry WHERE in = $artifact AND out = $principal RETURN NONE;")
+        db.b.client().query(include_str!("../../../../queries/bin/server/hosted_tests/mod/findings_conform_across_service_restarts_and_artifact_grant_revocation.surql"))
             .bind(("expiry", expiry)).bind(("artifact", artifact)).bind(("principal", principal)).await.unwrap().check().unwrap();
         let mut expiring = client.listen(SubscriptionFilter::builder().resource_subscription(root.as_str()).resource_subscription(member.as_str()).build()).await.unwrap();
         updates(&mut expiring, &[root.clone(),member.clone()]).await;

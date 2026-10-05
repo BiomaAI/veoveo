@@ -65,7 +65,7 @@ async fn create(tasks: &TaskRuntime, owner: &TaskOwner, number: u64) -> TaskId {
 #[tokio::test]
 async fn usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         let writer = TaskRuntime::new(db.a.clone(), "optimization", "writer");
         let reader = TaskRuntime::new(db.b.clone(), "optimization", "reader");
         let foreign = TaskRuntime::new(db.a.clone(), "duckdb", "foreign");
@@ -79,7 +79,7 @@ async fn usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read(
         for number in 1..=105 {
             let denied = if number % 2 == 0 { &denied } else { &other_context };
             let id = create(&writer, denied, number).await;
-            db.a.client().query("UPDATE ONLY $task SET request.input = NONE RETURN NONE;")
+            db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read.surql"))
                 .bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
         }
         create(&foreign, &caller, 106).await;
@@ -104,23 +104,23 @@ async fn usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read(
         assert!(usage.page(&other_context, position.cursor()).await.unwrap().usage().is_empty());
 
         // Neither a saved cursor nor a previously returned URI retains authority.
-        db.a.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['mission', 'secret'] RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read_2.surql"))
             .bind(("task", task_record_id(uri.task_id()))).await.unwrap().check().unwrap();
         assert!(usage.page(&caller, position.cursor()).await.unwrap().usage().is_empty());
         assert!(usage.task(&caller, uri).await.unwrap().is_empty());
         let cleared = owner("owner", &["mission", "secret"]);
         assert_eq!(usage.task(&cleared, uri).await.unwrap().len(), 1);
 
-        db.a.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'other-context' RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read_3.surql"))
             .bind(("task", task_record_id(uri.task_id()))).await.unwrap().check().unwrap();
         assert!(usage.task(&cleared, uri).await.unwrap().is_empty());
         assert!(usage.page(&cleared, position.cursor()).await.unwrap().usage().is_empty());
-        db.a.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'route-plan' RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read_4.surql"))
             .bind(("task", task_record_id(uri.task_id()))).await.unwrap().check().unwrap();
         assert_eq!(usage.task(&cleared, uri).await.unwrap().len(), 1);
 
         // The usage row's parent/tenant must agree; a valid owner alone is insufficient.
-        db.a.client().query("UPDATE domain_usage SET tenant = tenant:wrong WHERE task = $task RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_solves_and_rechecks_authority_on_every_read_5.surql"))
             .bind(("task", task_record_id(uri.task_id()))).await.unwrap().check().unwrap();
         assert!(usage.task(&cleared, uri).await.unwrap().is_empty());
         assert!(usage.page(&cleared, position.cursor()).await.unwrap().usage().is_empty());

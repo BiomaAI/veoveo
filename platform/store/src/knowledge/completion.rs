@@ -37,11 +37,14 @@ impl PlatformStore {
         if prefix.len() > 512 || prefix.chars().any(char::is_control) {
             return Err(StoreError::Knowledge("invalid completion prefix"));
         }
-        let field = match domain {
-            CatalogCompletion::Source => "string::split(collection, '.')[0]",
-            CatalogCompletion::Collection => "collection",
+        let sql = match domain {
+            CatalogCompletion::Source => {
+                include_str!("../queries/knowledge/completion_source.surql")
+            }
+            CatalogCompletion::Collection => {
+                include_str!("../queries/knowledge/completion_collection.surql")
+            }
         };
-        let sql = include_str!("completion.surql").replace("__FIELD__", field);
         let mut response = self
             .client()
             .query(sql)

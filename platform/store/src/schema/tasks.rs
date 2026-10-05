@@ -38,10 +38,47 @@ fn selection_api() -> Result<KernelSqlApi, DeclarationError> {
     )
 }
 
+pub const CURRENT_SCHEMA: &str = concat!(
+    include_str!("tasks/migrations/0000_current.surql"),
+    include_str!("tasks/migrations/0000_admission_apis.surql")
+);
+
+fn release_retention_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::tasks::release_retention_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("task", SqlType::Record(TableName::new("task")?))?,
+                SqlParameter::new(
+                    "expected_server",
+                    SqlType::Record(TableName::new("mcp_server")?),
+                )?,
+                SqlParameter::new("pin", SqlType::String)?,
+            ],
+            SqlType::Bool,
+        )?,
+        SqlReadProfile::new(vec![TableName::new("task")?])?,
+        include_str!("tasks/migrations/0000_admission_apis.surql"),
+    )
+    .map(|api| {
+        api.with_effects(SqlEffectProfile::OwnedUpdate(
+            SqlUpdateProfile::new(
+                TableName::new("task").expect("static Task table"),
+                vec![SqlFieldName::new("retention_pins").expect("static retention field")],
+            )
+            .expect("static Task update profile"),
+        ))
+    })
+}
+
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
 pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, DeclarationError> {
     ModuleSetup::builder(ModuleName::new("tasks")?, ModuleLayer::Kernel)
         .ownership(vec![
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::tasks::release_retention_v1",
+            )?),
             OwnershipClaim::Table(TableName::new("task")?),
             OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::selection_v1")?),
             OwnershipClaim::Table(TableName::new("task_input")?),
@@ -55,9 +92,13 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
         .lane(MigrationLane::new(vec![Migration::new(
             MigrationVersion::new(0),
             MigrationName::new("selection_v1")?,
-            SELECTION_V1,
+            concat!(
+                include_str!("tasks/migrations/0000_current.surql"),
+                include_str!("tasks/migrations/0000_selection_v1.surql"),
+                include_str!("tasks/migrations/0000_admission_apis.surql")
+            ),
         )?])?)
-        .sql_apis(vec![selection_api()?])
+        .sql_apis(vec![selection_api()?, release_retention_v1_api()?])
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new(
             "artifacts",

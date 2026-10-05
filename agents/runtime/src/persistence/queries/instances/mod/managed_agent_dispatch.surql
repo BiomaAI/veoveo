@@ -1,0 +1,1 @@
+LET $instance = SELECT * FROM ONLY $command.instance; RETURN fn::managed_agent_enabled($command.instance) AND $instance.active_generation > 0 AND $instance.active_revision != NONE AND $instance.active_generation = $command.generation AND $instance.dispatch_epoch = $command.epoch;

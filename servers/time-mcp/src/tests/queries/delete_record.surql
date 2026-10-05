@@ -1,0 +1,2 @@
+DELETE $record
+RETURN NONE;

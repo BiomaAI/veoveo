@@ -38,6 +38,7 @@ impl Transition {
     }
 }
 pub(crate) fn binding(
+    registry: &AuditTargetRegistry,
     authority: &AcceptedAuthority,
     computer: ComputerId,
     transition: Transition,
@@ -48,7 +49,9 @@ pub(crate) fn binding(
         .map_err(|_| ComputerError::Forbidden)?;
     let draft = context
         .draft(
-            AuditTarget::Computer { computer },
+            registry
+                .target(crate::api::ComputerAuditTarget { computer })
+                .map_err(|_| ComputerError::Unavailable)?,
             AuditDetail::Computer {
                 activity: transition.activity,
                 stage: transition.stage,
@@ -58,7 +61,7 @@ pub(crate) fn binding(
             transition.reason,
         )
         .map_err(|_| ComputerError::InvalidInput)?;
-    AuditTransactionWrite::new(draft)
+    AuditTransactionWrite::new(registry, draft)
         .map(AuditTransactionWrite::into_binding)
         .map_err(|_| ComputerError::Unavailable)
 }

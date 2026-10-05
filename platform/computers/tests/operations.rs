@@ -39,7 +39,7 @@ fn request() -> Reservation {
 
 #[tokio::test]
 async fn contended_operation_updates_never_overwrite_a_previously_acquired_fence() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let a = installed(db.a.clone()).await;
     let b = installed(db.b.clone()).await;
     for round in 0..8 {
@@ -76,7 +76,7 @@ async fn contended_operation_updates_never_overwrite_a_previously_acquired_fence
 
 #[tokio::test]
 async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let a = installed(db.a.clone()).await;
     let b = installed(db.b.clone()).await;
     let alice = owner("alice");
@@ -166,7 +166,7 @@ async fn concurrent_operation_retry_has_one_fence_task_and_audit_identity() {
 
 #[tokio::test]
 async fn competing_requests_and_private_authority_cannot_replace_the_active_operation() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let a = installed(db.a.clone()).await;
     let b = installed(db.b.clone()).await;
     let alice = owner("alice");
@@ -231,7 +231,7 @@ async fn competing_requests_and_private_authority_cannot_replace_the_active_oper
 
 #[tokio::test]
 async fn unreadable_output_policy_is_rejected_before_consuming_capacity() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let a = installed(db.a.clone()).await;
     let mut alice = owner("alice");
     alice
@@ -250,7 +250,7 @@ async fn unreadable_output_policy_is_rejected_before_consuming_capacity() {
         .unwrap();
     let mut query =
         db.a.client()
-            .query("SELECT * FROM computer_usage;")
+            .query(include_str!("queries/operations/unreadable_output_policy_is_rejected_before_consuming_capacity/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -266,7 +266,7 @@ async fn unreadable_output_policy_is_rejected_before_consuming_capacity() {
 
 #[tokio::test]
 async fn action_admission_preserves_the_previous_run_and_checks_current_membership() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let store = installed(db.a.clone()).await;
     let mut alice = owner("alice");
     alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Viewer;
@@ -286,7 +286,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
         surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
     );
     // Simulated completed provider observation; this fixture tests durable admission.
-    db.a.client().query("UPDATE ONLY $computer SET phase = 'stopped', provider_resource_id = 'sandbox-1', process_id = 'run-1', updated_at = time::now();").bind(("computer", record)).await.unwrap().check().unwrap();
+    db.a.client().query(include_str!("queries/operations/action_admission_preserves_the_previous_run_and_checks_current_membership/statement_1.surql")).bind(("computer", record)).await.unwrap().check().unwrap();
     alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Viewer;
     assert!(matches!(
         store

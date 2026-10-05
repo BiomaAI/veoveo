@@ -105,7 +105,11 @@ async fn sql_pages_completion_and_immutable_reads_cross_replicas() {
 }
 
 async fn qualify_sql_pages() {
-    let db = TestDb::new().await;
+    let db = TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+            .unwrap(),
+    ])
+    .await;
     let scope = map_scope(&db.a, "derivations").await;
     let foreign = map_scope(&db.a, "foreign").await;
     let writer = MapCatalog::new(db.a.clone());
@@ -253,8 +257,24 @@ async fn qualify_sql_pages() {
             .unwrap()
             .is_empty()
     );
-    let mut plan=db.b.client().query("SELECT derivation_key, created_by, created_at FROM map_derivation WHERE tenant = $tenant AND work_context = $context AND kind = 'raster' AND derivation_key > $after ORDER BY derivation_key ASC LIMIT 101 EXPLAIN;")
-            .bind(("tenant",scope.identity.tenant_id.record_id())).bind(("context",super::scope(&scope,&context()).unwrap().work_context.record_id())).bind(("after",after.unwrap().as_str().to_owned())).await.unwrap().check().unwrap();
+    let mut plan =
+        db.b.client()
+            .query(include_str!(
+                "../queries/derivations/tests/qualify_sql_pages/statement_1.surql"
+            ))
+            .bind(("tenant", scope.identity.tenant_id.record_id()))
+            .bind((
+                "context",
+                super::scope(&scope, &context())
+                    .unwrap()
+                    .work_context
+                    .record_id(),
+            ))
+            .bind(("after", after.unwrap().as_str().to_owned()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
     let plan: Vec<serde_json::Value> = plan.take(0).unwrap();
     let plan = serde_json::to_string(&plan).unwrap();
     assert!(plan.contains("map_derivation_scope_key"), "{plan}");
@@ -263,7 +283,11 @@ async fn qualify_sql_pages() {
 #[tokio::test]
 async fn store_invalidations_reach_another_replica_and_restart_without_discovery_churn() {
     tokio::time::timeout(Duration::from_secs(120), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let scope = map_scope(&db.a, "notifications").await;
         let writer = MapCatalog::new(db.a.clone());
         let hub = Arc::new(SubscriptionHub::new());

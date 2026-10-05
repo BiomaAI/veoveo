@@ -265,7 +265,7 @@ response. Task changes invalidate accepted usage references even when no usage r
 ## Operation Authority And Storage
 
 Frames owns operation persistence in `state/operations`; Store provides its client,
-schema migrations, record primitives and native table changefeeds. The runtime uses
+record primitives and native table changefeeds. Frames owns its schema lane. The runtime uses
 SurrealDB SDK 3.3.0 to match Store's driver types.
 
 `FrameOperationScope` requires typed principal, optional tenant, gateway profile,
@@ -334,11 +334,18 @@ conversion returns an empty source list.
 ## Persistence
 
 Frames owns world read queries in `state/reads.rs`, mutations in `state/worlds.rs`,
-and private driver records in `state/records.rs`. Store supplies the connection and
-schema catalog. The query API accepts Frames IDs and resource addresses;
+and private driver records in `state/records.rs`. Store supplies the connection.
+Frames owns the schema lane. The query API accepts Frames IDs and resource addresses;
 conversion to database values happens at bindings. This dependency direction lets
 cross-server consumers use the existing contract feature without introducing a Store
 dependency on the Frames runtime. The domain crate supplies the same identity types.
+
+Production statements live in `src/state/queries/`, including the world transaction
+scripts in `queries/worlds/` and operation writes in `queries/operations/`.
+Native fixture scripts live in `tests/queries/`. Each call embeds a complete named
+statement and binds its values. Revision reads and completions repeat the same
+linked-world predicates in their fixed statements, preserving one response slot
+per read and selection before decoding.
 
 World reads select the caller's tenant and require every world label in the caller's
 clearance inside SQL. World visibility is shared within a tenant; publication requires
@@ -378,9 +385,9 @@ SurrealDB stores:
 - coordinate operations and provenance;
 - task state, inputs, usage and ownership.
 
-Migration `0027_frame_world_graphs.surql` removes the old flat `frame` table and
-defines the world and revision tables. This is a hard cut. No alias or legacy
-`frames://frame/{frame_id}` resource remains.
+The Frames owner lane defines the world and revision tables. Its resource profile
+accepts immutable world revisions and their frame identities; the flat
+`frames://frame/{frame_id}` resource has no compatibility adapter.
 
 ## Authentication and isolation
 
@@ -454,17 +461,14 @@ The independent `schema` feature exports `schema::module_setup(execution)` for t
 `frames` optional module. It activates `veoveo-modules` with default features disabled and the foundational
 vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
 Store and asynchronous runtime dependencies require their own features. Default
-runtime behavior is unchanged. The declaration claims explicit `frame_world`, `frame_world_revision`, `coordinate_operation`, and `task_used_frame` tables.
+runtime behavior is unchanged. The declaration claims `frame_world`, `frame_world_revision` and `coordinate_operation`.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
-
-The explicit `task_used_frame` claim prevents a Task prefix claim from swallowing this relationship. Existing mixed migration placement does not qualify the declared owner.
+The lane embeds `src/schema/migrations/0000_current.surql`, which defines the
+Frames tables and their indexes. The composition root supplies the checked execution
+image and command. Installation execution and its Jobs require separate qualification;
+the runtime server never applies the lane. Owner migrations and queries live in this
+crate, with one declaration per schema object.
 
 ## Persistence Observation
 

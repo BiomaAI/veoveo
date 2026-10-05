@@ -426,7 +426,9 @@ pub async fn qualify(
         .unwrap(),
     );
     db.b.client()
-        .query("UPDATE ONLY $family SET revoked_at = time::now();")
+        .query(include_str!(
+            "../queries/support/browser_terminal/qualify.surql"
+        ))
         .bind(("family", family))
         .await
         .unwrap()

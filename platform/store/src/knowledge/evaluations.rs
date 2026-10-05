@@ -30,7 +30,7 @@ impl PlatformStore {
         }
         let revision = evaluation.revision();
         self.client()
-            .query(include_str!("evaluation.surql"))
+            .query(include_str!("../queries/knowledge/evaluation.surql"))
             .bind(("tenant", tenant.to_string()))
             .bind(("generation", generation_record(evaluation.generation())))
             .bind((
@@ -53,11 +53,19 @@ impl PlatformStore {
         generation: GenerationId,
         revision: &Sha256Digest,
     ) -> Result<Option<RetrievalEvaluation>, StoreError> {
-        let mut response = self.client().query("SELECT VALUE document FROM ONLY $evaluation WHERE tenant = $tenant AND generation = $generation;")
-            .bind(("evaluation", RecordId::new("knowledge_evaluation", revision.to_string())))
+        let mut response = self
+            .client()
+            .query(include_str!(
+                "../queries/knowledge/evaluations/knowledge_evaluation.surql"
+            ))
+            .bind((
+                "evaluation",
+                RecordId::new("knowledge_evaluation", revision.to_string()),
+            ))
             .bind(("tenant", tenant.to_string()))
             .bind(("generation", generation_record(generation)))
-            .await?.knowledge_check()?;
+            .await?
+            .knowledge_check()?;
         let document: Option<Document<RetrievalEvaluation>> = response.take(0)?;
         document
             .map(|document| {

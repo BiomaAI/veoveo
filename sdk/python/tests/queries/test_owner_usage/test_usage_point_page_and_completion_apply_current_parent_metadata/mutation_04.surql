@@ -1,0 +1,1 @@
+UPDATE $task SET task_type = 'other';

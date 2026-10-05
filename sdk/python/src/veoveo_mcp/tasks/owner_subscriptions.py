@@ -7,6 +7,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Sequence
 
+from .queries import OwnerStatement
 from .changefeed import changefeed_head, cursor_now, expired, replay_changes
 from .owner_query import OwnerTaskQuery, native_task_id
 from .runtime import _record_to_snapshot
@@ -24,7 +25,7 @@ class OwnerTaskSubscription:
 
 async def _current(query: OwnerTaskQuery, ids: Sequence[uuid.UUID]) -> tuple[TaskSnapshot, ...]:
     rows = await query.runtime.store.query(
-        f"SELECT * FROM $records WHERE {query.predicate()};",
+        query._statement(OwnerStatement.CURRENT),
         {**query.bindings(), "records": [task_record(task_id) for task_id in ids]},
     )
     return tuple(_record_to_snapshot(record) for record in rows[0] or [])

@@ -1,0 +1,1 @@
+UPDATE $task SET request.owner.tenant_key = 'other-tenant', request.owner.authority = {};

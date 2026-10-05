@@ -1283,6 +1283,8 @@ pub(crate) mod tests {
     mod discovery;
     mod identity;
     mod immutable_blob;
+    #[path = "../../../../../../testing/fixtures/store.rs"]
+    mod native_store;
     pub(crate) use identity::request_context;
     use identity::{bind_request_context, caller};
     mod native_database;

@@ -125,7 +125,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             let result =
                 veoveo_platform_store::TaskResultRecord::new(serde_json::to_value(result).unwrap());
             db.b.client()
-                .query("UPDATE ONLY $id SET result = $result;")
+                .query(include_str!("../../../queries/bin/server/index_tests/native_completion_filters_before_limits_and_deduplicates_artifacts.surql"))
                 .bind(("id", task_record_id(task.task_id)))
                 .bind(("result", result))
                 .await

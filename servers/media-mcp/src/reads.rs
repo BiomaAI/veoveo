@@ -10,12 +10,6 @@ use veoveo_types::TaskId;
 
 // Matches TaskOwner::allows, including the optional tenant spelling in the envelope.
 // Both the domain row and its linked Task must agree; no full Task decode is needed.
-const VISIBLE_TASK: &str = "tenant = $tenant AND task.tenant = $tenant
-    AND task.server = $server AND task.owner = $owner AND task.profile = $profile
-    AND task.request.owner.principal_key = $principal_key
-    AND task.request.owner.profile = $profile_key
-    AND (task.request.owner.tenant_key ?? NONE) = $tenant_key
-    AND task.request.owner.data_labels ALLINSIDE $labels";
 
 pub struct MediaReads<'a> {
     tasks: &'a TaskRuntime,

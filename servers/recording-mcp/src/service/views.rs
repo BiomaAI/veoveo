@@ -6,9 +6,10 @@ use crate::contract::{
 };
 use anyhow::{Context as _, Result, ensure};
 use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
-use veoveo_platform_store::{
-    ArtifactId as PlatformArtifactId, RecordId, RecordingBlueprintRecord, RecordingDatasetId,
-    RecordingId, RecordingLayerRecord, RecordingLayerState, RecordingRecord,
+use veoveo_platform_store::{ArtifactId as PlatformArtifactId, RecordId};
+use veoveo_recording_store::{
+    RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerRecord,
+    RecordingLayerState, RecordingRecord,
 };
 use veoveo_types::Sha256Digest;
 
@@ -118,12 +119,12 @@ impl RecordingService {
         let dataset_id =
             RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
         let dataset = self
-            .store
+            .recordings
             .recording_dataset(tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
         let counts = self
-            .store
+            .recordings
             .recording_layer_counts(tenant_id, recording_id)
             .await?;
         Ok(RecordingViewBuilder {

@@ -1,0 +1,1 @@
+RETURN SELECT * FROM workspace_chat WHERE tenant = $authority.tenant              AND work_context = $authority.work_context AND id IN              (SELECT VALUE chat FROM workspace_member WHERE principal = $authority.principal              AND active = true) ORDER BY updated_at DESC LIMIT 100;

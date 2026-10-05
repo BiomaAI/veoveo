@@ -56,9 +56,20 @@ pub(super) async fn install_profile_policy(
         revision_id: "upload-fixture".into(),
         updated_at: now,
     };
-    store.client().query("CREATE ONLY $revision CONTENT $content; CREATE gateway_control_object CONTENT $profile; CREATE gateway_control_object CONTENT $policy; CREATE ONLY $active.id CONTENT $active;")
-        .bind(("revision", revision)).bind(("content", revision_content)).bind(("profile", profile))
-        .bind(("policy", policy)).bind(("active", active)).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../../../tests/queries/service/tests/upload_admission/install_profile_policy.surql"
+        ))
+        .bind(("revision", revision))
+        .bind(("content", revision_content))
+        .bind(("profile", profile))
+        .bind(("policy", policy))
+        .bind(("active", active))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 }
 
 pub(super) async fn admission(
@@ -214,7 +225,7 @@ async fn upload_admission_serializes_large_reservations_replays_and_authority_ch
     ));
     store
         .client()
-        .query("UPDATE ONLY $context SET policy_revision = 'r2';")
+        .query(include_str!("../../../tests/queries/service/tests/upload_admission/upload_admission_serializes_large_reservations_replays_and_authority_changes.surql"))
         .bind(("context", context_id))
         .await
         .unwrap()

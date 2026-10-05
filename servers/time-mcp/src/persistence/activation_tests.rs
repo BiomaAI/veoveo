@@ -5,7 +5,7 @@ use veoveo_platform_store::PrincipalKind;
 #[tokio::test]
 async fn time_authority_activation_retires_the_previous_release_atomically() {
     tokio::time::timeout(std::time::Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let identity =
             db.a.ensure_identity(
                 "tenant-time",
@@ -169,7 +169,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
         // pointer together; neither may commit before retirement succeeds.
         let winner_record = time_record("time_authority_release", winner);
         db.a.client()
-            .query("UPDATE $record SET record_version = $version RETURN NONE;")
+            .query(include_str!("../tests/queries/set_record_version.surql"))
             .bind(("record", winner_record.clone()))
             .bind(("version", i64::MAX))
             .await
@@ -217,7 +217,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
         assert_eq!(unchanged.record_version, i64::MAX);
 
         db.a.client()
-            .query("UPDATE $record SET record_version = $version RETURN NONE;")
+            .query(include_str!("../tests/queries/set_record_version.surql"))
             .bind(("record", winner_record))
             .bind(("version", 2_i64))
             .await

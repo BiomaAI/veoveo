@@ -1,8 +1,9 @@
 //! Owner-scoped catalog pages and database-selected maintenance batches.
+use crate::persistence::MapRepository;
+use crate::persistence::{MapDependencyKind, MapRouteState};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use veoveo_platform_store::{MapDependencyKind, MapRouteState};
 
 use super::{MapAccessContext, MapCatalog, decode, encode};
 use crate::{
@@ -96,7 +97,7 @@ pub struct MatrixSummary {
 
 impl MapCatalog {
     pub async fn route(&self, scope: &MapAccessContext, id: &RouteId) -> Result<Option<RoutePlan>> {
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_route(&scope.identity, id.as_str())
             .await?
             .map(|row| {
@@ -115,7 +116,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         id: &RouteMatrixId,
     ) -> Result<Option<RouteMatrix>> {
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_route_matrix(&scope.identity, id.as_str())
             .await?
             .map(|row| {
@@ -134,7 +135,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         id: &AcquisitionId,
     ) -> Result<Option<AcquisitionJob>> {
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_acquisition(&scope.identity, id.as_str())
             .await?
             .map(|row| decode(&row.canonical_json, "acquisition job"))
@@ -146,8 +147,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         after: Option<&RouteId>,
     ) -> Result<OwnedPage<RouteSummary>> {
-        let rows = self
-            .store()
+        let rows = MapRepository::new(self.store().clone())
             .map_routes_page(&scope.identity, after.map(RouteId::as_str), PAGE_SIZE + 1)
             .await?;
         Collection::Routes.page(
@@ -180,8 +180,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         after: Option<&RouteMatrixId>,
     ) -> Result<OwnedPage<MatrixSummary>> {
-        let rows = self
-            .store()
+        let rows = MapRepository::new(self.store().clone())
             .map_matrices_page(
                 &scope.identity,
                 after.map(RouteMatrixId::as_str),
@@ -208,8 +207,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         after: Option<&AcquisitionId>,
     ) -> Result<OwnedPage<AcquisitionJob>> {
-        let rows = self
-            .store()
+        let rows = MapRepository::new(self.store().clone())
             .map_acquisitions_page(
                 &scope.identity,
                 after.map(AcquisitionId::as_str),
@@ -229,7 +227,7 @@ impl MapCatalog {
         active: &[AcquisitionId],
         after: Option<&AcquisitionId>,
     ) -> Result<Vec<AcquisitionJob>> {
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_interrupted_acquisitions_page(
                 &scope.identity,
                 &active.iter().map(ToString::to_string).collect::<Vec<_>>(),
@@ -293,8 +291,7 @@ impl MapCatalog {
         let mut after = None;
         let mut count = 0;
         loop {
-            let rows = self
-                .store()
+            let rows = MapRepository::new(self.store().clone())
                 .map_routes_for_dependency_page(
                     scope.identity.tenant_id,
                     kind,
@@ -311,7 +308,7 @@ impl MapCatalog {
                 let mut route: RoutePlan = decode(&row.canonical_json, "route")?;
                 route.status = RouteStatus::Invalidated;
                 count += u64::from(
-                    self.store()
+                    MapRepository::new(self.store().clone())
                         .invalidate_map_route(
                             scope.identity.tenant_id,
                             route.route_id.as_str(),

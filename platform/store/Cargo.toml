@@ -11,6 +11,7 @@ path = "src/lib.rs"
 default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
+    "schema",
     "dep:tracing",
     "dep:veoveo-modules",
     "dep:schemars",
@@ -20,7 +21,6 @@ runtime = [
     "dep:veoveo-audit-contract",
     "dep:veoveo-types",
     "dep:veoveo-artifact-contract",
-    "dep:veoveo-computers-contract",
     "dep:async-stream",
     "dep:chrono",
     "dep:futures",
@@ -46,7 +46,6 @@ veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], op
 veoveo-audit-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
-veoveo-computers-contract = { path = "../computers/contract", optional = true }
 async-stream = { version = "=0.3.6", optional = true }
 chrono = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
@@ -62,11 +61,8 @@ url = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["serde", "v5", "v7"], optional = true }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 tokio = { workspace = true, features = ["process", "macros", "rt-multi-thread", "net", "io-util", "sync"] }
-
-[[test]]
-name = "agent_management"
-required-features = ["runtime"]
 
 [[test]]
 name = "audit"
@@ -97,31 +93,11 @@ name = "knowledge"
 required-features = ["runtime"]
 
 [[test]]
-name = "map_authoring_reads"
-required-features = ["runtime"]
-
-[[test]]
-name = "map_completion"
-required-features = ["runtime"]
-
-[[test]]
-name = "recording_grants"
-required-features = ["runtime"]
-
-[[test]]
-name = "recording_projections"
-required-features = ["runtime"]
-
-[[test]]
 name = "resource_changes"
 required-features = ["runtime"]
 
 [[test]]
 name = "surreal_integration"
-required-features = ["runtime"]
-
-[[test]]
-name = "workspace"
 required-features = ["runtime"]
 
 [[test]]

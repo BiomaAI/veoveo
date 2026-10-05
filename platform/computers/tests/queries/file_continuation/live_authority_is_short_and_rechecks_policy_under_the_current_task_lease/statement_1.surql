@@ -1,0 +1,1 @@
+DELETE computer_file_transfer_payload;

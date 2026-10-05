@@ -13,7 +13,9 @@ catalog = ["contract", "dep:veoveo-mcp-contract"]
 gateway = ["dep:veoveo-http", "runtime", "catalog", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
 default = ["runtime"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
+persistence = ["schema", "contract", "chrono/clock", "dep:surrealdb", "dep:thiserror", "dep:tokio", "dep:veoveo-platform-store"]
 runtime = [
+    "persistence",
     "schema",
     "contract",
     "dep:async-stream",
@@ -65,6 +67,8 @@ veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-audit-contract.workspace = true
+veoveo-modules = { workspace = true, features = ["runner"] }
 chrono.workspace = true
 veoveo-computers-contract.workspace = true
 veoveo-recording-contract.workspace = true
@@ -77,3 +81,7 @@ tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-mult
 [[test]]
 name = "surreal_integration"
 required-features = ["runtime"]
+
+[[test]]
+name = "agent_management"
+required-features = ["persistence"]

@@ -105,7 +105,9 @@ impl PlatformStore {
         record: GatewayResourceSubscriptionRecord,
     ) -> Result<(), StoreError> {
         self.db
-            .query("BEGIN TRANSACTION; UPSERT ONLY $record CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/gateway_runtime/upsert_gateway_resource_subscription.surql"
+            ))
             .bind(("record", record.id.clone()))
             .bind(("content", record))
             .await?
@@ -125,7 +127,9 @@ impl PlatformStore {
         id: RecordId,
     ) -> Result<(), StoreError> {
         self.db
-            .query("BEGIN TRANSACTION; DELETE ONLY $record RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/gateway_runtime/delete_gateway_resource_subscription.surql"
+            ))
             .bind(("record", id))
             .await?
             .check()?;
@@ -137,7 +141,9 @@ impl PlatformStore {
         record: GatewayJwtRevocationRecord,
     ) -> Result<(), StoreError> {
         self.db
-            .query("BEGIN TRANSACTION; UPSERT ONLY $record CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/gateway_runtime/upsert_gateway_jwt_revocation.surql"
+            ))
             .bind(("record", record.id.clone()))
             .bind(("content", record))
             .await?
@@ -152,7 +158,9 @@ impl PlatformStore {
     ) -> Result<Option<GatewayJwtRevocationRecord>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $record WHERE expires_at > $now;")
+            .query(include_str!(
+                "queries/gateway_runtime/gateway_jwt_revocation.surql"
+            ))
             .bind(("record", id))
             .bind(("now", now))
             .await?
@@ -166,7 +174,7 @@ impl PlatformStore {
     ) -> Result<u64, StoreError> {
         delete_count(
             self,
-            "DELETE gateway_jwt_revocation WHERE expires_at <= $now RETURN BEFORE;",
+            include_str!("queries/gateway_runtime/prune_expired_gateway_jwt_revocations.surql"),
             now,
         )
         .await
@@ -183,7 +191,9 @@ impl PlatformStore {
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("UPSERT ONLY $record CONTENT $content WHERE expires_at = NONE OR expires_at <= $now RETURN AFTER;")
+                .query(include_str!(
+                    "queries/gateway_runtime/register_gateway_replay_id.surql"
+                ))
                 .bind(("record", record.id.clone()))
                 .bind(("content", record.clone()))
                 .bind(("now", now))
@@ -212,9 +222,9 @@ impl PlatformStore {
     ) -> Result<u64, StoreError> {
         let mut response = self
             .db
-            .query(
-                "DELETE gateway_replay_id WHERE kind = $kind AND expires_at <= $now RETURN BEFORE;",
-            )
+            .query(include_str!(
+                "queries/gateway_runtime/prune_expired_gateway_replay_ids.surql"
+            ))
             .bind(("kind", kind))
             .bind(("now", now))
             .await?
@@ -230,7 +240,9 @@ impl PlatformStore {
         record: GatewayAuthorizationRequestRecord,
     ) -> Result<(), StoreError> {
         self.db
-            .query("CREATE ONLY $record CONTENT $content RETURN NONE;")
+            .query(include_str!(
+                "queries/gateway_runtime/create_gateway_authorization_request.surql"
+            ))
             .bind(("record", record.id.clone()))
             .bind(("content", record))
             .await?
@@ -247,7 +259,9 @@ impl PlatformStore {
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("DELETE ONLY $record WHERE expires_at > $now RETURN BEFORE;")
+                .query(include_str!(
+                    "queries/gateway_runtime/consume_gateway_authorization_request.surql"
+                ))
                 .bind(("record", id.clone()))
                 .bind(("now", now))
                 .await
@@ -270,7 +284,9 @@ impl PlatformStore {
         record: GatewayAuthorizationCodeStateRecord,
     ) -> Result<(), StoreError> {
         self.db
-            .query("CREATE ONLY $record CONTENT $content RETURN NONE;")
+            .query(include_str!(
+                "queries/gateway_runtime/create_gateway_authorization_code.surql"
+            ))
             .bind(("record", record.id.clone()))
             .bind(("content", record))
             .await?
@@ -287,7 +303,9 @@ impl PlatformStore {
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("UPDATE ONLY $record SET consumed_at = $now, payload.consumed_at = $now WHERE expires_at > $now AND consumed_at = NONE RETURN BEFORE;")
+                .query(include_str!(
+                    "queries/gateway_runtime/consume_gateway_authorization_code.surql"
+                ))
                 .bind(("record", id.clone()))
                 .bind(("now", now))
                 .await
@@ -311,7 +329,9 @@ impl PlatformStore {
     ) -> Result<u64, StoreError> {
         let mut response = self
             .db
-            .query("DELETE gateway_authorization_request WHERE expires_at <= $now RETURN BEFORE; DELETE gateway_authorization_code WHERE expires_at <= $now RETURN BEFORE;")
+            .query(include_str!(
+                "queries/gateway_runtime/prune_expired_gateway_authorization_records.surql"
+            ))
             .bind(("now", now))
             .await?
             .check()?;
@@ -332,7 +352,9 @@ impl PlatformStore {
         validate_refresh_pair(&family, &token, 0)?;
 
         self.db
-            .query("BEGIN TRANSACTION; CREATE ONLY $family CONTENT $family_content RETURN NONE; CREATE ONLY $refresh_record CONTENT $refresh_content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/gateway_runtime/create_gateway_refresh_family.surql"
+            ))
             .bind(("family", family.id.clone()))
             .bind(("family_content", family))
             .bind(("refresh_record", token.id.clone()))
@@ -348,7 +370,9 @@ impl PlatformStore {
     ) -> Result<Option<(GatewayRefreshTokenRecord, GatewayRefreshFamilyRecord)>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM gateway_refresh_token WHERE token_hash = $token_hash LIMIT 1;")
+            .query(include_str!(
+                "queries/gateway_runtime/gateway_refresh_grant_by_hash.surql"
+            ))
             .bind(("token_hash", token_hash.to_owned()))
             .await?
             .check()?;
@@ -388,14 +412,18 @@ impl PlatformStore {
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("BEGIN TRANSACTION; LET $revoked = (UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'client_revocation' WHERE revoked_at = NONE AND expires_at > $now RETURN AFTER); IF $revoked = NONE { THROW 'gateway_refresh_family_invalid'; }; COMMIT TRANSACTION;")
+                .query(include_str!(
+                    "queries/gateway_runtime/revoke_gateway_refresh_family_by_hash.surql"
+                ))
                 .bind(("family", family.id.clone()))
                 .bind(("now", now))
                 .await
-                .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
-                    Some(error) => Err(error),
-                    None => Ok(()),
-                });
+                .and_then(
+                    |mut response| match primary_transaction_error(response.take_errors()) {
+                        Some(error) => Err(error),
+                        None => Ok(()),
+                    },
+                );
             match response {
                 Ok(()) => {
                     let mut revoked = family;
@@ -458,22 +486,33 @@ impl PlatformStore {
 
         const MAX_ATTEMPTS: u32 = 8;
         for attempt in 0..MAX_ATTEMPTS {
-            let response = crate::audit::AuditTransactionWrite::new(success_audit.clone())?.append(self
-                .db
-                .query("BEGIN TRANSACTION; LET $consumed = (UPDATE ONLY $current SET consumed_at = $now, replacement = $replacement, delivery_envelope = NONE, delivery_expires_at = NONE WHERE consumed_at = NONE AND replay_detected_at = NONE AND expires_at > $now RETURN AFTER); IF $consumed = NONE { THROW 'gateway_refresh_token_replay'; }; LET $family_updated = (UPDATE ONLY $family SET current_generation = $next_generation WHERE revoked_at = NONE AND expires_at > $now AND current_generation = $current_generation RETURN AFTER); IF $family_updated = NONE { THROW 'gateway_refresh_family_invalid'; }; CREATE ONLY $replacement CONTENT $replacement_content RETURN NONE; ")
-                .bind(("current", token.id.clone()))
-                .bind(("family", family.id.clone()))
-                .bind(("replacement", replacement.id.clone()))
-                .bind(("replacement_content", replacement.clone()))
-                .bind(("now", now))
-                .bind(("current_generation", token.generation))
-                .bind(("next_generation", replacement.generation))
-
-                ).query("COMMIT TRANSACTION;").await
-                .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
+            let response = crate::audit::AuditTransactionWrite::new(
+                self.audit_targets(),
+                success_audit.clone(),
+            )?
+            .append(
+                self.db
+                    .query(include_str!(
+                        "queries/gateway_runtime/rotate_gateway_refresh_token.surql"
+                    ))
+                    .bind(("current", token.id.clone()))
+                    .bind(("family", family.id.clone()))
+                    .bind(("replacement", replacement.id.clone()))
+                    .bind(("replacement_content", replacement.clone()))
+                    .bind(("now", now))
+                    .bind(("current_generation", token.generation))
+                    .bind(("next_generation", replacement.generation)),
+            )
+            .query(include_str!(
+                "queries/gateway_runtime/rotate_gateway_refresh_token_2.surql"
+            ))
+            .await
+            .and_then(|mut response| {
+                match primary_transaction_error(response.take_errors()) {
                     Some(error) => Err(error),
                     None => Ok(()),
-                });
+                }
+            });
             match response {
                 Ok(_) => {
                     let mut rotated_family = family;
@@ -539,7 +578,9 @@ impl PlatformStore {
     ) -> Result<GatewayRefreshRetentionSummary, StoreError> {
         let mut response = self
             .db
-            .query("UPDATE gateway_refresh_token SET delivery_envelope = NONE, delivery_expires_at = NONE WHERE delivery_expires_at != NONE AND delivery_expires_at <= $now RETURN BEFORE; DELETE gateway_refresh_token WHERE expires_at <= $now RETURN BEFORE; DELETE gateway_refresh_family WHERE expires_at <= $now RETURN BEFORE;")
+            .query(include_str!(
+                "queries/gateway_runtime/prune_expired_gateway_refresh_state.surql"
+            ))
             .bind(("now", now))
             .await?
             .check()?;
@@ -559,7 +600,9 @@ impl PlatformStore {
     ) -> Result<u64, StoreError> {
         let mut response = self
             .db
-            .query("UPDATE gateway_refresh_token SET delivery_envelope = NONE, delivery_expires_at = NONE WHERE delivery_expires_at != NONE AND delivery_expires_at <= $now RETURN BEFORE;")
+            .query(include_str!(
+                "queries/gateway_runtime/clear_expired_gateway_refresh_delivery_envelopes.surql"
+            ))
             .bind(("now", now))
             .await?
             .check()?;
@@ -670,15 +713,19 @@ impl PlatformStore {
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("BEGIN TRANSACTION; UPDATE ONLY $family SET revoked_at = $now, revocation_reason = 'token_replay' WHERE revoked_at = NONE RETURN NONE; UPDATE ONLY $refresh_record SET replay_detected_at = $now WHERE replay_detected_at = NONE RETURN NONE; COMMIT TRANSACTION;")
+                .query(include_str!(
+                    "queries/gateway_runtime/revoke_gateway_refresh_family_for_replay.surql"
+                ))
                 .bind(("family", family.id.clone()))
                 .bind(("refresh_record", token.id.clone()))
                 .bind(("now", now))
                 .await
-                .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
-                    Some(error) => Err(error),
-                    None => Ok(()),
-                });
+                .and_then(
+                    |mut response| match primary_transaction_error(response.take_errors()) {
+                        Some(error) => Err(error),
+                        None => Ok(()),
+                    },
+                );
             match response {
                 Ok(_) => {
                     let mut revoked = family.clone();

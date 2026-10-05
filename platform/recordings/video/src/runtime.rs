@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result, bail, ensure};
 use veoveo_mcp_contract::ArtifactReadAuthority;
-use veoveo_platform_store::RecordingId;
 use veoveo_recording_reader::{RecordingReadAuthority, RecordingReader};
+use veoveo_recording_store::RecordingId;
 use veoveo_rrd::video_clip::{
     EncodedVideoClip, VideoClipRequest, VideoIndexKind, extract_video_clip, remux_h264_mp4,
 };

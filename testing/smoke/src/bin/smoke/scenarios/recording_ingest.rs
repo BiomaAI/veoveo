@@ -7,9 +7,7 @@ use re_sdk::{
 };
 use re_sdk_types::archetypes::Scalars;
 use url::Url;
-use veoveo_platform_store::{
-    PlatformStore, PrincipalKind, RecordingState, StoreConfig, StoreCredentials,
-};
+use veoveo_platform_store::{PlatformStore, PrincipalKind, StoreConfig, StoreCredentials};
 use veoveo_recording_forwarder::{
     batch::RecordingAccumulator,
     blueprint::BlueprintAccumulator,
@@ -24,6 +22,8 @@ use veoveo_recording_hub::{
 use veoveo_recording_protocol::v1::{
     OpenRecordingStreamRequest, RecordingStreamFinishMode, RecordingStreamState,
 };
+use veoveo_recording_store::RecordingRepository;
+use veoveo_recording_store::RecordingState;
 use veoveo_rrd::segment::inspect_segment;
 
 use super::*;
@@ -224,7 +224,7 @@ pub(crate) async fn recording_ingest(
             PrincipalKind::Service,
         )
         .await?;
-    let superseded_catalog = store
+    let superseded_catalog = RecordingRepository::new(store.clone())
         .recording_by_key(
             identity.tenant_id,
             &superseded_request.application_id,

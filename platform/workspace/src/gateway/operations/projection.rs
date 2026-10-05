@@ -1,11 +1,11 @@
 use super::super::projection::uuid;
 use crate::contract as wire;
+use crate::persistence::{WorkspaceOperation, WorkspaceOperationPhase as Phase};
 use axum::http::StatusCode;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use rmcp::model::{
     CallToolResult, ContentBlock, DetailedTask, InputRequiredResult, TaskPayload, TaskStatus,
 };
-use veoveo_platform_store::workspace::{WorkspaceOperation, WorkspaceOperationPhase as Phase};
 
 pub(super) fn summary(value: &WorkspaceOperation) -> Result<wire::OperationSummary, StatusCode> {
     let agent = match (&value.run, &value.agent) {

@@ -18,7 +18,7 @@ impl PlatformStore {
     ) -> Result<AuditSealLease, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("renew.surql"))
+            .query(include_str!("../queries/audit/renew.surql"))
             .bind(("owner", SurrealUuid::from(lease.owner)))
             .bind(("generation", lease.generation))
             .bind(("caught_up", caught_up))
@@ -36,10 +36,9 @@ impl PlatformStore {
     }
     pub async fn release_audit_seal_lease(&self, lease: &AuditSealLease) -> Result<(), StoreError> {
         self.db
-            .query(
-                "UPDATE ONLY audit_sealer:active SET lease_until = time::now()
-            WHERE owner = $owner AND generation = $generation;",
-            )
+            .query(include_str!(
+                "../queries/audit/maintenance/release_audit_seal_lease.surql"
+            ))
             .bind(("owner", SurrealUuid::from(lease.owner)))
             .bind(("generation", lease.generation))
             .await?
@@ -54,7 +53,7 @@ impl PlatformStore {
     ) -> Result<Vec<AuditBlock>, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("retention_candidates.surql"))
+            .query(include_str!("../queries/audit/retention_candidates.surql"))
             .bind(("cutoff", cutoff))
             .bind((
                 "destinations",
@@ -73,10 +72,13 @@ impl PlatformStore {
     }
     /// Guards are short-lived deduplication state; deleting one never deletes its record.
     pub async fn prune_audit_download_windows(&self) -> Result<usize, StoreError> {
-        let mut response = self.db.query("BEGIN TRANSACTION;
-            LET $expired = SELECT VALUE id FROM audit_download_window WHERE window_start < time::now() - 1d ORDER BY window_start ASC LIMIT 128;
-            DELETE $expired; RETURN array::len($expired); COMMIT TRANSACTION;")
-            .await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "../queries/audit/maintenance/prune_audit_download_windows.surql"
+            ))
+            .await?
+            .check()?;
         let index = response
             .num_statements()
             .checked_sub(2)

@@ -1,0 +1,1 @@
+CREATE ONLY $route SET tenant = $tenant, owner = $owner, work_context = $work_context, profile = $profile, server = $server, source_task_id = $source_task_id, source_task = $source_task, authority_digest = $authority_digest, created_at = $now, expires_at = $expires_at RETURN NONE;

@@ -80,7 +80,9 @@ impl Scenario<'_> {
         // Advance only the owned fixture's original finite window. No provider
         // absence observation is substituted for historical effect evidence.
         db.a.client()
-            .query("UPDATE ONLY $operation SET observation_deadline = time::now() - 1s;")
+            .query(include_str!(
+                "../queries/support/maintenance_initial_failure/run.surql"
+            ))
             .bind((
                 "operation",
                 surrealdb::types::RecordId::new(
@@ -157,7 +159,9 @@ impl Scenario<'_> {
         assert!(store.begin_dispatch(&claim).await.is_err());
         let usage: Vec<i64> =
             db.a.client()
-                .query("SELECT VALUE retained FROM computer_usage;")
+                .query(include_str!(
+                    "../queries/support/maintenance_initial_failure/run_2.surql"
+                ))
                 .await
                 .unwrap()
                 .check()

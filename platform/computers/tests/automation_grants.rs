@@ -12,7 +12,7 @@ use support::automation::{POLICY, control, input, setup};
 
 #[tokio::test]
 async fn concurrent_grants_are_idempotent_bounded_and_revocation_never_reissues_them() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = setup(&db).await;
     let request = input(computer);
     let (left, right) = futures::join!(
@@ -111,21 +111,21 @@ async fn concurrent_grants_are_idempotent_bounded_and_revocation_never_reissues_
         a.issue_automation_grant(&owner, &request).await.unwrap(),
         revoked
     );
-    let mut events = db.b.client().query("SELECT VALUE activity FROM audit_record WHERE target_ref = $computer AND activity = 'computer_revoke' AND draft.detail.stage = 'grant_revoked';").bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid())))).await.unwrap().check().unwrap();
+    let mut events = db.b.client().query(include_str!("queries/automation_grants/concurrent_grants_are_idempotent_bounded_and_revocation_never_reissues_them/statement_1.surql")).bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid())))).await.unwrap().check().unwrap();
     let events: Vec<String> = events.take(0).unwrap();
     assert_eq!(events.len(), 1);
 }
 
 #[tokio::test]
 async fn automation_uses_its_own_principal_and_survives_the_grantors_browser_logout() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = setup(&db).await;
     let granted = a
         .issue_automation_grant(&owner, &input(computer))
         .await
         .unwrap();
     db.b.client()
-        .query("UPDATE gateway_refresh_family SET revoked_at = time::now();")
+        .query(include_str!("queries/automation_grants/automation_uses_its_own_principal_and_survives_the_grantors_browser_logout/statement_1.surql"))
         .await
         .unwrap()
         .check()
@@ -212,7 +212,7 @@ async fn automation_uses_its_own_principal_and_survives_the_grantors_browser_log
 
 #[tokio::test]
 async fn a_user_principal_can_receive_a_grant_but_cannot_change_its_oauth_client() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, _, computer) = setup(&db).await;
     let bob = support::owner("bob");
     db.a.ensure_identity(
@@ -274,7 +274,7 @@ async fn a_user_principal_can_receive_a_grant_but_cannot_change_its_oauth_client
 
 #[tokio::test]
 async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = setup(&db).await;
     let granted = a
         .issue_automation_grant(&owner, &input(computer))
@@ -286,7 +286,7 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
                 .unwrap()
                 .record_id();
         db.b.client()
-            .query("UPDATE ONLY $principal SET enabled=false;")
+            .query(include_str!("queries/automation_grants/current_principals_policy_clearance_and_reduced_limits_bound_each_use/statement_1.surql"))
             .bind(("principal", principal.clone()))
             .await
             .unwrap()
@@ -303,7 +303,7 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
             Err(ComputerError::Forbidden)
         ));
         db.b.client()
-            .query("UPDATE ONLY $principal SET enabled=true;")
+            .query(include_str!("queries/automation_grants/current_principals_policy_clearance_and_reduced_limits_bound_each_use/statement_2.surql"))
             .bind(("principal", principal))
             .await
             .unwrap()
@@ -326,7 +326,7 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
     support::policy::install(&db.b, control()).await;
     let record = RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid()));
     db.b.client()
-        .query("UPDATE ONLY $computer SET owner_context.data_labels = ['pii'];")
+        .query(include_str!("queries/automation_grants/current_principals_policy_clearance_and_reduced_limits_bound_each_use/statement_3.surql"))
         .bind(("computer", record.clone()))
         .await
         .unwrap()
@@ -343,7 +343,7 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
         Err(ComputerError::Forbidden)
     ));
     db.b.client()
-        .query("UPDATE ONLY $computer SET owner_context.data_labels = [];")
+        .query(include_str!("queries/automation_grants/current_principals_policy_clearance_and_reduced_limits_bound_each_use/statement_4.surql"))
         .bind(("computer", record))
         .await
         .unwrap()
@@ -398,7 +398,7 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
 
 #[tokio::test]
 async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = setup(&db).await;
     let original = input(computer);
     let mut missing = original.clone();
@@ -457,7 +457,7 @@ async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants()
 #[tokio::test]
 async fn owner_grant_choices_follow_current_permissions_and_registration_scope() {
     use veoveo_mcp_contract::{AuthMode, GatewayProfileId, LocalToolName};
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, _, computer) = setup(&db).await;
     let inventory = a.list_automation_grants(&owner, computer).await.unwrap();
     assert!(inventory.can_grant && inventory.can_revoke);
@@ -539,7 +539,7 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
 #[tokio::test]
 async fn owner_grant_choices_are_bounded_and_do_not_limit_exact_client_issuance() {
     use veoveo_gateway_contract::OAuthClientId;
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, _, computer) = setup(&db).await;
     let mut current = control();
     for index in 0..130 {

@@ -18,7 +18,7 @@ mod app_support;
 use app_support::{application, control, identities};
 #[tokio::test]
 async fn concurrent_create_and_default_rotation_retain_one_original_operation_and_template() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     identities(&db).await;
     let (app, _) = application(&db, false).await;
     let owner = support::owner("alice");
@@ -98,7 +98,7 @@ async fn concurrent_create_and_default_rotation_retain_one_original_operation_an
 
 #[tokio::test]
 async fn current_policy_and_membership_control_flags_and_admission_without_reserving() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     identities(&db).await;
     let (app, _) = application(&db, false).await;
     let owner = support::owner("alice");
@@ -139,7 +139,7 @@ async fn current_policy_and_membership_control_flags_and_admission_without_reser
         .unwrap()
         .record_id();
     db.b.client()
-        .query("UPDATE ONLY $source SET enabled = false;")
+        .query(include_str!("queries/application/current_policy_and_membership_control_flags_and_admission_without_reserving.surql"))
         .bind(("source", source))
         .await
         .unwrap()
@@ -153,7 +153,7 @@ async fn current_policy_and_membership_control_flags_and_admission_without_reser
 
 #[tokio::test]
 async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     identities(&db).await;
     let store = ComputersStore::new(
         db.a.clone(),
@@ -225,7 +225,7 @@ async fn unconfigured_and_stale_capacity_are_visible_without_claiming_admission(
 
 #[tokio::test]
 async fn an_interrupted_reservation_can_be_provisioned_from_the_visible_collection() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     identities(&db).await;
     let owner = support::owner("alice");
     let store = ComputersStore::new(

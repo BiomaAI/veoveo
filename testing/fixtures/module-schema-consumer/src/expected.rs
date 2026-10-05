@@ -118,8 +118,6 @@ pub(super) const TABLES: &[(&str, &str)] = &[
     ("media_usage", "media"),
     ("membership", "identity"),
     ("oauth_client", "identity"),
-    ("platform_downstream_migration", "store"),
-    ("platform_schema_migration", "store"),
     ("policy_revision", "gateway"),
     ("principal", "identity"),
     ("principal_group", "identity"),
@@ -142,7 +140,6 @@ pub(super) const TABLES: &[(&str, &str)] = &[
     ("task_input", "tasks"),
     ("task_produced_artifact", "tasks"),
     ("task_used_artifact", "tasks"),
-    ("task_used_frame", "frames"),
     ("tenant", "identity"),
     ("time_acquisition", "time"),
     ("time_active_authority", "time"),
@@ -170,6 +167,11 @@ pub(super) const TABLES: &[(&str, &str)] = &[
 ];
 
 pub(super) const FUNCTIONS: &[(&str, &str)] = &[
+    ("fn::kernel::identity::actor_admitted_v1", "identity"),
+    ("fn::kernel::identity::identity_enabled_v1", "identity"),
+    ("fn::kernel::gateway::task_retention_route_v1", "gateway"),
+    ("fn::kernel::tasks::release_retention_v1", "tasks"),
+    ("fn::kernel::tasks::selection_v1", "tasks"),
     ("fn::agent_catalog_authority", "agents"),
     ("fn::agent_chat_revision", "agents"),
     ("fn::agent_consume_results", "agents"),

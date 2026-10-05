@@ -46,7 +46,9 @@ impl ComputersStore {
         actor.check_admission()?;
         let mut read = self
             .query(
-                "SELECT VALUE operation_id FROM ONLY $request;",
+                include_str!(
+                    "../queries/operation_authority/automation_operation_for_request.surql"
+                ),
                 vec![(
                     "request",
                     crate::operation_admission::request_record(actor.owner(), computer, request)?

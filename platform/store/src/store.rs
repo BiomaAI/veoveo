@@ -6,6 +6,7 @@ use surrealdb::opt::{
     Config, WebsocketConfig,
     auth::{Database, Namespace, Root},
 };
+use surrealdb::types::SurrealValue;
 
 use crate::{StoreAuthLevel, StoreConfig, StoreCredentials, StoreError};
 
@@ -49,6 +50,10 @@ pub struct PlatformStore {
 }
 
 impl PlatformStore {
+    pub fn audit_targets(&self) -> &veoveo_audit_contract::AuditTargetRegistry {
+        self.config.audit_targets()
+    }
+
     pub async fn connect(config: StoreConfig) -> Result<Self, StoreError> {
         let db = Self::connect_client(&config).await?;
 
@@ -56,10 +61,44 @@ impl PlatformStore {
             db: Arc::new(db),
             config,
         };
-        if store.config.migrate_on_connect() {
-            store.migrate().await?;
-        }
+        store.reject_mixed_schema().await?;
         Ok(store)
+    }
+
+    /// Inspect schema metadata without applying or repairing definitions.
+    async fn reject_mixed_schema(&self) -> Result<(), StoreError> {
+        #[derive(surrealdb::types::SurrealValue)]
+        struct DatabaseSchema {
+            tables: std::collections::BTreeMap<String, String>,
+        }
+        let response = self
+            .db
+            .query(include_str!("queries/connection/schema_inventory.surql"))
+            .await?;
+        let mut response = match response.check() {
+            Ok(response) => response,
+            Err(error)
+                if self.config.auth_level() == StoreAuthLevel::Root
+                    && matches!(
+                        error.not_found_details(),
+                        Some(
+                            surrealdb::types::NotFoundError::Namespace { .. }
+                                | surrealdb::types::NotFoundError::Database { .. }
+                        )
+                    ) =>
+            {
+                return Ok(());
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let schema: Option<DatabaseSchema> = response.take(0)?;
+        if schema.is_some_and(|schema| {
+            schema.tables.contains_key("platform_schema_migration")
+                || schema.tables.contains_key("platform_downstream_migration")
+        }) {
+            return Err(StoreError::FreshInstallationRequired);
+        }
+        Ok(())
     }
 
     /// Open and authenticate a physical connection without running migrations.

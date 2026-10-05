@@ -1,0 +1,1 @@
+IF !fn::workspace_member($authority, $command.chat) { THROW 'workspace_not_found'; };              RETURN SELECT id, display_name FROM principal WHERE tenant = $authority.tenant              AND id IN (SELECT VALUE principal FROM workspace_member WHERE chat = $command.chat LIMIT 256) LIMIT 256;

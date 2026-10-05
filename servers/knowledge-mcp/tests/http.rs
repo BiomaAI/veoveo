@@ -68,7 +68,7 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         let generation=Indexer { lease: &lease,store:&db.a, source:&source,embeddings:embedding.as_ref()}.build(&content.tenant,&registrations,&spec).await.unwrap();
         db.a.activate_knowledge_generation(&lease, &content.tenant,generation,None).await.unwrap();
         // Approval and scope predicates must exclude an undecodable hidden row.
-        db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'invalid' WHERE collection = 'media.private';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("queries/http/hosted_search_links_catalog_and_embedding_follow_current_sql_authority.surql")).await.unwrap().check().unwrap();
         let server=Server::new(db.b.clone(),embedding,&signing).await;
         let health = format!("{}/readyz", server.base);
         assert_eq!(reqwest::get(&health).await.unwrap().status(), reqwest::StatusCode::OK);
@@ -212,7 +212,7 @@ async fn delivery_rechecks_revocation_and_disabled_directory_identity() {
             veoveo_platform_store::deterministic_enterprise_id().record_id(),
         ] {
             db.a.client()
-                .query("UPDATE $record SET enabled=false;")
+                .query(include_str!("queries/http/delivery_rechecks_revocation_and_disabled_directory_identity.surql"))
                 .bind(("record", record.clone()))
                 .await
                 .unwrap()
@@ -220,7 +220,7 @@ async fn delivery_rechecks_revocation_and_disabled_directory_identity() {
                 .unwrap();
             assert!(client.list_tools(None).await.is_err());
             db.a.client()
-                .query("UPDATE $record SET enabled=true;")
+                .query(include_str!("queries/http/delivery_rechecks_revocation_and_disabled_directory_identity_2.surql"))
                 .bind(("record", record))
                 .await
                 .unwrap()
@@ -293,7 +293,7 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
             revocation_reason: None,
         };
         db.a.client()
-            .query("CREATE ONLY $id CONTENT $record;")
+            .query(include_str!("queries/http/browser_session_revocation_and_scope_and_time_boundaries_are_current.surql"))
             .bind(("id", record.id.clone()))
             .bind(("record", record))
             .await
@@ -352,7 +352,7 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
         assert!(early_client.list_tools(None).await.is_err());
         early_client.close().await.unwrap();
         db.a.client()
-            .query("UPDATE $family SET revoked_at=time::now();")
+            .query(include_str!("queries/http/browser_session_revocation_and_scope_and_time_boundaries_are_current_2.surql"))
             .bind((
                 "family",
                 veoveo_platform_store::gateway_refresh_family_record_id(family),
@@ -491,7 +491,7 @@ async fn managed_execution_requires_signed_attribution_and_current_registration(
         };
         assert!(!admit(&db.a, &identity, &denied_tool).await);
         db.a.client()
-            .query("UPDATE $instance SET dispatch_epoch += 1;")
+            .query(include_str!("queries/http/admit.surql"))
             .bind(("instance", instance.id.clone()))
             .await
             .unwrap()

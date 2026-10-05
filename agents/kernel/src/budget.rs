@@ -13,7 +13,7 @@ use rig::agent::{
 };
 
 use crate::{connection::GatewayConnection, manifest::PerEpisodeBudget};
-use veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding;
+use veoveo_agent_runtime::persistence::instances::ManagedEpisodeBinding;
 
 pub const BUDGET_TERMINATED_PREFIX: &str = "episode budget exhausted";
 

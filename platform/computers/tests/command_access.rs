@@ -6,7 +6,7 @@ use veoveo_computers::{ComputerActor, ComputersStore, api::*, commands::CommandT
 
 #[tokio::test]
 async fn command_tasks_keep_source_client_authority_and_owner_control_separate() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let mut input = support::automation::input(computer);
     // Execute carries progress/cancellation for its own Task without broader Read.
@@ -136,7 +136,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
 
 #[tokio::test]
 async fn a_current_human_token_from_another_client_cannot_read_a_command_task() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, _, computer) = support::automation::setup(&db).await;
     let human = support::owner("bob");
     db.a.ensure_identity(

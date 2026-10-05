@@ -1,4 +1,5 @@
 //! Authoring metadata pages preserve SQL visibility and bind optional URI parents.
+use crate::persistence::MapRepository;
 use anyhow::{Context, Result};
 use serde::Serialize;
 use veoveo_mcp_contract::GatewayInternalIdentity;
@@ -62,8 +63,7 @@ impl AuthoringService {
         let limit = PAGE_SIZE + 1;
         Ok(match &request {
             MapMetadataRequest::Layers { after } => {
-                let rows = self
-                    .store()
+                let rows = MapRepository::new(self.store().clone())
                     .map_feature_layers_page(
                         &scope,
                         false,
@@ -82,8 +82,7 @@ impl AuthoringService {
                 )?)
             }
             MapMetadataRequest::Publications { layer, after } => {
-                let rows = self
-                    .store()
+                let rows = MapRepository::new(self.store().clone())
                     .map_layer_publications_page(
                         &scope,
                         layer.as_ref().map(FeatureLayerId::as_str),
@@ -103,8 +102,7 @@ impl AuthoringService {
                 )?)
             }
             MapMetadataRequest::Products { publication, after } => {
-                let rows = self
-                    .store()
+                let rows = MapRepository::new(self.store().clone())
                     .map_layer_products_page(
                         &scope,
                         publication.as_ref().map(LayerPublicationId::as_str),
@@ -124,8 +122,7 @@ impl AuthoringService {
                 )?)
             }
             MapMetadataRequest::Compositions { after } => {
-                let rows = self
-                    .store()
+                let rows = MapRepository::new(self.store().clone())
                     .map_compositions_page(
                         &scope,
                         false,

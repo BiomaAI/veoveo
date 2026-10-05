@@ -16,14 +16,14 @@ use surrealdb::types::{RecordId, RecordIdKey, ToSql, Value};
 use uuid::Uuid;
 use veoveo_agent_runtime::contract::authoring::RuntimeTemplate;
 use veoveo_agent_runtime::gateway::runtime_template_revision;
+use veoveo_agent_runtime::persistence::{
+    AgentDefinition, AgentExecution, AgentRecord, AgentRevision, agent_definition_record,
+    instances::*,
+};
 use veoveo_bioma_acceptance::pilot_cutover::{PilotAdoption, adopt};
 use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_platform_store::{
-    AgentRecord, PlatformStore, PrincipalRecord, StoreConfig, StoreCredentials,
-    WorkContextMembershipLevel,
-    agent_management::{
-        AgentDefinition, AgentExecution, AgentRevision, agent_definition_record, instances::*,
-    },
+    PlatformStore, PrincipalRecord, StoreConfig, StoreCredentials, WorkContextMembershipLevel,
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 
@@ -142,15 +142,15 @@ async fn prepare(store: &PlatformStore) -> Result<Vec<PilotAdoption>> {
         ensure!(
             parameters.get("session")
                 == Some(
-                    &veoveo_platform_store::agent_management::AgentTemplateParameter::Text(
+                    &veoveo_agent_runtime::persistence::AgentTemplateParameter::Text(
                         "uav-showcase".into()
                     )
                 )
                 && parameters.get("vehicle")
                     == Some(
-                        &veoveo_platform_store::agent_management::AgentTemplateParameter::Text(
-                            format!("uav-{n}")
-                        )
+                        &veoveo_agent_runtime::persistence::AgentTemplateParameter::Text(format!(
+                            "uav-{n}"
+                        ))
                     ),
             "requested pilot assignment changed"
         );

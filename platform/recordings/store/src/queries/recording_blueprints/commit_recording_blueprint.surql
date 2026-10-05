@@ -1,0 +1,1 @@
+CREATE ONLY $blueprint CONTENT $content RETURN NONE;

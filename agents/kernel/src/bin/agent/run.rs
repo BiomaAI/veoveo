@@ -1,4 +1,5 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use veoveo_agent_runtime::persistence::AgentRepository;
 
 use anyhow::{Context, Result, bail};
 use rig::tool::server::ToolServer;
@@ -15,13 +16,12 @@ use veoveo_agent_kernel::{
     tools::{MemoryQueryTool, MemoryWriteTool, TimelineQueryTool},
     wake::{WakeBatch, WakeBus, WakeKindExt, WakeReceiver, heartbeat, is_priority},
 };
+use veoveo_agent_runtime::persistence::{AgentInputRequestId, AgentTaskId, WakeKind};
 use veoveo_agent_runtime::{
     AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE,
     ManagedSchedulerMode, json_object,
 };
-use veoveo_platform_store::{
-    AgentInputRequestId, AgentTaskId, PlatformStore, StoreConfig, StoreCredentials, WakeKind,
-};
+use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
 use crate::cli::RunArgs;
 
@@ -40,7 +40,7 @@ pub(crate) async fn cmd_run(args: RunArgs) -> Result<()> {
     .build()?;
     let store = PlatformStore::connect(store_config).await?;
     let managed = ManagedKernel::load(&store, &mut seed_manifest).await?;
-    let authority = store
+    let authority = AgentRepository::new(store.clone())
         .automated_authority_for_oauth_client(
             &seed_manifest.agent.tenant,
             &seed_manifest.gateway.work_context,

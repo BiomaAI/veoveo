@@ -1,0 +1,1 @@
+DEFINE TABLE upgrade_pointer SCHEMALESS; DEFINE TABLE upgrade_decision SCHEMALESS;

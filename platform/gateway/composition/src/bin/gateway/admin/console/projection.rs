@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use veoveo_agent_runtime::persistence::{AgentRecord, WakeRecord};
 use veoveo_artifact_contract::{ArtifactId, Grant};
 use veoveo_mcp_contract::{
     AccessDecision, AccessRequest, Exposure, GatewayControlPlane, GroupMembership, GroupRole,
@@ -9,10 +10,10 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 use veoveo_platform_store::{
-    AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, PrincipalRecord,
-    RecordId, RecordIdKey, RecordingLayerRecord, RecordingRecord, ShareLinkRecord, TaskRecord,
-    WakeRecord,
+    ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, PrincipalRecord, RecordId,
+    RecordIdKey, ShareLinkRecord, TaskRecord,
 };
+use veoveo_recording_store::{RecordingLayerRecord, RecordingRecord};
 use veoveo_types::{AccessLevel, WorkContextMembershipLevel};
 use veoveo_types::{
     AccessSubject, DataLabelId, InvocationMode, PrincipalId, TenantId, WorkContextId,
@@ -59,26 +60,7 @@ pub(crate) async fn load_projection(
         .platform_store()
         .client()
         .query(
-            r#"
-            SELECT * FROM principal WHERE tenant = $tenant ORDER BY display_name ASC LIMIT $limit;
-            SELECT * FROM task WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
-            SELECT * FROM artifact_occurrence WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
-            SELECT * FROM share_link WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
-            SELECT * FROM artifact_grant WHERE in IN (SELECT VALUE id FROM artifact_occurrence WHERE tenant = $tenant) LIMIT $limit;
-            SELECT * FROM agent WHERE tenant = $tenant ORDER BY updated_at DESC LIMIT $limit;
-            SELECT * FROM wake WHERE tenant = $tenant ORDER BY created_at DESC LIMIT $limit;
-            SELECT * FROM recording WHERE tenant = $tenant ORDER BY started_at DESC LIMIT $limit;
-            SELECT * FROM recording_layer
-                WHERE tenant = $tenant
-                AND recording IN (
-                    SELECT VALUE id FROM recording
-                    WHERE tenant = $tenant
-                    ORDER BY started_at DESC
-                    LIMIT $limit
-                )
-                ORDER BY created_at DESC
-                LIMIT $layer_limit;
-            "#,
+            include_str!("../../../../queries/bin/gateway/admin/console/projection/load_projection/statement_1.surql"),
         )
         .bind(("tenant", tenant.clone()))
         .bind(("limit", SNAPSHOT_LIMIT))
@@ -117,7 +99,7 @@ async fn load_referenced_blobs(
     }
     Ok(store
         .client()
-        .query("SELECT * FROM $blobs WHERE tenant = $tenant;")
+        .query(include_str!("../../../../queries/bin/gateway/admin/console/projection/load_referenced_blobs/statement_1.surql"))
         .bind(("blobs", blob_ids))
         .bind(("tenant", tenant.clone()))
         .await?
@@ -304,7 +286,7 @@ pub(crate) struct AgentSummary {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) profile: String,
-    pub(crate) state: veoveo_platform_store::AgentState,
+    pub(crate) state: veoveo_agent_runtime::persistence::AgentState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) runner_lease_expires_at: Option<DateTime<Utc>>,
     pub(crate) pending_wakes: usize,
@@ -319,7 +301,7 @@ pub(crate) struct RecordingSummary {
     pub(crate) id: String,
     pub(crate) application: String,
     pub(crate) recording_key: String,
-    pub(crate) state: veoveo_platform_store::RecordingState,
+    pub(crate) state: veoveo_recording_store::RecordingState,
     pub(crate) layer_count: usize,
     pub(crate) committed_layer_count: usize,
     pub(crate) committed_byte_length: i64,
@@ -856,10 +838,10 @@ fn unsupported_record_key(record: &RecordId, key_kind: &'static str) -> Unsuppor
 
 #[cfg(test)]
 mod tests {
+    use veoveo_agent_runtime::persistence::AgentState;
     use veoveo_platform_store::{
-        AgentState, ArtifactGrantSubjectKind, InvocationAuthorityRecord,
-        InvocationMode as StoreInvocationMode, OpenObject,
-        WorkContextMembershipLevel as StoreWorkContextMembershipLevel,
+        ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode as StoreInvocationMode,
+        OpenObject, WorkContextMembershipLevel as StoreWorkContextMembershipLevel,
     };
 
     use super::*;
@@ -974,7 +956,9 @@ mod tests {
         });
         store
             .client()
-            .query("DEFINE TABLE artifact_blob SCHEMALESS; INSERT INTO artifact_blob $rows;")
+            .query(include_str!(
+                "../../../../queries/bin/gateway/admin/console/projection/drop/statement_1.surql"
+            ))
             .bind(("rows", rows.to_vec()))
             .await
             .unwrap()

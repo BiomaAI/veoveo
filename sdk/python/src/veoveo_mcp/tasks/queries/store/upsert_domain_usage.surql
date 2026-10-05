@@ -1,0 +1,1 @@
+SELECT tenant FROM $task WHERE server = $server LIMIT 1;

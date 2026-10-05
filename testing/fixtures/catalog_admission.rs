@@ -1,6 +1,10 @@
 //! Reuse the actual transport-free recipe; owner unit tests alias their own crate
 //! so vocabulary TypeIds refer to the tested library rather than a second copy.
 #[path = "../../platform/gateway/catalog/src/lib.rs"]
+#[allow(
+    dead_code,
+    reason = "The fixture reuses selected pure catalog admission recipes"
+)]
 mod installation_catalog;
 use std::sync::OnceLock;
 use veoveo_mcp_gateway::GatewayCatalogAdmission;

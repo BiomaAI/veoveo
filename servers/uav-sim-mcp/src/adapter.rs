@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_recording_store::RecordingRepository;
 
 use chrono::{DateTime, Utc};
 use reqwest::{Client, StatusCode, Url};
@@ -9,11 +10,9 @@ use thiserror::Error;
 use tokio::sync::Mutex;
 
 use crate::contract::{LiveCameraDescriptor, LiveStreamProductState};
-use veoveo_platform_store::{
-    PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
-    deterministic_tenant_id,
-};
+use veoveo_platform_store::{PlatformStore, RecordIdKey, TenantId, deterministic_tenant_id};
 use veoveo_recording_contract::{RecordingId, RecordingUri};
+use veoveo_recording_store::RecordingId as PlatformRecordingId;
 
 use crate::{
     contract::{
@@ -118,7 +117,7 @@ impl HttpAdapter {
             operation_timeout,
             platform_store,
             recording_tenant_id: deterministic_tenant_id(recording_tenant_key)
-                .map_err(AdapterError::Catalog)?,
+                .map_err(|error| AdapterError::Catalog(error.into()))?,
         })
     }
 
@@ -269,8 +268,7 @@ impl HttpAdapter {
         &self,
         recording_key: &RecordingKey,
     ) -> Result<Option<RecordingUri>, AdapterError> {
-        let Some(recording) = self
-            .platform_store
+        let Some(recording) = RecordingRepository::new(self.platform_store.clone())
             .recording_by_key(
                 self.recording_tenant_id,
                 RECORDING_APPLICATION_ID,
@@ -706,7 +704,7 @@ pub enum AdapterError {
     #[error("invalid simulator state: {0}")]
     InvalidState(String),
     #[error("recording catalog failed: {0}")]
-    Catalog(#[source] veoveo_platform_store::StoreError),
+    Catalog(#[source] veoveo_recording_store::RecordingStoreError),
     #[error("recording catalog returned invalid data: {0}")]
     InvalidRecordingCatalog(String),
     #[error("recording key `{0}` was not cataloged within 10 seconds")]

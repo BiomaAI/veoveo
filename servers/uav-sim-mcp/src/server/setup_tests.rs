@@ -306,7 +306,10 @@ async fn handlers_consume_checked_discovery_without_contacting_the_simulator() {
     use rmcp::{ServerHandler, service::serve_directly};
     use std::{sync::Arc, time::Duration};
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = test_support::fixture::TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(60), async {
         let state = test_support::state(
             &db.a,

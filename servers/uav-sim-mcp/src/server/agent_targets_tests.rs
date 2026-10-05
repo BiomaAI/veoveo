@@ -3,11 +3,9 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 use surrealdb::types::RecordId;
 use uuid::Uuid;
-use veoveo_platform_store::{
-    PrincipalKind, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
-};
-
-use crate::server::test_support::fixture;
+use veoveo_agent_runtime::persistence::AgentRepository;
+use veoveo_agent_runtime::persistence::{instances::*, *};
+use veoveo_platform_store::{PrincipalKind, WorkContextMembershipLevel};
 
 async fn pilot(
     store: &PlatformStore,
@@ -29,8 +27,18 @@ async fn pilot(
     let context = deterministic_work_context_id(tenant_key, context_key)
         .unwrap()
         .record_id();
-    store.client().query("UPSERT ONLY $context SET tenant = $tenant, context_key = $key, title = $key, policy_revision = 'fixture-v1', memberships = [], output_policy = {owner_kind:'principal', owner_key:'owner', initial_grants:[], data_labels:[]};")
-        .bind(("context", context.clone())).bind(("tenant",tenant.clone())).bind(("key",context_key.to_owned())).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../../queries/server/agent_targets_tests/pilot.surql"
+        ))
+        .bind(("context", context.clone()))
+        .bind(("tenant", tenant.clone()))
+        .bind(("key", context_key.to_owned()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let version = store
         .artifact_read_context_version(tenant_key, context_key)
         .await
@@ -75,7 +83,7 @@ async fn pilot(
             resource_subscriptions: vec![],
         },
     };
-    let draft = store
+    let draft = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             key,
@@ -89,7 +97,7 @@ async fn pilot(
         )
         .await
         .unwrap();
-    let published = store
+    let published = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             key,
@@ -106,7 +114,7 @@ async fn pilot(
         .await
         .unwrap();
     let client = format!("{tenant_key}-{key}");
-    let operation = store
+    let operation = AgentRepository::new(store.clone())
         .mutate_managed_agent(
             &authority,
             key,
@@ -146,18 +154,18 @@ async fn pilot(
         .await
         .unwrap();
     let manager = Uuid::now_v7();
-    let claim = store
+    let claim = AgentRepository::new(store.clone())
         .claim_managed_agent_operation(operation.id, manager)
         .await
         .unwrap()
         .unwrap()
         .claim(manager)
         .unwrap();
-    store
+    AgentRepository::new(store.clone())
         .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
         .await
         .unwrap();
-    store
+    AgentRepository::new(store.clone())
         .register_managed_agent_key(
             &claim,
             ManagedAgentPublicKey {
@@ -174,18 +182,46 @@ async fn pilot(
         ManagedAgentPhase::Workload,
         ManagedAgentPhase::Ready,
     ] {
-        store
+        AgentRepository::new(store.clone())
             .observe_managed_agent(&claim, phase, None)
             .await
             .unwrap();
     }
-    store.managed_agent(&authority, key).await.unwrap()
+    AgentRepository::new(store.clone())
+        .managed_agent(&authority, key)
+        .await
+        .unwrap()
 }
 
 async fn grant(store: &PlatformStore, pilot: &ManagedAgentInstance, session: &str) -> RecordId {
     let id = RecordId::new("uav_vehicle_control_grant", Uuid::now_v7().to_string());
-    store.client().query("CREATE ONLY $id SET tenant=$tenant, work_context=$context, grant_id=$key, session_id=$simulation_session, vehicle_id='vehicle-one', principal_key=$principal, permissions=['inspect','plan','execute'], map_mobility_profile_uri=$profile, valid_from=time::now()-1h, created_by='https://identity.test#owner', created_at=time::now(), updated_at=time::now();")
-        .bind(("profile", veoveo_map_mcp::contract::MapMobilityProfileUri::new(veoveo_map_mcp::contract::MobilityProfileId::from_stable_key(b"fixture"), veoveo_map_mcp::contract::MobilityProfileVersion::FIRST).as_str().to_owned())).bind(("id",id.clone())).bind(("tenant",pilot.tenant.clone())).bind(("context",pilot.work_context.clone())).bind(("key",pilot.key.clone())).bind(("simulation_session",session.to_owned())).bind(("principal",format!("{}#{}",pilot.identity.issuer,pilot.identity.client_id))).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../../queries/server/agent_targets_tests/grant.surql"
+        ))
+        .bind((
+            "profile",
+            veoveo_map_mcp::contract::MapMobilityProfileUri::new(
+                veoveo_map_mcp::contract::MobilityProfileId::from_stable_key(b"fixture"),
+                veoveo_map_mcp::contract::MobilityProfileVersion::FIRST,
+            )
+            .as_str()
+            .to_owned(),
+        ))
+        .bind(("id", id.clone()))
+        .bind(("tenant", pilot.tenant.clone()))
+        .bind(("context", pilot.work_context.clone()))
+        .bind(("key", pilot.key.clone()))
+        .bind(("simulation_session", session.to_owned()))
+        .bind((
+            "principal",
+            format!("{}#{}", pilot.identity.issuer, pilot.identity.client_id),
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     id
 }
 async fn listed(store: &PlatformStore, pilot: &ManagedAgentInstance, session: &str) -> Vec<String> {
@@ -211,7 +247,10 @@ async fn change(store: &PlatformStore, sql: &str, id: RecordId) {
 
 #[tokio::test]
 async fn message_targets_require_current_scoped_grants_and_managed_authority() {
-    let db = fixture::TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     let one = pilot(&db.a, "one", "operations", "pilot").await;
     let other = pilot(&db.a, "two", "operations", "pilot").await;
     let private = pilot(&db.a, "one", "private", "private-pilot").await;
@@ -225,7 +264,7 @@ async fn message_targets_require_current_scoped_grants_and_managed_authority() {
     assert_eq!(listed(&db.b, &one, "session-one").await, ["pilot"]);
     change(
         &db.b,
-        "UPDATE ONLY $id SET observed='workload';",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority.surql"),
         one.id.clone(),
     )
     .await;
@@ -235,19 +274,19 @@ async fn message_targets_require_current_scoped_grants_and_managed_authority() {
     );
     change(
         &db.b,
-        "UPDATE ONLY $id SET observed='ready';",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_2.surql"),
         one.id.clone(),
     )
     .await;
     change(
         &db.b,
-        "UPDATE ONLY $id SET audience=[];",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_3.surql"),
         one.definition.clone(),
     )
     .await;
     assert!(listed(&db.a, &one, "session-one").await.is_empty());
     db.b.client()
-        .query("UPDATE ONLY $id SET audience=[$context];")
+        .query(include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_4.surql"))
         .bind(("id", one.definition.clone()))
         .bind(("context", one.work_context.clone()))
         .await
@@ -257,53 +296,53 @@ async fn message_targets_require_current_scoped_grants_and_managed_authority() {
     assert!(listed(&db.b, &one, "session-two").await.is_empty());
     change(
         &db.b,
-        "UPDATE ONLY $id SET valid_until=time::now()-1s;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_5.surql"),
         grant.clone(),
     )
     .await;
     assert!(listed(&db.a, &one, "session-one").await.is_empty());
     change(
         &db.b,
-        "UPDATE ONLY $id SET valid_until=NONE, valid_from=time::now()+1h;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_6.surql"),
         grant.clone(),
     )
     .await;
     assert!(listed(&db.a, &one, "session-one").await.is_empty());
     change(
         &db.b,
-        "UPDATE ONLY $id SET valid_from=time::now()-1h;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_7.surql"),
         grant.clone(),
     )
     .await;
     change(
         &db.b,
-        "UPDATE ONLY $id SET disabled=true;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_8.surql"),
         one.definition.clone(),
     )
     .await;
     assert!(listed(&db.a, &one, "session-one").await.is_empty());
     change(
         &db.b,
-        "UPDATE ONLY $id SET disabled=false;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_9.surql"),
         one.definition.clone(),
     )
     .await;
     change(
         &db.b,
-        "UPDATE ONLY $id SET enabled=false;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_10.surql"),
         one.principal.clone(),
     )
     .await;
     assert!(listed(&db.a, &one, "session-one").await.is_empty());
     change(
         &db.b,
-        "UPDATE ONLY $id SET enabled=true;",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_11.surql"),
         one.principal.clone(),
     )
     .await;
     change(
         &db.b,
-        "UPDATE ONLY $id SET desired='paused', observed='paused';",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_12.surql"),
         one.id.clone(),
     )
     .await;
@@ -314,7 +353,7 @@ async fn message_targets_require_current_scoped_grants_and_managed_authority() {
     );
     change(
         &db.b,
-        "UPDATE ONLY $id SET desired='archived';",
+        include_str!("../../queries/server/agent_targets_tests/message_targets_require_current_scoped_grants_and_managed_authority_13.surql"),
         one.id.clone(),
     )
     .await;
@@ -328,7 +367,10 @@ async fn message_targets_require_current_scoped_grants_and_managed_authority() {
 
 #[tokio::test]
 async fn cross_replica_grant_revocation_invalidates_catalog_without_domain_wakes() {
-    let db = fixture::TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     let one = pilot(&db.a, "reactive", "operations", "pilot").await;
     let grant = grant(&db.a, &one, "session-one").await;
     let hub = Arc::new(SubscriptionHub::new());
@@ -340,7 +382,7 @@ async fn cross_replica_grant_revocation_invalidates_catalog_without_domain_wakes
         .await
         .unwrap()
         .unwrap();
-    change(&db.b, "UPDATE ONLY $id SET revoked_at=time::now();", grant).await;
+    change(&db.b, include_str!("../../queries/server/agent_targets_tests/cross_replica_grant_revocation_invalidates_catalog_without_domain_wakes.surql"), grant).await;
     tokio::time::timeout(Duration::from_secs(10), lists.recv())
         .await
         .unwrap()

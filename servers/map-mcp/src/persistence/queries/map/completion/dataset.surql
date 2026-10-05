@@ -1,0 +1,1 @@
+SELECT VALUE candidate FROM (SELECT dataset_key AS candidate FROM map_dataset_release WHERE tenant = $tenant AND true AND string::lowercase(dataset_key) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT 101);

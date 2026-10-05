@@ -13,6 +13,7 @@ from typing import Any, AsyncIterator
 
 from surrealdb import RecordID
 
+from .queries import OwnerStatement, query
 from .owner_query import OwnerTaskQuery
 
 from .store import (
@@ -203,9 +204,7 @@ class TaskRuntime:
             for attempt in range(MAX_TRANSACTION_ATTEMPTS):
                 try:
                     await self.store.query(
-                        "BEGIN TRANSACTION; CREATE ONLY $idempotency CONTENT $link "
-                        "RETURN NONE; CREATE ONLY $task CONTENT $content RETURN NONE; "
-                        "COMMIT TRANSACTION;",
+                        query("runtime/create_2.surql"),
                         {
                             "idempotency": idempotency,
                             "link": link,
@@ -226,7 +225,7 @@ class TaskRuntime:
                     raise
         else:
             await self.store.query(
-                "CREATE ONLY $task CONTENT $content RETURN NONE;",
+                query("runtime/create.surql"),
                 {"task": record, "content": content},
             )
 
@@ -239,7 +238,7 @@ class TaskRuntime:
     async def get(self, task_id: str) -> TaskSnapshot | None:
         parsed = parse_task_id(task_id)
         rows = await self.store.query(
-            "SELECT * FROM $task WHERE server = $server;",
+            query("runtime/get.surql"),
             {"task": task_record(parsed), "server": server_record(self.server)},
         )
         records = rows[0] or []
@@ -247,7 +246,7 @@ class TaskRuntime:
 
     async def list(self) -> list[TaskSnapshot]:
         rows = await self.store.query(
-            "SELECT * FROM task WHERE server = $server ORDER BY created_at ASC;",
+            query("runtime/list.surql"),
             {"server": server_record(self.server)},
         )
         return [_record_to_snapshot(record) for record in rows[0] or []]
@@ -262,8 +261,7 @@ class TaskRuntime:
     async def acknowledge_retention_pin(self, task_id: str, pin: str) -> TaskSnapshot:
         parsed = parse_task_id(task_id)
         rows = await self.store.query(
-            "UPDATE ONLY $task SET retention_pins -= $pin WHERE server = $server AND "
-            "retention_pins CONTAINS $pin RETURN AFTER;",
+            query("runtime/acknowledge_retention_pin.surql"),
             {
                 "task": task_record(parsed),
                 "pin": pin,
@@ -315,15 +313,7 @@ class TaskRuntime:
         }
         try:
             await self.store.query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET "
-                "status = 'waiting', request = $request, updated_at = $now WHERE "
-                "updated_at = $expected_updated_at AND status IN "
-                "['queued', 'running', 'waiting'] AND server = $server AND "
-                "tenant = $tenant AND owner = $owner AND lease_owner = $worker AND "
-                "lease_expires_at > $now RETURN AFTER); IF $updated = NONE { THROW "
-                "'task input transition conflict'; }; CREATE ONLY $input CONTENT "
-                "$content RETURN NONE; "
-                "COMMIT TRANSACTION;",
+                query("runtime/request_input.surql"),
                 {
                     "task": task_record(current.task_id),
                     "request": envelope,
@@ -355,8 +345,7 @@ class TaskRuntime:
         if await self.get(str(parsed)) is None:
             raise TaskNotFound(str(parsed))
         rows = await self.store.query(
-            "SELECT * FROM task_input WHERE task = $task AND response = NONE "
-            "ORDER BY created_at ASC;",
+            query("runtime/outstanding_inputs.surql"),
             {"task": task_record(parsed)},
         )
         outstanding: dict[str, TaskInputRequest] = {}
@@ -385,15 +374,11 @@ class TaskRuntime:
                 now = _now()
                 try:
                     results = await self.store.query(
-                        "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $input SET "
-                        "response = $response, responded_at = $now WHERE task = $task "
-                        "AND response = NONE RETURN AFTER); IF $updated != NONE { LET "
-                        "$task_updated = (UPDATE ONLY $task SET updated_at = $now "
-                        "WHERE server = $server AND status IN ['queued', 'running', "
-                        "'waiting'] "
-                        + (f"AND {owner_query.predicate()} " if owner_query is not None else "")
-                        + "RETURN AFTER); IF $task_updated = NONE { THROW "
-                        "'task cannot accept input'; }; }; RETURN $updated; COMMIT TRANSACTION;",
+                        (
+                            query("runtime/submit_input_responses.surql")
+                            if owner_query is None
+                            else owner_query._statement(OwnerStatement.INPUT_RESPONSES)
+                        ),
                         {
                             "input": task_input_record(current.task_id, key),
                             "response": response_value,
@@ -456,13 +441,7 @@ class TaskRuntime:
             "poll_interval_ms": snapshot.poll_interval_ms,
         }
         results = await self.store.query(
-            "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET "
-            "status = 'running', request = $request, lease_owner = $worker, "
-            "lease_expires_at = $lease_expires, started_at = started_at ?? $now, "
-            "updated_at = $now WHERE status = $expected AND updated_at = "
-            "$expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at "
-            "<= $now OR lease_owner = $worker) RETURN AFTER); RETURN $updated; "
-            "COMMIT TRANSACTION;",
+            query("runtime/claim.surql"),
             {
                 "task": task_record(snapshot.task_id),
                 "worker": self.worker_id,
@@ -491,9 +470,7 @@ class TaskRuntime:
             raise TaskNotFound(str(parsed))
         now = _now()
         rows = await self.store.query(
-            "UPDATE ONLY $task SET lease_expires_at = $lease_expires WHERE "
-            "lease_owner = $worker AND lease_expires_at > $now AND status IN "
-            "['running', 'waiting', 'cancel_requested'] RETURN AFTER;",
+            query("runtime/renew_lease.surql"),
             {
                 "task": task_record(parsed),
                 "worker": self.worker_id,
@@ -558,19 +535,11 @@ class TaskRuntime:
         result = transition.result()
         failure = transition.failure()
         results = await self.store.query(
-            "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $next, "
-            "request = $request, progress = $progress, result = $result, "
-            "error = $error, cancel_requested_at = $cancel_requested_at, "
-            "completed_at = $completed_at, lease_owner = IF $terminal { NONE } ELSE { "
-            "lease_owner }, lease_expires_at = IF $terminal { NONE } ELSE { "
-            "lease_expires_at }, updated_at = $now WHERE status = $expected AND "
-            "updated_at = $expected_updated_at AND server = $server AND "
-            "tenant = $tenant AND owner = $owner AND ($control_transition OR "
-            "(lease_owner = $worker AND lease_expires_at > $now) OR "
-            "($expired_cancellation AND (lease_expires_at = NONE OR lease_expires_at "
-            "<= $now))) "
-            + (f"AND {owner_query.predicate()} " if owner_query is not None else "")
-            + "RETURN AFTER); RETURN $updated; COMMIT TRANSACTION;",
+            (
+                query("runtime/transition_if_current.surql")
+                if owner_query is None
+                else owner_query._statement(OwnerStatement.TRANSITION)
+            ),
             {
                 "task": task_record(current.task_id),
                 "next": next_status.value,
@@ -706,9 +675,7 @@ class TaskRuntime:
 
     async def prune_expired(self) -> list[uuid.UUID]:
         results = await self.store.query(
-            "DELETE task WHERE retention_expires_at != NONE AND "
-            "retention_expires_at <= $now AND array::len(retention_pins) = 0 AND "
-            "status IN ['succeeded', 'failed', 'cancelled'] RETURN BEFORE;",
+            query("runtime/prune_expired.surql"),
             {"now": _now()},
         )
         return [_record_to_snapshot(record).task_id for record in results[0] or []]
@@ -716,7 +683,7 @@ class TaskRuntime:
     async def _idempotent_task(self, owner: TaskOwner, key: str) -> TaskSnapshot | None:
         record = idempotency_record(owner, self.server, key)
         rows = await self.store.query(
-            "SELECT VALUE task FROM ONLY $id;", {"id": record}
+            query("runtime/_idempotent_task.surql"), {"id": record}
         )
         task = rows[0]
         if task is None:
@@ -727,7 +694,7 @@ class TaskRuntime:
         self, input_id: RecordID
     ) -> TaskInputExchange | None:
         rows = await self.store.query(
-            "SELECT * FROM ONLY $input;", {"input": input_id}
+            query("runtime/_input_exchange_by_id.surql"), {"input": input_id}
         )
         record = rows[0]
         return _input_record_to_exchange(record) if record is not None else None
@@ -766,13 +733,7 @@ class TaskRuntime:
         }
         terminal = status == TaskStatus.FAILED
         results = await self.store.query(
-            "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET "
-            "status = $status, request = $request, error = $error, "
-            "lease_owner = NONE, lease_expires_at = NONE, completed_at = "
-            "$completed_at, updated_at = $now WHERE status = $expected AND "
-            "updated_at = $expected_updated_at AND (lease_expires_at = NONE OR "
-            "lease_expires_at <= $now) RETURN AFTER); RETURN $updated; "
-            "COMMIT TRANSACTION;",
+            query("runtime/_force_status.surql"),
             {
                 "task": task_record(task.task_id),
                 "status": status.value,

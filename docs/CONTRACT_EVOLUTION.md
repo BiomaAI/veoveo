@@ -278,8 +278,8 @@ in one coordinated hard cut. The cut ships no adapters, aliases, or readers for 
 names. A component that receives an old identifier rejects it with a diagnostic that
 names the replacement. The reference installation deletes its store, object storage,
 recording journals, and retained Computers state and reinstalls from the new lock.
-Every other store, including local development stores, is recreated. Migrations `0031`
-and `0032` therefore change in place, and fork servers release with the new
+Every other store, including local development stores, is recreated. Current owner
+schemas use the new identifiers directly, and fork servers release with those
 identifiers before they rejoin an installation. The
 [implementation plan](CONTRACT_CONSISTENCY_PLAN.md#identifier-hard-cut)
 records the accepted identifier cut and tracks the remaining contract and installed

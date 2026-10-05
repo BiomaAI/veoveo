@@ -1,13 +1,11 @@
 use super::*;
+use crate::persistence::{WorkspaceOperationIntent, WorkspaceOperationOutcome as Outcome};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CancelTaskParams, InputRequiredResult, TaskPayload,
     UpdateTaskParams,
 };
 use tokio::sync::OwnedSemaphorePermit;
 use veoveo_http::RequestJson;
-use veoveo_platform_store::workspace::{
-    WorkspaceOperationIntent, WorkspaceOperationOutcome as Outcome,
-};
 
 pub(super) async fn start(
     State(state): State<OperationState>,
@@ -61,7 +59,7 @@ pub(super) async fn submit(
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let admitted = state
         .workspace
-        .store
+        .repository
         .start_workspace_operation(&authority, id, intent)
         .await
         .map_err(fault)?;
@@ -181,7 +179,7 @@ pub(super) async fn answer(
             .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
         let resumed = state
             .workspace
-            .store
+            .repository
             .resume_workspace_operation(
                 &authority,
                 WorkspaceOperationId::from_uuid(id),
@@ -248,7 +246,7 @@ async fn dispatch(
         };
         if state
             .workspace
-            .store
+            .repository
             .check_workspace_operation_dispatch(
                 &authority,
                 WorkspaceOperationId::from_uuid(id),
@@ -306,7 +304,7 @@ async fn dispatch(
                     _ = tick.tick() => {
                         let value = if observations.has_changed().unwrap_or(false) { observations.borrow_and_update().clone() } else { None };
                         if let Some(value) = value {
-                            let _ = tokio::time::timeout(Duration::from_secs(2), state.workspace.store.record_workspace_progress(WorkspaceOperationId::from_uuid(id), operation.fence, value)).await;
+                            let _ = tokio::time::timeout(Duration::from_secs(2), state.workspace.repository.record_workspace_progress(WorkspaceOperationId::from_uuid(id), operation.fence, value)).await;
                         }
                     }
                 }
@@ -335,7 +333,7 @@ async fn dispatch(
     };
     if state
         .workspace
-        .store
+        .repository
         .settle_workspace_operation(
             WorkspaceOperationId::from_uuid(id),
             operation.fence,

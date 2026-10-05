@@ -1,0 +1,1 @@
+UPDATE task SET created_at = $now WHERE owner = $owner;

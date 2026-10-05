@@ -1,5 +1,6 @@
 //! Contentless native invalidation with revisions of current authorized views.
 use crate::contract::AgentAction as Action;
+use crate::persistence::AgentRepository;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use crate::contract::authoring::CatalogWake;
@@ -124,9 +125,7 @@ async fn stream(
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
     let mut catalog = state.agents.catalog.subscribe();
-    let first = match state
-        .agents
-        .store()
+    let first = match AgentRepository::new(state.agents.store().clone())
         .agent_management_revision(&actor.authority)
         .await
     {
@@ -152,7 +151,7 @@ async fn stream(
             }
             if !Arc::ptr_eq(&actor.catalog, &state.agents.catalog.current()) { break; }
             if authority::live_session(&state.agents, &actor.profile, &actor.subject).await.is_err() { break; }
-            match state.agents.store().agent_management_revision(&actor.authority).await {
+            match AgentRepository::new(state.agents.store().clone()).agent_management_revision(&actor.authority).await {
                 Ok(next) if next != head => { head = next; yield Ok(change(&head)); },
                 Ok(_) => {},
                 Err(_) => { yield Ok(Event::default().event("expired").data("{}")); break; },

@@ -337,7 +337,7 @@ async fn revoked_resource_updates_are_filtered_in_sql_before_malformed_payload_d
             .resource_subscriptions([uri(revoked, Kind::Status), uri(sentinel, Kind::Status)]).build();
         let mut updates = TaskResourceSubscriptions::from_filter::<Address>(&filter).unwrap().subscribe(&service, &owner()).await.unwrap();
         for _ in 0..2 { updates.next().await.unwrap().unwrap(); }
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("queries/task_resources/revoked_resource_updates_are_filtered_in_sql_before_malformed_payload_decoding/statement_1.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(revoked))).await.unwrap().check().unwrap();
         assert!(writer.get(revoked).await.is_err());
         writer.claim(sentinel, Duration::from_secs(30)).await.unwrap();
@@ -374,7 +374,7 @@ async fn live_source_reconnection_reconciles_current_resources_after_connection_
         switch.set_enabled(false).await;
         writer.claim(target, Duration::from_secs(30)).await.unwrap();
         writer.transition(target, TaskTransition::Succeeded { message: "finished during source loss".into(), result: json!({"value":42}) }).await.unwrap();
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("queries/task_resources/live_source_reconnection_reconciles_current_resources_after_connection_loss/statement_1.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(revoked))).await.unwrap().check().unwrap();
         switch.set_enabled(true).await;
         let update = tokio::time::timeout(Duration::from_secs(15), updates.next()).await.expect("LIVE reconnect must reconcile current state").unwrap().unwrap();

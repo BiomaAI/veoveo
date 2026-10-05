@@ -672,3 +672,6 @@ mod tests {
         }
     }
 }
+
+mod audit;
+pub use audit::{ComputerAuditTarget, register_audit_target};

@@ -2,10 +2,9 @@ use std::collections::BTreeMap;
 use surrealdb::types::ToSql;
 
 use crate::contract::authoring as wire;
+use crate::persistence as domain;
 use veoveo_mcp_gateway::GatewayCatalog;
-use veoveo_platform_store::{
-    RecordId, RecordIdKey, agent_management as domain, deterministic_work_context_id,
-};
+use veoveo_platform_store::{RecordId, RecordIdKey, deterministic_work_context_id};
 use veoveo_types::{Sha256Digest, WorkContextId};
 
 use super::{AgentManagementState, Fault, authority::Admission};
@@ -163,7 +162,9 @@ pub(super) async fn definitions(
     let mut response = state
         .store()
         .client()
-        .query("SELECT * FROM agent_definition_revision WHERE id IN $heads LIMIT 200;")
+        .query(include_str!(
+            "../../queries/gateway/http/projection/definitions/statement_1.surql"
+        ))
         .bind(("heads", heads))
         .await
         .map_err(|_| Fault::unavailable())?

@@ -1,13 +1,14 @@
+use crate::persistence::WorkspaceAuthority;
 use axum::http::StatusCode;
 use veoveo_mcp_contract::PrincipalKind;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     WorkContextMembershipLevel, deterministic_principal_id, deterministic_tenant_id,
-    deterministic_work_context_id, workspace::WorkspaceAuthority,
+    deterministic_work_context_id,
 };
 use veoveo_types::InvocationMode;
 
-use super::{WorkspaceState, fault};
+use super::WorkspaceState;
 
 pub(super) async fn admit(
     state: &WorkspaceState,
@@ -24,9 +25,9 @@ pub(super) async fn admit(
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let snapshot = state
         .store
-        .workspace_context(context)
+        .work_context_snapshot(context)
         .await
-        .map_err(fault)?;
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let tenant_id = deterministic_tenant_id(tenant).map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     if snapshot.context.tenant != tenant_id.record_id() {
         return Err(StatusCode::FORBIDDEN);

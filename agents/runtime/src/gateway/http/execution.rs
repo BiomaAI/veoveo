@@ -1,11 +1,12 @@
 //! Resolve immutable publications under current use, model and context authority.
 use crate::contract::AgentAction;
 use crate::contract::authoring as wire;
+use crate::persistence as domain;
+use crate::persistence::AgentRepository;
 use axum::http::StatusCode;
 use veoveo_gateway_contract::GatewayToolName;
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::agent_management as domain;
 
 use super::{AgentManagementState, Fault, authority, models::ModelConnection, projection};
 
@@ -78,8 +79,7 @@ impl AgentManagementState {
         revision: Option<&str>,
     ) -> Result<ResolvedAgent, StatusCode> {
         let actor = self.execution_authority(profile, subject).await?;
-        let executable = self
-            .store()
+        let executable = AgentRepository::new(self.store().clone())
             .agent_executable(&actor, key, revision)
             .await
             .map_err(|e| Fault::from(e).code())?;
@@ -123,8 +123,7 @@ impl AgentManagementState {
     ) -> Result<PublishedAgentRevision, StatusCode> {
         use sha2::{Digest, Sha256};
         let actor = self.execution_authority(profile, subject).await?;
-        let executable = self
-            .store()
+        let executable = AgentRepository::new(self.store().clone())
             .agent_executable(&actor, key, Some(revision))
             .await
             .map_err(|e| Fault::from(e).code())?;
@@ -135,8 +134,7 @@ impl AgentManagementState {
             profile,
             subject,
             AgentAction::AgentDefinitionsReadContent,
-        ) && self
-            .store()
+        ) && AgentRepository::new(self.store().clone())
             .agent_authored_revision(&actor, key, revision)
             .await
             .is_ok();
@@ -165,8 +163,7 @@ impl AgentManagementState {
         after: Option<&str>,
     ) -> Result<ExecutableAgentCatalog, StatusCode> {
         let actor = self.execution_authority(profile, subject).await?;
-        let entries = self
-            .store()
+        let entries = AgentRepository::new(self.store().clone())
             .agent_catalog(&actor, after, 100)
             .await
             .map_err(|e| Fault::from(e).code())?;

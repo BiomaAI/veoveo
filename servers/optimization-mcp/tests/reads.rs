@@ -24,7 +24,7 @@ use veoveo_task_runtime::TaskRuntime;
 #[tokio::test]
 async fn catalogs_and_completion_select_authorized_rows_before_limits() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let runtime = runtime(db.b.clone(), "reader");
@@ -36,7 +36,7 @@ async fn catalogs_and_completion_select_authorized_rows_before_limits() {
             update(
                 &writer,
                 row.task,
-                "UPDATE ONLY $task SET request.input.input = NONE RETURN NONE;",
+                include_str!("queries/reads/catalogs_and_completion_select_authorized_rows_before_limits.surql"),
             )
             .await;
         }
@@ -67,12 +67,12 @@ async fn catalogs_and_completion_select_authorized_rows_before_limits() {
             assert_eq!(last.items.len(), 1);
             assert_eq!(last.items[0].snapshot.task_id, expected[100].task);
             assert!(last.next_cursor.is_none());
-            update(&writer, expected[100].task, "UPDATE ONLY $task SET request.owner.data_labels = ['mission', 'secret'] RETURN NONE;").await;
+            update(&writer, expected[100].task, include_str!("queries/reads/catalogs_and_completion_select_authorized_rows_before_limits_2.surql")).await;
             assert!(reads.page(&caller, &after).await.unwrap().items.is_empty());
             let mut cleared = caller.clone();
             cleared.data_labels.insert("secret".into());
             assert_eq!(reads.page(&cleared, &after).await.unwrap().items.len(), 1);
-            update(&writer, expected[100].task, "UPDATE ONLY $task SET request.owner.data_labels = ['mission'] RETURN NONE;").await;
+            update(&writer, expected[100].task, include_str!("queries/reads/catalogs_and_completion_select_authorized_rows_before_limits_3.surql")).await;
         }
         let problems = reads
             .complete_problems(&caller, "problem-", 100)
@@ -141,38 +141,36 @@ async fn catalogs_and_completion_select_authorized_rows_before_limits() {
 #[tokio::test]
 async fn ownership_envelope_and_context_must_agree_before_any_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let runtime = runtime(db.b.clone(), "reader");
         let reads = OptimizationReads::new(&runtime).unwrap();
         let caller = owner(Some("tenant-a"), "owner", "route-plan", &["mission"]);
-        for (number, mutation) in [
-            "request.owner.principal_key = 'other'",
-            "request.owner.profile = 'other'",
-            "request.owner.tenant_key = NONE",
-            "request.owner.data_labels = ['mission','secret']",
-            "request.owner.data_labels = NONE",
-            "request.owner.data_labels = 'mission'",
-            "request.owner.data_labels = ['mission', NONE]",
-            "request.owner.authority.work_context = 'other'",
-            "request.owner.authority.tenant = 'other'",
-            "authority.context_key = 'other'",
-            "work_context = work_context:other",
-            "tenant = tenant:other",
-            "owner = principal:other",
-            "profile = profile:other",
-            "server = mcp_server:other",
-            "task_type = 'verify_solution'",
-        ]
+        for (number, (mutation, statement)) in [
+("request.owner.principal_key = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_1.surql")),
+("request.owner.profile = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_2.surql")),
+("request.owner.tenant_key = NONE", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_3.surql")),
+("request.owner.data_labels = ['mission','secret']", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_4.surql")),
+("request.owner.data_labels = NONE", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_5.surql")),
+("request.owner.data_labels = 'mission'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_6.surql")),
+("request.owner.data_labels = ['mission', NONE]", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_7.surql")),
+("request.owner.authority.work_context = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_8.surql")),
+("request.owner.authority.tenant = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_9.surql")),
+("authority.context_key = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_10.surql")),
+("work_context = work_context:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_11.surql")),
+("tenant = tenant:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_12.surql")),
+("owner = principal:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_13.surql")),
+("profile = profile:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_14.surql")),
+("server = mcp_server:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_15.surql")),
+("task_type = 'verify_solution'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_16.surql"))
+]
         .into_iter()
         .enumerate()
         {
             let row = create(&writer, &caller, number as u64 + 1).await;
-            let sql = format!(
-                "UPDATE ONLY $task SET {mutation}, request.input.input = NONE RETURN NONE;"
-            );
-            update(&writer, row.task, &sql).await;
+            let sql = statement;
+            update(&writer, row.task, sql).await;
             assert!(
                 reads
                     .problem(&caller, &row.problem)
@@ -245,7 +243,7 @@ async fn ownership_envelope_and_context_must_agree_before_any_decoding() {
 #[tokio::test]
 async fn optional_tenant_and_current_context_clearance_remain_distinct() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let runtime = runtime(db.b.clone(), "reader");
@@ -271,7 +269,7 @@ async fn optional_tenant_and_current_context_clearance_remain_distinct() {
             update(
                 &writer,
                 row.task,
-                "UPDATE ONLY $task SET request.owner.data_labels = ['secret'] RETURN NONE;",
+                include_str!("queries/reads/optional_tenant_and_current_context_clearance_remain_distinct.surql"),
             )
             .await;
             assert!(
@@ -302,27 +300,32 @@ async fn optional_tenant_and_current_context_clearance_remain_distinct() {
 #[tokio::test]
 async fn solutions_require_success_and_selected_corruption_never_becomes_a_short_page() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db=store::TestDb::new().await;
+        let db=store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer=runtime(db.a.clone(), "writer");
         let runtime=runtime(db.b.clone(), "reader");
         let reads=OptimizationReads::new(&runtime).unwrap();
         let caller=owner(Some("tenant-a"),"owner","route-plan", &[]);
-        for (number, mutation) in ["status = 'queued'","status = 'failed'","status = 'cancelled'","result.payload.isError = true"].into_iter().enumerate() {
+        for (number, (_mutation, statement)) in [
+("status = 'queued'", include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_variant_1.surql")),
+("status = 'failed'", include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_variant_2.surql")),
+("status = 'cancelled'", include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_variant_3.surql")),
+("result.payload.isError = true", include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_variant_4.surql"))
+].into_iter().enumerate() {
             let row=create(&writer,&caller,number as u64+1).await;
-            update(&writer,row.task,&format!("UPDATE ONLY $task SET {mutation} RETURN NONE;")).await;
+            update(&writer,row.task,statement).await;
             assert!(reads.solution(&caller,&row.solution).await.unwrap().is_none());
             assert!(reads.complete_solutions(&caller,row.solution.as_str(),100).await.unwrap().values.is_empty());
             assert!(reads.page(&caller,&OptimizationCollectionUri::new(OptimizationCollection::Solutions,None).unwrap()).await.unwrap().items.is_empty());
         }
         let row=create(&writer,&caller,20).await;
-        update(&writer, row.task, "UPDATE ONLY $task SET result.payload.isError = 'false' RETURN NONE;").await;
+        update(&writer, row.task, include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_2.surql")).await;
         assert!(reads.run(&caller, &row.run).await.is_err());
         assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none());
-        update(&writer, row.task, "UPDATE ONLY $task SET result.payload.isError = false RETURN NONE;").await;
-        update(&writer,row.task,"UPDATE ONLY $task SET result.payload.structuredContent.run_uri = 'optimization://run/run-0195dabe-7777-7abc-8def-ffffffffffff' RETURN NONE;").await;
+        update(&writer, row.task, include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_3.surql")).await;
+        update(&writer,row.task,include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_4.surql")).await;
         assert!(reads.solution(&caller,&row.solution).await.is_err());
-        update(&writer,row.task,"UPDATE ONLY $task SET request.input.common.problem_id = 'malformed' RETURN NONE;").await;
+        update(&writer,row.task,include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_5.surql")).await;
         assert!(reads.complete_problems(&caller,row.problem.as_str(),100).await.is_err());
         assert!(reads.run(&caller,&row.run).await.is_err());
     }).await.expect("Optimization result qualification exceeded 60 seconds");
@@ -331,7 +334,7 @@ async fn solutions_require_success_and_selected_corruption_never_becomes_a_short
 #[tokio::test]
 async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let reader = runtime(db.b.clone(), "reader");
@@ -340,34 +343,40 @@ async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows
         let row = create(&writer, &caller, 1).await;
         let snapshot = writer.get(row.task).await.unwrap().unwrap();
         let result = snapshot.result.clone().unwrap();
-        db.a.client().query("CREATE ONLY record_guard:owner CONTENT $owner; CREATE ONLY record_guard:authority CONTENT $authority; CREATE ONLY record_guard:input CONTENT $input; CREATE ONLY record_guard:result CONTENT $result; CREATE ONLY record_guard:output CONTENT $output;")
+        db.a.client().query(include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows.surql"))
             .bind(("owner", veoveo_platform_store::OpenObject::new(serde_json::to_value(&caller).unwrap().as_object().unwrap().clone().into_iter().collect())))
             .bind(("authority", veoveo_platform_store::OpenObject::new(serde_json::to_value(&caller.authority).unwrap().as_object().unwrap().clone().into_iter().collect())))
             .bind(("input", veoveo_platform_store::OpenObject::new(snapshot.request.as_object().unwrap().clone().into_iter().collect())))
             .bind(("result", veoveo_platform_store::OpenObject::new(result.as_object().unwrap().clone().into_iter().collect())))
             .bind(("output", veoveo_platform_store::OpenObject::new(result["structuredContent"].as_object().unwrap().clone().into_iter().collect())))
             .await.unwrap().check().unwrap();
-        for (number, mutation) in [
-            "request.owner = record_guard:owner",
-            "request.owner.authority = record_guard:authority",
-            "request.owner.principal_key = record_guard:owner",
-            "request.owner.profile = record_guard:owner",
-            "request.owner.authority.work_context = record_guard:authority",
-            "request.input = record_guard:input",
-        ].into_iter().enumerate() {
+        for (number, (mutation, statement)) in [
+("request.owner = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_1.surql")),
+("request.owner.authority = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_2.surql")),
+("request.owner.principal_key = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_3.surql")),
+("request.owner.profile = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_4.surql")),
+("request.owner.authority.work_context = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_5.surql")),
+("request.input = record_guard:input", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_6.surql"))
+].into_iter().enumerate() {
             let row = create(&writer, &caller, number as u64 + 10).await;
-            update(&writer, row.task, &format!("UPDATE ONLY $task SET {mutation};")).await;
+            update(&writer, row.task, statement).await;
             assert!(reads.run(&caller, &row.run).await.unwrap().is_none(), "accepted {mutation}");
             assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none(), "accepted {mutation}");
         }
-        for (number, mutation) in ["result.payload = record_guard:result", "result.payload.structuredContent = record_guard:output"].into_iter().enumerate() {
+        for (number, (_mutation, statement)) in [
+("result.payload = record_guard:result", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_3_variant_1.surql")),
+("result.payload.structuredContent = record_guard:output", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_3_variant_2.surql"))
+].into_iter().enumerate() {
             let row = create(&writer, &caller, number as u64 + 30).await;
-            update(&writer, row.task, &format!("UPDATE ONLY $task SET {mutation};")).await;
+            update(&writer, row.task, statement).await;
             assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none());
             assert!(reads.run(&caller, &row.run).await.is_err());
         }
-        for mutation in ["request = record_guard:owner", "authority = record_guard:authority"] {
-            let result = db.a.client().query(format!("UPDATE ONLY $task SET {mutation};"))
+        for (mutation, statement) in [
+("request = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_4_variant_1.surql")),
+("authority = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_4_variant_2.surql"))
+] {
+            let result = db.a.client().query(statement)
                 .bind(("task", veoveo_platform_store::task_record_id(row.task))).await.unwrap().check();
             assert!(result.is_err(), "schema admitted {mutation}");
         }
@@ -379,7 +388,7 @@ async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows
 #[tokio::test]
 async fn malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let reader = runtime(db.b.clone(), "reader");
@@ -389,7 +398,7 @@ async fn malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads()
         update(
             &writer,
             row.task,
-            "UPDATE ONLY $task SET result.payload.structuredContent.result_uri = 42;",
+            include_str!("queries/reads/malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads.surql"),
         )
         .await;
         assert!(reads.solution(&caller, &row.solution).await.is_err());
@@ -411,7 +420,7 @@ async fn malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads()
         );
         let row = create(&writer, &caller, 2).await;
         db.a.client()
-            .query("UPDATE ONLY $row SET identity.problem_id = 'malformed';")
+            .query(include_str!("queries/reads/malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads_2.surql"))
             .bind((
                 "row",
                 surrealdb::types::RecordId::new("optimization_task", row.task.to_string()),
@@ -430,7 +439,7 @@ async fn malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads()
         let first = create(&writer, &caller, 3).await;
         let second = create(&writer, &caller, 4).await;
         db.a.client()
-            .query("UPDATE ONLY $row SET identity.problem_id = $problem;")
+            .query(include_str!("queries/reads/malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads_3.surql"))
             .bind((
                 "row",
                 surrealdb::types::RecordId::new("optimization_task", second.task.to_string()),
@@ -461,7 +470,7 @@ mod read_transaction;
 async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion() {
     tokio::time::timeout(Duration::from_secs(90), async {
         use veoveo_task_runtime::{CreateTask, TaskStatus, TaskTransition};
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![veoveo_optimization_mcp::schema::module_setup(store::module_lanes::execution("optimization").unwrap()).unwrap()]).await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let reader = runtime(db.b.clone(), "reader");
@@ -473,7 +482,7 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
         request["common"]["artifact_write_capability"]["task_id"] =
             serde_json::to_value(queued).unwrap();
         db.a.client()
-            .query("DELETE ONLY $task;")
+            .query(include_str!("queries/reads/native_read_snapshot_survives_settlement_revocation_and_parent_deletion.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(seed.task)))
             .await
             .unwrap()
@@ -504,7 +513,7 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
                 Box::pin(async move {
                     let mut response = transaction
                         .query(
-                            "SELECT task, settlement FROM optimization_task WHERE task IN $tasks;",
+                            include_str!("queries/reads/native_read_snapshot_survives_settlement_revocation_and_parent_deletion_2.surql"),
                         )
                         .bind((
                             "tasks",
@@ -543,11 +552,11 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
         update(
             &writer,
             queued,
-            "UPDATE ONLY $task SET request.owner.data_labels = ['secret'];",
+            include_str!("queries/reads/native_read_snapshot_survives_settlement_revocation_and_parent_deletion_3.surql"),
         )
         .await;
         db.a.client()
-            .query("DELETE ONLY $task;")
+            .query(include_str!("queries/reads/native_read_snapshot_survives_settlement_revocation_and_parent_deletion_4.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(deleted)))
             .await
             .unwrap()
@@ -587,7 +596,13 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
 #[tokio::test]
 async fn native_read_worker_finishes_cleanup_after_timeout_or_dropped_awaiter() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![
+            veoveo_optimization_mcp::schema::module_setup(
+                store::module_lanes::execution("optimization").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         install(&db).await;
         let (ready, ready_rx) = tokio::sync::oneshot::channel();
         let (released, released_rx) = tokio::sync::oneshot::channel();
@@ -604,7 +619,7 @@ async fn native_read_worker_finishes_cleanup_after_timeout_or_dropped_awaiter() 
             read_transaction::read(&client, move |transaction| {
                 Box::pin(async move {
                     transaction
-                        .query("SELECT * FROM optimization_task LIMIT 1;")
+                        .query(include_str!("queries/reads/drop.surql"))
                         .await?
                         .check()?;
                     let _pending_operation = Released(Some(released));
@@ -625,7 +640,7 @@ async fn native_read_worker_finishes_cleanup_after_timeout_or_dropped_awaiter() 
         let result: anyhow::Result<()> = read_transaction::read(db.a.client(), |transaction| {
             Box::pin(async move {
                 transaction
-                    .query("SELECT * FROM optimization_task LIMIT 1;")
+                    .query(include_str!("queries/reads/drop_2.surql"))
                     .await?
                     .check()?;
                 std::future::pending().await
@@ -638,7 +653,7 @@ async fn native_read_worker_finishes_cleanup_after_timeout_or_dropped_awaiter() 
         );
         let mut response =
             db.a.client()
-                .query("SELECT * FROM optimization_task LIMIT 1;")
+                .query(include_str!("queries/reads/drop_3.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -657,31 +672,86 @@ async fn native_read_worker_finishes_cleanup_after_timeout_or_dropped_awaiter() 
 #[tokio::test]
 async fn kernel_selection_rejects_partial_context_triplets() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        use veoveo_platform_store::{RecordId, deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id};
+        use veoveo_platform_store::{
+            RecordId, deterministic_principal_id, deterministic_tenant_id,
+            deterministic_work_context_id,
+        };
         use veoveo_types::TaskTypeDefinition;
-        let db = store::TestDb::new().await;
+        let db = store::TestDb::with_modules(vec![
+            veoveo_optimization_mcp::schema::module_setup(
+                store::module_lanes::execution("optimization").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         install(&db).await;
         let writer = runtime(db.a.clone(), "writer");
         let caller = owner(Some("tenant-a"), "owner", "route-plan", &[]);
         let row = create(&writer, &caller, 1).await;
         for missing in 0..4 {
-            let mut response = db.a.client().query("RETURN fn::kernel::tasks::selection_v1($task, $server, $tenant, $owner, $profile, $principal_key, $profile_key, $tenant_key, $labels, $task_types, $work_context, $work_context_key, $authority_tenant);")
-                .bind(("task", veoveo_platform_store::task_record_id(row.task)))
-                .bind(("server", RecordId::new("mcp_server", "optimization")))
-                .bind(("tenant", deterministic_tenant_id(caller.tenant_key()).unwrap().record_id()))
-                .bind(("owner", deterministic_principal_id(caller.tenant_key(), &caller.principal_key).unwrap().record_id()))
-                .bind(("profile", RecordId::new("profile", caller.profile.clone())))
-                .bind(("principal_key", caller.principal_key.clone()))
-                .bind(("profile_key", caller.profile.clone()))
-                .bind(("tenant_key", caller.tenant_key.clone()))
-                .bind(("labels", caller.data_labels.clone()))
-                .bind(("task_types", Some(vec![veoveo_optimization_mcp::contract::OptimizationTaskKind::SolveConvex.name().to_string()])))
-                .bind(("work_context", (missing != 0).then(|| deterministic_work_context_id(caller.tenant_key(), caller.authority.work_context.as_str()).unwrap().record_id())))
-                .bind(("work_context_key", (missing != 1).then(|| caller.authority.work_context.to_string())))
-                .bind(("authority_tenant", (missing != 2).then(|| caller.authority.tenant.to_string())))
-                .await.unwrap().check().unwrap();
+            let mut response =
+                db.a.client()
+                    .query(include_str!(
+                        "queries/reads/kernel_selection_rejects_partial_context_triplets.surql"
+                    ))
+                    .bind(("task", veoveo_platform_store::task_record_id(row.task)))
+                    .bind(("server", RecordId::new("mcp_server", "optimization")))
+                    .bind((
+                        "tenant",
+                        deterministic_tenant_id(caller.tenant_key())
+                            .unwrap()
+                            .record_id(),
+                    ))
+                    .bind((
+                        "owner",
+                        deterministic_principal_id(caller.tenant_key(), &caller.principal_key)
+                            .unwrap()
+                            .record_id(),
+                    ))
+                    .bind(("profile", RecordId::new("profile", caller.profile.clone())))
+                    .bind(("principal_key", caller.principal_key.clone()))
+                    .bind(("profile_key", caller.profile.clone()))
+                    .bind(("tenant_key", caller.tenant_key.clone()))
+                    .bind(("labels", caller.data_labels.clone()))
+                    .bind((
+                        "task_types",
+                        Some(vec![
+                            veoveo_optimization_mcp::contract::OptimizationTaskKind::SolveConvex
+                                .name()
+                                .to_string(),
+                        ]),
+                    ))
+                    .bind((
+                        "work_context",
+                        (missing != 0).then(|| {
+                            deterministic_work_context_id(
+                                caller.tenant_key(),
+                                caller.authority.work_context.as_str(),
+                            )
+                            .unwrap()
+                            .record_id()
+                        }),
+                    ))
+                    .bind((
+                        "work_context_key",
+                        (missing != 1).then(|| caller.authority.work_context.to_string()),
+                    ))
+                    .bind((
+                        "authority_tenant",
+                        (missing != 2).then(|| caller.authority.tenant.to_string()),
+                    ))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
             let selected: Option<surrealdb::types::Value> = response.take(0).unwrap();
-            assert_eq!(selected.is_some(), missing == 3, "accepted partial context triplet {missing}");
+            assert_eq!(
+                selected.is_some(),
+                missing == 3,
+                "accepted partial context triplet {missing}"
+            );
         }
-    }).await.expect("Task context triplet qualification exceeded 60 seconds");
+    })
+    .await
+    .expect("Task context triplet qualification exceeded 60 seconds");
 }

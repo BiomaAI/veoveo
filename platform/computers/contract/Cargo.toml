@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-audit-contract.workspace = true
 veoveo-gateway-contract.workspace = true
 thiserror.workspace = true
 veoveo-types.workspace = true

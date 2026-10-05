@@ -58,8 +58,12 @@ impl ComputersStore {
             .iter()
             .map(|c| crate::commands::slot(c.computer_id))
             .collect();
-        let mut read = self.query("SELECT id, computer_id, execution, execution.computer_id AS target_computer FROM $slots;",
-            vec![("slots", slots.into_value())]).await?;
+        let mut read = self
+            .query(
+                include_str!("../queries/active_execution/read_active_executions.surql"),
+                vec![("slots", slots.into_value())],
+            )
+            .await?;
         let rows: Vec<Slot> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let mut active = BTreeMap::new();
         for row in rows {

@@ -277,7 +277,7 @@ async fn denied_resources_and_lost_live_sessions_never_emit_updates() {
         let service = Service::new(runtime.clone(), live.clone());
         let id = TaskId::new();
         create(&runtime, owner(), id).await;
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("../../../queries/bin/server/subscriptions_tests/denied_resources_and_lost_live_sessions_never_emit_updates.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(id))).await.unwrap().check().unwrap();
         assert!(runtime.get(id).await.is_err());
         let filter = SubscriptionFilter::builder().resource_subscriptions([uris::run_uri(run(id)).to_string()]).build();

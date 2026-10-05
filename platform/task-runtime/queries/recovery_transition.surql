@@ -9,7 +9,7 @@ LET $updated = (
     RETURN AFTER
 );
 IF $updated != NONE AND $status = 'failed' {
-    /* settlement contribution */
+
 };
 RETURN $updated;
 COMMIT TRANSACTION;

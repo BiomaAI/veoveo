@@ -44,12 +44,22 @@ fn draft() -> AuditDraft {
 #[test]
 fn knowledge_audit_rejects_inconsistent_target_observation_and_outcome() {
     let value = serde_json::to_value(draft()).unwrap();
-    assert!(serde_json::from_value::<AuditDraft>(value.clone()).is_ok());
+    assert!(
+        AuditTargetRegistry::empty()
+            .decoder()
+            .from_value::<AuditDraft>(value.clone())
+            .is_ok()
+    );
     assert!(!value.to_string().contains("PRIVATE-QUERY-CANARY"));
     let mut with_url = value.clone();
     with_url["detail"]["observation"]["external"]["url"] =
         serde_json::json!("https://example.test/");
-    assert!(serde_json::from_value::<AuditDraft>(with_url).is_err());
+    assert!(
+        AuditTargetRegistry::empty()
+            .decoder()
+            .from_value::<AuditDraft>(with_url)
+            .is_err()
+    );
     for (pointer, replacement) in [
         ("/target/server", serde_json::json!("map")),
         ("/target/uri", serde_json::json!("time://docs/agents")),
@@ -60,7 +70,10 @@ fn knowledge_audit_rejects_inconsistent_target_observation_and_outcome() {
         let mut invalid = value.clone();
         *invalid.pointer_mut(pointer).unwrap() = replacement;
         assert!(
-            serde_json::from_value::<AuditDraft>(invalid).is_err(),
+            AuditTargetRegistry::empty()
+                .decoder()
+                .from_value::<AuditDraft>(invalid)
+                .is_err(),
             "{pointer}"
         );
     }

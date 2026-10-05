@@ -18,7 +18,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::{ConsoleInstallation, ConsoleSession, GatewayControlPlane, ServerSlug};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
-use veoveo_platform_store::{ChangefeedCursor, RecordingLayerState, deterministic_tenant_id};
+use veoveo_platform_store::{ChangefeedCursor, deterministic_tenant_id};
+use veoveo_recording_store::RecordingLayerState;
 
 pub(crate) use artifact::read_console_artifact;
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
@@ -254,7 +255,10 @@ fn build_snapshot(
     }
     let mut pending_wakes = BTreeMap::<String, usize>::new();
     for wake in &projection.wakes {
-        if matches!(wake.state, veoveo_platform_store::WakeState::Pending) {
+        if matches!(
+            wake.state,
+            veoveo_agent_runtime::persistence::WakeState::Pending
+        ) {
             *pending_wakes.entry(record_key(&wake.agent)?).or_default() += 1;
         }
     }

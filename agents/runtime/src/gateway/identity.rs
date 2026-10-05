@@ -1,8 +1,10 @@
+use crate::persistence::AgentRepository;
 use std::collections::BTreeSet;
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_gateway_contract::OAuthClientId;
 
 use crate::contract::authoring as wire;
+use crate::persistence::{AgentExecution, instances::ManagedAgentRegistration};
 use anyhow::{Context, Result, ensure};
 use jsonwebtoken::jwk::{
     AlgorithmParameters, CommonParameters, Jwk, JwkSet, KeyAlgorithm, PublicKeyUse,
@@ -12,10 +14,7 @@ use veoveo_mcp_contract::{
     OAuthClientAuthMethod, OAuthClientRegistration, OAuthClientSurface, OAuthGrantType,
     PolicyTarget, Principal,
 };
-use veoveo_platform_store::{
-    agent_management::{AgentExecution, instances::ManagedAgentRegistration},
-    deterministic_principal_id,
-};
+use veoveo_platform_store::deterministic_principal_id;
 use veoveo_types::WorkContextMembershipLevel;
 use veoveo_types::{InvocationMode, RoleId, ScopeName, TenantId, WorkContextId};
 
@@ -104,8 +103,7 @@ impl ManagedOAuthClientResolver {
         catalog: &GatewayCatalog,
         id: &OAuthClientId,
     ) -> Result<Option<ResolvedClient>> {
-        let managed = self
-            .platform
+        let managed = AgentRepository::new(self.platform.clone())
             .managed_agent_registration(id.as_str())
             .await?;
         let installed = catalog.oauth_client(id);

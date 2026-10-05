@@ -20,16 +20,17 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
 use tokio_util::sync::CancellationToken;
+use veoveo_agent_runtime::persistence::{AgentRecord, WakeRecord};
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
-    AgentRecord, ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge,
-    ArtifactOccurrenceRecord, ArtifactUploadRecord, ArtifactUploadState, ChangefeedConsumerId,
-    ChangefeedCursor, ChangefeedDelivery, ChangefeedEntry, ObservationTable, PlatformStore,
-    PrincipalRecord, RecordId, RecordingLayerRecord, RecordingLayerState, RecordingRecord,
-    ShareLinkRecord, TaskRecord, Value as DbValue, WakeRecord, decode_changefeed_entry,
+    ArtifactAccessRequestRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord,
+    ArtifactUploadRecord, ArtifactUploadState, ChangefeedConsumerId, ChangefeedCursor,
+    ChangefeedDelivery, ChangefeedEntry, ObservationTable, PlatformStore, PrincipalRecord,
+    RecordId, ShareLinkRecord, TaskRecord, Value as DbValue, decode_changefeed_entry,
     deterministic_tenant_id,
 };
+use veoveo_recording_store::{RecordingLayerRecord, RecordingLayerState, RecordingRecord};
 
 use super::projection::{
     ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, agent_public_key,
@@ -567,7 +568,10 @@ impl ConsoleStreamState {
                 record_key(&wake.id)?,
                 (
                     record_key(&wake.agent)?,
-                    matches!(wake.state, veoveo_platform_store::WakeState::Pending),
+                    matches!(
+                        wake.state,
+                        veoveo_agent_runtime::persistence::WakeState::Pending
+                    ),
                 ),
             );
         }
@@ -782,7 +786,10 @@ impl ConsoleStreamState {
                             record_key(&wake.id)?,
                             (
                                 agent.clone(),
-                                matches!(wake.state, veoveo_platform_store::WakeState::Pending),
+                                matches!(
+                                    wake.state,
+                                    veoveo_agent_runtime::persistence::WakeState::Pending
+                                ),
                             ),
                         );
                         self.emit_agent(&agent, versionstamp, rank)

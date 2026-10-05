@@ -95,7 +95,9 @@ impl Fixture {
             TaskResultRecord::new(serde_json::json!({"structuredContent":output,"isError":false}));
         self.store
             .client()
-            .query("UPDATE ONLY $task SET status = 'succeeded', result = $result RETURN NONE;")
+            .query(include_str!(
+                "../../../../queries/bin/server/hosted_tests/data/finding_with_results.surql"
+            ))
             .bind(("task", task_record_id(analysis.task_id())))
             .bind(("result", result))
             .await

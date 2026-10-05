@@ -1,10 +1,10 @@
 //! Native Store qualification; the shared fixture owns its container and rows.
 use super::*;
 use crate::contract::*;
+use crate::persistence::MapRepository;
+use crate::persistence::{MapCatalogCompletion, MapRouteMatrixDraft};
 use std::{collections::BTreeSet, time::Duration};
-use veoveo_platform_store::{
-    MapCatalogCompletion, MapRouteMatrixDraft, PlatformStore, PrincipalKind,
-};
+use veoveo_platform_store::{PlatformStore, PrincipalKind};
 
 fn key(prefix: &str, n: usize) -> String {
     format!("{prefix}-{n:08x}-0000-7000-8000-000000000000")
@@ -116,7 +116,11 @@ async fn owned_pages_direct_reads_recovery_and_invalidation_select_in_sql() {
 }
 
 async fn qualify() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+            .unwrap(),
+    ])
+    .await;
     let writer = MapCatalog::new(db.a.clone());
     let reader = MapCatalog::new(db.b.clone());
     let owner = scope(&db.a, "map-owned", "author").await;
@@ -134,17 +138,18 @@ async fn qualify() {
     // Artifact-only storage rows have no readable matrix document. They cannot
     // consume a resource page or completion slot.
     for n in 500..610 {
-        db.a.create_map_route_matrix(MapRouteMatrixDraft {
-            identity: owner.identity.clone(),
-            matrix_key: key("matrix", n),
-            mobility_profile_key: key("mobility", 1),
-            mobility_profile_version: 1,
-            operational_snapshot_key: key("snapshot", 1),
-            artifact_uri: Some("artifact://fixture".into()),
-            canonical_json: None,
-        })
-        .await
-        .unwrap();
+        MapRepository::new(db.a.clone())
+            .create_map_route_matrix(MapRouteMatrixDraft {
+                identity: owner.identity.clone(),
+                matrix_key: key("matrix", n),
+                mobility_profile_key: key("mobility", 1),
+                mobility_profile_version: 1,
+                operational_snapshot_key: key("snapshot", 1),
+                artifact_uri: Some("artifact://fixture".into()),
+                canonical_json: None,
+            })
+            .await
+            .unwrap();
     }
     for collection in [
         Collection::Routes,
@@ -255,33 +260,37 @@ async fn qualify() {
             .unwrap()
             .is_none()
     );
-    let completions =
-        db.b.complete_map_catalog(&owner.identity, MapCatalogCompletion::Matrix, "")
-            .await
-            .unwrap();
+    let completions = MapRepository::new(db.b.clone())
+        .complete_map_catalog(&owner.identity, MapCatalogCompletion::Matrix, "")
+        .await
+        .unwrap();
     assert_eq!(
         completions,
         (1000..1101).map(|n| key("matrix", n)).collect::<Vec<_>>()
     );
     for limit in [0, 102] {
         assert!(
-            db.b.map_routes_page(&owner.identity, None, limit)
+            MapRepository::new(db.b.clone())
+                .map_routes_page(&owner.identity, None, limit)
                 .await
                 .is_err()
         );
         assert!(
-            db.b.map_matrices_page(&owner.identity, None, limit)
+            MapRepository::new(db.b.clone())
+                .map_matrices_page(&owner.identity, None, limit)
                 .await
                 .is_err()
         );
         assert!(
-            db.b.map_acquisitions_page(&owner.identity, None, limit)
+            MapRepository::new(db.b.clone())
+                .map_acquisitions_page(&owner.identity, None, limit)
                 .await
                 .is_err()
         );
     }
     assert!(
-        db.b.map_routes_page(&owner.identity, Some("route-invalid"), 1)
+        MapRepository::new(db.b.clone())
+            .map_routes_page(&owner.identity, Some("route-invalid"), 1)
             .await
             .is_err()
     );
@@ -426,16 +435,17 @@ async fn qualify_invalidation(
     writer
         .store()
         .client()
-        .query("DELETE map_route_dependency WHERE tenant = $tenant AND route_key = $route;")
+        .query(include_str!(
+            "../../queries/catalog/owned/tests/qualify_invalidation/statement_1.surql"
+        ))
         .bind(("tenant", owner.identity.tenant_id.record_id()))
         .bind(("route", key("route", 1124)))
         .await
         .unwrap()
         .check()
         .unwrap();
-    writer
-        .store()
-        .create_map_route_dependency(veoveo_platform_store::MapRouteDependencyDraft {
+    MapRepository::new(writer.store().clone())
+        .create_map_route_dependency(crate::persistence::MapRouteDependencyDraft {
             tenant_id: owner.identity.tenant_id,
             route_key: unaffected.route_id.to_string(),
             dependency_kind: MapDependencyKind::Release,
@@ -452,8 +462,7 @@ async fn qualify_invalidation(
         .persist_route(owner, &restricted, "c".repeat(64))
         .await
         .unwrap();
-    let facility_rows = writer
-        .store()
+    let facility_rows = MapRepository::new(writer.store().clone())
         .map_routes_for_dependency_page(
             owner.identity.tenant_id,
             MapDependencyKind::Facility,
@@ -488,8 +497,7 @@ async fn qualify_invalidation(
             RouteStatus::Invalidated
         );
         assert_eq!(
-            reader
-                .store()
+            MapRepository::new(reader.store().clone())
                 .map_route(&scope.identity, id.as_str())
                 .await
                 .unwrap()
@@ -533,15 +541,13 @@ async fn qualify_invalidation(
         RouteStatus::Invalidated
     );
     assert!(
-        !writer
-            .store()
+        !MapRepository::new(writer.store().clone())
             .invalidate_map_route(owner.identity.tenant_id, &key("route", 1124), "{}".into())
             .await
             .unwrap()
     );
     assert!(
-        !writer
-            .store()
+        !MapRepository::new(writer.store().clone())
             .invalidate_map_route(foreign.identity.tenant_id, &key("route", 4000), "{}".into())
             .await
             .unwrap()

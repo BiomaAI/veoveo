@@ -11,7 +11,7 @@
 
 ## Tables And Ownership
 
-The ordered Store migration defines `knowledge_collection`, `knowledge_generation`,
+The version-zero Knowledge owner lane defines `knowledge_collection`, `knowledge_generation`,
 `knowledge_active`, `knowledge_member`, `knowledge_coverage`, `knowledge_coordinator`
 and `knowledge_sync`. `knowledge_evaluation` stores retrieval measurements attached to
 their generation. Catalog, source-sync and member
@@ -23,8 +23,10 @@ BM25 and HNSW indexes. A table contains vectors from one embedding space. Its di
 comes from the checked generation specification. The schema uses `PERMISSIONS NONE`;
 only authenticated system users with the existing database-editor role can operate it.
 This generation-owned DDL is a domain operation, separate from installation migrations.
-All interpolated identifiers derive from a canonical UUID, and the dimension is a
-checked integer. Resource URIs, collection names and caller values use bound parameters.
+Table names derive from a canonical UUID and use bound table expressions. INSERT
+receives a native SDK Table parameter. The HNSW dimension uses a checked integer
+literal because the native grammar requires it. Resource URIs, collection names and
+caller values use bound parameters. Complete statements live in `../queries/knowledge/`.
 
 The [SurrealDB index reference](https://surrealdb.com/docs/reference/query-language/statements/define/indexes)
 defines each HNSW index over a field with a fixed dimension. Separate generation
@@ -149,7 +151,7 @@ at the result boundary; sentinels never enter the public contract.
 `CandidateScope` carries current caller policy, including the source collections exposed
 by its profile. Each collection carries the owning URI scheme intersected with its
 current profile selectors. `resource_selection.rs` binds schemes, prefixes and checked
-template literal segments as values. The SQL closure in `resource_selection.surql`
+template literal segments as values. The SQL closure embedded in the complete candidate and ranking statements
 uses first-delimiter consumption to match the foundational template semantics. It
 executes within candidate admission in both ranking queries. SQL selects the tenant and active generation, current collection
 approval fingerprint, collection-required scopes, ready source epoch, live mutable-source
@@ -174,7 +176,7 @@ selected observation/projection agreement; it does not
 discard unauthorized rows after pagination.
 
 The knowledge service still applies the shared canonical access decision before
-returning results. `search_knowledge` uses the same admission fragment in its BM25 and HNSW queries.
+returning results. `search_knowledge` applies the same admission predicate in its complete BM25 and HNSW statements.
 The database executes native `search::rrf`, groups chunks by member and selects the
 best result per member in one transaction. Its HNSW K/EF values come from a closed
 expansion-window enum. Query vectors must match the complete generation embedding

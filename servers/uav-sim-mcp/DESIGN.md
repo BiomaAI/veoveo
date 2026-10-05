@@ -18,7 +18,7 @@ for visualization.
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | SurrealDB / SurrealQL `3.3.0` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
-| UAV mission admission | Repository-owned Store relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
+| UAV mission admission | UAV-owned persisted relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
@@ -300,8 +300,10 @@ Mission resource URIs resolve the latest caller-owned admitted Task for that mis
 in the current Work Context. SQL follows the plan's exact execution link and verifies
 its Task identity, tenant, context and principal before ordering and selecting a row.
 A later rejected attempt cannot hide the admitted Task. A tenant/context/principal/mission
-index selects matching plans before the Task query uses its server/plan index. Native
-`EXPLAIN FULL` qualification checks both access paths. A missing or damaged link supplies no result. Mission pages and completions require
+index selects matching plans. Each plan resolves through the execution-plan index;
+SQL checks the candidate execution's authority before fetching its exact Task record.
+Native `EXPLAIN FULL` qualification checks both indexes and rejects a Task table scan.
+A missing or damaged link supplies no result. Mission pages and completions require
 the same link, current parent ownership and Task visibility in SQL before grouping
 or applying their limits. A queued request alone does not publish a mission.
 Usage resources preserve the shared Task read profile:
@@ -974,14 +976,23 @@ Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `uav_*`.
 It requires Agents and its earlier kernel requirements.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The version-zero lane installs the current UAV schema from
+`servers/uav-sim-mcp/src/schema/migrations/0000_current.surql`. The composition root supplies
+its checked execution image and command. Gateway composition prepares runtime
+credentials and executes selected owner lanes through `module-migrate`. The
+runtime opens the shared authenticated Store connection without applying schema.
+Installed image and Job qualification is tracked separately in the active contract plan.
 
-`server/agent_targets.surql` reads `managed_agent` and calls `fn::managed_agent_enabled`, which establishes the Agents dependency. The current `task_uav_plan` index is a foreign mutation on the kernel Task table and needs an owner-approved replacement.
+`queries/server/agent_targets.surql` reads `managed_agent` and calls the declared
+read-only `fn::managed_agent_enabled`, establishing the Agents dependency and
+introducing minimum. `uav_mission_execution` owns the unique plan index; its typed
+Task link preserves admission lookup without defining a foreign index on `task`.
+
+Control-authority statements live in `src/server/control_authority/queries`.
+Admission and settlement embed complete fixed statements from `queries/execution`;
+completion selects complete grant or plan queries. Rust binds the admitted values
+and preserves the queued-Task snapshot guard and response slots. Native authority
+fixtures reuse that query family to check grant, admission and contention predicates.
 
 ## Persistence Observation
 

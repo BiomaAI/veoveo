@@ -29,6 +29,9 @@ object_store.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider", "stream"] }
 
 [dev-dependencies]
+schemars.workspace = true
+veoveo-computers-contract.workspace = true
+veoveo-modules = { workspace = true, features = ["runner"] }
 tokio = { workspace = true, features = ["full"] }
 axum.workspace = true
 reqwest = { workspace = true, features = ["json"] }

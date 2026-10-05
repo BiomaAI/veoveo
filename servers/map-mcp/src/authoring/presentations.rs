@@ -1,12 +1,13 @@
+use crate::persistence::MapRepository;
 use std::collections::BTreeSet;
 
-use anyhow::{Context, Result, bail};
-use chrono::Utc;
-use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{
+use crate::persistence::{
     MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
     MapLayerProductDraft,
 };
+use anyhow::{Context, Result, bail};
+use chrono::Utc;
+use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_types::AccessLevel;
 
 use crate::{
@@ -59,7 +60,7 @@ impl AuthoringService {
             created_at: now,
             updated_at: now,
         };
-        self.store()
+        MapRepository::new(self.store().clone())
             .create_map_composition(MapCompositionDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
@@ -111,7 +112,7 @@ impl AuthoringService {
         };
         composition.current = revision.clone();
         composition.updated_at = revision.created_at;
-        self.store()
+        MapRepository::new(self.store().clone())
             .update_map_composition(
                 MapCompositionUpdateDraft {
                     identity: scope.identity.clone(),
@@ -158,7 +159,7 @@ impl AuthoringService {
         composition.current = revision.clone();
         composition.archived_at = Some(now);
         composition.updated_at = now;
-        self.store()
+        MapRepository::new(self.store().clone())
             .update_map_composition(
                 MapCompositionUpdateDraft {
                     identity: scope.identity.clone(),
@@ -182,7 +183,7 @@ impl AuthoringService {
         composition_id: &MapCompositionId,
     ) -> Result<Option<MapComposition>> {
         require_access(identity, AccessLevel::Read)?;
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_composition(&read_scope(identity, scope)?, composition_id.as_str())
             .await?
             .map(|record| decode::<MapComposition>(&record.canonical_json, "map composition"))
@@ -204,7 +205,7 @@ impl AuthoringService {
         {
             return Ok(None);
         }
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_composition_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -232,8 +233,7 @@ impl AuthoringService {
         {
             bail!("layer product authority or publication pin is inconsistent");
         }
-        let record = self
-            .store()
+        let record = MapRepository::new(self.store().clone())
             .create_map_layer_product(MapLayerProductDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
@@ -277,7 +277,7 @@ impl AuthoringService {
         product_id: &LayerProductId,
     ) -> Result<Option<LayerProduct>> {
         require_access(identity, AccessLevel::Read)?;
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_layer_product(
                 &read_scope(identity, scope)?,
                 layer_id.as_str(),

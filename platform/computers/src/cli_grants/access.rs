@@ -15,17 +15,25 @@ impl ComputersStore {
     ) -> Result<CliConnectionHandle> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (grant_id, hash) = secret::parse(credential)?;
-            let mut read = self.query("SELECT * FROM ONLY $grant WHERE provider_instance_id = $provider AND credential_hash = $credential_hash
-                AND authority.profile = $profile AND ($computer = NONE OR computer_id = $computer)
-                AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now()
-                AND family.revoked_at = NONE AND family.expires_at > time::now();", vec![
-                ("grant", super::grant_record(grant_id).into_value()),
-                ("provider", self.provider_instance_id.as_uuid().into_value()),
-                ("credential_hash", hash.clone().into_value()),
-                ("profile", expected_profile.to_string().into_value()),
-                ("computer", expected_computer.map(crate::api::ComputerId::as_uuid).into_value()),
-            ]).await?;
-            let grant: Option<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let mut read = self
+                .query(
+                    include_str!("../../queries/cli_grants/access/open_cli_connection.surql"),
+                    vec![
+                        ("grant", super::grant_record(grant_id).into_value()),
+                        ("provider", self.provider_instance_id.as_uuid().into_value()),
+                        ("credential_hash", hash.clone().into_value()),
+                        ("profile", expected_profile.to_string().into_value()),
+                        (
+                            "computer",
+                            expected_computer
+                                .map(crate::api::ComputerId::as_uuid)
+                                .into_value(),
+                        ),
+                    ],
+                )
+                .await?;
+            let grant: Option<model::Grant> =
+                read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let grant = grant.ok_or(ComputerError::Forbidden)?;
             let computer_id = grant.computer_id()?;
             if expected_computer.is_some_and(|id| id != computer_id) {
@@ -76,8 +84,15 @@ impl ComputersStore {
                     ("resource", computer.provider_resource_id.into_value()),
                     ("process", computer.process_id.into_value()),
                     ("authority_expires_at", end.into_value()),
-                    crate::audit::binding(&accepted, computer_id, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Attach, veoveo_audit_contract::ComputerAuditStage::Attached))?,
-
+                    crate::audit::binding(
+                        self.platform.audit_targets(),
+                        &accepted,
+                        computer_id,
+                        crate::audit::Transition::accepted(
+                            veoveo_audit_contract::ComputerActivity::Attach,
+                            veoveo_audit_contract::ComputerAuditStage::Attached,
+                        ),
+                    )?,
                 ],
             )
             .await?;
@@ -204,6 +219,7 @@ impl ComputersStore {
                         actor.admission_expires_at().into_value(),
                     ),
                     crate::audit::binding(
+                        self.platform.audit_targets(),
                         actor.accepted(),
                         computer_id,
                         crate::audit::Transition::accepted(
@@ -224,9 +240,7 @@ impl ComputersStore {
         tokio::time::timeout(Duration::from_secs(5), async {
             let mut read = self
                 .query(
-                    "SELECT * FROM ONLY $grant WHERE grant_id = $grant_id
-                AND provider_instance_id = $provider AND $connection.connection_id = $connection_id
-                AND $connection.grant_id = $grant_id AND $connection.closed_at = NONE;",
+                    include_str!("../../queries/cli_grants/access/close_cli_connection.surql"),
                     vec![
                         ("grant", super::grant_record(handle.grant_id).into_value()),
                         ("provider", self.provider_instance_id.as_uuid().into_value()),
@@ -255,6 +269,7 @@ impl ComputersStore {
                     ("connection_id", handle.connection_id.as_uuid().into_value()),
                     ("grant_id", handle.grant_id.as_uuid().into_value()),
                     crate::audit::binding(
+                        self.platform.audit_targets(),
                         &accepted,
                         grant.computer_id()?,
                         crate::audit::Transition::accepted(

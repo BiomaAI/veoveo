@@ -1,6 +1,7 @@
 //! Explicit model HTTP fixtures exercise the actual Rig stream and durable run
 //! pipeline. These are not production model or MCP Tasks acceptance.
 use super::*;
+use crate::persistence::WorkspaceRepository;
 use axum::{
     Extension,
     body::{Body, to_bytes},
@@ -139,7 +140,7 @@ pub(super) async fn registry(
     stop: &CancellationToken,
     definitions: &[ResolvedAgent],
 ) -> AgentManagementState {
-    use veoveo_platform_store::agent_management::*;
+    use veoveo_agent_runtime::persistence::*;
     let state = AgentManagementState {
         gateway: crate::gateway_test_state(store.clone(), Arc::new(Default::default())).unwrap(),
         catalog: catalog.clone(),
@@ -182,7 +183,7 @@ pub(super) async fn registry(
             },
             execution: AgentExecution::Chat,
         };
-        let draft = store
+        let draft = AgentRepository::new(store.clone())
             .mutate_agent_definition(
                 &actor,
                 definition.id.as_str(),
@@ -196,7 +197,7 @@ pub(super) async fn registry(
             )
             .await
             .unwrap();
-        store
+        AgentRepository::new(store.clone())
             .mutate_agent_definition(
                 &actor,
                 definition.id.as_str(),
@@ -219,7 +220,7 @@ pub(super) async fn registry(
 #[tokio::test]
 async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again() {
     tokio::time::timeout(Duration::from_secs(25), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![veoveo_agent_runtime::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap()).unwrap(), crate::schema::module_setup(crate::test_store::module_lanes::execution("workspace").unwrap()).unwrap()]).await;
         super::super::tests::setup(&db.a).await;
         let provider = Provider {
             requests: Arc::new(AtomicUsize::new(0)),
@@ -253,9 +254,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         let agents = registry(&db.a, &catalog, &operations, &stop, &[definition("writer", &origin), definition("reviewer", &origin)]).await;
         let state = RunState {
             operations: operations.clone(),
-            workspace: WorkspaceState {
-                store: db.a.clone(),
-            },
+            workspace: WorkspaceState::new(db.a.clone()),
             gateway: crate::gateway_test_state(db.b.clone(), Arc::new(Default::default())).unwrap(),
             catalog,
             agents,
@@ -272,17 +271,17 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         };
         let actor = authority::admit(&state.workspace, &subject).await.unwrap();
         let chat = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&actor, chat, "Shared")
+        WorkspaceRepository::new(db.a.clone()).create_workspace_chat(&actor, chat, "Shared")
             .await
             .unwrap();
         let private = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&actor, private, "Other")
+        WorkspaceRepository::new(db.a.clone()).create_workspace_chat(&actor, private, "Other")
             .await
             .unwrap();
-        db.a.send_workspace_turn(
+        WorkspaceRepository::new(db.a.clone()).send_workspace_turn(
             &actor,
             private,
-            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            crate::persistence::WorkspaceTurnRequest {
                 id: WorkspaceMessageId::new(),
                 text: ("PRIVATE OTHER CHAT").to_owned(),
                 reply_to: None,
@@ -295,7 +294,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         .unwrap();
         let trigger = WorkspaceMessageId::new();
         let reply = WorkspaceMessageId::new();
-        db.a.send_workspace_turn(&actor, chat, veoveo_platform_store::workspace::WorkspaceTurnRequest {
+        WorkspaceRepository::new(db.a.clone()).send_workspace_turn(&actor, chat, crate::persistence::WorkspaceTurnRequest {
             attachments: vec![],
             id: reply, text: "The shared topic being discussed".into(), reply_to: None, addressed_agents: vec![],
             deadline: Utc::now() + TimeDelta::seconds(120),
@@ -319,7 +318,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         // request. Concurrent exact replay claims each model dispatch once.
         let mut run_ids = Vec::new();
         loop {
-            let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
+            let runs = WorkspaceRepository::new(db.b.clone()).workspace_runs(&actor, chat).await.unwrap();
             if runs.len() == 2 && runs.iter().all(|r| !r.text.is_empty()) {
                 for id in &agent_ids {
                     let run = runs.iter().find(|run| super::super::projection::uuid(&run.agent).unwrap().to_string() == *id).unwrap();
@@ -331,10 +330,10 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         assert_eq!(provider.requests.load(Ordering::SeqCst), 2);
-        db.a.send_workspace_turn(
+        WorkspaceRepository::new(db.a.clone()).send_workspace_turn(
             &actor,
             chat,
-            veoveo_platform_store::workspace::WorkspaceTurnRequest {
+            crate::persistence::WorkspaceTurnRequest {
                 id: WorkspaceMessageId::new(),
                 text: ("Human continues").to_owned(),
                 reply_to: None,
@@ -359,14 +358,14 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
         assert_eq!(repeated["id"], trigger.as_uuid().to_string());
         provider.release.notify_waiters();
         loop {
-            let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
+            let runs = WorkspaceRepository::new(db.b.clone()).workspace_runs(&actor, chat).await.unwrap();
             if runs.iter().any(|r| r.state == WorkspaceRunState::Completed) {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
         assert_eq!(provider.requests.load(Ordering::SeqCst), 2);
-        let restored = db.b.workspace_runs(&actor, chat).await.unwrap();
+        let restored = WorkspaceRepository::new(db.b.clone()).workspace_runs(&actor, chat).await.unwrap();
         assert!(
             restored
                 .iter()
@@ -457,9 +456,7 @@ pub(crate) fn empty_routes(store: &PlatformStore) -> Router {
     };
     routes(RunState {
         operations: operations.clone(),
-        workspace: WorkspaceState {
-            store: store.clone(),
-        },
+        workspace: WorkspaceState::new(store.clone()),
         gateway,
         catalog,
         agents,

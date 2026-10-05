@@ -2,7 +2,6 @@ use super::*;
 use crate::{
     catalog::{TimeAccessContext, TimeCatalog},
     contract::*,
-    test_store::TestDb,
 };
 use std::{collections::BTreeMap, time::Duration};
 use surrealdb::types::Value;
@@ -71,7 +70,7 @@ async fn release(
 async fn patch(store: &PlatformStore, record: &RecordId, field: &str, value: Value) {
     store
         .client()
-        .query("UPDATE $record MERGE $patch RETURN NONE;")
+        .query(include_str!("../tests/queries/merge_record.surql"))
         .bind(("record", record.clone()))
         .bind(("patch", BTreeMap::from([(field.to_owned(), value)])))
         .await
@@ -101,7 +100,7 @@ async fn raw_release(store: &PlatformStore, record: &RecordId) -> TimeAuthorityR
 async fn restore<T: SurrealValue>(store: &PlatformStore, record: &RecordId, content: T) {
     store
         .client()
-        .query("UPDATE $record CONTENT $content RETURN NONE;")
+        .query(include_str!("../tests/queries/replace_record.surql"))
         .bind(("record", record.clone()))
         .bind(("content", content))
         .await
@@ -113,7 +112,7 @@ async fn restore<T: SurrealValue>(store: &PlatformStore, record: &RecordId, cont
 #[tokio::test]
 async fn active_reads_reject_corrupt_pointers_and_filter_release_relationships_in_sql() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "active-parent").await;
         let foreign = scope(&db.a, "active-parent-other").await;
         let catalog = TimeCatalog::new(db.b.clone());
@@ -272,7 +271,7 @@ async fn active_reads_reject_corrupt_pointers_and_filter_release_relationships_i
         let mut moved = original.clone();
         moved.id = time_record("time_active_authority", "invalid-physical-key");
         db.a.client()
-            .query("DELETE $record; CREATE ONLY $moved CONTENT $content RETURN NONE;")
+            .query(include_str!("../tests/queries/move_record.surql"))
             .bind(("record", key.clone()))
             .bind(("moved", moved.id.clone()))
             .bind(("content", moved.clone()))
@@ -283,7 +282,7 @@ async fn active_reads_reject_corrupt_pointers_and_filter_release_relationships_i
         assert!(catalog.active_releases(&owner).await.is_err());
         assert_eq!(pointer(&db.a, &moved.id).await, moved);
         db.a.client()
-            .query("DELETE $record; CREATE ONLY $moved CONTENT $content RETURN NONE;")
+            .query(include_str!("../tests/queries/move_record.surql"))
             .bind(("record", moved.id))
             .bind(("moved", key.clone()))
             .bind(("content", original.clone()))
@@ -307,7 +306,7 @@ async fn active_reads_reject_corrupt_pointers_and_filter_release_relationships_i
         assert_eq!(pair[0].release_id, leaps.release_id);
         assert_eq!(pair[1].release_id, current.release_id);
         db.a.client()
-            .query("DELETE $record RETURN NONE;")
+            .query(include_str!("../tests/queries/delete_record.surql"))
             .bind(("record", release_key))
             .await
             .unwrap()
@@ -323,7 +322,7 @@ async fn active_reads_reject_corrupt_pointers_and_filter_release_relationships_i
 #[tokio::test]
 async fn activation_rechecks_pointer_and_previous_release_relationships_inside_transaction() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "activation-parent").await;
         let catalog = TimeCatalog::new(db.b.clone());
         let first = release(&catalog, &owner, AuthorityDatasetKind::Tzdb).await;
@@ -359,35 +358,48 @@ async fn activation_rechecks_pointer_and_previous_release_relationships_inside_t
         // Each fixture event changes a relationship after the candidate update,
         // before pointer replacement and retirement. It exercises the production
         // transaction after preflight without a mock or a timing-dependent race.
-        for (table, assignment) in [
-            ("time_active_authority", "dataset_kind = 'leap_seconds'"),
+        for (case, event) in [
             (
-                "time_active_authority",
-                "release_key = 'time-release-changed'",
+                "pointer_dataset_kind",
+                include_str!("../tests/queries/interleave_pointer_dataset_kind.surql"),
             ),
-            ("time_active_authority", "previous_release_key = NONE"),
-            ("time_active_authority", "record_version = 3"),
-            ("time_active_authority", "tenant = tenant:other"),
-            ("time_authority_release", "state = 'quarantined'"),
-            ("time_authority_release", "dataset_kind = 'leap_seconds'"),
             (
-                "time_authority_release",
-                "release_key = 'time-release-changed'",
+                "pointer_release_key",
+                include_str!("../tests/queries/interleave_pointer_release_key.surql"),
             ),
-            ("time_authority_release", "record_version = 3"),
-            ("time_authority_release", "tenant = tenant:other"),
+            (
+                "pointer_previous_release_key",
+                include_str!("../tests/queries/interleave_pointer_previous_release_key.surql"),
+            ),
+            (
+                "pointer_record_version",
+                include_str!("../tests/queries/interleave_pointer_record_version.surql"),
+            ),
+            (
+                "pointer_tenant",
+                include_str!("../tests/queries/interleave_pointer_tenant.surql"),
+            ),
+            (
+                "release_state",
+                include_str!("../tests/queries/interleave_release_state.surql"),
+            ),
+            (
+                "release_dataset_kind",
+                include_str!("../tests/queries/interleave_release_dataset_kind.surql"),
+            ),
+            (
+                "release_key",
+                include_str!("../tests/queries/interleave_release_key.surql"),
+            ),
+            (
+                "release_record_version",
+                include_str!("../tests/queries/interleave_release_record_version.surql"),
+            ),
+            (
+                "release_tenant",
+                include_str!("../tests/queries/interleave_release_tenant.surql"),
+            ),
         ] {
-            let previous_state = if table == "time_authority_release" {
-                "AND state = 'active'"
-            } else {
-                ""
-            };
-            let event = format!(
-                "DEFINE EVENT OVERWRITE time_test_interleave ON time_authority_release
-                WHEN $event = 'UPDATE' AND $before.state = 'staged' AND $after.state = 'active'
-                THEN (UPDATE {table} SET {assignment} WHERE tenant = $after.tenant
-                    AND dataset_kind = $after.dataset_kind AND id != $after.id {previous_state});"
-            );
             db.a.client().query(event).await.unwrap().check().unwrap();
             assert!(
                 catalog
@@ -399,25 +411,23 @@ async fn activation_rechecks_pointer_and_previous_release_relationships_inside_t
                     )
                     .await
                     .is_err(),
-                "{table}: {assignment}"
+                "{case}"
             );
-            assert_eq!(
-                pointer(&db.a, &pointer_id).await,
-                before_pointer,
-                "{assignment}"
-            );
+            assert_eq!(pointer(&db.a, &pointer_id).await, before_pointer, "{case}");
             assert_eq!(
                 raw_release(&db.a, &previous_id).await,
                 before_previous,
-                "{assignment}"
+                "{case}"
             );
             assert_eq!(
                 raw_release(&db.a, &candidate_id).await,
                 before_candidate,
-                "{assignment}"
+                "{case}"
             );
             db.a.client()
-                .query("REMOVE EVENT time_test_interleave ON time_authority_release;")
+                .query(include_str!(
+                    "../tests/queries/remove_interleave_event.surql"
+                ))
                 .await
                 .unwrap()
                 .check()

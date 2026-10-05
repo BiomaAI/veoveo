@@ -32,11 +32,7 @@ fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
         7
     );
     for owner in &owners {
-        if ["tasks", "optimization"].contains(&owner.name().as_str()) {
-            assert_eq!(owner.lane().latest().unwrap().get(), 0);
-        } else {
-            assert!(owner.lane().is_empty());
-        }
+        assert_eq!(owner.lane().latest().unwrap().get(), 0);
         assert_eq!(
             owner.execution(),
             &execution(owner.name().as_str()).unwrap()
@@ -49,8 +45,8 @@ fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
 #[test]
 fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
     let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
-    assert_eq!(expected::TABLES.len(), 166);
-    assert_eq!(expected::FUNCTIONS.len(), 14);
+    assert_eq!(expected::TABLES.len(), 163);
+    assert_eq!(expected::FUNCTIONS.len(), 19);
     assert_eq!(expected::ANALYZERS.len(), 2);
     assert_eq!(
         registry

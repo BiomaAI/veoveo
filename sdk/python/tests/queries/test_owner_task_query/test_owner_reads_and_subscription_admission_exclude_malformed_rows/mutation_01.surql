@@ -1,0 +1,1 @@
+UPDATE $task SET request.owner.data_labels = ['restricted'], request.owner.authority = {};

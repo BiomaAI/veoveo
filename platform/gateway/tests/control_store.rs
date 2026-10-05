@@ -35,7 +35,6 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         database,
         StoreCredentials::root(username, password),
     )
-    .migrate_on_connect(true)
     .build()
     .unwrap();
     let store = GatewayControlStore::connect(config, catalog_admission::binding())
@@ -166,7 +165,7 @@ async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
         .platform_store()
         .client()
         .query(
-            "SELECT VALUE activity FROM audit_record WHERE class = 'account_change' ORDER BY id;",
+            include_str!("queries/control_store/publishes_immutable_revisions_and_moves_active_pointer_atomically/statement_1.surql"),
         )
         .await
         .unwrap()

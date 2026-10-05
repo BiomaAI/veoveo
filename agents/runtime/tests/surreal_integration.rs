@@ -10,16 +10,19 @@ use veoveo_platform_store::task_record_id;
 use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
+use veoveo_agent_runtime::persistence::{
+    AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord, WakeKind,
+    WakeRecord, WakeState,
+};
 use veoveo_agent_runtime::{
     AgentControl, AgentControlTarget, AgentInstanceId, AgentRuntime, AgentSpec,
     DEFAULT_CLAIM_LEASE, EpisodeCompletion, InputRequestAnswer, NewAgentTask, NewInputRequest,
     NewWake, OperatorMessageDraft, json_object,
 };
 use veoveo_platform_store::{
-    AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, OpenObject, PlatformStore,
-    PrincipalKind, WakeKind, WakeRecord, WakeState, WorkContextMembershipLevel as StoreMembership,
-    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
+    PrincipalKind, WorkContextMembershipLevel as StoreMembership, deterministic_principal_id,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
 use veoveo_types::{
@@ -69,7 +72,13 @@ struct Fixture {
 }
 
 async fn fixture() -> Fixture {
-    let database = database::TestDb::new().await;
+    let database = database::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            database::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     let root = database.a.clone();
     let runtime_store = || async { database.b.clone() };
     let spec = |manifest_revision: &str| AgentSpec {
@@ -245,7 +254,7 @@ async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
     let mut response = fixture
         .root
         .client()
-        .query("SELECT * FROM ONLY $wake; SELECT count() AS count FROM agent_episode GROUP ALL;")
+        .query(include_str!("queries/surreal_integration/idle_wake_acknowledgement_is_terminal_without_an_episode/statement_1.surql"))
         .bind(("wake", wake_id.record_id()))
         .await
         .unwrap()
@@ -595,7 +604,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
     fixture
         .root
         .client()
-        .query("CREATE ONLY $route SET tenant = $tenant, owner = $owner, work_context = $work_context, profile = $profile, server = $server, source_task_id = $source_task_id, source_task = $source_task, authority_digest = $authority_digest, created_at = $now, expires_at = $expires_at RETURN NONE;")
+        .query(include_str!("queries/surreal_integration/task_settlement_survives_restart_and_is_consumed_once/statement_1.surql"))
         .bind((
             "route",
             surrealdb::types::RecordId::new(
@@ -727,7 +736,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
     let mut response = fixture
         .root
         .client()
-        .query("SELECT * FROM agent_task WHERE task_id = $task_id;")
+        .query(include_str!("queries/surreal_integration/task_settlement_survives_restart_and_is_consumed_once/statement_2.surql"))
         .bind(("task_id", canonical_task_id.to_string()))
         .await
         .unwrap()
@@ -793,7 +802,7 @@ async fn native_wake_deadlines_follow_remote_availability_and_claim_expiry() {
         fixture
             .root
             .client()
-            .query("UPDATE ONLY $wake SET available_at = time::now();")
+            .query(include_str!("queries/surreal_integration/native_wake_deadlines_follow_remote_availability_and_claim_expiry/statement_1.surql"))
             .bind(("wake", id.record_id()))
             .await
             .unwrap()

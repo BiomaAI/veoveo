@@ -719,6 +719,17 @@ dependencies = [
  "schemars",
  "serde",
  "veoveo-modules",
+ "veoveo-recording-store",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-recording-store"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "veoveo-modules",
  "veoveo-types",
 ]
 

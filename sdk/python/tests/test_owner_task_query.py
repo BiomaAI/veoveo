@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from query_files import test_query
 from veoveo_mcp.tasks import (
     StoreError, TaskError, TaskInputRequest, TaskNotFound, TaskStatus,
     TaskTransition, TaskTypeName, TaskRuntime,
@@ -28,28 +29,30 @@ async def runtime(surreal_platform):
         from veoveo_mcp.tasks.types import server_record
         try:
             await instance.store.query(
-                "DELETE domain_usage WHERE task.server = $server; "
-                "DELETE task_input WHERE task.server = $server; DELETE task WHERE server = $server;",
+                test_query("test_owner_task_query/runtime.surql"),
                 {"server": server_record(instance.server)},
             )
         finally:
             await instance.store.close()
 
 
-@pytest.mark.parametrize("assignment", [
-    "request.owner.data_labels = ['restricted']",
-    "request.owner.profile = 'different'",
-    "request.owner.principal_key = 'different'",
-    "request.owner.tenant_key = 'different'",
-    "task_type = 'other'",
-])
+@pytest.mark.parametrize(
+    'assignment',
+    [
+        'test_owner_task_query/test_owner_reads_and_subscription_admission_exclude_malformed_rows/mutation_01.surql',
+        'test_owner_task_query/test_owner_reads_and_subscription_admission_exclude_malformed_rows/mutation_02.surql',
+        'test_owner_task_query/test_owner_reads_and_subscription_admission_exclude_malformed_rows/mutation_03.surql',
+        'test_owner_task_query/test_owner_reads_and_subscription_admission_exclude_malformed_rows/mutation_04.surql',
+        'test_owner_task_query/test_owner_reads_and_subscription_admission_exclude_malformed_rows/mutation_05.surql',
+    ],
+)
 async def test_owner_reads_and_subscription_admission_exclude_malformed_rows(runtime, assignment):
     async with asyncio.timeout(15):
         caller = owner(f"query-{uuid.uuid4()}")
         good = (await runtime.create(draft(server=runtime.server, owner=caller))).snapshot
         denied = (await runtime.create(draft(server=runtime.server, owner=caller))).snapshot
         await runtime.store.query(
-            f"UPDATE $task SET {assignment}, request.owner.authority = {{}};",
+            test_query(assignment),
             {"task": task_record(denied.task_id)},
         )
         query = runtime.for_owner(caller).of_type(TaskTypeName("profile"))
@@ -68,18 +71,21 @@ async def test_owner_reads_and_subscription_admission_exclude_malformed_rows(run
             await query.cancel(denied.task_id)
 
 
-@pytest.mark.parametrize("assignment", [
-    "work_context = work_context:wrong",
-    "authority.context_key = 'wrong'",
-    "request.owner.authority.work_context = 'wrong'",
-    "request.owner.authority.tenant = 'wrong'",
-])
+@pytest.mark.parametrize(
+    'assignment',
+    [
+        'test_owner_task_query/test_work_context_checks_all_indexed_and_retained_coordinates/mutation_01.surql',
+        'test_owner_task_query/test_work_context_checks_all_indexed_and_retained_coordinates/mutation_02.surql',
+        'test_owner_task_query/test_work_context_checks_all_indexed_and_retained_coordinates/mutation_03.surql',
+        'test_owner_task_query/test_work_context_checks_all_indexed_and_retained_coordinates/mutation_04.surql',
+    ],
+)
 async def test_work_context_checks_all_indexed_and_retained_coordinates(runtime, assignment):
     async with asyncio.timeout(15):
         caller = owner(f"context-{uuid.uuid4()}")
         snapshot = (await runtime.create(draft(server=runtime.server, owner=caller))).snapshot
         await runtime.store.query(
-            f"UPDATE $task SET {assignment}, request.input = NONE;",
+            test_query(assignment),
             {"task": task_record(snapshot.task_id)},
         )
         query = runtime.for_owner(caller).in_work_context()
@@ -100,7 +106,7 @@ async def test_sql_pages_apply_clearance_before_limit_and_recheck_on_continuatio
                 expected.append(task.task_id)
         same_time = datetime.now(timezone.utc)
         await runtime.store.query(
-            "UPDATE task SET created_at = $now WHERE owner = $owner;",
+            test_query("test_owner_task_query/test_sql_pages_apply_clearance_before_limit_and_recheck_on_continuation.surql"),
             {"now": same_time, "owner": caller.principal_record()},
         )
         query = runtime.for_owner(caller)
@@ -110,8 +116,7 @@ async def test_sql_pages_apply_clearance_before_limit_and_recheck_on_continuatio
         assert second.next_cursor is None
         assert [row.task_id for row in first.items + second.items] == sorted(expected)
         await runtime.store.query(
-            "UPDATE $task SET request.owner.data_labels = ['restricted'], "
-            "request.owner.authority = {};", {"task": task_record(second.items[0].task_id)},
+            test_query("test_owner_task_query/test_sql_pages_apply_clearance_before_limit_and_recheck_on_continuation_2.surql"), {"task": task_record(second.items[0].task_id)},
         )
         remaining = await query.page(first.next_cursor, limit=2)
         assert [row.task_id for row in remaining.items] == [second.items[1].task_id]
@@ -130,8 +135,7 @@ async def test_notifications_read_current_state_and_exclude_revoked_malformed_ro
                 await runtime.claim(str(snapshot.task_id), timedelta(seconds=30))
                 await runtime.transition(str(snapshot.task_id), TaskTransition.succeeded("done", {"ok": True}))
             await runtime.store.query(
-                "UPDATE $task SET request.owner.data_labels = ['restricted'], "
-                "request.owner.authority = {};",
+                test_query("test_owner_task_query/test_notifications_read_current_state_and_exclude_revoked_malformed_rows.surql"),
                 {"task": task_record(a.task_id)},
             )
             update = await anext(subscription.updates)

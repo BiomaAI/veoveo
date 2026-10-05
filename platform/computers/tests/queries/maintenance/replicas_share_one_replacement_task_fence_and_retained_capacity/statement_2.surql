@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; DELETE task_idempotency WHERE task = $task; DELETE $task; COMMIT TRANSACTION;

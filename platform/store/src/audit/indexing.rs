@@ -11,8 +11,12 @@ fn hash(value: impl serde::Serialize) -> Sha256Digest {
         Sha256::digest(serde_json::to_vec(&value).expect("typed audit value")).into(),
     )
 }
-pub(super) fn encode_read(read: &IndexingRead) -> Result<Value, StoreError> {
+pub(super) fn encode_read(
+    registry: &AuditTargetRegistry,
+    read: &IndexingRead,
+) -> Result<Value, StoreError> {
     let draft = read.draft();
+    registry.validate(draft.target())?;
     let actor = draft.actor().expect("checked indexing actor");
     let template = AuditDraft::builder(
         AuditRequest::background(),
@@ -66,7 +70,7 @@ pub(super) fn encode_read(read: &IndexingRead) -> Result<Value, StoreError> {
     );
     row.insert("occurred_at", draft.occurred_at().into_value());
     row.insert("collection", read.collection().to_string().into_value());
-    row.insert("template", Document(template).into_value());
+    row.insert("template", Document::encode(template).into_value());
     row.insert(
         "member",
         member.map(|value| value.hex().to_owned()).into_value(),
@@ -107,7 +111,7 @@ impl PlatformStore {
     pub async fn close_audit_indexing_windows(&self) -> Result<usize, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("indexing_due.surql"))
+            .query(include_str!("../queries/audit/indexing_due.surql"))
             .await?
             .check()?;
         let windows: Vec<Window> = response.take(0)?;
@@ -117,7 +121,7 @@ impl PlatformStore {
                 .collection
                 .parse()
                 .map_err(|_| StoreError::AuditIntegrity)?;
-            let template = window.template.0;
+            let template = window.template.checked(self.audit_targets())?;
             let draft = AuditDraft::builder(
                 template.request().clone(),
                 template.target().clone(),
@@ -139,11 +143,11 @@ impl PlatformStore {
             .actor(template.actor().ok_or(StoreError::AuditIntegrity)?.clone())
             .authority(template.authority().clone())
             .build()?;
-            let rows = vec![encode(draft)?];
+            let rows = vec![encode(self.audit_targets(), draft)?];
             for attempt in 0..8 {
                 let result = self
                     .db
-                    .query(include_str!("indexing_close.surql"))
+                    .query(include_str!("../queries/audit/indexing_close.surql"))
                     .bind(("window", window.id.clone()))
                     .bind(("reads", window.reads))
                     .bind(("audit_rows", rows.clone()))
@@ -177,7 +181,7 @@ impl PlatformStore {
         let mut response = loop {
             let result = self
                 .db
-                .query(include_str!("indexing_prune.surql"))
+                .query(include_str!("../queries/audit/indexing_prune.surql"))
                 .await
                 .and_then(|mut response| {
                     match crate::primary_transaction_error(response.take_errors()) {

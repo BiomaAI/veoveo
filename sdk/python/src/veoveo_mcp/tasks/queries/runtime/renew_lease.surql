@@ -1,0 +1,1 @@
+UPDATE ONLY $task SET lease_expires_at = $lease_expires WHERE lease_owner = $worker AND lease_expires_at > $now AND status IN ['running', 'waiting', 'cancel_requested'] RETURN AFTER;

@@ -1,0 +1,1 @@
+DEFINE TABLE platform_schema_migration SCHEMALESS;

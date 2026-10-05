@@ -10,38 +10,7 @@ use veoveo_platform_store::PlatformStore;
 mod fixture;
 
 const OPERATIONS: usize = 64;
-const SCHEMA: &str = r#"
-DEFINE TABLE measurement_state SCHEMAFULL CHANGEFEED 30d INCLUDE ORIGINAL;
-DEFINE FIELD revision ON measurement_state TYPE int;
-DEFINE SEQUENCE measurement_sequence BATCH 1 START 1;
-DEFINE TABLE measurement_event SCHEMAFULL CHANGEFEED 30d INCLUDE ORIGINAL;
-DEFINE FIELD sequence ON measurement_event TYPE int DEFAULT sequence::nextval('measurement_sequence') READONLY;
-DEFINE FIELD tenant ON measurement_event TYPE option<record<tenant>>;
-DEFINE FIELD aggregate_type ON measurement_event TYPE string;
-DEFINE FIELD aggregate_id ON measurement_event TYPE string;
-DEFINE FIELD event_type ON measurement_event TYPE string;
-DEFINE FIELD schema_version ON measurement_event TYPE int ASSERT $value > 0;
-DEFINE FIELD payload ON measurement_event TYPE object FLEXIBLE;
-DEFINE FIELD occurred_at ON measurement_event TYPE datetime DEFAULT time::now();
-DEFINE FIELD available_at ON measurement_event TYPE datetime DEFAULT time::now();
-DEFINE INDEX measurement_event_sequence ON measurement_event FIELDS sequence UNIQUE;
-DEFINE INDEX measurement_event_available ON measurement_event FIELDS available_at, sequence;
-DEFINE INDEX measurement_event_aggregate ON measurement_event FIELDS aggregate_type, aggregate_id, sequence;
-DEFINE INDEX measurement_event_tenant ON measurement_event FIELDS tenant, sequence;
-"#;
-
-const DOMAIN_WRITE: &str = "UPDATE ONLY $state SET revision += 1 RETURN NONE;";
-const EVENT_WRITE: &str = r#"
-CREATE ONLY $event SET aggregate_type = 'measurement_state', aggregate_id = $aggregate,
-    event_type = 'measurement.updated', schema_version = 1,
-    payload = { revision: $revision } RETURN NONE;
-"#;
-const INDEPENDENT_EVENT_WRITE: &str = r#"
-CREATE ONLY $event SET sequence = $sequence,
-    aggregate_type = 'measurement_state', aggregate_id = $aggregate,
-    event_type = 'measurement.updated', schema_version = 1,
-    payload = { revision: $revision } RETURN NONE;
-"#;
+const SCHEMA: &str = include_str!("queries/write_cost/statement.surql");
 
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -52,13 +21,12 @@ enum Profile {
 }
 
 impl Profile {
-    fn query(self) -> String {
-        let event = match self {
-            Self::SharedSequence => EVENT_WRITE,
-            Self::IndependentEvent => INDEPENDENT_EVENT_WRITE,
-            Self::ChangefeedOnly => "",
-        };
-        format!("BEGIN TRANSACTION; {DOMAIN_WRITE} {event} COMMIT TRANSACTION;")
+    fn query(self) -> &'static str {
+        match self {
+            Self::SharedSequence => include_str!("queries/write_cost/shared_sequence.surql"),
+            Self::IndependentEvent => include_str!("queries/write_cost/independent_event.surql"),
+            Self::ChangefeedOnly => include_str!("queries/write_cost/changefeed_only.surql"),
+        }
     }
 }
 
@@ -123,7 +91,7 @@ async fn writer(
             let attempt_start = Instant::now();
             let result = store
                 .client()
-                .query(query.clone())
+                .query(query)
                 .bind(("state", state.clone()))
                 .bind(("event", event.clone()))
                 .bind(("aggregate", aggregate.clone()))
@@ -162,7 +130,7 @@ async fn measure(
     let db = fixture::TestDb::with_backend_and_schema(fixture::StoreBackend::RocksDb, SCHEMA).await;
     for writer in 0..writers {
         db.a.client()
-            .query("CREATE ONLY $state SET revision = 0 RETURN NONE;")
+            .query(include_str!("queries/write_cost/measure.surql"))
             .bind((
                 "state",
                 RecordId::new("measurement_state", writer.to_string()),
@@ -212,9 +180,13 @@ async fn measure(
     } else {
         None
     };
-    let mut response = db.a.client()
-        .query("SELECT VALUE revision FROM measurement_state; SELECT count() AS total FROM measurement_event GROUP ALL;")
-        .await.unwrap().check().unwrap();
+    let mut response =
+        db.a.client()
+            .query(include_str!("queries/write_cost/measure_2.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
     let revisions: Vec<i64> = response.take(0).unwrap();
     assert_eq!(revisions.len(), writers);
     assert!(

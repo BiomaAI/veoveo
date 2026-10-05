@@ -13,9 +13,12 @@ use chrono::{DateTime, NaiveDate, Utc};
 use veoveo_mcp_contract::{PutArtifactRequest, TokenIssuer, TokenSubject};
 use veoveo_platform_store::{
     InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
-    RecordIdKey, RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft,
-    RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
-    RecordingLayerRecord, RecordingLayerState, RecordingState,
+    RecordIdKey,
+};
+use veoveo_recording_store::{
+    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft, RecordingDatasetId,
+    RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId, RecordingLayerRecord,
+    RecordingLayerState, RecordingState,
 };
 use veoveo_types::{DataLabelId, PrincipalId as ContractPrincipalId};
 
@@ -42,7 +45,7 @@ pub struct CatalogPolicy {
 
 #[derive(Clone)]
 pub struct PlatformCatalog {
-    store: PlatformStore,
+    recordings: veoveo_recording_store::RecordingRepository,
     identity: PlatformIdentity,
     authority: InvocationAuthorityRecord,
     spool_root: PathBuf,
@@ -98,7 +101,7 @@ impl PlatformCatalog {
             })?;
         let authority = context.automated_authority(membership);
         Ok(Self {
-            store,
+            recordings: veoveo_recording_store::RecordingRepository::new(store),
             identity,
             authority,
             spool_root,
@@ -123,7 +126,7 @@ impl PlatformCatalog {
             }
             let relative = relative_path(&self.spool_root, &path)?;
             let layer = if let Some(layer) = self
-                .store
+                .recordings
                 .recording_layer_by_staging_path(self.identity.tenant_id, &relative)
                 .await?
             {
@@ -149,12 +152,12 @@ impl PlatformCatalog {
         }
         for recording_id in recovered_recordings {
             let recording = self
-                .store
+                .recordings
                 .recording(self.identity.tenant_id, recording_id)
                 .await?
                 .context("reconciled segment has no recording catalog entry")?;
             if recording.state == RecordingState::Live {
-                self.store
+                self.recordings
                     .interrupt_recording(
                         &self.identity,
                         recording_id,
@@ -183,7 +186,7 @@ impl PlatformCatalog {
         }
         let recording_id = RecordingId::from_uuid(recording_uuid);
         let Some(recording) = self
-            .store
+            .recordings
             .recording(self.identity.tenant_id, recording_id)
             .await?
         else {
@@ -193,7 +196,7 @@ impl PlatformCatalog {
             return Ok(None);
         }
         let layer_name = format!("capture-{:020}", direct_capture_ordinal(path)?);
-        self.store
+        self.recordings
             .recording_layer_by_name(self.identity.tenant_id, recording_id, &layer_name)
             .await
             .map_err(Into::into)
@@ -201,7 +204,7 @@ impl PlatformCatalog {
 
     async fn register_opened(&self, segment: &OpenedSegment) -> Result<RecordingLayerRecord> {
         let dataset = self
-            .store
+            .recordings
             .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
                 self.identity.clone(),
                 segment.key.dataset.as_str(),
@@ -209,7 +212,7 @@ impl PlatformCatalog {
             .await?;
         let dataset_id = dataset_id(&dataset.id)?;
         let recording = self
-            .store
+            .recordings
             .create_recording(RecordingDraft {
                 identity: self.identity.clone(),
                 authority: self.authority.clone(),
@@ -235,7 +238,7 @@ impl PlatformCatalog {
         let relative_path = relative_path(&self.spool_root, &segment.path)?;
         let ordinal = direct_capture_ordinal(&segment.path)?;
         Ok(self
-            .store
+            .recordings
             .open_recording_layer(RecordingLayerDraft::capture(
                 self.identity.clone(),
                 recording_id,
@@ -248,7 +251,7 @@ impl PlatformCatalog {
 
     async fn register_frozen(&self, frozen: &FrozenSegment) -> Result<()> {
         let recording = self
-            .store
+            .recordings
             .recording_by_key(
                 self.identity.tenant_id,
                 &frozen.key.application_id,
@@ -259,7 +262,7 @@ impl PlatformCatalog {
         let recording_id = recording_id(&recording.id)?;
         let layer_name = format!("capture-{:020}", direct_capture_ordinal(&frozen.path)?);
         let layer = self
-            .store
+            .recordings
             .recording_layer_by_name(self.identity.tenant_id, recording_id, &layer_name)
             .await?
             .context("frozen capture has no recording layer entry")?;
@@ -287,7 +290,7 @@ impl PlatformCatalog {
         );
         let recording_id = recording_id(&layer.recording)?;
         let recording = self
-            .store
+            .recordings
             .recording(self.identity.tenant_id, recording_id)
             .await?
             .context("recording layer has no recording")?;
@@ -304,7 +307,7 @@ impl PlatformCatalog {
         .await
         .context("joining recording layer normalization")??;
         let staged = self
-            .store
+            .recordings
             .stage_recording_layer(
                 &self.identity,
                 layer_id,
@@ -340,7 +343,7 @@ impl PlatformCatalog {
             .await?;
         let artifact_id =
             veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id().as_uuid());
-        self.store
+        self.recordings
             .commit_recording_layer(&self.identity, layer_id, artifact_id)
             .await?;
         remove_if_exists(path.as_path())?;
@@ -384,11 +387,11 @@ impl SegmentCatalog for PlatformCatalog {
         let key = key.clone();
         self.runtime.block_on(async move {
             let recording = this
-                .store
+                .recordings
                 .recording_by_key(this.identity.tenant_id, &key.application_id, &key.recording)
                 .await?
                 .context("finished recording has no catalog entry")?;
-            this.store
+            this.recordings
                 .finish_recording(&this.identity, recording_id(&recording.id)?, ended_at)
                 .await?;
             Result::<()>::Ok(())
@@ -400,12 +403,12 @@ impl SegmentCatalog for PlatformCatalog {
         let key = key.clone();
         self.runtime.block_on(async move {
             let recording = this
-                .store
+                .recordings
                 .recording_by_key(this.identity.tenant_id, &key.application_id, &key.recording)
                 .await?
                 .context("producer Blueprint has no recording catalog entry")?;
             let current = this
-                .store
+                .recordings
                 .current_recording_blueprint(this.identity.tenant_id, recording_id(&recording.id)?)
                 .await?;
             current
@@ -424,7 +427,7 @@ impl SegmentCatalog for PlatformCatalog {
         let blueprint = blueprint.clone();
         self.runtime.block_on(async move {
             let recording = this
-                .store
+                .recordings
                 .recording_by_key(
                     this.identity.tenant_id,
                     &blueprint.key.application_id,
@@ -433,7 +436,7 @@ impl SegmentCatalog for PlatformCatalog {
                 .await?
                 .context("producer Blueprint has no recording catalog entry")?;
             let outcome = this
-                .store
+                .recordings
                 .commit_recording_blueprint(RecordingBlueprintCommit {
                     draft: RecordingBlueprintDraft {
                         identity: this.identity.clone(),

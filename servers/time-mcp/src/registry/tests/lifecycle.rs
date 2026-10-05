@@ -2,7 +2,9 @@ use super::*;
 
 async fn read_body(db: &PlatformStore, record: &RecordId) -> String {
     db.client()
-        .query("SELECT VALUE canonical_json FROM ONLY $record;")
+        .query(include_str!(
+            "../../tests/queries/read_canonical_json.surql"
+        ))
         .bind(("record", record.clone()))
         .await
         .unwrap()
@@ -16,7 +18,7 @@ async fn read_body(db: &PlatformStore, record: &RecordId) -> String {
 #[tokio::test]
 async fn stored_columns_supply_versions_with_current_body_validation() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.b.clone());
         let owner = scope(&db.a, "lifecycle-versions").await;

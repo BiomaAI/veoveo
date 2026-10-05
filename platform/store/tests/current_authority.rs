@@ -25,7 +25,7 @@ async fn active_revision_changes_are_visible_and_corrupt_pointers_fail_closed() 
             tenant: None,
             control_plane: OpenObject::default(),
         };
-        db.a.client().query("BEGIN TRANSACTION; CREATE ONLY $revision CONTENT $content; UPSERT gateway_control_active:current SET revision = $revision, revision_id = $name, updated_at = time::now(); COMMIT TRANSACTION;")
+        db.a.client().query(include_str!("queries/current_authority/active_revision_changes_are_visible_and_corrupt_pointers_fail_closed.surql"))
             .bind(("revision", revision.clone())).bind(("content", content)).bind(("name", name))
             .await.unwrap().check().unwrap();
         let current =
@@ -44,7 +44,7 @@ async fn active_revision_changes_are_visible_and_corrupt_pointers_fail_closed() 
             } else {
                 "revision-b"
             };
-            writer.client().query("UPDATE gateway_control_active:current SET revision = $revision, revision_id = $name, updated_at = time::now();")
+            writer.client().query(include_str!("queries/current_authority/active_revision_changes_are_visible_and_corrupt_pointers_fail_closed_2.surql"))
                 .bind(("revision", RecordId::new("gateway_control_revision", name))).bind(("name", name))
                 .await.unwrap().check().unwrap();
         }
@@ -66,7 +66,7 @@ async fn active_revision_changes_are_visible_and_corrupt_pointers_fail_closed() 
     }
     updates.await.unwrap();
     db.a.client()
-        .query("UPDATE gateway_control_active:current SET revision_id = 'wrong-name';")
+        .query(include_str!("queries/current_authority/active_revision_changes_are_visible_and_corrupt_pointers_fail_closed_3.surql"))
         .await
         .unwrap()
         .check()
@@ -75,7 +75,7 @@ async fn active_revision_changes_are_visible_and_corrupt_pointers_fail_closed() 
         db.b.active_gateway_control_revision().await,
         Err(StoreError::InvalidGatewayControlRevision)
     ));
-    db.a.client().query("UPDATE gateway_control_active:current SET revision = gateway_control_revision:missing;").await.unwrap().check().unwrap();
+    db.a.client().query(include_str!("queries/current_authority/active_revision_changes_are_visible_and_corrupt_pointers_fail_closed_4.surql")).await.unwrap().check().unwrap();
     assert!(matches!(
         db.b.active_gateway_control_revision().await,
         Err(StoreError::InvalidGatewayControlRevision)

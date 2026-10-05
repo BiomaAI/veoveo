@@ -159,7 +159,7 @@ metadata. Every layer is decoded and verified against the dataset and recording 
 before registration. Catalog revision is deterministic over durable dataset and recording
 revisions plus the ordered layer identities and digests.
 
-`RecordingService` and the shared analysis reader resolve visibility in Store SQL.
+`RecordingService` and the shared analysis reader resolve visibility in Recording repository SQL.
 The predicate requires the actor's tenant and every recording label in the actor's
 clearance. Ownership and Work Context do not further restrict this recording read
 profile. The Store applies the same predicate to direct reads, pages, and completions.
@@ -300,7 +300,7 @@ recording set and catalog revision. Reservation takes its catalog revision from 
 admitted grant and requires the receipt to expire no later than that grant. Transitions
 enforce the predecessor state; repeating a terminal transition requires the same result
 length and digest or the same failure reason. Conflicting concurrent transitions cannot
-both commit. Store retries a reported transaction conflict at most seven times and
+both commit. The Recording repository retries a reported transaction conflict at most seven times and
 resolves a concurrent unique-key insertion through admitted lookup. A transport error
 returns to the caller without redispatching the mutation.
 
@@ -396,14 +396,17 @@ vocabulary, serialization and schema libraries. Domain contracts, Store and runt
 services require their own features. The declaration claims `recording_*` and the explicit `recording` table.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The version-zero lane installs the current Recording schema from
+`platform/recordings/store/src/schema/migrations/0000_current.surql`. The composition root supplies
+its checked execution image and command. Gateway composition prepares runtime
+credentials and executes selected owner lanes through `module-migrate`. The
+runtime opens the shared authenticated Store connection without applying schema.
+Installed image and Job qualification is tracked separately in the active contract plan.
 
-Artifact references in dataset blueprints and layers are covered by the required earlier Artifacts lane. The declaration does not move catalog or ingest persistence from the current Store.
+Artifact references in dataset blueprints and layers are covered by the required
+earlier Artifacts lane. `veoveo-recording-store` owns Recording driver records,
+identities, catalog and ingest repositories, and their queries. The server binds
+that library to playback, MCP and HTTP behavior.
 
 ## Gateway HTTP Adapter
 
@@ -415,3 +418,9 @@ resource-specific credentials and scopes. Shared module admission tracks request
 workers and streaming bodies. Shutdown interrupts live transport and retains no
 claim that a durable publication or append failed. Hosted internal server paths are
 independent of these public gateway adapters.
+
+## Native Query Fixture Placement
+
+Store-backed native fixture statements live in `tests/queries/`, grouped by the
+calling harness. Colocated fixtures include those files with their existing bindings
+and result slots. Complete static statements cover finite SQL grammar choices.

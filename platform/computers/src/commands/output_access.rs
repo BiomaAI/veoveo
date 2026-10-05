@@ -162,7 +162,7 @@ impl ComputersStore {
         }
         let mut response = self
             .query(
-                "SELECT *, payload.sealed AS sealed FROM ONLY $execution;",
+                include_str!("../../queries/commands/output_access/read_output_command.surql"),
                 vec![(
                     "execution",
                     super::record(command.execution_id()).into_value(),

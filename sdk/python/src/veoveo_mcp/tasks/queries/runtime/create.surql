@@ -1,0 +1,1 @@
+CREATE ONLY $task CONTENT $content RETURN NONE;

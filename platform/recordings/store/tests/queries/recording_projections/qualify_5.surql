@@ -1,0 +1,1 @@
+REMOVE EVENT projection_failure ON recording_projection_receipt;

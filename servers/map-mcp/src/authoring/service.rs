@@ -1,16 +1,19 @@
+use crate::persistence::MapRepository;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
+use crate::persistence::{
+    MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureLayerUpdateDraft,
+    MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapLayerPublicationDraft,
+    MapStyleRevisionDraft, map_authoring_idempotency_key,
+};
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
-    InvocationMode as StoreInvocationMode, MapFeatureCommitDraft, MapFeatureLayerDraft,
-    MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
-    MapLayerPublicationDraft, MapStyleRevisionDraft, PlatformStore, WorkContextInitialGrantRecord,
-    map_authoring_idempotency_key,
+    InvocationMode as StoreInvocationMode, PlatformStore, WorkContextInitialGrantRecord,
 };
 use veoveo_types::{AccessLevel, WorkContextMembershipLevel};
 use veoveo_types::{AccessSubject, InvocationMode, InvocationProvenance};
@@ -85,12 +88,11 @@ impl AuthoringService {
         &self,
         identity: &GatewayInternalIdentity,
         scope: &MapAccessContext,
-        domain: veoveo_platform_store::MapAuthoringCompletion,
+        domain: crate::persistence::MapAuthoringCompletion,
         needle: &str,
     ) -> Result<Vec<String>> {
         require_access(identity, AccessLevel::Read)?;
-        Ok(self
-            .store
+        Ok(MapRepository::new(self.store.clone())
             .complete_map_authoring(&read_scope(identity, scope)?, domain, needle)
             .await?)
     }
@@ -148,7 +150,7 @@ impl AuthoringService {
             created_at: now,
             updated_at: now,
         };
-        self.store
+        MapRepository::new(self.store.clone())
             .create_map_feature_layer(MapFeatureLayerDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
@@ -187,8 +189,7 @@ impl AuthoringService {
             layer.description = Some(description);
         }
         let new_schema = if let Some(property_schema) = request.property_schema {
-            if self
-                .store
+            if MapRepository::new(self.store.clone())
                 .count_map_feature_heads(
                     &scope.identity.tenant_key,
                     identity.authority.work_context.as_str(),
@@ -234,7 +235,7 @@ impl AuthoringService {
         };
         layer.revision += 1;
         layer.updated_at = Utc::now();
-        self.store
+        MapRepository::new(self.store.clone())
             .update_map_feature_layer(
                 MapFeatureLayerUpdateDraft {
                     identity: scope.identity.clone(),
@@ -281,7 +282,7 @@ impl AuthoringService {
         layer.archived_at = Some(archived_at);
         layer.revision += 1;
         layer.updated_at = archived_at;
-        self.store
+        MapRepository::new(self.store.clone())
             .update_map_feature_layer(
                 MapFeatureLayerUpdateDraft {
                     identity: scope.identity.clone(),
@@ -421,8 +422,7 @@ impl AuthoringService {
             .zip(request.mutations.iter())
             .map(|(feature, mutation)| feature_revision_draft(feature, mutation, &changeset_id))
             .collect::<Result<Vec<_>>>()?;
-        let result = self
-            .store
+        let result = MapRepository::new(self.store.clone())
             .commit_map_feature_changes(MapFeatureCommitDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
@@ -552,7 +552,7 @@ impl AuthoringService {
             work_context: identity.authority.work_context.clone(),
             published_at: Utc::now(),
         };
-        self.store
+        MapRepository::new(self.store.clone())
             .create_map_layer_publication(MapLayerPublicationDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
@@ -579,7 +579,7 @@ impl AuthoringService {
         layer_id: &crate::contract::FeatureLayerId,
     ) -> Result<Option<FeatureLayer>> {
         require_access(identity, AccessLevel::Read)?;
-        self.store
+        MapRepository::new(self.store.clone())
             .map_feature_layer(&read_scope(identity, scope)?, layer_id.as_str())
             .await?
             .map(|record| decode(&record.canonical_json, "feature layer"))
@@ -597,7 +597,7 @@ impl AuthoringService {
         if self.layer(identity, scope, layer_id).await?.is_none() {
             return Ok(None);
         }
-        self.store
+        MapRepository::new(self.store.clone())
             .map_feature_head(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -620,7 +620,7 @@ impl AuthoringService {
         if self.layer(identity, scope, layer_id).await?.is_none() {
             return Ok(None);
         }
-        self.store
+        MapRepository::new(self.store.clone())
             .map_feature_schema_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -652,7 +652,7 @@ impl AuthoringService {
         if self.layer(identity, scope, layer_id).await?.is_none() {
             return Ok(None);
         }
-        self.store
+        MapRepository::new(self.store.clone())
             .map_style_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -679,8 +679,7 @@ impl AuthoringService {
         style_revision_id: &crate::contract::StyleRevisionId,
     ) -> Result<Option<MapStyleRevision>> {
         require_access(identity, AccessLevel::Read)?;
-        let Some(record) = self
-            .store
+        let Some(record) = MapRepository::new(self.store.clone())
             .map_style_revision_by_key(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -715,7 +714,7 @@ impl AuthoringService {
         if self.layer(identity, scope, layer_id).await?.is_none() {
             return Ok(None);
         }
-        self.store
+        MapRepository::new(self.store.clone())
             .map_feature_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -739,7 +738,7 @@ impl AuthoringService {
         if self.layer(identity, scope, layer_id).await?.is_none() {
             return Ok(None);
         }
-        self.store
+        MapRepository::new(self.store.clone())
             .map_feature_changeset(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -762,7 +761,7 @@ impl AuthoringService {
         if self.layer(identity, scope, layer_id).await?.is_none() {
             return Ok(None);
         }
-        self.store
+        MapRepository::new(self.store.clone())
             .map_layer_publication(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
@@ -1068,7 +1067,7 @@ fn style_draft(revision: &MapStyleRevision) -> Result<MapStyleRevisionDraft> {
 }
 
 fn changeset_from_record(
-    record: veoveo_platform_store::MapFeatureChangeSetRecord,
+    record: crate::persistence::MapFeatureChangeSetRecord,
 ) -> Result<FeatureChangeSet> {
     Ok(FeatureChangeSet {
         changeset_id: record.changeset_key.parse()?,
@@ -1159,8 +1158,8 @@ pub(super) fn require_access(
 pub(super) fn read_scope(
     identity: &GatewayInternalIdentity,
     scope: &MapAccessContext,
-) -> Result<veoveo_platform_store::MapAuthoringReadScope> {
-    Ok(veoveo_platform_store::MapAuthoringReadScope::new(
+) -> Result<crate::persistence::MapAuthoringReadScope> {
+    Ok(crate::persistence::MapAuthoringReadScope::new(
         &scope.identity.tenant_key,
         identity.authority.work_context.as_str(),
         identity

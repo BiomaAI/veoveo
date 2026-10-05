@@ -1,0 +1,1 @@
+DEFINE TABLE platform_downstream_migration SCHEMALESS;

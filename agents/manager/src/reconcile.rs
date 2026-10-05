@@ -2,7 +2,8 @@
 use anyhow::{Context, Result, ensure};
 use chrono::Utc;
 use std::sync::Arc;
-use veoveo_platform_store::{PlatformStore, agent_management::instances::*};
+use veoveo_agent_runtime::persistence::AgentRepository;
+use veoveo_agent_runtime::persistence::instances::*;
 
 use crate::{
     config::Config,
@@ -77,13 +78,13 @@ pub(crate) fn credential_recovery(
 
 #[derive(Clone)]
 pub struct Manager {
-    pub store: PlatformStore,
+    pub agents: AgentRepository,
     pub kube: Kubernetes,
     pub config: Arc<Config>,
 }
 
 fn retryable_reconciliation(error: &anyhow::Error) -> bool {
-    use veoveo_platform_store::agent_management::AgentManagementError;
+    use veoveo_agent_runtime::persistence::AgentManagementError;
     error.is::<CredentialDrainPending>()
         || kubernetes::retryable(error)
         || error
@@ -100,7 +101,7 @@ impl Manager {
     pub async fn process(&self, operation: ManagedAgentOperation) -> bool {
         let owner = uuid::Uuid::now_v7();
         let claim = match self
-            .store
+            .agents
             .claim_managed_agent_operation(operation.id, owner)
             .await
         {
@@ -126,7 +127,7 @@ impl Manager {
                     .map_or(UNEXPECTED_FAILURE, |message| message.0)
                     .to_owned();
                 if let Err(observation) = self
-                    .store
+                    .agents
                     .observe_managed_agent(&claim, ManagedAgentPhase::Failed, Some(message))
                     .await
                 {
@@ -136,7 +137,7 @@ impl Manager {
             }
         }
         retry |= self
-            .store
+            .agents
             .release_managed_agent_claim(&claim)
             .await
             .is_err();
@@ -148,7 +149,7 @@ impl Manager {
         // releases the claim for watch-driven retry and other instances.
         let mut verified_config: Option<Vec<ConfigItem>> = None;
         for _ in 0..8 {
-            let snapshot = self.store.managed_agent_reconciliation(claim).await?;
+            let snapshot = self.agents.managed_agent_reconciliation(claim).await?;
             let instance = &snapshot.instance;
             ensure!(
                 instance.resources.namespace == self.config.namespace,
@@ -191,7 +192,7 @@ impl Manager {
                     self.observe(claim, ManagedAgentPhase::Credentials).await?;
                 }
                 ManagedAgentPhase::Credentials => {
-                    credentials::ensure_credentials(&self.kube, &self.store, claim, instance)
+                    credentials::ensure_credentials(&self.kube, &self.agents, claim, instance)
                         .await?;
                     self.observe(claim, ManagedAgentPhase::Storage).await?;
                 }
@@ -204,7 +205,7 @@ impl Manager {
                         Some(pvc) => pvc,
                         None => {
                             ensure!(instance.active_generation == 0, MEMORY_MISSING);
-                            self.store.renew_managed_agent_claim(claim).await?;
+                            self.agents.renew_managed_agent_claim(claim).await?;
                             self.kube
                                 .create::<_, Pvc>(
                                     Resource::Claims,
@@ -255,7 +256,7 @@ impl Manager {
                         .await?
                     {
                         None => {
-                            self.store.renew_managed_agent_claim(claim).await?;
+                            self.agents.renew_managed_agent_claim(claim).await?;
                             self.kube
                                 .create::<_, Deployment>(Resource::Deployments, &desired)
                                 .await?;
@@ -277,7 +278,7 @@ impl Manager {
                                 desired.metadata.resource_version =
                                     existing.metadata.resource_version;
                                 desired.metadata.uid = existing.metadata.uid;
-                                self.store.renew_managed_agent_claim(claim).await?;
+                                self.agents.renew_managed_agent_claim(claim).await?;
                                 self.kube
                                     .replace::<_, Deployment>(
                                         Resource::Deployments,
@@ -315,7 +316,7 @@ impl Manager {
                         }
                         CredentialRecovery::Recover => {}
                     }
-                    credentials::ensure_credentials(&self.kube, &self.store, claim, instance)
+                    credentials::ensure_credentials(&self.kube, &self.agents, claim, instance)
                         .await?;
                     let pvc = self
                         .kube
@@ -332,7 +333,9 @@ impl Manager {
     }
 
     async fn observe(&self, claim: &ManagedAgentClaim, phase: ManagedAgentPhase) -> Result<()> {
-        self.store.observe_managed_agent(claim, phase, None).await?;
+        self.agents
+            .observe_managed_agent(claim, phase, None)
+            .await?;
         Ok(())
     }
 
@@ -352,7 +355,7 @@ impl Manager {
                 // Retired images may no longer pass current CREATE/UPDATE admission.
                 // Foreground deletion only removes this owned workload; its signing
                 // Secret and retained memory remain independent resources.
-                self.store.renew_managed_agent_claim(claim).await?;
+                self.agents.renew_managed_agent_claim(claim).await?;
                 self.kube
                     .delete(Resource::Deployments, &deployment.metadata)
                     .await?;
@@ -459,7 +462,7 @@ impl Manager {
                 owned_generation(&deployment.metadata, instance.generation)? == instance.generation,
                 "cleanup requires the current workload generation"
             );
-            self.store.renew_managed_agent_claim(claim).await?;
+            self.agents.renew_managed_agent_claim(claim).await?;
             self.kube
                 .delete(Resource::Deployments, &deployment.metadata)
                 .await?;
@@ -486,7 +489,7 @@ impl Manager {
                     .metadata
                     .annotations
                     .insert(GENERATION.into(), instance.generation.to_string());
-                self.store.renew_managed_agent_claim(claim).await?;
+                self.agents.renew_managed_agent_claim(claim).await?;
                 secret = self
                     .kube
                     .replace(
@@ -496,7 +499,7 @@ impl Manager {
                     )
                     .await?;
             }
-            self.store.renew_managed_agent_claim(claim).await?;
+            self.agents.renew_managed_agent_claim(claim).await?;
             self.kube
                 .delete(Resource::Secrets, &secret.metadata)
                 .await?;

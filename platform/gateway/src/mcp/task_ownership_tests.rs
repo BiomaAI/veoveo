@@ -312,7 +312,7 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
         .unwrap();
     // This is exactly the stored shape produced by pre-0081 gateway replicas.
     db.a.client()
-        .query("UPDATE gateway_task_route UNSET ownership;")
+        .query(include_str!("../queries/mcp/task_ownership_tests/version_zero_shared_task_recovers_without_rewriting_or_rebinding_external_routes/statement_1.surql"))
         .await
         .unwrap()
         .check()
@@ -345,7 +345,7 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
     }
     // A linked record from another server cannot supply ownership evidence.
     db.a.client()
-        .query("UPDATE ONLY $source SET server = mcp_server:other;")
+        .query(include_str!("../queries/mcp/task_ownership_tests/version_zero_shared_task_recovers_without_rewriting_or_rebinding_external_routes/statement_2.surql"))
         .bind(("source", task_record_id(task_id)))
         .await
         .unwrap()

@@ -1,0 +1,1 @@
+SELECT VALUE derivation_key FROM map_derivation WHERE tenant = $tenant AND work_context = $context AND kind = $kind AND string::contains(string::lowercase(derivation_key), $needle) ORDER BY derivation_key ASC LIMIT 101;

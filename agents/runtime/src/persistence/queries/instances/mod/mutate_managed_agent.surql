@@ -1,0 +1,1 @@
+RETURN $authority.tenant.slug;

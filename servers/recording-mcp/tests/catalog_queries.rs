@@ -9,15 +9,16 @@ use veoveo_mcp_contract::{
     GatewayInternalIdentity, GatewayProfileId, JwtId, Principal, PrincipalKind, ServerSlug,
     TokenIssuer, TokenSubject,
 };
-use veoveo_platform_store::{
-    RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerCounts,
-    RecordingLayerDraft, RecordingReadScope,
-};
 use veoveo_recording_mcp::{
     RecordingService,
     contract::{RecordingResource, RecordingScope},
 };
 use veoveo_recording_reader::access::record_uuid;
+use veoveo_recording_store::RecordingRepository;
+use veoveo_recording_store::{
+    RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerCounts,
+    RecordingLayerDraft, RecordingReadScope,
+};
 use veoveo_types::ResourceAddress;
 use veoveo_types::{
     AccessSubject, DataLabelId, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
@@ -88,7 +89,13 @@ fn identity(tenant: &str, name: &str, labels: &[&str]) -> GatewayInternalIdentit
 #[tokio::test]
 async fn sql_authorizes_before_paging_completion_and_exact_reads() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = fixture::TestDb::new().await;
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_recording_store::schema::module_setup(
+            fixture::module_lanes::execution("recordings").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     tokio::time::timeout(Duration::from_secs(90), async {
         let spool = tempfile::tempdir().unwrap();
         let service = RecordingService::new(
@@ -103,7 +110,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         let producer = service.platform_identity(&peer).await.unwrap();
         let other = service.platform_identity(&foreign).await.unwrap();
         let dataset =
-            db.a.ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+            RecordingRepository::new(db.a.clone()).ensure_recording_dataset(RecordingDatasetDraft::installation_default(
                 producer.clone(),
                 "native-catalog",
             ))
@@ -112,7 +119,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         let dataset_id =
             RecordingDatasetId::from_uuid(record_uuid(&dataset.id, "recording_dataset").unwrap());
         let other_dataset =
-            db.a.ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+            RecordingRepository::new(db.a.clone()).ensure_recording_dataset(RecordingDatasetDraft::installation_default(
                 other.clone(),
                 "native-catalog",
             ))
@@ -126,7 +133,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         // More than the former cap, with equal timestamps crossing page boundaries.
         for i in 0..502 {
             let row =
-                db.a.create_recording(RecordingDraft {
+                RecordingRepository::new(db.a.clone()).create_recording(RecordingDraft {
                     identity: producer.clone(),
                     authority: veoveo_recording_hub::invocation_authority_record(&peer.authority),
                     dataset_id,
@@ -157,7 +164,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         // an empty first page and incorrectly claim the collection is exhausted.
         for i in 0..110 {
             let row =
-                db.a.create_recording(RecordingDraft {
+                RecordingRepository::new(db.a.clone()).create_recording(RecordingDraft {
                     identity: producer.clone(),
                     authority: veoveo_recording_hub::invocation_authority_record(&peer.authority),
                     dataset_id,
@@ -175,7 +182,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             ));
         }
         let foreign_row =
-            db.a.create_recording(RecordingDraft {
+            RecordingRepository::new(db.a.clone()).create_recording(RecordingDraft {
                 identity: other.clone(),
                 authority: veoveo_recording_hub::invocation_authority_record(&foreign.authority),
                 dataset_id: other_dataset_id,
@@ -190,37 +197,32 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             .unwrap();
         let foreign_id = RecordingId::from_uuid(record_uuid(&foreign_row.id, "recording").unwrap());
         assert!(
-            service
-                .visible_recording(&reader, hidden.unwrap())
+            service.visible_recording(&reader, hidden.unwrap())
                 .await
                 .unwrap()
                 .is_none()
         );
         assert!(
-            service
-                .visible_recording(&reader, foreign_id)
+            service.visible_recording(&reader, foreign_id)
                 .await
                 .unwrap()
                 .is_none()
         );
         assert!(
-            service
-                .visible_recording(&reader, oldest)
+            service.visible_recording(&reader, oldest)
                 .await
                 .unwrap()
                 .is_some()
         );
         let uncleared = identity("recording-query", "reader", &[]);
         assert!(
-            service
-                .visible_recording(&uncleared, oldest)
+            service.visible_recording(&uncleared, oldest)
                 .await
                 .unwrap()
                 .is_none()
         );
         assert!(
-            service
-                .visible_recording(&uncleared, expected[1])
+            service.visible_recording(&uncleared, expected[1])
                 .await
                 .unwrap()
                 .is_some()
@@ -286,22 +288,19 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         assert_eq!(page_count, 6);
 
         assert_eq!(
-            service
-                .complete_recording_ids(&reader, "needle-OF-oldest")
+            service.complete_recording_ids(&reader, "needle-OF-oldest")
                 .await
                 .unwrap(),
             [oldest.to_string()]
         );
         assert_eq!(
-            service
-                .complete_recording_ids(&reader, &oldest.to_string().to_uppercase())
+            service.complete_recording_ids(&reader, &oldest.to_string().to_uppercase())
                 .await
                 .unwrap(),
             [oldest.to_string()]
         );
         assert_eq!(
-            service
-                .complete_recording_ids(&reader, "")
+            service.complete_recording_ids(&reader, "")
                 .await
                 .unwrap()
                 .len(),
@@ -309,22 +308,19 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         );
         for needle in ["hidden", "Foreign-Needle", "' OR true --"] {
             assert!(
-                service
-                    .complete_recording_ids(&reader, needle)
+                service.complete_recording_ids(&reader, needle)
                     .await
                     .unwrap()
                     .is_empty()
             );
         }
         assert!(
-            service
-                .complete_recording_ids(&reader, &"a".repeat(513))
+            service.complete_recording_ids(&reader, &"a".repeat(513))
                 .await
                 .is_err()
         );
         assert!(
-            service
-                .complete_recording_ids(&uncleared, "Needle-of-Oldest")
+            service.complete_recording_ids(&uncleared, "Needle-of-Oldest")
                 .await
                 .unwrap()
                 .is_empty()
@@ -348,9 +344,9 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             data_labels: vec!["operations".into()],
         };
         for limit in [0, 102] {
-            assert!(db.a.list_recordings(&scope, None, limit).await.is_err());
+            assert!(RecordingRepository::new(db.a.clone()).list_recordings(&scope, None, limit).await.is_err());
             assert!(
-                db.a.complete_recording_ids(&scope, "", limit)
+                RecordingRepository::new(db.a.clone()).complete_recording_ids(&scope, "", limit)
                     .await
                     .is_err()
             );
@@ -359,7 +355,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         grants::qualify(&service, &reader, dataset_id, oldest).await;
 
         let first =
-            db.a.open_recording_layer(
+            RecordingRepository::new(db.a.clone()).open_recording_layer(
                 RecordingLayerDraft::capture(
                     producer.clone(),
                     oldest,
@@ -371,7 +367,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             )
             .await
             .unwrap();
-        db.a.open_recording_layer(
+        RecordingRepository::new(db.a.clone()).open_recording_layer(
             RecordingLayerDraft::capture(
                 producer.clone(),
                 oldest,
@@ -385,14 +381,14 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         .unwrap();
         // Seed a committed layer state: count qualification never reads a layer payload.
         db.a.client()
-            .query("UPDATE ONLY $layer SET state = 'committed';")
+            .query(include_str!("queries/catalog_queries/sql_authorizes_before_paging_completion_and_exact_reads.surql"))
             .bind(("layer", first.id))
             .await
             .unwrap()
             .check()
             .unwrap();
         assert_eq!(
-            db.a.recording_layer_counts(producer.tenant_id, oldest)
+            RecordingRepository::new(db.a.clone()).recording_layer_counts(producer.tenant_id, oldest)
                 .await
                 .unwrap(),
             RecordingLayerCounts {
@@ -401,7 +397,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             }
         );
         assert_eq!(
-            db.a.recording_layer_counts(other.tenant_id, oldest)
+            RecordingRepository::new(db.a.clone()).recording_layer_counts(other.tenant_id, oldest)
                 .await
                 .unwrap(),
             RecordingLayerCounts::default()

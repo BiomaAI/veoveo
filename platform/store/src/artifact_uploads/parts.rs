@@ -40,9 +40,17 @@ impl PlatformStore {
                 ArtifactUploadRejection::Conflict,
             ));
         }
-        let mut response = self.db.query("SELECT * FROM artifact_upload_part WHERE upload = $upload AND part_number > $after AND (!$accepted_only OR state = 'accepted') ORDER BY part_number ASC LIMIT $limit;")
-            .bind(("upload", upload_record_id(upload_id))).bind(("after", i64::from(after)))
-            .bind(("limit", i64::from(limit))).bind(("accepted_only", accepted_only)).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "../queries/artifact_uploads/parts/artifact_upload_parts.surql"
+            ))
+            .bind(("upload", upload_record_id(upload_id)))
+            .bind(("after", i64::from(after)))
+            .bind(("limit", i64::from(limit)))
+            .bind(("accepted_only", accepted_only))
+            .await?
+            .check()?;
         response.take(0).map_err(Into::into)
     }
 
@@ -75,7 +83,7 @@ impl PlatformStore {
             let lease_until = now + TimeDelta::seconds(i64::from(request.lease_seconds));
             let mut response = self
                 .db
-                .query(include_str!("claim_part.surql"))
+                .query(include_str!("../queries/artifact_uploads/claim_part.surql"))
                 .bind(("part", id.clone()))
                 .bind(("upload", upload.clone()))
                 .bind(("part_number", i64::from(request.part_number)))
@@ -142,7 +150,9 @@ impl PlatformStore {
         for attempt in 0..8_u32 {
             let mut response = self
                 .db
-                .query(include_str!("finish_part.surql"))
+                .query(include_str!(
+                    "../queries/artifact_uploads/finish_part.surql"
+                ))
                 .bind((
                     "part",
                     upload_part_record_id(fence.upload_id, fence.part_number),
@@ -172,7 +182,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactUploadPartRecord>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $part;")
+            .query(include_str!(
+                "../queries/artifact_uploads/parts/upload_part.surql"
+            ))
             .bind(("part", id))
             .await?
             .check()?;
@@ -185,8 +197,15 @@ impl PlatformStore {
         now: DateTime<Utc>,
         limit: u32,
     ) -> Result<Vec<ArtifactUploadPartRecord>, StoreError> {
-        let mut response = self.db.query("SELECT * FROM artifact_upload_part WHERE lease_owner != NONE AND lease_until <= $now LIMIT $limit;")
-            .bind(("now", now)).bind(("limit", i64::from(limit.min(256)))).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "../queries/artifact_uploads/parts/expired_upload_part_leases.surql"
+            ))
+            .bind(("now", now))
+            .bind(("limit", i64::from(limit.min(256))))
+            .await?
+            .check()?;
         response.take(0).map_err(Into::into)
     }
 }

@@ -5,10 +5,10 @@ use std::{
     path::Path,
 };
 use veoveo_agent_runtime::contract::authoring as wire;
-use veoveo_mcp_contract::GatewayControlPlane;
-use veoveo_platform_store::agent_management::{
+use veoveo_agent_runtime::persistence::{
     AgentExecution, AgentTemplateParameter, instances::ManagedAgentReconciliation,
 };
+use veoveo_mcp_contract::GatewayControlPlane;
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

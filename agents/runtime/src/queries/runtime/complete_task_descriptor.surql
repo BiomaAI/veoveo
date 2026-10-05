@@ -1,0 +1,1 @@
+UPDATE ONLY agent_task SET descriptor = $descriptor, descriptor_complete = true, updated_at = $now, revision += 1 WHERE agent = $agent AND task_id = $task_id AND state IN ['pending', 'watching'] RETURN AFTER;

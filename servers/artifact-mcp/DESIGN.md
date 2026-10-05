@@ -221,3 +221,10 @@ while liveness stays 200; recovering a dependency requires no MCP process restar
 ## Cursor Admission
 
 ArtifactIndexCursor retains its Copy identity representation and literal artifact-index-v1_ prefix through an ordinary owner codec. It computes wire text at the existing conversion boundary instead of storing an allocated cache.
+
+## Persistence Query Placement
+
+Subscription deadlines include a complete statement from
+`queries/bin/server/subscriptions/deadlines.surql`. Its fixed Artifact admission
+predicate executes before the deadline aggregate; runtime scope and member values
+use driver bindings. Native fixture statements live in `tests/queries/`.

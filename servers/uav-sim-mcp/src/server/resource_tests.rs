@@ -56,7 +56,10 @@ fn resource_scope_matrix_preserves_read_control_admin_and_stream_requirements() 
 #[tokio::test]
 async fn reads_and_subscription_admission_reject_bad_routes_scopes_and_parents() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = test_support::fixture::TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(60), async {
         let mut simulation = fake_state().unwrap();
         simulation.session_id = SessionId::parse("native-session").unwrap();

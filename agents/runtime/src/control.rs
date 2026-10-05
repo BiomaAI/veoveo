@@ -12,14 +12,17 @@ use crate::contract::control::{
     AgentConversationEntry, AgentConversationEntryState, AgentConversationRole,
     AgentConversationView,
 };
+use crate::persistence::{
+    AgentEpisodeRecord, AgentEpisodeState, AgentInputRequestId, AgentInputRequestRecord,
+    AgentInputRequestState, AgentRecord, AgentState, AgentTaskRecord, WakeId, WakeKind, WakeRecord,
+    WakeState,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::{
-    AgentEpisodeRecord, AgentEpisodeState, AgentInputRequestId, AgentInputRequestRecord,
-    AgentInputRequestState, AgentRecord, AgentState, AgentTaskRecord, OpenObject, PlatformStore,
-    StoreAuthLevel, WakeId, WakeKind, WakeRecord, WakeState, deterministic_tenant_id,
+    OpenObject, PlatformStore, StoreAuthLevel, deterministic_tenant_id,
     deterministic_work_context_id,
 };
 
@@ -142,7 +145,7 @@ impl AgentControl {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_input_request WHERE agent = $agent AND tenant = $tenant AND state = 'pending' ORDER BY requested_at ASC LIMIT 128;")
+            .query(include_str!("queries/control/pending_input_requests.surql"))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .await?
@@ -169,7 +172,7 @@ impl AgentControl {
         let mut wake_response = self
             .store
             .client()
-            .query("SELECT * FROM wake WHERE agent = $agent AND tenant = $tenant AND kind = 'operator_message' ORDER BY created_at DESC LIMIT 256;")
+            .query(include_str!("queries/control/conversation_wakes.surql"))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .await?
@@ -179,7 +182,7 @@ impl AgentControl {
         let mut episode_response = self
             .store
             .client()
-            .query("SELECT * FROM agent_episode WHERE agent = $agent AND tenant = $tenant ORDER BY started_at DESC LIMIT 256;")
+            .query(include_str!("queries/control/conversation_episodes.surql"))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .await?
@@ -189,7 +192,7 @@ impl AgentControl {
         let mut task_response = self
             .store
             .client()
-            .query("SELECT * FROM agent_task WHERE agent = $agent AND tenant = $tenant ORDER BY created_at DESC LIMIT 512;")
+            .query(include_str!("queries/control/conversation_tasks.surql"))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
             .await?
@@ -323,7 +326,7 @@ impl AgentControl {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE agent = $agent AND tenant = $tenant AND state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'agent input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/control/decide_input_request.surql"))
             .bind(("input_request", draft.input_request_id.record_id()))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
@@ -405,7 +408,7 @@ impl AgentControl {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent WHERE tenant = $tenant AND work_context = $work_context AND agent_key = $agent_key LIMIT 2;")
+            .query(include_str!("queries/control/resolve_target.surql"))
             .bind(("tenant", tenant))
             .bind(("work_context", work_context))
             .bind(("agent_key", target.agent_key.clone()))
@@ -430,7 +433,9 @@ impl AgentControl {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $input_request WHERE agent = $agent AND tenant = $tenant;")
+            .query(include_str!(
+                "queries/control/input_request_for_agent.surql"
+            ))
             .bind(("input_request", input_request_id.record_id()))
             .bind(("agent", agent.id.clone()))
             .bind(("tenant", agent.tenant.clone()))
@@ -451,7 +456,9 @@ impl AgentControl {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $wake CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/control/create_wake_idempotently.surql"
+            ))
             .bind(("wake", wake_id.record_id()))
             .bind(("content", content.clone()))
             .await
@@ -472,7 +479,7 @@ impl AgentControl {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $wake;")
+            .query(include_str!("queries/control/wake.surql"))
             .bind(("wake", wake_id.record_id()))
             .await?
             .check()?;

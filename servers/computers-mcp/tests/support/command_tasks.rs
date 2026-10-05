@@ -9,7 +9,7 @@ use veoveo_task_runtime::TaskRuntime;
 
 #[tokio::test]
 async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_authority() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -175,7 +175,7 @@ async fn command_task_reads_and_cancellation_preserve_actual_actor_and_owner_aut
 
 #[tokio::test]
 async fn completed_command_has_one_canonical_governed_result_resource() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))

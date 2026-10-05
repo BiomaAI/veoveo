@@ -18,7 +18,6 @@ use veoveo_mcp_contract::{
     GatewayInternalTrustBundle,
     hosting::{Hosted, HostedServer, ResourcesOnly},
 };
-use veoveo_platform_store::{RecordingId, RecordingProjectionReceiptId};
 use veoveo_recording_mcp::{
     blueprint_playback::recording_scoped_blueprint,
     contract::CreateRecordingCatalogGrantRequest,
@@ -28,6 +27,7 @@ use veoveo_recording_mcp::{
     playback::{RECORDING_GRANT_HEADER, playback_application_id, playback_store_id},
     service::PlaybackArchiveSelection,
 };
+use veoveo_recording_store::{RecordingId, RecordingProjectionReceiptId};
 
 /// Builds the hosted Recording server at the internal root. The gateway
 /// reaches `/mcp` and the playback routes there, and Rerun clients reach the
@@ -199,7 +199,7 @@ async fn playback_manifest(
         .issue_read_grant(
             &identity,
             plan.dataset_id,
-            veoveo_platform_store::RecordingReadGrantClass::ViewerSegment,
+            veoveo_recording_store::RecordingReadGrantClass::ViewerSegment,
             vec![plan.recording_id],
             plan.catalog_revision.clone(),
             requested_grant,
@@ -243,7 +243,7 @@ async fn catalog_grant(
         .map(|id| RecordingId::from_uuid(id.as_uuid()))
         .collect::<Vec<_>>();
     let dataset_id =
-        veoveo_platform_store::RecordingDatasetId::from_uuid(request.dataset_id().as_uuid());
+        veoveo_recording_store::RecordingDatasetId::from_uuid(request.dataset_id().as_uuid());
     let artifact_caller = match artifact_caller(identity.clone(), &headers) {
         Ok(caller) => caller,
         Err(error) => {
@@ -276,7 +276,7 @@ async fn catalog_grant(
         .issue_read_grant(
             &identity,
             dataset_id,
-            veoveo_platform_store::RecordingReadGrantClass::CatalogDataset,
+            veoveo_recording_store::RecordingReadGrantClass::CatalogDataset,
             recording_ids,
             catalog_revision,
             requested_grant,

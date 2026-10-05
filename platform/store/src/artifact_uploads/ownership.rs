@@ -25,7 +25,7 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactUploadRecord>, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("owned.surql"))
+            .query(include_str!("../queries/artifact_uploads/owned.surql"))
             .bind(("upload", upload_record_id(id.as_uuid())))
             .bind(("tenant_key", owner.tenant.to_string()))
             .bind((

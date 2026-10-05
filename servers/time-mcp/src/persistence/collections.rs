@@ -16,7 +16,7 @@ impl TimePersistence {
     ) -> Result<Vec<TimeAuthorityReleaseRecord>, PersistenceError> {
         let mut result = self
             .client()
-            .query(include_str!("release_page.surql"))
+            .query(include_str!("queries/release_page.surql"))
             .bind(("tenant", tenant.record_id()))
             .bind(("after", after.map(|cursor| cursor.release_id().to_string())))
             .await?
@@ -34,12 +34,21 @@ impl TimePersistence {
             validate_key("calendar_key", after.calendar_id(), "calendar-")?;
             validate_positive("calendar_version", after.version().get() as i64)?;
         }
-        let mut response = self.client().query(
-            "SELECT * FROM time_calendar_version WHERE tenant = $tenant AND ($after_key = NONE OR calendar_key > $after_key OR (calendar_key = $after_key AND calendar_version < $after_version)) ORDER BY calendar_key ASC, calendar_version DESC LIMIT $limit;"
-        ).bind(("tenant", tenant_id.record_id()))
-            .bind(("after_key", after.map(|after| after.calendar_id().to_string())))
-            .bind(("after_version", after.map(|after| after.version().get() as i64)))
-            .bind(("limit", limit)).await?.check()?;
+        let mut response = self
+            .client()
+            .query(include_str!("queries/calendar_page.surql"))
+            .bind(("tenant", tenant_id.record_id()))
+            .bind((
+                "after_key",
+                after.map(|after| after.calendar_id().to_string()),
+            ))
+            .bind((
+                "after_version",
+                after.map(|after| after.version().get() as i64),
+            ))
+            .bind(("limit", limit))
+            .await?
+            .check()?;
         Ok(response.take(0)?)
     }
 
@@ -54,12 +63,18 @@ impl TimePersistence {
             validate_key("epoch_key", after.epoch_id(), "epoch-")?;
             validate_positive("epoch_version", after.version().get() as i64)?;
         }
-        let mut response = self.client().query(
-            "SELECT * FROM time_mission_epoch WHERE tenant = $tenant AND ($after_key = NONE OR epoch_key > $after_key OR (epoch_key = $after_key AND epoch_version < $after_version)) ORDER BY epoch_key ASC, epoch_version DESC LIMIT $limit;"
-        ).bind(("tenant", tenant_id.record_id()))
+        let mut response = self
+            .client()
+            .query(include_str!("queries/epoch_page.surql"))
+            .bind(("tenant", tenant_id.record_id()))
             .bind(("after_key", after.map(|after| after.epoch_id().to_string())))
-            .bind(("after_version", after.map(|after| after.version().get() as i64)))
-            .bind(("limit", limit)).await?.check()?;
+            .bind((
+                "after_version",
+                after.map(|after| after.version().get() as i64),
+            ))
+            .bind(("limit", limit))
+            .await?
+            .check()?;
         Ok(response.take(0)?)
     }
 
@@ -74,15 +89,21 @@ impl TimePersistence {
         if let Some(after) = after {
             validate_key("event_key", after.event_id(), "event-")?;
         }
-        let mut response = self.client().query(
-            "SELECT * FROM time_temporal_event WHERE tenant = $tenant AND owner = $owner AND ($state = NONE OR state = $state) AND ($after_key = NONE OR due_tai_seconds_since_1970 > $after_seconds OR (due_tai_seconds_since_1970 = $after_seconds AND due_nanosecond > $after_nanosecond) OR (due_tai_seconds_since_1970 = $after_seconds AND due_nanosecond = $after_nanosecond AND event_key > $after_key)) ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC, event_key ASC LIMIT $limit;"
-        ).bind(("tenant", identity.tenant_id.record_id()))
+        let mut response = self
+            .client()
+            .query(include_str!("queries/event_page.surql"))
+            .bind(("tenant", identity.tenant_id.record_id()))
             .bind(("owner", identity.principal_id.record_id()))
             .bind(("state", state))
             .bind(("after_key", after.map(|after| after.event_id().to_string())))
             .bind(("after_seconds", after.map(|after| after.tai_seconds())))
-            .bind(("after_nanosecond", after.map(|after| i64::from(after.nanosecond().get()))))
-            .bind(("limit", limit)).await?.check()?;
+            .bind((
+                "after_nanosecond",
+                after.map(|after| i64::from(after.nanosecond().get())),
+            ))
+            .bind(("limit", limit))
+            .await?
+            .check()?;
         Ok(response.take(0)?)
     }
 
@@ -101,10 +122,16 @@ impl TimePersistence {
         if keys.is_empty() {
             return Ok(Vec::new());
         }
-        let mut response = self.client().query(
-            "RETURN $keys.map(|$key| { (SELECT * FROM time_mission_epoch WHERE tenant = $tenant AND epoch_key = $key ORDER BY epoch_version DESC LIMIT 1)[0] }).filter(|$row| $row != NONE);"
-        ).bind(("tenant", tenant_id.record_id()))
-            .bind(("keys", keys.iter().map(ToString::to_string).collect::<Vec<_>>())).await?.check()?;
+        let mut response = self
+            .client()
+            .query(include_str!("queries/latest_epochs.surql"))
+            .bind(("tenant", tenant_id.record_id()))
+            .bind((
+                "keys",
+                keys.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ))
+            .await?
+            .check()?;
         Ok(response.take(0)?)
     }
 }

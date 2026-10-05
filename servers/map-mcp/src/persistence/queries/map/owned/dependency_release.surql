@@ -1,0 +1,1 @@
+SELECT * FROM map_route WHERE tenant = $tenant AND status != 'invalidated' AND (encoding::json::decode(canonical_json).provenance.base_release_ids ?? []) CONTAINS $dependency AND ($after = NONE OR route_key > $after) ORDER BY route_key ASC LIMIT $limit;

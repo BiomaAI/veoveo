@@ -9,11 +9,13 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PutArtifactRequest};
 use veoveo_platform_store::{
     ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind,
+};
+use veoveo_recording_hub::GatewayLayerPublisher;
+use veoveo_recording_store::{
     RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
     RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
     RecordingRecord, RecordingSeal, RecordingState,
 };
-use veoveo_recording_hub::GatewayLayerPublisher;
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName, Sha256Digest};
 
@@ -106,6 +108,7 @@ pub struct PlaybackBlueprintPlan {
 #[derive(Clone)]
 pub struct RecordingService {
     pub(super) store: PlatformStore,
+    pub(super) recordings: veoveo_recording_store::RecordingRepository,
     artifacts: HttpArtifactPlane,
     pub(super) spool_root: PathBuf,
     layer_cache: Option<LayerCache>,
@@ -116,6 +119,10 @@ pub struct RecordingService {
 }
 
 impl RecordingService {
+    pub fn recording_repository(&self) -> &veoveo_recording_store::RecordingRepository {
+        &self.recordings
+    }
+
     pub fn new(
         store: PlatformStore,
         artifacts: HttpArtifactPlane,
@@ -129,6 +136,7 @@ impl RecordingService {
             .canonicalize()
             .with_context(|| format!("canonicalizing spool root {}", spool_root.display()))?;
         Ok(Self {
+            recordings: veoveo_recording_store::RecordingRepository::new(store.clone()),
             store,
             artifacts,
             spool_root,
@@ -235,7 +243,7 @@ impl RecordingService {
             return Ok(None);
         };
         let layers = self
-            .store
+            .recordings
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         Ok(Some(
@@ -273,12 +281,12 @@ impl RecordingService {
         let dataset_id =
             RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
         let dataset = self
-            .store
+            .recordings
             .recording_dataset(platform_identity.tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
         let catalog_layers = self
-            .store
+            .recordings
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
@@ -373,7 +381,7 @@ impl RecordingService {
             })
             .transpose()?;
         let blueprint = self
-            .store
+            .recordings
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
             .await?;
         let blueprint = match blueprint {
@@ -522,7 +530,7 @@ impl RecordingService {
                 "recording_dataset",
             )?);
             let dataset = self
-                .store
+                .recordings
                 .recording_dataset(platform_identity.tenant_id, dataset_id)
                 .await?
                 .context("sealed recording dataset is missing")?;
@@ -539,7 +547,7 @@ impl RecordingService {
             recording_state(recording.state)
         );
         let mut layers = self
-            .store
+            .recordings
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         ensure!(!layers.is_empty(), "recording has no layers");
@@ -553,19 +561,19 @@ impl RecordingService {
             manifest_layer(layer)?;
         }
         if recording.state != RecordingState::Sealing {
-            self.store
+            self.recordings
                 .begin_recording_seal(&platform_identity, recording_id, None)
                 .await?;
         }
         let dataset_id =
             RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
         let mut dataset = self
-            .store
+            .recordings
             .recording_dataset(platform_identity.tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
         let current = self
-            .store
+            .recordings
             .recording(platform_identity.tenant_id, recording_id)
             .await?
             .context("recording disappeared while sealing")?;
@@ -582,11 +590,11 @@ impl RecordingService {
         self.ensure_blueprint_artifact(&platform_identity, &current, dataset_id, recording_id)
             .await?;
         layers = self
-            .store
+            .recordings
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         dataset = self
-            .store
+            .recordings
             .recording_dataset(platform_identity.tenant_id, dataset_id)
             .await?
             .context("recording dataset disappeared while sealing")?;
@@ -595,13 +603,13 @@ impl RecordingService {
             .map(manifest_layer)
             .collect::<Result<Vec<_>>>()?;
         let manifest_blueprint = self
-            .store
+            .recordings
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
             .await?
             .map(manifest_blueprint)
             .transpose()?;
         let current = self
-            .store
+            .recordings
             .recording(platform_identity.tenant_id, recording_id)
             .await?
             .context("recording disappeared while sealing")?;
@@ -622,7 +630,7 @@ impl RecordingService {
                 .publish_manifest(&recording, dataset_id, recording_id, &manifest)
                 .await?;
             let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id().as_uuid());
-            self.store
+            self.recordings
                 .stage_recording_manifest(&platform_identity, recording_id, artifact_id)
                 .await?;
             artifact_id
@@ -637,7 +645,7 @@ impl RecordingService {
             blueprint_artifact_uri: manifest_blueprint.map(|blueprint| blueprint.artifact_uri),
         }
         .build()?;
-        self.store
+        self.recordings
             .complete_recording_seal(RecordingSeal {
                 identity: platform_identity.clone(),
                 recording_id,
@@ -675,7 +683,7 @@ impl RecordingService {
                 .context("recording properties layer has no parent")?,
         )?;
         let mut layer = self
-            .store
+            .recordings
             .open_recording_layer(RecordingLayerDraft {
                 identity: identity.clone(),
                 recording_id,
@@ -721,7 +729,7 @@ impl RecordingService {
                 build_properties_layer(&path, &properties)?
             };
             layer = self
-                .store
+                .recordings
                 .stage_recording_layer(
                     identity,
                     RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?),
@@ -774,7 +782,7 @@ impl RecordingService {
                 && metadata.byte_len == byte_len,
             "published properties occurrence does not match its reserved layer"
         );
-        self.store
+        self.recordings
             .commit_recording_layer(
                 identity,
                 layer_id,
@@ -803,7 +811,7 @@ impl RecordingService {
         recording_id: RecordingId,
     ) -> Result<()> {
         let Some(blueprint) = self
-            .store
+            .recordings
             .current_recording_blueprint(identity.tenant_id, recording_id)
             .await?
         else {
@@ -871,7 +879,7 @@ impl RecordingService {
                 && metadata.byte_len == byte_len,
             "published Blueprint occurrence does not match its reserved identity"
         );
-        self.store
+        self.recordings
             .stage_recording_blueprint_artifact(
                 identity,
                 recording_id,
@@ -965,7 +973,7 @@ impl RecordingService {
             .as_ref()
             .context("sealed recording has no manifest artifact")?;
         let layers = self
-            .store
+            .recordings
             .recording_layers(identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         let layer_artifact_uris = layers
@@ -973,7 +981,7 @@ impl RecordingService {
             .map(|layer| manifest_layer(layer).map(|layer| layer.artifact_uri.clone()))
             .collect::<Result<Vec<_>>>()?;
         let blueprint_artifact_uri = self
-            .store
+            .recordings
             .current_recording_blueprint(identity.tenant_id, recording_id)
             .await?
             .map(|blueprint| {

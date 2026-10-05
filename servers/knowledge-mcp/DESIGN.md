@@ -545,3 +545,9 @@ Installed acceptance also requires the following cases:
 ## Value Admission
 
 Search requests and source pages use `Checked` over unchanged Wire fields. Their owner checks retain request bounds, concrete unique members and the existing continuation policy; collection relationships remain in the knowledge owner.
+
+## Native Query Fixture Placement
+
+Store-backed native fixture statements live in `tests/queries/`, grouped by the
+calling harness. Colocated fixtures include those files with their existing bindings
+and result slots. Complete static statements cover finite SQL grammar choices.

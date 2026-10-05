@@ -5,6 +5,7 @@ use surrealdb::{
     method::Query,
     types::{Array, Object, SurrealValue, Uuid as SurrealUuid, Value},
 };
+pub use veoveo_audit_contract::AuditTargetRegistry;
 use veoveo_audit_contract::*;
 mod codec;
 mod delivery;
@@ -12,8 +13,8 @@ mod indexing;
 mod maintenance;
 pub use codec::AuditContextRecord;
 use codec::{Document, Row, scalar};
-const APPEND: &str = include_str!("append.surql");
-const LIST: &str = include_str!("list.surql");
+const APPEND: &str = include_str!("../queries/audit/append.surql");
+const LIST: &str = include_str!("../queries/audit/list.surql");
 
 pub fn record_id(partition: &AuditPartition, id: AuditRecordId) -> RecordId {
     RecordId::new(
@@ -30,10 +31,16 @@ fn target_reference(target: &AuditTarget) -> Result<Option<RecordId>, StoreError
             "artifact_occurrence",
             SurrealUuid::from(artifact.as_uuid()),
         )),
-        AuditTarget::Computer { computer } => Some(RecordId::new(
-            "computer",
-            SurrealUuid::from(computer.as_uuid()),
-        )),
+        AuditTarget::Extension(target) => {
+            target
+                .lookup_reference()
+                .map(|reference| match reference.key() {
+                    AuditLookupKey::Uuid(id) => {
+                        RecordId::new(reference.table(), SurrealUuid::from(*id))
+                    }
+                    AuditLookupKey::Text(key) => RecordId::new(reference.table(), key.clone()),
+                })
+        }
         AuditTarget::Task { task } => {
             Some(RecordId::new("task", SurrealUuid::from(task.as_uuid())))
         }
@@ -49,7 +56,8 @@ fn target_reference(target: &AuditTarget) -> Result<Option<RecordId>, StoreError
         _ => None,
     })
 }
-fn encode(draft: AuditDraft) -> Result<Value, StoreError> {
+fn encode(registry: &AuditTargetRegistry, draft: AuditDraft) -> Result<Value, StoreError> {
+    registry.validate(draft.target())?;
     let mut row = Object::new();
     row.insert("id", record_id(draft.partition(), draft.id()).into_value());
     row.insert("partition", draft.partition().storage_key().into_value());
@@ -106,7 +114,7 @@ fn encode(draft: AuditDraft) -> Result<Value, StoreError> {
         )),
         _ => None,
     };
-    row.insert("draft", Document(draft).into_value());
+    row.insert("draft", Document::encode(draft).into_value());
     let mut write = Object::new();
     write.insert("record", Value::Object(row));
     write.insert(
@@ -123,17 +131,20 @@ pub struct AuditTransactionWrite {
     rows: Value,
 }
 impl AuditTransactionWrite {
-    pub fn new(draft: AuditDraft) -> Result<Self, StoreError> {
-        Self::batch(vec![draft])
+    pub fn new(registry: &AuditTargetRegistry, draft: AuditDraft) -> Result<Self, StoreError> {
+        Self::batch(registry, vec![draft])
     }
-    pub fn batch(drafts: Vec<AuditDraft>) -> Result<Self, StoreError> {
+    pub fn batch(
+        registry: &AuditTargetRegistry,
+        drafts: Vec<AuditDraft>,
+    ) -> Result<Self, StoreError> {
         if drafts.len() > 4096 {
             return Err(StoreError::AuditBatchLimit);
         }
         Ok(Self {
             rows: drafts
                 .into_iter()
-                .map(encode)
+                .map(|draft| encode(registry, draft))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_value(),
         })
@@ -165,20 +176,26 @@ impl PlatformStore {
         let rows = records
             .iter()
             .cloned()
-            .map(encode)
+            .map(|draft| encode(self.audit_targets(), draft))
             .collect::<Result<Vec<_>, _>>()?;
         let mut last = None;
         let indexing = indexing
             .iter()
-            .map(indexing::encode_read)
+            .map(|read| indexing::encode_read(self.audit_targets(), read))
             .collect::<Result<Vec<_>, _>>()?;
         for attempt in 0..4 {
             let result = self
                 .db
-                .query("BEGIN TRANSACTION;")
+                .query(include_str!(
+                    "../queries/audit/mod/append_audit_group.surql"
+                ))
                 .query(APPEND)
-                .query("fn::append_audit_indexing($indexing);")
-                .query("COMMIT TRANSACTION;")
+                .query(include_str!(
+                    "../queries/audit/mod/append_audit_group_indexing.surql"
+                ))
+                .query(include_str!(
+                    "../queries/audit/mod/append_audit_group_2.surql"
+                ))
                 .bind(("audit_rows", rows.clone()))
                 .bind(("indexing", indexing.clone()))
                 .await
@@ -210,6 +227,9 @@ impl PlatformStore {
         query: &AuditQuery,
     ) -> Result<AuditPage, StoreError> {
         query.validate()?;
+        if let Some(target) = &query.target {
+            self.audit_targets().validate(target)?;
+        }
         if !scope.permits(&query.partition) {
             return Err(StoreError::AuditAccessDenied);
         }
@@ -217,7 +237,7 @@ impl PlatformStore {
             .db
             .query(match query.order {
                 AuditOrder::OldestFirst => LIST,
-                AuditOrder::NewestFirst => include_str!("list_descending.surql"),
+                AuditOrder::NewestFirst => include_str!("../queries/audit/list_descending.surql"),
             })
             .bind(("partition", query.partition.storage_key()))
             .bind((
@@ -237,13 +257,14 @@ impl PlatformStore {
             .bind(("limit", u32::from(query.limit) + 1))
             .await?
             .check()?;
-        let mut rows: Vec<Row> = response.take(0)?;
+        let mut rows = response
+            .take::<Vec<Row>>(0)?
+            .into_iter()
+            .map(|row| row.checked(self.audit_targets()))
+            .collect::<Result<Vec<_>, _>>()?;
         let more = rows.len() > usize::from(query.limit);
         rows.truncate(usize::from(query.limit));
-        let records = rows
-            .into_iter()
-            .map(Row::checked)
-            .collect::<Result<Vec<_>, _>>()?;
+        let records = rows;
         let next = more
             .then(|| {
                 records.last().map(|row| AuditCursor {
@@ -266,7 +287,7 @@ impl PlatformStore {
         query.validate()?;
         let mut result = self
             .db
-            .query(include_str!("daily.surql"))
+            .query(include_str!("../queries/audit/daily.surql"))
             .bind(("partition", query.partition.storage_key()))
             .bind(("from", query.from))
             .bind(("until", query.until))

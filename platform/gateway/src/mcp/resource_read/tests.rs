@@ -521,7 +521,7 @@ async fn indexing_gate_binds_approval_enumeration_members_and_revocation() {
             .unwrap();
         let mut committed =
             db.b.client()
-                .query("SELECT VALUE reads FROM audit_indexing_window;")
+                .query(include_str!("../../queries/mcp/resource_read/tests/indexing_gate_binds_approval_enumeration_members_and_revocation/statement_1.surql"))
                 .await
                 .unwrap()
                 .check()

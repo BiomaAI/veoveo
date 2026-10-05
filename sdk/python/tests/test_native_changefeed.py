@@ -6,6 +6,7 @@ from datetime import timedelta
 import pytest
 from surrealdb import RecordID
 
+from query_files import test_query
 from veoveo_mcp.tasks import (
     InvalidRecord, StoreError, TaskRuntime, TaskStatus, TaskTransition, TaskUpdateCursor,
 )
@@ -29,9 +30,7 @@ async def test_page_limit_preserves_every_table_in_the_final_transaction(runtime
         a, b = [(await runtime.create(draft(server=runtime.server, owner=caller))).snapshot for _ in range(2)]
         start = await changefeed_head(runtime.store)
         await runtime.store.query(
-            "BEGIN TRANSACTION; UPDATE $a SET progress = 0.25; "
-            "UPDATE $principal SET updated_at = time::now(); "
-            "UPDATE $b SET progress = 0.5; COMMIT TRANSACTION;",
+            test_query("test_native_changefeed/test_page_limit_preserves_every_table_in_the_final_transaction.surql"),
             {"a": task_record(a.task_id), "b": task_record(b.task_id),
              "principal": caller.principal_record()},
         )
@@ -47,7 +46,7 @@ async def test_worker_resume_repeats_whole_final_commit_and_stale_cursor_reconci
         tasks = [(await runtime.create(draft(server=runtime.server))).snapshot for _ in range(2)]
         start = await changefeed_head(runtime.store)
         await runtime.store.query(
-            "BEGIN TRANSACTION; UPDATE $tasks SET progress = 0.25; COMMIT TRANSACTION;",
+            test_query("test_native_changefeed/test_worker_resume_repeats_whole_final_commit_and_stale_cursor_reconciles.surql"),
             {"tasks": [task_record(task.task_id) for task in tasks]},
         )
         history = await runtime.live_updates_after(start)
@@ -141,7 +140,7 @@ async def test_native_delete_keeps_typed_task_identity(runtime):
     async with asyncio.timeout(15):
         task = (await runtime.create(draft(server=runtime.server))).snapshot
         start = await changefeed_head(runtime.store)
-        await runtime.store.query("DELETE $task;", {"task": task_record(task.task_id)})
+        await runtime.store.query(test_query("test_native_changefeed/test_native_delete_keeps_typed_task_identity.surql"), {"task": task_record(task.task_id)})
         changes = [change for batch in await replay_changes(runtime.store, start) for change in batch.changes]
         deletion, = [change for change in changes if change.task_id() == task.task_id]
         assert deletion.current is None

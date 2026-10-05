@@ -2,10 +2,7 @@
 use super::*;
 use crate::server::{
     catalog_tests::{grant, mission_request},
-    test_support::{
-        fixture::{StoreBackend, TestDb},
-        identity,
-    },
+    test_support::{fixture::StoreBackend, identity},
 };
 use std::time::Duration as Timeout;
 
@@ -51,7 +48,7 @@ fn uses_vehicle_index(node: &serde_json::Value) -> bool {
 #[tokio::test]
 async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::with_backend(StoreBackend::RocksDb).await;
+    let db = crate::server::test_support::database(StoreBackend::RocksDb).await;
     tokio::time::timeout(Timeout::from_secs(120), async {
         let first = VehicleControlAuthority::new(db.a.clone());
         let second = VehicleControlAuthority::new(db.b.clone());
@@ -105,7 +102,7 @@ async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
                 let (tenant, context) = context_records(&pilot).unwrap();
                 let mut response =
                     db.b.client()
-                        .query(format!("{} EXPLAIN;", execution::EXECUTING_PLANS))
+                        .query(include_str!("queries/tests/executing_plans_explain.surql"))
                         .bind(("tenant", tenant))
                         .bind(("work_context", context))
                         .bind(("simulation_session", executing.session_id.to_string()))
@@ -180,7 +177,10 @@ async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
 #[tokio::test]
 async fn native_expiry_does_not_release_executing_vehicle_authority() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(60), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("expiry", "operations", "pilot", &[]);
@@ -201,7 +201,7 @@ async fn native_expiry_does_not_release_executing_vehicle_authority() {
             .unwrap();
         let lease_id = vehicle_lease_record_id(&pilot, &a.session_id, &a.vehicle_id);
         db.b.client()
-            .query("UPDATE ONLY $lease SET expires_at = time::now() - 1h;")
+            .query(include_str!("queries/tests/expire_lease.surql"))
             .bind(("lease", lease_id))
             .await
             .unwrap()
@@ -232,35 +232,102 @@ async fn native_expiry_does_not_release_executing_vehicle_authority() {
 #[tokio::test]
 async fn native_plan_and_lease_writes_roll_back_together() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(60), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("rollback", "operations", "pilot", &[]);
-        authority.grant(&pilot, grant(&pilot, "matching")).await.unwrap();
-        let prepared = authority.prepare_plan(&pilot, mission_request("rollback")).await.unwrap();
-        db.b.client().query("DEFINE EVENT reject_admission ON TABLE uav_vehicle_mission_plan WHEN $after.state = 'executing' THEN { THROW 'fixture rejects admission'; };")
-            .await.unwrap().check().unwrap();
-        assert!(execution_test_support::begin(&authority, &pilot, &prepared.plan_id, 0).await.is_err());
-        assert_eq!(authority.visible_plan(&pilot, false, &prepared.plan_id).await.unwrap().unwrap(), prepared);
-        let mut response = db.b.client().query("SELECT VALUE id FROM uav_vehicle_command_lease;").await.unwrap().check().unwrap();
+        authority
+            .grant(&pilot, grant(&pilot, "matching"))
+            .await
+            .unwrap();
+        let prepared = authority
+            .prepare_plan(&pilot, mission_request("rollback"))
+            .await
+            .unwrap();
+        db.b.client()
+            .query(include_str!("queries/tests/reject_admission.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            execution_test_support::begin(&authority, &pilot, &prepared.plan_id, 0)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            authority
+                .visible_plan(&pilot, false, &prepared.plan_id)
+                .await
+                .unwrap()
+                .unwrap(),
+            prepared
+        );
+        let mut response =
+            db.b.client()
+                .query(include_str!("queries/tests/lease_record_ids.surql"))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
         assert!(response.take::<Vec<RecordId>>(0).unwrap().is_empty());
-        db.b.client().query("REMOVE EVENT reject_admission ON TABLE uav_vehicle_mission_plan;").await.unwrap().check().unwrap();
-        let (executing, guard) = execution_test_support::begin(&authority, &pilot, &prepared.plan_id, 0).await.unwrap();
+        db.b.client()
+            .query(include_str!("queries/tests/remove_admission_event.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let (executing, guard) =
+            execution_test_support::begin(&authority, &pilot, &prepared.plan_id, 0)
+                .await
+                .unwrap();
         let active = lease(&authority, &pilot, &executing).await;
-        db.b.client().query("DEFINE EVENT reject_settlement ON TABLE uav_vehicle_mission_plan WHEN $after.state = 'completed' THEN { THROW 'fixture rejects settlement'; };")
-            .await.unwrap().check().unwrap();
-        assert!(authority.finish_execution(&guard, execution::Settlement::Completed).await.is_err());
+        db.b.client()
+            .query(include_str!("queries/tests/reject_settlement.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            authority
+                .finish_execution(&guard, execution::Settlement::Completed)
+                .await
+                .is_err()
+        );
         assert_eq!(lease(&authority, &pilot, &executing).await, active);
-        assert_eq!(authority.visible_plan(&pilot, false, &executing.plan_id).await.unwrap().unwrap(), executing);
-        db.b.client().query("REMOVE EVENT reject_settlement ON TABLE uav_vehicle_mission_plan;").await.unwrap().check().unwrap();
-        authority.finish_execution(&guard, execution::Settlement::Completed).await.unwrap();
-    }).await.expect("transaction rollback qualification exceeded 60 seconds");
+        assert_eq!(
+            authority
+                .visible_plan(&pilot, false, &executing.plan_id)
+                .await
+                .unwrap()
+                .unwrap(),
+            executing
+        );
+        db.b.client()
+            .query(include_str!("queries/tests/remove_settlement_event.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        authority
+            .finish_execution(&guard, execution::Settlement::Completed)
+            .await
+            .unwrap();
+    })
+    .await
+    .expect("transaction rollback qualification exceeded 60 seconds");
 }
 
 #[tokio::test]
 async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(60), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("guards", "operations", "pilot", &[]);
@@ -290,7 +357,7 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
         let before = lease(&authority, &pilot, &a).await;
         let plan_id = scoped_record_id("uav_vehicle_mission_plan", &pilot, b.plan_id.as_str());
         db.b.client()
-            .query("UPDATE ONLY $record SET vehicle_id = 'changed-after-preflight';")
+            .query(include_str!("queries/tests/change_plan_vehicle.surql"))
             .bind(("record", plan_id.clone()))
             .await
             .unwrap()
@@ -303,7 +370,7 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
         ));
         assert_eq!(lease(&authority, &pilot, &a).await, before);
         db.b.client()
-            .query("UPDATE ONLY $record SET vehicle_id = $vehicle;")
+            .query(include_str!("queries/tests/restore_plan_vehicle.surql"))
             .bind(("record", plan_id))
             .bind(("vehicle", b.vehicle_id.to_string()))
             .await
@@ -311,7 +378,7 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
             .check()
             .unwrap();
         db.b.client()
-            .query("UPDATE ONLY $record SET revision = $revision;")
+            .query(include_str!("queries/tests/set_plan_revision.surql"))
             .bind(("record", before.id.clone()))
             .bind(("revision", i64::MAX))
             .await

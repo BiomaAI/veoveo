@@ -1,0 +1,1 @@
+SELECT route_key, status, mobility_profile_key, mobility_profile_version, departure_time, arrival_time, created_at FROM map_route WHERE tenant = $tenant AND owner = $owner AND ($after = NONE OR route_key > $after) ORDER BY route_key ASC LIMIT $limit;

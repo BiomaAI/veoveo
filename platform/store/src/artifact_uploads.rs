@@ -19,8 +19,14 @@ impl PlatformStore {
         &self,
         profile: &str,
     ) -> Result<Option<crate::OpenObject>, StoreError> {
-        let mut response = self.db.query("LET $active = SELECT * FROM ONLY gateway_control_active:current; SELECT VALUE document FROM gateway_control_object WHERE revision = $active.revision AND object_kind = 'profile' AND object_id = $profile LIMIT 1;")
-            .bind(("profile", profile.to_owned())).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "queries/artifact_uploads/artifact_upload_profile.surql"
+            ))
+            .bind(("profile", profile.to_owned()))
+            .await?
+            .check()?;
         let mut documents: Vec<crate::OpenObject> = response.take(1)?;
         Ok(documents.pop())
     }
@@ -31,7 +37,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactStorageUsage>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $usage;")
+            .query(include_str!(
+                "queries/artifact_uploads/artifact_upload_storage_usage.surql"
+            ))
             .bind(("usage", artifact_storage_usage_id(tenant)))
             .await?
             .check()?;
@@ -46,7 +54,7 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactUploadAuthorityVersion>, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("artifact_uploads/authority.surql"))
+            .query(include_str!("queries/artifact_uploads/authority.surql"))
             .bind((
                 "context",
                 crate::deterministic_work_context_id(tenant_key, context_key)?.record_id(),
@@ -114,7 +122,7 @@ impl PlatformStore {
         for attempt in 0..8_u32 {
             let mut response = self
                 .db
-                .query(include_str!("artifact_uploads/admit.surql"))
+                .query(include_str!("queries/artifact_uploads/admit.surql"))
                 .bind(("content", content.clone()))
                 .bind(("usage", usage.clone()))
                 .bind(("quota", quota))
@@ -130,10 +138,18 @@ impl PlatformStore {
             }
             return Err(upload_error(error));
         }
-        let mut response = self.db.query("SELECT * FROM artifact_upload WHERE tenant = $tenant AND actor = $actor AND profile_key = $profile AND work_context = $context AND request_id = $request_id;")
-            .bind(("tenant", content.tenant)).bind(("actor", content.actor))
-            .bind(("profile", content.profile_key)).bind(("context", content.work_context))
-            .bind(("request_id", content.request_id)).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "queries/artifact_uploads/admit_artifact_upload.surql"
+            ))
+            .bind(("tenant", content.tenant))
+            .bind(("actor", content.actor))
+            .bind(("profile", content.profile_key))
+            .bind(("context", content.work_context))
+            .bind(("request_id", content.request_id))
+            .await?
+            .check()?;
         let mut records: Vec<ArtifactUploadRecord> = response.take(0)?;
         records.pop().ok_or(StoreError::MissingRecord {
             operation: "artifact upload admission readback",
@@ -147,7 +163,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactUploadRecord>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $upload;")
+            .query(include_str!(
+                "queries/artifact_uploads/artifact_upload.surql"
+            ))
             .bind(("upload", upload_record_id(id)))
             .await?
             .check()?;

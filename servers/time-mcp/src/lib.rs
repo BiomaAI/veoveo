@@ -51,3 +51,12 @@ pub mod schema;
 pub mod observation;
 #[cfg(feature = "schema")]
 pub use observation::TimeObservationTable;
+
+#[cfg(all(test, feature = "runtime"))]
+async fn test_database(backend: test_store::StoreBackend) -> test_store::TestDb {
+    test_store::TestDb::with_backend_and_modules(
+        backend,
+        vec![schema::module_setup(test_store::module_lanes::execution("time").unwrap()).unwrap()],
+    )
+    .await
+}

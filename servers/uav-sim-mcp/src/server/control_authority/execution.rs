@@ -6,9 +6,8 @@ use veoveo_types::TaskTypeDefinition;
 use veoveo_types::{PrincipalId, TaskId, TenantId, WorkContextId};
 
 const COMMAND_LEASE_TTL: Duration = Duration::hours(1);
-const ADMIT: &str = include_str!("execution/admit.surql");
-const FINISH: &str = include_str!("execution/finish.surql");
-pub(super) const EXECUTING_PLANS: &str = include_str!("execution/busy.surql");
+const ADMIT: &str = include_str!("queries/execution/admit.surql");
+const FINISH: &str = include_str!("queries/execution/finish.surql");
 
 #[derive(Clone, Debug)]
 struct ExecutionScope {
@@ -168,13 +167,10 @@ impl VehicleControlAuthority {
         plan.updated_at = now;
         let token = CommandLeaseToken(Uuid::now_v7());
         // Only a repository-owned predicate is inserted into this complete statement.
-        let query = ADMIT
-            .replace("__PERMITTED_GRANT__", reads::PERMITTED)
-            .replace("__EXECUTING_PLANS__", EXECUTING_PLANS);
         tasks
             .commit_admission(
                 task,
-                &query,
+                ADMIT,
                 vec![
                     ("record", (record.id.clone()).into_value()),
                     ("expected_plan", (record.clone()).into_value()),

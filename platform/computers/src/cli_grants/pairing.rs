@@ -99,9 +99,7 @@ impl ComputersStore {
             let binding = model::binding_hash(actor.accepted())?;
             let mut read = self
                 .query(
-                    "SELECT * FROM ONLY $pairing WHERE computer_id = $computer_id AND owner_key = $owner_key
-                     AND family = $family AND binding_hash = $binding_hash
-                     AND consumed_at = NONE AND expires_at > time::now(); SELECT * FROM ONLY $policy;",
+                    include_str!("../../queries/cli_grants/pairing/confirm_cli_pairing.surql"),
                     vec![
                         ("pairing", super::pairing_record(pairing_id).into_value()),
                         ("computer_id", computer_id.as_uuid().into_value()),
@@ -171,8 +169,15 @@ impl ComputersStore {
                         .min(snapshot.checked_at + chrono::TimeDelta::seconds(30))
                         .into_value(),
                 ),
-                crate::audit::binding(actor.accepted(), computer_id, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Grant, veoveo_audit_contract::ComputerAuditStage::GrantIssued))?,
-
+                crate::audit::binding(
+                    self.platform.audit_targets(),
+                    actor.accepted(),
+                    computer_id,
+                    crate::audit::Transition::accepted(
+                        veoveo_audit_contract::ComputerActivity::Grant,
+                        veoveo_audit_contract::ComputerAuditStage::GrantIssued,
+                    ),
+                )?,
             ]);
             actor.check_admission()?;
             snapshot.check_fresh()?;

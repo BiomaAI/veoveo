@@ -1,8 +1,7 @@
 use super::*;
 use std::num::NonZeroU32;
 
-#[path = "../../../../../../testing/fixtures/store.rs"]
-mod native_store;
+use super::native_store;
 
 #[tokio::test]
 async fn output_floor_survives_omitted_labels_and_changed_presentation_classification() {
@@ -162,7 +161,7 @@ async fn inherited_output_labels_persist_across_independent_native_service_insta
     .record_id();
     let mut saved =
         db.a.client()
-            .query("SELECT * FROM ONLY $capability;")
+            .query(include_str!("../../../tests/queries/service/tests/write_capability/inherited_output_labels_persist_across_independent_native_service_instances.surql"))
             .bind(("capability", row))
             .await
             .unwrap()

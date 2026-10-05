@@ -47,7 +47,7 @@ impl AuditReadScope {
             .collect()
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuditQuery {
     pub order: AuditOrder,
@@ -99,7 +99,7 @@ impl AuditQuery {
         Ok(())
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct AuditPage {
     pub records: Vec<AuditRecord>,
     pub next: Option<AuditCursor>,

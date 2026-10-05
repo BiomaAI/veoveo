@@ -19,14 +19,33 @@ impl ComputersStore {
         let capacity = self.capacity().await?;
         let tenant = veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())
             .map_err(|_| ComputerError::InvalidInput)?;
-        let mut response = self.query(
-            "SELECT VALUE retained FROM ONLY $owner; SELECT VALUE retained FROM ONLY $tenant; SELECT VALUE retained FROM ONLY $provider;",
-            vec![
-                ("owner", RecordId::new("computer_usage", format!("owner:{}", crate::identity::quota_key(owner)?)).into_value()),
-                ("tenant", RecordId::new("computer_usage", format!("tenant:{tenant}")).into_value()),
-                ("provider", RecordId::new("computer_usage", format!("provider:{}", self.provider_instance_id)).into_value()),
-            ],
-        ).await?;
+        let mut response = self
+            .query(
+                include_str!("../queries/capacity/capacity_for.surql"),
+                vec![
+                    (
+                        "owner",
+                        RecordId::new(
+                            "computer_usage",
+                            format!("owner:{}", crate::identity::quota_key(owner)?),
+                        )
+                        .into_value(),
+                    ),
+                    (
+                        "tenant",
+                        RecordId::new("computer_usage", format!("tenant:{tenant}")).into_value(),
+                    ),
+                    (
+                        "provider",
+                        RecordId::new(
+                            "computer_usage",
+                            format!("provider:{}", self.provider_instance_id),
+                        )
+                        .into_value(),
+                    ),
+                ],
+            )
+            .await?;
         let owner: Option<u64> = response.take(0).map_err(|_| ComputerError::Unavailable)?;
         let tenant: Option<u64> = response.take(1).map_err(|_| ComputerError::Unavailable)?;
         let provider: Option<u64> = response.take(2).map_err(|_| ComputerError::Unavailable)?;
@@ -71,7 +90,7 @@ impl ComputersStore {
     pub async fn capacity(&self) -> Result<CapacityPolicy> {
         let mut response = self
             .query(
-                "SELECT * FROM ONLY $capacity;",
+                include_str!("../queries/capacity/capacity.surql"),
                 vec![("capacity", self.capacity_record().into_value())],
             )
             .await?;

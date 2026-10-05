@@ -31,13 +31,7 @@ impl PlatformStore {
                 "statistics require one admitted collection",
             ));
         }
-        let sql = include_str!("statistics.surql")
-            .replace("__ADMISSION__", include_str!("admitted.surql"))
-            .replace(
-                "__URI_SELECTION__",
-                include_str!("resource_selection.surql"),
-            )
-            .replace("__TABLE__", &chunk_table(generation));
+        let sql = include_str!("../queries/knowledge/statistics.surql");
         let mut response = scope
             .bind(self.client().query(sql), generation)
             .await?

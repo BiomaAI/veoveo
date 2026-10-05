@@ -1,5 +1,7 @@
 use crate::contract::AgentAction as Action;
 use crate::contract::authoring as wire;
+use crate::persistence as domain;
+use crate::persistence::AgentRepository;
 use axum::{
     Json,
     extract::{Extension, Path, State},
@@ -8,7 +10,7 @@ use axum::{
 use veoveo_http::RequestJson;
 use veoveo_mcp_contract::PolicyTarget;
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::{PrincipalId, agent_management as domain};
+use veoveo_platform_store::PrincipalId;
 
 use super::{
     AgentManagementState, Api, Fault,
@@ -85,15 +87,13 @@ pub(super) async fn create(
                 ) {
                     return Err(Fault::status(StatusCode::FORBIDDEN));
                 }
-                state
-                    .store()
+                AgentRepository::new(state.store().clone())
                     .agent_authored_revision(&actor.authority, definition.as_str(), digest.hex())
                     .await?
                     .content
             }
         };
-        Ok(state
-            .store()
+        Ok(AgentRepository::new(state.store().clone())
             .mutate_agent_definition(
                 &actor.authority,
                 request.id.as_str(),
@@ -118,8 +118,7 @@ pub(super) async fn draft(
     RequestJson(request): RequestJson<wire::SaveDraft>,
 ) -> Api<wire::Definition> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsEdit).await?;
-    let result = state
-        .store()
+    let result = AgentRepository::new(state.store().clone())
         .mutate_agent_definition(
             &actor.authority,
             &id,
@@ -153,8 +152,7 @@ pub(super) async fn metadata(
         ),
     };
     let actor = authority::admit(&state, profile, subject, action).await?;
-    let result = state
-        .store()
+    let result = AgentRepository::new(state.store().clone())
         .mutate_agent_definition(
             &actor.authority,
             &id,
@@ -181,8 +179,7 @@ pub(super) async fn publish(
             digest: request.digest.hex().to_owned(),
             audience,
         };
-        if let Some(receipt) = state
-            .store()
+        if let Some(receipt) = AgentRepository::new(state.store().clone())
             .replay_agent_definition(
                 &actor.authority,
                 &id,
@@ -194,8 +191,7 @@ pub(super) async fn publish(
         {
             return Ok(receipt);
         }
-        let definition = state
-            .store()
+        let definition = AgentRepository::new(state.store().clone())
             .agent_definition(&actor.authority, &id)
             .await?;
         if definition.revision != request.expected_revision
@@ -209,8 +205,7 @@ pub(super) async fn publish(
             return Err(Fault::Validation(validation));
         }
         authority::live_session(&state, &actor.profile, &actor.subject).await?;
-        Ok(state
-            .store()
+        Ok(AgentRepository::new(state.store().clone())
             .mutate_agent_definition(
                 &actor.authority,
                 &id,
@@ -241,8 +236,7 @@ async fn status(
     let actor = authority::admit(&state, profile, subject, action).await?;
     let result = async {
         let mutation = domain::AgentDefinitionMutation::Status { status };
-        if let Some(receipt) = state
-            .store()
+        if let Some(receipt) = AgentRepository::new(state.store().clone())
             .replay_agent_definition(
                 &actor.authority,
                 &id,
@@ -255,8 +249,7 @@ async fn status(
             return Ok(receipt);
         }
         if status == domain::AgentDefinitionStatus::Enabled {
-            let mut definition = state
-                .store()
+            let mut definition = AgentRepository::new(state.store().clone())
                 .agent_definition(&actor.authority, &id)
                 .await?;
             if definition.revision != request.expected_revision {
@@ -283,8 +276,7 @@ async fn status(
                     .pop()
                     .and_then(|d| d.published_digest)
                     .ok_or_else(Fault::unavailable)?;
-                definition.draft = state
-                    .store()
+                definition.draft = AgentRepository::new(state.store().clone())
                     .agent_authored_revision(&actor.authority, &id, published.hex())
                     .await?
                     .content;
@@ -296,8 +288,7 @@ async fn status(
                 return Err(Fault::Validation(validation));
             }
         }
-        Ok(state
-            .store()
+        Ok(AgentRepository::new(state.store().clone())
             .mutate_agent_definition(
                 &actor.authority,
                 &id,

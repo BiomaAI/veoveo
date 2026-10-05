@@ -158,3 +158,24 @@ fn bind_request_context(identity: &mut GatewayInternalIdentity) {
         },
     });
 }
+
+/// Native fixtures compose the UAV and authoring dependencies used by mission admission.
+pub(super) async fn database(backend: fixture::StoreBackend) -> fixture::TestDb {
+    fixture::TestDb::with_backend_and_modules(
+        backend,
+        vec![
+            veoveo_agent_runtime::schema::module_setup(
+                fixture::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+            crate::schema::module_setup(fixture::module_lanes::execution("uav").unwrap()).unwrap(),
+            veoveo_map_mcp::schema::module_setup(fixture::module_lanes::execution("map").unwrap())
+                .unwrap(),
+            veoveo_recording_store::schema::module_setup(
+                fixture::module_lanes::execution("recordings").unwrap(),
+            )
+            .unwrap(),
+        ],
+    )
+    .await
+}

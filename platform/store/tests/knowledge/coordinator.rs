@@ -97,7 +97,7 @@ async fn takeover_and_source_epochs_fence_late_members_and_late_coverage() {
             .await
             .unwrap();
         db.a.client()
-            .query("UPDATE knowledge_coordinator SET expires_at = time::now() - 1s;")
+            .query(include_str!("../queries/knowledge/coordinator/takeover_and_source_epochs_fence_late_members_and_late_coverage.surql"))
             .await
             .unwrap()
             .check()
@@ -164,11 +164,12 @@ async fn source_loss_and_freshness_exclude_malformed_cached_rows_before_decode()
         complete(&db.a, &lease, &registration, generation).await.unwrap();
         db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-        db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}}; UPDATE knowledge_member SET valid_until = time::now() - 1s;"))
+        db.a.client().query(include_str!("../queries/knowledge/coordinator/source_loss_and_freshness_exclude_malformed_cached_rows_before_decode.surql"))
+            .bind(("table", table.clone()))
             .await.unwrap().check().unwrap();
         assert_candidates(&db.b, &scope(&registration), generation, &[]).await;
         assert!(!db.b.knowledge_member_observed(&registration, visible.uri()).await.unwrap());
-        db.a.client().query("UPDATE knowledge_member SET valid_until = time::now() + 1h;").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/knowledge/coordinator/source_loss_and_freshness_exclude_malformed_cached_rows_before_decode_2.surql")).await.unwrap().check().unwrap();
         db.a.invalidate_knowledge_collection(&lease, &registration, generation).await.unwrap();
         assert_candidates(&db.b, &scope(&registration), generation, &[]).await;
     }).await.expect("source freshness qualification exceeded 120 seconds");

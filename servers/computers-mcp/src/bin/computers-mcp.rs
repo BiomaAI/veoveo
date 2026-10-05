@@ -15,17 +15,27 @@ async fn main() -> anyhow::Result<()> {
         .prepare()
         .await?;
     let trust = GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?;
-    let tasks = tokio::time::timeout(
+    let store_args = args.store();
+    let store_config = veoveo_platform_store::StoreConfig::builder(
+        store_args.endpoint,
+        store_args.namespace,
+        store_args.database,
+        store_args.credentials,
+    )
+    .audit_targets(veoveo_gateway_catalog::audit_target_registry()?)
+    .build()?;
+    let platform = tokio::time::timeout(
         std::time::Duration::from_secs(20),
-        veoveo_task_runtime::TaskRuntime::connect(
-            args.store(),
-            "computers",
-            format!("computers-{}", uuid::Uuid::now_v7()),
-        ),
+        veoveo_platform_store::PlatformStore::connect(store_config),
     )
     .await
     .map_err(|_| anyhow::anyhow!("Computers store connection timed out"))?
     .map_err(|_| anyhow::anyhow!("Computers store connection failed"))?;
+    let tasks = veoveo_task_runtime::TaskRuntime::new(
+        platform,
+        "computers",
+        format!("computers-{}", uuid::Uuid::now_v7()),
+    );
     let shutdown = CancellationToken::new();
     let signal = shutdown.clone();
     tokio::spawn(async move {

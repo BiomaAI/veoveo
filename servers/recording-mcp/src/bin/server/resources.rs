@@ -4,8 +4,8 @@ use veoveo_mcp_contract::{
     GatewayInternalIdentity,
     hosting::{json_read, served_by_host},
 };
-use veoveo_platform_store::RecordingId;
 use veoveo_recording_mcp::{contract::RecordingResource, uris};
+use veoveo_recording_store::RecordingId;
 
 pub(super) async fn read(
     state: &AppState,
@@ -83,11 +83,31 @@ pub(super) async fn read(
 }
 
 pub(super) fn query_error(error: anyhow::Error) -> McpError {
-    if let Some(veoveo_platform_store::StoreError::InvalidRecordingField { field, reason }) =
-        error.downcast_ref::<veoveo_platform_store::StoreError>()
+    if let Some(veoveo_recording_store::RecordingStoreError::InvalidRecordingField {
+        field,
+        reason,
+    }) = error.downcast_ref::<veoveo_recording_store::RecordingStoreError>()
     {
         McpError::invalid_params(format!("invalid Recording {field}: {reason}"), None)
     } else {
         McpError::internal_error(error.to_string(), None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owner_admission_error_preserves_invalid_params() {
+        let error = query_error(
+            veoveo_recording_store::RecordingStoreError::InvalidRecordingField {
+                field: "cursor",
+                reason: "malformed",
+            }
+            .into(),
+        );
+        assert_eq!(error.code, rmcp::model::ErrorCode::INVALID_PARAMS);
+        assert_eq!(error.message, "invalid Recording cursor: malformed");
     }
 }

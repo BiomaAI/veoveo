@@ -85,7 +85,7 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactReadContextVersion>, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("artifact_reads/context.surql"))
+            .query(include_str!("queries/artifact_reads/context.surql"))
             .bind((
                 "context",
                 deterministic_work_context_id(tenant_key, context_key)?.record_id(),
@@ -132,7 +132,7 @@ impl PlatformStore {
         };
         let mut response = self
             .db
-            .query(include_str!("artifact_reads/create.surql"))
+            .query(include_str!("queries/artifact_reads/create.surql"))
             .bind(("record", record.id.clone()))
             .bind(("content", record))
             .await?;
@@ -151,7 +151,7 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactReadCapabilityRecord>, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("artifact_reads/authorize.surql"))
+            .query(include_str!("queries/artifact_reads/authorize.surql"))
             .bind(("capability", capability.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
             .bind(("task_id", task_id))
@@ -173,7 +173,7 @@ impl PlatformStore {
         }
         let mut response = self
             .db
-            .query(include_str!("artifact_reads/admit.surql"))
+            .query(include_str!("queries/artifact_reads/admit.surql"))
             .bind(("capability", capability.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
             .bind(("task_id", task_id))
@@ -202,10 +202,16 @@ impl PlatformStore {
         capability: ArtifactReadCapabilityId,
         identity: &PlatformIdentity,
     ) -> Result<bool, StoreError> {
-        let mut response = self.db.query("UPDATE $capability SET revoked_at = time::now() WHERE tenant = $tenant AND actor = $actor RETURN AFTER;")
+        let mut response = self
+            .db
+            .query(include_str!(
+                "queries/artifact_reads/revoke_artifact_read_capability.surql"
+            ))
             .bind(("capability", capability.record_id()))
-            .bind(("tenant", identity.tenant_id.record_id())).bind(("actor", identity.principal_id.record_id()))
-            .await?.check()?;
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind(("actor", identity.principal_id.record_id()))
+            .await?
+            .check()?;
         let revoked: Vec<ArtifactReadCapabilityRecord> = response.take(0)?;
         Ok(!revoked.is_empty())
     }

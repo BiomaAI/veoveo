@@ -9,10 +9,11 @@ use std::{
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veoveo_platform_store::{
-    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState, TenantId,
-};
+use veoveo_platform_store::TenantId;
 use veoveo_recording_protocol::v1::RecordingBatch;
+use veoveo_recording_store::{
+    RecordingIngestStreamId, RecordingIngestStreamRecord, RecordingIngestStreamState,
+};
 
 pub(super) const QUARANTINE_DIRECTORY: &str = ".quarantine";
 

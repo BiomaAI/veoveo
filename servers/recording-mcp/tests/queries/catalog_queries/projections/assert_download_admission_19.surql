@@ -1,0 +1,1 @@
+DELETE $grant RETURN NONE;

@@ -35,7 +35,9 @@ impl TimePersistence {
         expected_record_version: TimeVersion,
     ) -> Result<TimeSourceRecord, PersistenceError> {
         validate_source(&draft)?;
-        let mut response = self.client().query("UPDATE $record MERGE { name: $name, dataset_kind: $dataset_kind, source_url: $source_url, expected_content_type: $expected_content_type, enabled: $enabled, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
+        let mut response = self
+            .client()
+            .query(include_str!("queries/update_source.surql"))
             .bind(("record", time_record("time_source", &draft.source_key)))
             .bind(("tenant", draft.identity.tenant_id.record_id()))
             .bind(("name", draft.name))
@@ -45,7 +47,9 @@ impl TimePersistence {
             .bind(("enabled", draft.enabled))
             .bind(("canonical_json", draft.canonical_json))
             .bind(("expected", expected_record_version.get() as i64))
-            .bind(("next", expected_record_version.checked_next()?.get() as i64)).await?.check()?;
+            .bind(("next", expected_record_version.checked_next()?.get() as i64))
+            .await?
+            .check()?;
         response
             .take::<Option<TimeSourceRecord>>(0)?
             .ok_or_else(|| conflict("source", draft.source_key.to_string()))
@@ -64,12 +68,7 @@ impl TimePersistence {
         &self,
         tenant_id: TenantId,
     ) -> Result<Vec<TimeSourceRecord>, PersistenceError> {
-        select_list(
-            self,
-            "SELECT * FROM time_source WHERE tenant = $tenant ORDER BY name ASC;",
-            tenant_id,
-        )
-        .await
+        select_list(self, include_str!("queries/list_sources.surql"), tenant_id).await
     }
 
     pub(crate) async fn create_time_authority_release(
@@ -128,11 +127,6 @@ impl TimePersistence {
         &self,
         tenant_id: TenantId,
     ) -> Result<Vec<TimeAuthorityReleaseRecord>, PersistenceError> {
-        select_list(
-            self,
-            "SELECT * FROM time_authority_release WHERE tenant = $tenant ORDER BY created_at DESC;",
-            tenant_id,
-        )
-        .await
+        select_list(self, include_str!("queries/list_releases.surql"), tenant_id).await
     }
 }

@@ -3,13 +3,13 @@ use super::*;
 #[tokio::test]
 async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = support::database().await;
         let (a, _, _, claim) = journal::queued(&db).await;
         let operation = a.maintenance_for_claim(&claim).await.unwrap();
         let id = operation.operation_id;
         let caller = &operation.actor;
         let row = RecordId::new("computer_maintenance", StoreUuid::from(id.as_uuid()));
-        db.a.client().query("UPDATE ONLY $row SET execution_authority.request_context.access_token.expires_at = 42;")
+        db.a.client().query(include_str!("../queries/maintenance/reads/maintenance_admits_actor_parent_provider_and_claim_before_private_state/statement_1.surql"))
             .bind(("row", row.clone())).await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance(caller, id).await, Err(ComputerError::Unavailable)));
         assert!(matches!(a.maintenance(&owner("bob"), id).await, Err(ComputerError::NotFound)));
@@ -30,7 +30,7 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
         assert!(matches!(a.maintenance_for_claim(&denied).await, Err(ComputerError::StateConflict)));
         assert!(matches!(a.maintenance_for_claim(&claim).await, Err(ComputerError::Unavailable)));
         // The operation still names this actor, but the parent needs higher clearance.
-        db.a.client().query("UPDATE ONLY $computer SET owner_context.data_labels = ['private'];")
+        db.a.client().query(include_str!("../queries/maintenance/reads/maintenance_admits_actor_parent_provider_and_claim_before_private_state/statement_2.surql"))
             .bind(("computer", RecordId::new("computer", StoreUuid::from(operation.computer_id.as_uuid()))))
             .await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance(caller, id).await, Err(ComputerError::NotFound)));
@@ -41,7 +41,7 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
 #[tokio::test]
 async fn accepted_resume_receipts_require_parent_access_before_input_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = support::database().await;
         let (a, _, tasks, claim) = journal::queued(&db).await;
         let _ticket = a.begin_maintenance_step(&claim).await.unwrap();
         let paused = a.pause_maintenance(&claim, veoveo_computers::maintenance::MaintenanceRecovery::AuthorityDenied).await.unwrap();
@@ -50,10 +50,10 @@ async fn accepted_resume_receipts_require_parent_access_before_input_decoding() 
         let input = resume::input(&paused);
         assert!(a.maintenance_resume_for_request(&actor, &input).await.unwrap().is_none());
         let resumed = a.resume_maintenance(&actor, &input).await.unwrap();
-        db.a.client().query("UPDATE computer_maintenance_resume SET input.expected_updated_at = 42 WHERE operation_id = $operation;")
+        db.a.client().query(include_str!("../queries/maintenance/reads/accepted_resume_receipts_require_parent_access_before_input_decoding/statement_1.surql"))
             .bind(("operation", paused.operation_id.as_uuid())).await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance_resume_for_request(&actor, &input).await, Err(ComputerError::Unavailable)));
-        db.a.client().query("UPDATE ONLY $computer SET owner_context.data_labels = ['private'];")
+        db.a.client().query(include_str!("../queries/maintenance/reads/accepted_resume_receipts_require_parent_access_before_input_decoding/statement_2.surql"))
             .bind(("computer", RecordId::new("computer", StoreUuid::from(input.computer_id.as_uuid()))))
             .await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance_resume_for_request(&actor, &input).await, Err(ComputerError::NotFound)));

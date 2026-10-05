@@ -1,5 +1,6 @@
 //! Owner adoption crosses HTTP, current policy and the durable registry.
 use super::*;
+use crate::persistence::WorkspaceRepository;
 use axum::{
     body::{Body, to_bytes},
     http::Request,
@@ -7,7 +8,8 @@ use axum::{
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use veoveo_agent_runtime::contract::AgentAction;
-use veoveo_platform_store::agent_management::{AgentDefinitionMutation, AgentPublicationContext};
+use veoveo_agent_runtime::persistence::AgentRepository;
+use veoveo_agent_runtime::persistence::{AgentDefinitionMutation, AgentPublicationContext};
 
 async fn get(app: &Router, path: &str) -> (StatusCode, Value) {
     let response = app
@@ -30,7 +32,17 @@ async fn get(app: &Router, path: &str) -> (StatusCode, Value) {
 
 #[tokio::test]
 async fn owner_reviews_and_adopts_an_exact_revision_without_reading_private_instructions() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            crate::test_store::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+        crate::schema::module_setup(
+            crate::test_store::module_lanes::execution("workspace").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     super::super::tests::setup(&db.a).await;
     let mut subject = super::super::tests::subject("Alice");
     subject.access_token.session_family = None;
@@ -73,12 +85,11 @@ async fn owner_reviews_and_adopts_an_exact_revision_without_reading_private_inst
         .execution_authority(&"operator".parse().unwrap(), &subject)
         .await
         .unwrap();
-    let workspace = WorkspaceState {
-        store: db.a.clone(),
-    };
+    let workspace = WorkspaceState::new(db.a.clone());
     let actor = authority::admit(&workspace, &subject).await.unwrap();
     let chat = WorkspaceChatId::new();
-    db.a.create_workspace_chat(&actor, chat, "Revision review")
+    WorkspaceRepository::new(db.a.clone())
+        .create_workspace_chat(&actor, chat, "Revision review")
         .await
         .unwrap();
     let routes = routes(RunState {
@@ -106,12 +117,15 @@ async fn owner_reviews_and_adopts_an_exact_revision_without_reading_private_inst
         "/chats/{chat}/agents/{}/revision",
         participant["id"].as_str().unwrap()
     );
-    let draft = db.a.agent_definition(&author, "writer").await.unwrap();
+    let draft = AgentRepository::new(db.a.clone())
+        .agent_definition(&author, "writer")
+        .await
+        .unwrap();
     let mut content = draft.draft;
     content.instructions = "Private changed instructions".into();
     content.budgets.max_completion_calls = 2;
-    let draft =
-        db.a.mutate_agent_definition(
+    let draft = AgentRepository::new(db.a.clone())
+        .mutate_agent_definition(
             &author,
             "writer",
             Uuid::now_v7(),
@@ -120,21 +134,22 @@ async fn owner_reviews_and_adopts_an_exact_revision_without_reading_private_inst
         )
         .await
         .unwrap();
-    db.a.mutate_agent_definition(
-        &author,
-        "writer",
-        Uuid::now_v7(),
-        Some(draft.revision),
-        AgentDefinitionMutation::Publish {
-            digest: draft.draft_digest.clone(),
-            audience: vec![AgentPublicationContext {
-                work_context: author.work_context.clone(),
-                context_digest: author.context_digest.clone(),
-            }],
-        },
-    )
-    .await
-    .unwrap();
+    AgentRepository::new(db.a.clone())
+        .mutate_agent_definition(
+            &author,
+            "writer",
+            Uuid::now_v7(),
+            Some(draft.revision),
+            AgentDefinitionMutation::Publish {
+                digest: draft.draft_digest.clone(),
+                audience: vec![AgentPublicationContext {
+                    work_context: author.work_context.clone(),
+                    context_digest: author.context_digest.clone(),
+                }],
+            },
+        )
+        .await
+        .unwrap();
     let (status, preview) = get(&app, &path).await;
     assert_eq!(status, StatusCode::OK, "{preview}");
     assert_eq!(preview["current"]["revision"], first);

@@ -86,7 +86,8 @@ Component designs live beside the code whose contract they specify:
 | [`platform/audit/contract/DESIGN.md`](../platform/audit/contract/DESIGN.md) | protocol-independent checked audit records, closed details, typed identities and partition-scoped reads; `src/knowledge.rs` admits source observations without external navigation URLs |
 | [`platform/modules/DESIGN.md`](../platform/modules/DESIGN.md) | dependency-free checked module ownership declarations and installation identities, generated composition plans, and optional SurrealQL admission/native lane execution |
 | [`platform/store/src/changefeed/DESIGN.md`](../platform/store/src/changefeed/DESIGN.md) | checked owner observation declarations, LIVE invalidation, complete transaction replay and consumer checkpoints |
-| [`platform/workspace/DESIGN.md`](../platform/workspace/DESIGN.md) | lightweight Workspace DTOs, separately gated native App envelopes, gateway services and schema ownership; persistence extraction remains planned |
+| [`platform/recordings/store/DESIGN.md`](../platform/recordings/store/DESIGN.md) | Recording-owned schema, identities, repository queries, grants, ingest and projection receipts over shared Store connections |
+| [`platform/workspace/DESIGN.md`](../platform/workspace/DESIGN.md) | lightweight Workspace DTOs, separately gated native App envelopes, owner persistence, gateway services and schema ownership |
 | [`platform/macros/DESIGN.md`](../platform/macros/DESIGN.md) | shared `id` and `resource_address` attributes, the `Vocabulary` derive and compile-time UTF-8 document hashing; compact owner profiles, typed admission and consumer-only database delegation |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, installation and agent names, authentication vocabulary and issuer/subject identities, scope names, resource references, URI component parsing and builders, lexical selectors shared by policy and SQL admission, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
@@ -261,10 +262,10 @@ designs above.
 | `apps/console/web/src/jsonSchema.ts`, `jsonSchema.test.ts` | shared Console/Workspace compiler for the generated JSON Schema profile, including equivalent boolean-definition handling |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
-| [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission; human-turn participation and same-chat replies in `workspace/participation.rs`, with server-captured quotes tested by `tests/workspace/replies.rs`; immutable Artifact references tested by `tests/workspace/attachments.rs`; concurrent-run limits, fixed context, execution fences, cancellation and interrupted-worker recovery |
-| [`platform/store/src/migrations/`](../platform/store/src/migrations/DESIGN.md) | upstream and fork migration catalogs, checksummed histories, transactional application and drift rejection; fork entries live in `platform/store/downstream/catalog.rs` |
-| `platform/store/src/workspace/personal.rs` and `platform/workspace/src/gateway/operations/personal.rs` | actor-private inventory, shared LIVE hints, native Task observation and SSE checked against current authorization; `apps/workspace/src/usePersonalEvents.ts` owns global attention and query invalidation |
-| [`platform/store/src/workspace/operations/`](../platform/store/src/workspace/operations/DESIGN.md) | private MCP operation receipts, at-most-once dispatch claims, Task references, MRTR continuation fences and ambiguous-outcome recovery |
+| [`platform/workspace/src/persistence/runs/`](../platform/workspace/src/persistence/runs/DESIGN.md) | per-chat agent admission; human-turn participation and same-chat replies in `platform/workspace/src/persistence/participation.rs`, with server-captured quotes tested by `tests/workspace/replies.rs`; immutable Artifact references tested by `tests/workspace/attachments.rs`; concurrent-run limits, fixed context, execution fences, cancellation and interrupted-worker recovery |
+| [`platform/modules/`](../platform/modules/DESIGN.md) | selected owner lanes, checksummed histories, transactional application and drift rejection; kernel declarations live in `platform/store/src/schema/`, and optional owners declare their own schemas |
+| `platform/workspace/src/persistence/personal.rs` and `platform/workspace/src/gateway/operations/personal.rs` | actor-private inventory, shared LIVE hints, native Task observation and SSE checked against current authorization; `apps/workspace/src/usePersonalEvents.ts` owns global attention and query invalidation |
+| [`platform/workspace/src/persistence/operations/`](../platform/workspace/src/persistence/operations/DESIGN.md) | private MCP operation receipts, at-most-once dispatch claims, Task references, MRTR continuation fences and ambiguous-outcome recovery |
 | [`platform/workspace/src/gateway/runs/`](../platform/workspace/src/gateway/runs/DESIGN.md) | `messages.rs` records human-message response intents atomically; per-chat model execution through Rig pinned to the registry, capabilities limited to what the human can currently use, streaming, private Task dispatch and independent cancellation; `feedback.rs` observes tool bodies and publishes shared execution status |
 | [`platform/workspace/src/gateway/operations/`](../platform/workspace/src/gateway/operations/DESIGN.md) | human-scoped MCP dispatch, Task recovery, input forms, continuation, cancellation and Task subscriptions; the shared gateway native client waits for required capabilities through list-change notifications; `apps.rs` binds App calls and Task recovery to their persisted origin |
 | `platform/workspace/src/contract/` | typed Workspace chat, membership, invitation, message, agent, run, personal event and private operation/Task HTTP types through `contract`; `apps.rs` and the complete browser schema use `app-contract` for native MCP SDK envelopes |
@@ -428,7 +429,7 @@ live under `platform/store/src/schema/`; optional owners expose `schema::module_
 composes the real owner exports without contract/runtime dependency graphs.
 
 `platform/gateway/composition/src/bin/gateway/module_installation/` composes those exports and
-owns offline plan generation, mixed-schema preparation, lane execution and readiness
+owns offline plan generation, generation-fenced credential preparation, owner-lane execution and readiness
 commands. `deploy/runtime/src/compile/module_plan.rs` runs the selected composition
 image to generate the locked plan. Its process adapter owns execution deadlines and
 container cleanup. `deploy/helm/veoveo/templates/_module-jobs.tpl` renders preparation,
@@ -629,26 +630,27 @@ share this crate.
 
 ### `platform/store`
 
-Shared database connections, schema migrations and platform persistence operations.
+Shared database connections, kernel schema declarations and platform persistence operations.
 Domain runtimes can own private queries and driver records over these connections.
 
 | File | Responsibility |
 |---|---|
 | `config.rs` | root/database auth configuration and validation |
-| `migrations.rs` | ordered SurrealDB 3.3 schema migrations |
+| [`schema/`](../platform/store/src/schema/DESIGN.md) | current SurrealDB 3.3.0 kernel lanes; composition selects and executes owner declarations through the module runner |
+| [`src/queries/`](../platform/store/src/queries/DESIGN.md) | complete Store persistence statements, finite query selections and narrowly typed native grammar substitutions |
 | `models.rs` | persisted Rust record and enum definitions |
 | `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
 | `ids.rs` | re-exports Store-owned ID families through `ids::*` |
 | `ids/access.rs` | enterprise, principal, tenant, gateway, Work Context and provider record IDs |
-| `ids/content.rs` | Artifact, usage and Recording record IDs |
-| `ids/agents.rs` | agent, wake, episode, Task and input-request record IDs |
-| `ids/workspace.rs` | Workspace chat, member, message, agent, run, operation and invitation record IDs |
+| `ids/content.rs` | Store-owned Artifact and usage record IDs; Recording IDs live in `platform/recordings/store/src/ids.rs` |
+| `agents/runtime/src/persistence/ids.rs` | Agent-owned agent, wake, episode, delivery Task and input-request record IDs |
+| `platform/workspace/src/persistence/ids.rs` | Workspace-owned chat, member, message, agent, run, operation and invitation record IDs |
 | `table.rs` | table identities; Store owns record conversion and its SDK derives |
-| [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
-| `recording_catalog.rs` | recording datasets and layers, expiry, and cleanup |
-| `recording_catalog/access.rs` and `recording_catalog/grants.rs` | shared typed caller authority, checked grant selections, transactional creation, SQL reuse and Redap class admission |
-| `recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
-| `administration.rs` | bootstrap, runtime user, migration administration |
+| [`platform/workspace/src/persistence/`](../platform/workspace/src/persistence/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
+| `platform/recordings/store/src/recording_catalog.rs` | recording datasets and layers, expiry, and cleanup |
+| `platform/recordings/store/src/recording_catalog/access.rs` and `platform/recordings/store/src/recording_catalog/grants.rs` | shared typed caller authority, checked grant selections, transactional creation, SQL reuse and Redap class admission |
+| `platform/recordings/store/src/recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
+| `administration.rs` | explicit database-scoped runtime credential administration; connection startup applies no schema |
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
@@ -657,29 +659,30 @@ Domain runtimes can own private queries and driver records over these connection
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
 | `artifact_uploads/lifecycle.rs` and `artifact_uploads/publication.rs` | fenced initialization/finalization, manifest freeze, atomic occurrence and receipt publication, cancellation, and retained cleanup accounting |
-| `migrations/0050_artifact_uploads.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
+| `schema/artifacts/migrations/0000_current.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; specified in the Artifact service design |
-| `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
-| `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, a domain commit counter, heads and publications |
-| `map_projection.rs` | indexed Map changeset replay up to the committed Map head |
-| `map_presentations.rs` | immutable publication products plus publication-pinned map compositions and revisions |
-| `recordings.rs`, `recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
-| `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
+| `servers/map-mcp/src/persistence/map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
+| `servers/map-mcp/src/persistence/map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, a domain commit counter, heads and publications |
+| `servers/map-mcp/src/persistence/map_projection.rs` | indexed Map changeset replay up to the committed Map head |
+| `servers/map-mcp/src/persistence/map_presentations.rs` | immutable publication products plus publication-pinned map compositions and revisions |
+| `platform/recordings/store/src/recordings.rs`, `platform/recordings/store/src/recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
+| `platform/recordings/store/src/recording_ingest.rs`, `platform/recordings/store/src/recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, UAV and Knowledge resource observation |
 | `identity.rs`, `identity_enabled.surql` | current principal, tenant and enterprise admission with typed issuer/subject bindings |
 | `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, atomic catalog replacement against current control authority, coordinator leases and collection/member epochs, conditional chunk reuse, SQL catalog completion and caller-visible statistics, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
 | `tests/knowledge/bulk.rs` | maximum-size member vectors over the default Store connection and rollback after a rejected bulk replacement |
-| `agent_management/revision.rs` and `agent_management/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
+| `agents/runtime/src/persistence/revision.rs` and `queries/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `changefeed.rs`, `changefeed/`, `queries/changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery over checked owner declarations; shared Task and Artifact decoding, with Computers decoding in its owner |
 | `platform/task-runtime/src/runtime/history.rs`, `subscriptions.rs`, `owner_subscriptions.rs` | committed-state replay for trusted workers, shared native-feed wakeups and current SQL-authorized public Task reads |
 | `agents/runtime/src/runtime/wake_observation.rs`, `agents/kernel/src/wake.rs` | native queue invalidations and timers for the next available wake or expired claim |
 | `tests/write_cost.rs` | isolated RocksDB comparison of shared sequence allocation, indexed event rows and native-feed-only writes; [before](../platform/store/measurements/2026-10-01.md) and [after latency/storage measurements](../platform/store/measurements/native-after-2026-10-01.md) |
-| `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
+| `servers/uav-sim-mcp/src/schema/migrations/0000_current.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
 | `store.rs` | connection and transaction helpers over domain records |
 
-Migrations `0001` through the current version live under `migrations/`. Runtime services
-never apply them; installation bootstrap does.
+Kernel owner lanes live under `platform/store/src/schema/`; optional owner lanes
+live beside their persistence code. `module-migrate` applies selected lanes after
+preparation. Runtime connections never apply schema.
 
 Shared real-store integration setup lives in [`testing/fixtures/DESIGN.md`](../testing/fixtures/DESIGN.md).
 Its optional RocksDB profile owns its database inside the disposable container.
@@ -711,8 +714,8 @@ observation lease and cancellation epoch in one transaction.
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
 | `src/contributions.rs` and `queries/` | typed module row contributions in Task creation, idempotency and terminal settlement transactions; fixed SQL protects Task links and immutable catalog identity |
-| `queries/transition.surql` and `queries/recovery_transition.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations and contribution settlement under the ordinary or recovery guard |
-| `runtime/input_responses.rs`, `runtime/input_responses.surql`, `tests/input_responses.rs` | input answer transactions with current caller selection, matching input identities and per-key deduplication; public API rollback and contention qualification |
+| `queries/transition/` and `queries/recovery_transition{,_contribution}.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations and contribution settlement under the ordinary or recovery guard |
+| `runtime/input_responses.rs`, `queries/input_responses/`, `tests/input_responses.rs` | input answer transactions with current caller selection, matching input identities and per-key deduplication; public API rollback and contention qualification |
 | `runtime/context_scope.rs` | checked Work Context predicates and bindings shared by Task observation and linked usage reads |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
 | `leases.rs` | distinct execution/observation claims and lease renewal |
@@ -759,7 +762,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `state/refresh_tokens.rs` | refresh family issue/rotate/replay/revoke/GC plus signed-in display-label continuity |
 | `state/session.rs` | access-token session-family binding and revocation checks |
 | `state/subscriptions.rs` | durable subscription ownership and forwarding |
-| `state/task_routes.rs`, `state/task_routes/ownership.rs` and [`state/task_routes/DESIGN.md`](../platform/gateway/src/state/task_routes/DESIGN.md) | opaque upstream Task mapping, idempotent concurrent registration, actor/provenance ownership, permission checks and route expiry; a version-0 reader handles rows from before migration 0081 added ownership metadata |
+| `state/task_routes.rs`, `state/task_routes/ownership.rs` and [`state/task_routes/DESIGN.md`](../platform/gateway/src/state/task_routes/DESIGN.md) | opaque upstream Task mapping, idempotent concurrent registration, actor/provenance ownership, permission checks and route expiry; a gateway-owned version-0 reader handles route rows without optional ownership metadata |
 | `secrets.rs` | secret-source models and environment/file/Vault resolution |
 
 The Computers WebSocket pool lives in `platform/computers/src/gateway.rs`; it reuses
@@ -904,7 +907,7 @@ Current MCP crates under `servers/` are indexed here:
 | `platform/frames/contract/src/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `platform/frames/contract/src/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
-| `servers/frames-mcp/src/state/operations.rs`, `operations/record.surql` | required typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
+| `servers/frames-mcp/src/state/operations.rs`, `queries/operations/record.surql` | required typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
 | `servers/frames-mcp/src/bin/server/setup.rs`, `resources.rs`, `completion.rs` | checked startup/discovery, typed resource dispatch, and MCP completion adapters |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
@@ -1068,7 +1071,7 @@ relationships in one SQL statement for routing, matrices, travel models and reac
 areas. It checks tenant/dataset agreement, release validity, map-family compatibility and
 retained document agreement before returning typed release and family sets.
 `src/authoring/service.rs` applies Work Context policy
-and optimistic concurrency. `platform/store/src/map_authoring/reads.rs` applies
+and optimistic concurrency. `servers/map-mcp/src/persistence/map_authoring/reads.rs` applies
 tenant, context, and label predicates in SQL to layer and composition reads;
 publication and product queries select their visible parent layers in SQL. `src/authoring/projection.rs` replays the
 SurrealDB Map changeset log through a fixed committed Map head;
@@ -1090,14 +1093,11 @@ durable execution and task-local staging, while
 acknowledgments; `app/resources.js` owns permission-filtered, concurrent snapshot
 reads and targeted refreshes. `app/workspace.js` composes them with the map UI,
 while `assets/workspace-app.html` is the generated self-contained Map MCP App
-for composition viewing, feature authoring, and administration. The SurrealDB schemas are
-`platform/store/migrations/0025_map_authoring.surql`
-and `platform/store/migrations/0026_map_authoring_products.surql`.
-`platform/store/migrations/0047_map_projection_sequence.surql` adds the recovery
-index and transactional Map commit head.
-`platform/store/migrations/0048_map_projection_head_backfill.surql` initializes
-populated installations from existing rows after the index migration commits;
-`platform/store/tests/surreal_integration/map_projection.rs` verifies that upgrade.
+for composition viewing, feature authoring, and administration. The current Map lane
+in `servers/map-mcp/src/schema/migrations/0000_current.surql` defines authoring and
+product tables, the recovery index and transactional Map commit head.
+`servers/map-mcp/tests/map_persistence/projection.rs` verifies indexed replay and
+committed-head recovery with current owner fixtures.
 
 Immutable acquisition products use a separate analytical path.
 `src/contract/source_products.rs` owns complete source-feature, raster-product,
@@ -1123,29 +1123,29 @@ map-projection profile, and `src/spatial/validation.rs` resolves mobility envelo
 and active restrictions. `src/spatial/mod.rs` binds catalog authority,
 provenance, and shared Store persistence.
 
-Map derivation storage lives in `platform/store/src/map_derivations.rs` and
-`platform/store/migrations/0094_map_derivations.surql`. The Map-owned
+Map derivation storage lives in `servers/map-mcp/src/persistence/map_derivations.rs` and
+`servers/map-mcp/src/schema/migrations/0000_current.surql`. The Map-owned
 `src/derivations.rs` validates domain documents and returns summary pages.
 `src/mcp/derivations.rs` owns derivation completion dispatch.
 `src/resource_changes.rs` connects catalog, authoring, derivation, and Task writes to
 each replica's resource hub through the shared Store LIVE/change-feed observer.
 
 Map completion dispatch lives in `src/mcp/completion.rs`. Store owns tenant and owner
-catalog matching in `platform/store/src/map/completion.rs` and authoring matching in
-`platform/store/src/map_authoring/reads/completion.rs`. Local active geography keys
+catalog matching in `servers/map-mcp/src/persistence/map/completion.rs` and authoring matching in
+`servers/map-mcp/src/persistence/map_authoring/reads/completion.rs`. Local active geography keys
 come from `src/analytics/completion.rs`; caller-owned travel-model Task keys come from
 `src/server/tasks/travel_models.rs`. Each database query applies matching and
 uniqueness before its 101-ID limit.
 
 Map release pages and parent-scoped reads live in `src/catalog/releases.rs` and
-`platform/store/src/map/releases.rs`. The catalog module also joins active pointers
+`servers/map-mcp/src/persistence/map/releases.rs`. The catalog module also joins active pointers
 to releases for source/dataset-filtered tool queries before their SQL limit.
 `src/mcp/owned.rs` dispatches their admitted catalog selections;
 `app/resources.js` owns the bounded client page walk. Exact layer-product reads
-bind their URI parents in `platform/store/src/map_authoring/reads.rs`.
+bind their URI parents in `servers/map-mcp/src/persistence/map_authoring/reads.rs`.
 
 Map owner-scoped route, matrix, and acquisition reads live in
-`src/catalog/owned.rs`, with SQL selection in `platform/store/src/map/owned.rs` and
+`src/catalog/owned.rs`, with SQL selection in `servers/map-mcp/src/persistence/map/owned.rs` and
 resource dispatch in `src/mcp/owned.rs`. The catalog module also settles interrupted
 acquisitions and invalidates routes in database-selected batches. Acquisition
 admission and recovery synchronize the local worker inventory in
@@ -1211,7 +1211,8 @@ domain vocabulary.
 | `servers/time-mcp/src/server/bootstrap.rs` | packaged authority references whose immutable identities bind the family and source-file digest, with relocation and changed-content qualification |
 | `servers/time-mcp/src/catalog/activation.rs` | private observed activation drafts, catalog admission and publication after registry file preflight |
 | `servers/time-mcp/src/persistence/active.rs`, `servers/time-mcp/src/persistence/activation.rs` | joined active-pointer/release admission, whole-pair snapshot checks and a tenant fence written with activation |
-| `servers/time-mcp/src/persistence/` | private temporal driver records, typed IDs/versions/cursors through query and mutation admission, SQL visibility and atomic authority activation; shared Store owns the connection and migrations |
+| `servers/time-mcp/src/persistence/`, `src/persistence/queries/` | private temporal driver records, typed IDs/versions/cursors, complete SQL statements and atomic authority activation; `src/schema/` owns the Time lane and shared Store supplies the connection |
+| `servers/time-mcp/src/persistence/queries/release_page.surql`, `activation_locks.surql` | complete authority-release page query and native activation-contention qualification statements |
 
 [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) covers the
 protocol, authority, administration, deployment, and synchronization-observation
@@ -1285,11 +1286,11 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
 | `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, retained-plan validation and shared persistence helpers |
 | `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional Task-link/lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |
-| `servers/uav-sim-mcp/src/server/control_authority/task_link.rs`, `task_link_tests.rs`, `execution_test_support.rs` | exact native Task correlation, SQL retention selection and isolated current-format admission fixtures; Store owns the execution-link schema |
+| `servers/uav-sim-mcp/src/server/control_authority/task_link.rs`, `task_link_tests.rs`, `execution_test_support.rs` | exact native Task correlation, SQL retention selection and isolated current-format admission fixtures; UAV owns the execution-link schema |
 | `servers/uav-sim-mcp/src/adapter/completion.rs` | operation-correlated simulator receipts and independent recording-result resolution |
 | `servers/uav-sim-mcp/testdata/private-protocol.schema.json`, `showcase/uav-sim/runtime/tests/test_adapter_outputs.py` | eight private HTTP/NDJSON schema roots derived from Rust adapter and event types; directional comparison through `testing/python` and shared decoder fixtures |
 | `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | pinned Task creation before admission, dispatch guard consumption, interrupted Task handling, recovery without replay, settled-pin repair and native HTTP/Store failure qualification |
-| `platform/store/migrations/0096_uav_executing_vehicle.surql` | additive tenant/context/session/vehicle/state index for UAV execution exclusion; admission policy stays in UAV |
+| `servers/uav-sim-mcp/src/schema/migrations/0000_current.surql` | tenant/context/session/vehicle/state index for UAV execution exclusion, owned with its admission policy |
 | `servers/uav-sim-mcp/src/server/control_authority/lease_tests.rs` | native RocksDB contention across principals, obsolete-token rejection, expiry fencing, revision exhaustion and injected rollback failures |
 | `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV grant, advisory-route, ellipsoidal-height, freshness and motion policy over Map-owned checked handoffs |
 | `servers/uav-sim-mcp/src/server/control_authority/reads.rs` | SQL grant/plan visibility and paging; shared profile/advisory grant predicates for selection and execution admission |
@@ -1313,7 +1314,6 @@ Simulation live-view ownership:
 | `showcase/uav-sim/runtime/tests_gpu/test_px4_health.py` | native pinned PX4 qualification of all stationary sensor validators through the CUDA plant and production HIL bridge |
 | `showcase/uav-sim/runtime/tests_gpu/test_px4_flight.py`, `showcase/uav-sim/runtime/tests_gpu/test_magnetic.py` | CUDA earth-field agreement with PX4, body-frame sensor admission, and repeated native takeoff, movement, landing and re-arm qualification |
 | `showcase/uav-sim/runtime/tests_gpu/test_stream_rtp.py` | isolated production RTP publication through the Stream NVDEC/TensorRT runner; steady and catch-up delivery with preview timestamp checks |
-| `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
 
 ## Recordings
 
@@ -1545,7 +1545,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `control.rs` | database-authenticated operator messages and input-request decisions scoped to their tenant and Work Context, with UUIDv7 idempotency, wakes, actor attribution, and a domain-neutral conversation view over wakes and episodes |
 | `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, race-safe input-request terminal waits, and atomic terminal-delivery consumption with first-party Task retention release |
 
-The [managed instance store](../platform/store/src/agent_management/instances/DESIGN.md)
+The [managed instance store](../agents/runtime/src/persistence/instances/DESIGN.md)
 owns admitted provisioning intent, retained capacity, service registration
 and controller generation fences.
 [`instances/`](../agents/runtime/src/gateway/http/instances/) in
@@ -1553,7 +1553,7 @@ the management gateway owns template-derived admission, lifecycle operations,
 public views, and image-only template adoption checked against the previous
 template digest. The lifecycle controller drains retained writers before activation.
 
-The [agent catalog store](../platform/store/src/agent_management/DESIGN.md) owns
+The [agent catalog store](../agents/runtime/src/persistence/DESIGN.md) owns
 definition authoring, immutable executable revisions, mutation replay and publication
 audience fencing. It is separate from episode scheduling. The
 [management gateway](../agents/runtime/src/gateway/http/DESIGN.md)

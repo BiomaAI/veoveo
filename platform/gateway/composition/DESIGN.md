@@ -24,8 +24,25 @@ package when selecting the artifact. Package separation adds no process or deplo
 
 The command modules under `src/bin/gateway/module_installation` compose owner
 exports into the generated plan. Migration and publication verify that plan against
-the compiled composition before database effects. Installation preparation still
-runs the explicit mixed-schema prologue; this package does not redistribute its SQL.
+the compiled composition before database effects. `installation-prepare` provisions
+the selected namespace/database, claims its preparation generation and completes the
+database-scoped runtime credential transaction. `module-migrate` applies one selected
+owner lane after its prerequisites; `module-status` checks their current proof.
+Connection startup applies no schema and refuses either mixed-catalog marker with
+an actionable fresh-installation error. Optional owner schema comes from each owner's
+declaration rather than a shared bootstrap catalog.
+
+## Query Files
+
+Composition statements live in `src/queries/` and command-process fixtures in
+`tests/queries/`. Installation commands bind namespace and database names through
+SurrealDB's identifier parameter slots. Marker-refusal fixtures bind their table
+names and select records through `type::table`; each inspection returns database
+metadata, table metadata and rows in that order.
+
+The [malformed numeric-parameter fixture](tests/queries/observation_declarations/malformed_show_numeric_parameters.surql)
+uses unsupported `SHOW CHANGES` parameter slots. Its native test requires parser
+rejection; successful query validation does not apply to that fixture.
 
 ## Qualification
 

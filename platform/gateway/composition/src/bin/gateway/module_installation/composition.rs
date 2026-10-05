@@ -1,6 +1,6 @@
 //! The binary composition owns real schema registrations and host associations.
 use veoveo_modules::*;
-pub(super) fn registry() -> anyhow::Result<ModuleRegistry> {
+pub(crate) fn registry() -> anyhow::Result<ModuleRegistry> {
     fn execution(name: &str) -> Result<LaneExecution, DeclarationError> {
         LaneExecution::new(
             ExecutionImage::new("gateway")?,
@@ -12,14 +12,8 @@ pub(super) fn registry() -> anyhow::Result<ModuleRegistry> {
             ])?,
         )
     }
-    Ok(ModuleRegistry::new(vec![
-        veoveo_platform_store::schema::store::module_setup(execution("store")?)?,
-        veoveo_platform_store::schema::identity::module_setup(execution("identity")?)?,
-        veoveo_platform_store::schema::gateway::module_setup(execution("gateway")?)?,
-        veoveo_platform_store::schema::artifacts::module_setup(execution("artifacts")?)?,
-        veoveo_platform_store::schema::tasks::module_setup(execution("tasks")?)?,
-        veoveo_platform_store::schema::audit::module_setup(execution("audit")?)?,
-        veoveo_platform_store::schema::knowledge::module_setup(execution("knowledge")?)?,
+    let mut modules = veoveo_platform_store::schema::kernel_modules(execution)?;
+    modules.extend(vec![
         veoveo_computers::schema::module_setup(execution("computers")?)?,
         veoveo_agent_runtime::schema::module_setup(execution("agents")?)?,
         veoveo_workspace::schema::module_setup(execution("workspace")?)?,
@@ -30,7 +24,8 @@ pub(super) fn registry() -> anyhow::Result<ModuleRegistry> {
         veoveo_frames_mcp::schema::module_setup(execution("frames")?)?,
         veoveo_media_mcp::schema::module_setup(execution("media")?)?,
         veoveo_optimization_mcp::schema::module_setup(execution("optimization")?)?,
-    ])?)
+    ]);
+    Ok(ModuleRegistry::new(modules)?)
 }
 pub(super) fn bindings() -> anyhow::Result<Vec<ModuleRuntimeBinding>> {
     [

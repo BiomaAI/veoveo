@@ -116,10 +116,10 @@ fn pointer(scope: &MapAccessContext, n: usize) -> RecordId {
         format!("{}:{}", scope.identity.tenant_id, key("dataset", n)),
     )
 }
-async fn mutate(store: &PlatformStore, record: RecordId, fields: &str) {
+async fn mutate(store: &PlatformStore, record: RecordId, sql: &str) {
     store
         .client()
-        .query(format!("UPDATE ONLY $record SET {fields} RETURN NONE;"))
+        .query(sql)
         .bind(("record", record))
         .await
         .unwrap()
@@ -130,7 +130,7 @@ async fn mutate(store: &PlatformStore, record: RecordId, fields: &str) {
 #[tokio::test]
 async fn authority_selects_complete_current_tenant_release_and_family_sets() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "routing", "author").await;
@@ -143,13 +143,13 @@ async fn authority_selects_complete_current_tenant_release_and_family_sets() {
             mutate(
                 &db.a,
                 RecordId::new("map_dataset_release", key("release", n)),
-                "canonical_json = '{'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_01.surql"),
             )
             .await;
             mutate(
                 &db.a,
                 RecordId::new("map_source", key("source", n)),
-                "canonical_json = '{'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_02.surql"),
             )
             .await;
         }
@@ -209,7 +209,7 @@ async fn authority_selects_complete_current_tenant_release_and_family_sets() {
         mutate(
             &db.a,
             RecordId::new("map_source", source.source_id.as_str()),
-            "enabled = false, canonical_json = '{'",
+            include_str!("../../queries/catalog/routing_authority/tests/mutation_03.surql"),
         )
         .await;
         assert_eq!(
@@ -223,7 +223,7 @@ async fn authority_selects_complete_current_tenant_release_and_family_sets() {
             124
         );
         db.a.client()
-            .query("UPDATE ONLY $release SET valid_until = $at, canonical_json = '{' RETURN NONE;")
+            .query(include_str!("../../queries/catalog/routing_authority/tests/authority_selects_complete_current_tenant_release_and_family_sets/statement_1.surql"))
             .bind((
                 "release",
                 RecordId::new("map_dataset_release", key("release", 1001)),
@@ -251,51 +251,85 @@ async fn authority_selects_complete_current_tenant_release_and_family_sets() {
 #[tokio::test]
 async fn mismatched_parents_tenants_and_lifecycle_are_excluded_before_document_decode() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "relationships", "author").await;
         let at = Utc::now();
         let families = BTreeSet::from([MapFamily::RoadStreet]);
         for (n, (target, fields)) in [
-            ("pointer", "tenant = tenant:other"),
             (
                 "pointer",
-                "dataset_key = 'dataset-ffffffff-0000-7000-8000-000000000000'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_04.surql"),
             ),
             (
                 "pointer",
-                "release_key = 'release-ffffffff-0000-7000-8000-000000000000'",
-            ),
-            ("release", "tenant = tenant:other"),
-            (
-                "release",
-                "dataset_key = 'dataset-ffffffff-0000-7000-8000-000000000000'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_05.surql"),
             ),
             (
-                "release",
-                "source_key = 'source-ffffffff-0000-7000-8000-000000000000'",
+                "pointer",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_06.surql"),
             ),
             (
                 "release",
-                "release_key = 'release-ffffffff-0000-7000-8000-000000000000'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_07.surql"),
             ),
-            ("release", "state = 'staged'"),
-            ("release", "state = 'retired'"),
-            ("release", "state = 'quarantined'"),
-            ("release", "valid_from = d'2100-01-01T00:00:00Z'"),
-            ("release", "valid_until = d'2000-01-01T00:00:00Z'"),
-            ("source", "tenant = tenant:other"),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_08.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_09.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_10.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_11.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_12.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_13.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_14.surql"),
+            ),
+            (
+                "release",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_15.surql"),
+            ),
             (
                 "source",
-                "dataset_key = 'dataset-ffffffff-0000-7000-8000-000000000000'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_16.surql"),
             ),
             (
                 "source",
-                "source_key = 'source-ffffffff-0000-7000-8000-000000000000'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_17.surql"),
             ),
-            ("source", "enabled = false"),
-            ("source", "map_families = ['rail_transit']"),
+            (
+                "source",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_18.surql"),
+            ),
+            (
+                "source",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_19.surql"),
+            ),
+            (
+                "source",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_20.surql"),
+            ),
         ]
         .into_iter()
         .enumerate()
@@ -311,13 +345,13 @@ async fn mismatched_parents_tenants_and_lifecycle_are_excluded_before_document_d
             mutate(
                 &db.a,
                 RecordId::new("map_dataset_release", key("release", n)),
-                "canonical_json = '{'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_21.surql"),
             )
             .await;
             mutate(
                 &db.a,
                 RecordId::new("map_source", key("source", n)),
-                "canonical_json = '{'",
+                include_str!("../../queries/catalog/routing_authority/tests/mutation_22.surql"),
             )
             .await;
             assert!(
@@ -339,7 +373,7 @@ async fn mismatched_parents_tenants_and_lifecycle_are_excluded_before_document_d
 #[tokio::test]
 async fn matching_retained_documents_must_agree_with_selection_fields() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "documents", "author").await;
@@ -404,7 +438,7 @@ async fn matching_retained_documents_must_agree_with_selection_fields() {
             };
             document[field] = value;
             db.a.client()
-                .query("UPDATE ONLY $record SET canonical_json = $json RETURN NONE;")
+                .query(include_str!("../../queries/catalog/routing_authority/tests/matching_retained_documents_must_agree_with_selection_fields/statement_1.surql"))
                 .bind(("record", record))
                 .bind(("json", serde_json::to_string(&document).unwrap()))
                 .await
@@ -419,7 +453,7 @@ async fn matching_retained_documents_must_agree_with_selection_fields() {
                 "{target}.{field}"
             );
             db.a.client()
-                .query("DELETE ONLY $pointer;")
+                .query(include_str!("../../queries/catalog/routing_authority/tests/matching_retained_documents_must_agree_with_selection_fields/statement_2.surql"))
                 .bind(("pointer", pointer(&owner, n)))
                 .await
                 .unwrap()
@@ -427,9 +461,9 @@ async fn matching_retained_documents_must_agree_with_selection_fields() {
                 .unwrap();
         }
         let (_, release) = fixture(&writer, &owner, 100, at).await;
-        mutate(&db.a, pointer(&owner, 100), "record_version = 0").await;
+        mutate(&db.a, pointer(&owner, 100), include_str!("../../queries/catalog/routing_authority/tests/mutation_23.surql")).await;
         assert!(reader.routing_authority(&owner, &families, at).await.is_err());
-        db.a.client().query("BEGIN TRANSACTION; DELETE ONLY $pointer; CREATE ONLY $alias CONTENT { tenant: $tenant, dataset_key: $dataset, release_key: $release, activated_by: $owner, activated_at: $at, record_version: 1 }; COMMIT TRANSACTION;")
+        db.a.client().query(include_str!("../../queries/catalog/routing_authority/tests/matching_retained_documents_must_agree_with_selection_fields/statement_3.surql"))
             .bind(("pointer", pointer(&owner,100)))
             .bind(("alias",RecordId::new("map_active_release","wrong-identity")))
             .bind(("tenant",owner.identity.tenant_id.record_id()))

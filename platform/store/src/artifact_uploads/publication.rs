@@ -50,11 +50,7 @@ impl PlatformStore {
         for attempt in 0..8_u32 {
             let mut response = self
                 .db
-                .query(concat!(
-                    include_str!("publish_begin.surql"),
-                    include_str!("../artifacts/register.surql"),
-                    include_str!("publish_finish.surql")
-                ))
+                .query(include_str!("../queries/artifact_uploads/publish.surql"))
                 .bind(("upload", upload.id.clone()))
                 .bind(("owner", fence.owner))
                 .bind(("generation", fence.generation))
@@ -64,7 +60,9 @@ impl PlatformStore {
                 .bind(("artifact", upload.artifact.clone()))
                 .bind(("artifact_content", publication.occurrence.clone()))
                 .bind(("grants", publication.grants.clone()))
-                .bind(AuditTransactionWrite::new(audit.clone())?.into_binding())
+                .bind(
+                    AuditTransactionWrite::new(self.audit_targets(), audit.clone())?.into_binding(),
+                )
                 .bind((
                     "storage_usage",
                     RecordId::new("artifact_storage_usage", upload.tenant.key.clone()),

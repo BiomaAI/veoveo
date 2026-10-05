@@ -95,3 +95,20 @@ service without a browser session may carry execution attribution. The receiver 
 actor, source principal, client, tenant, context, invocation provenance and source-token
 expiry before delivery. Current registration and domain permissions remain the server's
 responsibility.
+
+## Task Query Assets
+
+The Task runtime stores complete SurrealQL statements under
+`src/veoveo_mcp/tasks/queries/`. Owner, Work Context, operation-type and cursor
+choices select complete files before execution. Authorization predicates run in
+SQL before limits and decoding. The package loader caches each UTF-8 resource
+through `importlib.resources`; wheels carry the same assets. The native SHOW
+changefeed template substitutes only validated numeric cursor and limit values.
+
+Test mutations live under `tests/queries/`. The native fixture starts an isolated,
+digest-pinned SurrealDB 3.3 container and uses a prebuilt Gateway composition
+binary to generate an empty optional-module selection, prepare the installation
+and migrate its planned kernel lanes. `VEOVEO_TEST_GATEWAY_BIN` selects that
+executable; the default is the repository's `target/debug/gateway`. Tests fail
+with a build prerequisite diagnostic when it is unavailable. They neither build
+the binary nor publish an installation control plane.

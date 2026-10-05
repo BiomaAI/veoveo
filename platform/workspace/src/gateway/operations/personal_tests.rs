@@ -1,4 +1,5 @@
 use super::*;
+use crate::persistence::WorkspaceRepository;
 use axum::response::Response;
 use tokio::sync::mpsc;
 
@@ -72,7 +73,7 @@ impl Watch {
 async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payloads_or_replay() {
     tokio::time::timeout(Duration::from_secs(30), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![veoveo_agent_runtime::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap()).unwrap(), crate::schema::module_setup(crate::test_store::module_lanes::execution("workspace").unwrap()).unwrap()]).await;
         super::super::super::tests::setup(&db.a).await;
         let subject = alice();
         let fixture = super::super::test_domain::Fixture::start(db.a.clone(), &subject).await;
@@ -82,7 +83,7 @@ async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payl
         let _replica_stop = replica.stop.clone().drop_guard();
         let actor = state.authority(&subject, &GatewayProfileId::parse("operator").unwrap()).await.unwrap();
         let chat = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&actor, chat, "Private live work").await.unwrap();
+        WorkspaceRepository::new(db.a.clone()).create_workspace_chat(&actor, chat, "Private live work").await.unwrap();
         let app = new_app(state.clone());
         let other_replica = new_app(replica.clone());
         let id = Uuid::now_v7();
@@ -105,10 +106,10 @@ async fn personal_feeds_follow_native_tasks_on_two_replicas_without_private_payl
         let bob_id = veoveo_platform_store::deterministic_principal_id("test", bob.principal.id.as_str()).unwrap();
         let mut private = Watch::open(&router(replica).layer(Extension(bob))).await;
         private.until(|event| matches!(event, wire::PersonalEvent::Inventory { operations, .. } if operations.is_empty())).await;
-        let invitation = veoveo_platform_store::WorkspaceInvitationId::new();
-        db.a.invite_workspace_member(&actor, chat, invitation, bob_id).await.unwrap();
+        let invitation = crate::persistence::WorkspaceInvitationId::new();
+        WorkspaceRepository::new(db.a.clone()).invite_workspace_member(&actor, chat, invitation, bob_id).await.unwrap();
         private.until(|event| matches!(event, wire::PersonalEvent::Inventory { operations, invitations: 1, .. } if operations.is_empty())).await;
-        db.a.client().query("UPDATE $person SET enabled = false; UPDATE $invitation SET state = 'revoked';")
+        db.a.client().query(include_str!("../../queries/gateway/operations/personal_tests/personal_feeds_follow_native_tasks_on_two_replicas_without_private_payloads_or_replay/statement_1.surql"))
             .bind(("person", bob_id.record_id())).bind(("invitation", invitation.record_id())).await.unwrap().check().unwrap();
         tokio::time::timeout(Duration::from_secs(5), async { while let Some(event) = private.received.recv().await {
             assert!(!matches!(event, wire::PersonalEvent::Task { .. }), "unrelated or revoked people receive no Task facts");

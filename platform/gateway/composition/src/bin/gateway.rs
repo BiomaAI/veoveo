@@ -113,6 +113,7 @@ impl SurrealStoreArgs {
             self.database,
             StoreCredentials::new(self.auth_level, self.username, self.password.0),
         )
+        .audit_targets(veoveo_gateway_catalog::audit_target_registry()?)
         .build()?)
     }
 }

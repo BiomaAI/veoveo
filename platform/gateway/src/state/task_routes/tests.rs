@@ -58,7 +58,7 @@ async fn concurrent_projection_and_retry_reuse_one_route_without_extending_reten
     assert!(left.task_route(canonical).await.unwrap().is_some());
     let mut read =
         db.a.client()
-            .query("SELECT * FROM gateway_task_route;")
+            .query(include_str!("../../queries/state/task_routes/tests/concurrent_projection_and_retry_reuse_one_route_without_extending_retention/statement_1.surql"))
             .await
             .unwrap();
     let rows: Vec<GatewayTaskRouteRecord> = read.take(0).unwrap();
@@ -84,7 +84,7 @@ async fn changed_authority_or_expired_routes_cannot_be_rebound_by_an_upstream_re
         assert_eq!(current.expires_at, original.expires_at);
     }
     db.a.client()
-        .query("UPDATE ONLY $route SET expires_at = time::now() - 1s;")
+        .query(include_str!("../../queries/state/task_routes/tests/changed_authority_or_expired_routes_cannot_be_rebound_by_an_upstream_retry/statement_1.surql"))
         .bind(("route", original.id))
         .await
         .unwrap()

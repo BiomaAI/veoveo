@@ -1,4 +1,5 @@
 //! OAuth issuance routes qualify database-backed Agent client resolution.
+use veoveo_agent_runtime::persistence::AgentRepository;
 
 use axum::{Extension, Router, http::StatusCode};
 use serde_json::{Value, json};
@@ -107,10 +108,16 @@ async fn managed_token_http_route_resolves_durable_clients_before_resource_routi
     use parking_lot::RwLock;
     use std::num::NonZeroU32;
     use tower::ServiceExt;
+    use veoveo_agent_runtime::persistence::instances::*;
     use veoveo_mcp_gateway::{GatewayRefreshDeliveryWindow, RefreshTokenDeliveryCipher};
-    use veoveo_platform_store::agent_management::instances::*;
 
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            crate::test_store::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     work_context_authority::setup(&db.a).await;
     let state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();
@@ -123,34 +130,40 @@ async fn managed_token_http_route_resolves_durable_clients_before_resource_routi
         .execution_authority(&"operator".parse().unwrap(), &human)
         .await
         .unwrap();
-    let instance = db.a.managed_agent(&actor, "worker-one").await.unwrap();
-    let owner = uuid::Uuid::now_v7();
-    let claim =
-        db.a.claim_managed_agent_operation(instance.operation, owner)
-            .await
-            .unwrap()
-            .unwrap()
-            .claim(owner)
-            .unwrap();
-    db.a.observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
+    let instance = AgentRepository::new(db.a.clone())
+        .managed_agent(&actor, "worker-one")
         .await
         .unwrap();
-    db.a.register_managed_agent_key(
-        &claim,
-        ManagedAgentPublicKey {
-            kid: "test".into(),
-            n: "public-modulus".into(),
-            e: "AQAB".into(),
-        },
-    )
-    .await
-    .unwrap();
+    let owner = uuid::Uuid::now_v7();
+    let claim = AgentRepository::new(db.a.clone())
+        .claim_managed_agent_operation(instance.operation, owner)
+        .await
+        .unwrap()
+        .unwrap()
+        .claim(owner)
+        .unwrap();
+    AgentRepository::new(db.a.clone())
+        .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
+        .await
+        .unwrap();
+    AgentRepository::new(db.a.clone())
+        .register_managed_agent_key(
+            &claim,
+            ManagedAgentPublicKey {
+                kid: "test".into(),
+                n: "public-modulus".into(),
+                e: "AQAB".into(),
+            },
+        )
+        .await
+        .unwrap();
     for phase in [
         ManagedAgentPhase::Storage,
         ManagedAgentPhase::Draining,
         ManagedAgentPhase::Workload,
     ] {
-        db.a.observe_managed_agent(&claim, phase, None)
+        AgentRepository::new(db.a.clone())
+            .observe_managed_agent(&claim, phase, None)
             .await
             .unwrap();
     }

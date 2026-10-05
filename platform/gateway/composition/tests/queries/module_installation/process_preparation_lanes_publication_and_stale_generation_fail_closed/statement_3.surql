@@ -1,0 +1,1 @@
+DELETE ONLY platform_module_installation:current;

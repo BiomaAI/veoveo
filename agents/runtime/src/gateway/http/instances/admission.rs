@@ -1,7 +1,8 @@
 use crate::contract::authoring as wire;
 use crate::gateway::runtime_template_revision;
+use crate::persistence::AgentRepository;
+use crate::persistence::{self as domain, instances::*};
 use axum::http::StatusCode;
-use veoveo_platform_store::agent_management::{self as domain, instances::*};
 use veoveo_types::WorkContextMembershipLevel;
 
 use super::super::{AgentManagementState, Fault, authority::Admission, projection};
@@ -33,8 +34,7 @@ pub(super) async fn template(
     definition: &str,
     revision: &str,
 ) -> Result<wire::RuntimeTemplate, Fault> {
-    let revision = state
-        .store()
+    let revision = AgentRepository::new(state.store().clone())
         .agent_revision(&actor.authority, definition, revision)
         .await?;
     let content = projection::public_content(revision.content)?;
@@ -95,8 +95,7 @@ pub(super) async fn provision(
 ) -> Result<ManagedAgentOperation, Fault> {
     // Retain the original admitted resource identities for idempotent replay.
     // A new request cannot take over the existing instance: the transaction rejects it.
-    let existing = match state
-        .store()
+    let existing = match AgentRepository::new(state.store().clone())
         .managed_agent(&actor.authority, request.id.as_str())
         .await
     {
@@ -105,8 +104,7 @@ pub(super) async fn provision(
         Err(error) => return Err(error.into()),
     };
     if let Some(instance) = existing {
-        return Ok(state
-            .store()
+        return Ok(AgentRepository::new(state.store().clone())
             .mutate_managed_agent(
                 &actor.authority,
                 request.id.as_str(),
@@ -180,8 +178,7 @@ pub(super) async fn provision(
         },
     };
     super::super::authority::live_session(state, &actor.profile, &actor.subject).await?;
-    Ok(state
-        .store()
+    Ok(AgentRepository::new(state.store().clone())
         .mutate_managed_agent(
             &actor.authority,
             request.id.as_str(),

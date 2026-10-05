@@ -50,4 +50,5 @@ veoveo-platform-store.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 tempfile = "3"

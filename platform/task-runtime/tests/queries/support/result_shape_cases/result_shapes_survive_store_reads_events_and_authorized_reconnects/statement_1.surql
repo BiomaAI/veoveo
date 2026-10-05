@@ -1,0 +1,1 @@
+SELECT VALUE result FROM ONLY $task;

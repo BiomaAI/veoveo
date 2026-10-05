@@ -45,16 +45,22 @@ async fn stale_identity_projection_cannot_restore_revoked_authority() {
             .await
             .unwrap()
             .unwrap();
-    db.b.client().query("BEGIN; UPDATE ONLY $enterprise SET enabled = false, name = 'Operator name'; UPDATE ONLY $tenant SET enabled = false, classification_ceiling = 'restricted'; UPDATE ONLY $principal SET enabled = false, email = 'verified@example.test', claims_hash = 'committed-claims', display_name = 'Current name'; COMMIT;")
+    db.b.client()
+        .query(include_str!(
+            "queries/identity_sync/stale_identity_projection_cannot_restore_revoked_authority.surql"
+        ))
         .bind(("enterprise", enterprise_id.clone()))
         .bind(("tenant", tenant_id.clone()))
         .bind(("principal", principal_id.clone()))
-        .await.unwrap().check().unwrap();
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     // Exercise the actual transaction with stale pre-read content, including
     // the read-none/concurrent-create case: existing records follow the same arm.
     for display_name in [None, Some("New display name".to_owned())] {
         db.a.client()
-            .query(include_str!("../src/identity/ensure.surql"))
+            .query(include_str!("../src/queries/identity/ensure.surql"))
             .bind(("enterprise", enterprise_id.clone()))
             .bind(("enterprise_content", enterprise.clone()))
             .bind(("tenant", tenant_id.clone()))
@@ -140,7 +146,9 @@ async fn concurrent_discovery_converges_and_cannot_rebind_identity() {
             .unwrap();
     assert_eq!(current.display_name, "Trusted display name");
     db.a.client()
-        .query("UPDATE ONLY $principal SET display_name = $key;")
+        .query(include_str!(
+            "queries/identity_sync/concurrent_discovery_converges_and_cannot_rebind_identity.surql"
+        ))
         .bind(("principal", identity.principal_id.record_id()))
         .bind(("key", KEY))
         .await

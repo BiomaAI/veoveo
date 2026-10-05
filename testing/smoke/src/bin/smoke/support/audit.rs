@@ -134,7 +134,7 @@ impl SmokeAudit {
                     .store
                     .client()
                     .query(
-                        include_str!("audit_count.surql")
+                        include_str!("../queries/audit/count.surql")
                             .replace("/* activity */ true", selection.predicate()),
                     )
                     .bind(("partition", partition.storage_key()))
@@ -185,6 +185,7 @@ impl SmokeAudit {
 
     /// Exercise the public CLI separately from fixture-only activity assertions.
     pub(crate) fn assert_cli(&self, gateway: &Path, platform: &PlatformStoreSmoke) -> Result<()> {
+        let targets = veoveo_gateway_catalog::audit_target_registry()?;
         for partition in &self.partitions {
             let mut args: Vec<OsString> = vec![
                 "audit".into(),
@@ -200,7 +201,9 @@ impl SmokeAudit {
                 }
             }
             let page: AuditPage =
-                serde_json::from_str(&run_checked(gateway, args, platform.runtime_env())?)?;
+                targets
+                    .decoder()
+                    .from_str(&run_checked(gateway, args, platform.runtime_env())?)?;
             anyhow::ensure!(
                 page.records
                     .iter()

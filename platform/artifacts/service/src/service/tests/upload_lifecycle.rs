@@ -82,7 +82,9 @@ async fn sealed(
 async fn usage(store: &platform::PlatformStore) -> platform::ArtifactStorageUsage {
     let mut response = store
         .client()
-        .query("SELECT * FROM ONLY $usage;")
+        .query(include_str!(
+            "../../../tests/queries/service/tests/upload_lifecycle/usage.surql"
+        ))
         .bind((
             "usage",
             platform::artifact_storage_usage_id(platform::deterministic_tenant_id("acme").unwrap()),
@@ -179,7 +181,7 @@ async fn upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_a
         ));
         let mut response = first
             .client()
-            .query("SELECT * FROM artifact_occurrence WHERE id = $artifact;")
+            .query(include_str!("../../../tests/queries/service/tests/upload_lifecycle/upload_publication_commits_receipt_grants_audit_and_duplicate_cleanup_atomically.surql"))
             .bind(("artifact", row.artifact.clone()))
             .await
             .unwrap()
@@ -322,7 +324,7 @@ async fn sealed_upload_recovery_rejects_stale_workers_manifest_changes_and_revok
     );
     store
         .client()
-        .query("UPDATE ONLY $upload SET lease_until = $past;")
+        .query(include_str!("../../../tests/queries/service/tests/upload_lifecycle/sealed_upload_recovery_rejects_stale_workers_manifest_changes_and_revoked_authority.surql"))
         .bind(("upload", row.id.clone()))
         .bind(("past", Utc::now() - TimeDelta::seconds(1)))
         .await
@@ -355,7 +357,7 @@ async fn sealed_upload_recovery_rejects_stale_workers_manifest_changes_and_revok
     );
     store
         .client()
-        .query("UPDATE ONLY $context SET policy_revision = 'revoked';")
+        .query(include_str!("../../../tests/queries/service/tests/upload_lifecycle/sealed_upload_recovery_rejects_stale_workers_manifest_changes_and_revoked_authority_2.surql"))
         .bind(("context", context))
         .await
         .unwrap()

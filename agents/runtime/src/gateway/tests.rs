@@ -1,3 +1,4 @@
+use crate::persistence::AgentRepository;
 mod policy_actions;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -5,6 +6,7 @@ use veoveo_gateway_contract::GatewayAction;
 use veoveo_types::OAuthClientId;
 
 use crate::contract::authoring as wire;
+use crate::persistence::{instances::*, *};
 use chrono::{TimeDelta, Utc};
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use uuid::Uuid;
@@ -13,8 +15,7 @@ use veoveo_mcp_contract::{
     ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
-    PlatformStore, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
-    deterministic_work_context_id,
+    PlatformStore, WorkContextMembershipLevel, deterministic_work_context_id,
 };
 use veoveo_types::{PrincipalId, ScopeName, TenantId, WorkContextId};
 
@@ -128,8 +129,17 @@ async fn provision(
         .await
         .unwrap();
     let context = deterministic_work_context_id("tenant-a", "operations").unwrap();
-    store.client().query("CREATE ONLY $context SET tenant = $tenant, context_key = 'operations', title = 'Operations', policy_revision = 'v1', memberships = [], output_policy = {owner_kind:'principal', owner_key:'alice', initial_grants:[], data_labels:[]};")
-        .bind(("context", context.record_id())).bind(("tenant", actor.tenant_id.record_id())).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../queries/gateway/tests/provision/statement_1.surql"
+        ))
+        .bind(("context", context.record_id()))
+        .bind(("tenant", actor.tenant_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let digest = store
         .artifact_read_context_version("tenant-a", "operations")
         .await
@@ -169,7 +179,7 @@ async fn provision(
             resource_subscriptions: vec![],
         },
     };
-    let draft = store
+    let draft = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             "pilot",
@@ -183,7 +193,7 @@ async fn provision(
         )
         .await
         .unwrap();
-    let definition = store
+    let definition = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             "pilot",
@@ -199,7 +209,7 @@ async fn provision(
         )
         .await
         .unwrap();
-    let operation = store
+    let operation = AgentRepository::new(store.clone())
         .mutate_managed_agent(
             &authority,
             "one",
@@ -239,14 +249,14 @@ async fn provision(
         .await
         .unwrap();
     let owner = Uuid::now_v7();
-    let claim = store
+    let claim = AgentRepository::new(store.clone())
         .claim_managed_agent_operation(operation.id, owner)
         .await
         .unwrap()
         .unwrap()
         .claim(owner)
         .unwrap();
-    store
+    AgentRepository::new(store.clone())
         .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
         .await
         .unwrap();
@@ -255,7 +265,7 @@ async fn provision(
     let AlgorithmParameters::RSA(key) = &keys.keys[0].algorithm else {
         panic!("RSA fixture")
     };
-    store
+    AgentRepository::new(store.clone())
         .register_managed_agent_key(
             &claim,
             ManagedAgentPublicKey {
@@ -272,12 +282,15 @@ async fn provision(
         ManagedAgentPhase::Workload,
         ManagedAgentPhase::Ready,
     ] {
-        store
+        AgentRepository::new(store.clone())
             .observe_managed_agent(&claim, phase, None)
             .await
             .unwrap();
     }
-    let instance = store.managed_agent(&authority, "one").await.unwrap();
+    let instance = AgentRepository::new(store.clone())
+        .managed_agent(&authority, "one")
+        .await
+        .unwrap();
     (authority, definition, instance)
 }
 
@@ -313,7 +326,13 @@ fn token(extensions: veoveo_types::AdmittedExtensions) -> VerifiedAccessToken {
 #[tokio::test]
 async fn managed_identity_rechecks_binding_tools_revocation_and_source_collisions() {
     tokio::time::timeout(std::time::Duration::from_secs(180), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let catalog = catalog();
         let template = template();
         let (authority, definition, instance) = provision(&db.a, &template).await;
@@ -416,19 +435,20 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .await
                 .is_err()
         );
-        db.a.mutate_managed_agent(
-            &authority,
-            "one",
-            Uuid::now_v7(),
-            Some(1),
-            ManagedAgentMutation::Stop,
-            ManagedAgentLimits {
-                instances: 20,
-                storage_gib: 100,
-            },
-        )
-        .await
-        .unwrap();
+        AgentRepository::new(db.a.clone())
+            .mutate_managed_agent(
+                &authority,
+                "one",
+                Uuid::now_v7(),
+                Some(1),
+                ManagedAgentMutation::Stop,
+                ManagedAgentLimits {
+                    instances: 20,
+                    storage_gib: 100,
+                },
+            )
+            .await
+            .unwrap();
         assert!(
             !state
                 .oauth_action_admitted(&catalog, &subject, GatewayAction::ToolsCall, &allowed)
@@ -447,17 +467,18 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
                 .unwrap(),
             "stop preserves observation"
         );
-        db.a.mutate_agent_definition(
-            &authority,
-            "pilot",
-            Uuid::now_v7(),
-            Some(definition.revision),
-            AgentDefinitionMutation::Status {
-                status: AgentDefinitionStatus::Disabled,
-            },
-        )
-        .await
-        .unwrap();
+        AgentRepository::new(db.a.clone())
+            .mutate_agent_definition(
+                &authority,
+                "pilot",
+                Uuid::now_v7(),
+                Some(definition.revision),
+                AgentDefinitionMutation::Status {
+                    status: AgentDefinitionStatus::Disabled,
+                },
+            )
+            .await
+            .unwrap();
         assert!(
             state
                 .effective_oauth_client(&catalog, &client_id)
@@ -505,7 +526,8 @@ async fn managed_identity_rechecks_binding_tools_revocation_and_source_collision
             "static-only resolver must refuse a managed token: {error}"
         );
         assert_eq!(
-            db.a.managed_agent(&authority, "one")
+            AgentRepository::new(db.a.clone())
+                .managed_agent(&authority, "one")
                 .await
                 .unwrap()
                 .principal,

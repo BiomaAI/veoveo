@@ -10,9 +10,15 @@ pub(crate) async fn export_audit(
     State(state): State<AdminState>,
     Path(profile): Path<GatewayProfileId>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Query(parameters): Query<Parameters<AuditQuery>>,
+    Query(parameters): Query<AuditParameters>,
 ) -> Response {
-    let mut query = parameters.query.0;
+    let mut query = match model::decode_query(
+        &parameters.query,
+        state.control_store.platform_store().audit_targets(),
+    ) {
+        Ok(query) => query,
+        Err(error) => return (StatusCode::BAD_REQUEST, error).into_response(),
+    };
     if query.validate().is_err() {
         return StatusCode::BAD_REQUEST.into_response();
     }

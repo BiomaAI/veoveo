@@ -50,18 +50,16 @@ async fn maximum_member_vectors_fit_the_wire_and_failed_replacement_rolls_back()
         db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
             .await.unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-        let mut response = db.b.client().query(format!(
-            "SELECT count() AS total FROM {table} GROUP ALL; SELECT VALUE embedding FROM {table} LIMIT 1;"
-        )).await.unwrap().check().unwrap();
+        let mut response = db.b.client().query(include_str!("../queries/knowledge/bulk/maximum_member_vectors_fit_the_wire_and_failed_replacement_rolls_back.surql"))
+            .bind(("table", table.clone())).await.unwrap().check().unwrap();
         assert_eq!(response.take::<Option<Count>>(0).unwrap().unwrap().total, 256);
         let vectors: Vec<Vec<f32>> = response.take(1).unwrap();
         assert_eq!(vectors[0].len(), 8192);
         assert_eq!(vectors[0], chunk.vector().values());
 
         // Failure after earlier rows in the INSERT must preserve every old row.
-        db.a.client().query(format!(
-            "DEFINE EVENT reject_fixture ON TABLE {table} WHEN $event = 'CREATE' AND $after.ordinal = 128 THEN {{ THROW 'fixture_replacement_rejected'; }};"
-        )).await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/knowledge/bulk/maximum_member_vectors_fit_the_wire_and_failed_replacement_rolls_back_2.surql"))
+            .bind(("table", table.clone())).await.unwrap().check().unwrap();
         db.a.renew_knowledge_coordinator(&lease).await.unwrap();
         let replacement = member("Replacement bulk member");
         let ticket = db.a.begin_knowledge_member_read(&lease, &registration, generation,
@@ -69,9 +67,8 @@ async fn maximum_member_vectors_fit_the_wire_and_failed_replacement_rolls_back()
         let error = db.a.replace_knowledge_member(&ticket, &replacement).await.unwrap_err();
         assert!(error.to_string().contains("fixture_replacement_rejected"),
             "replacement failed before the injected transactional rejection");
-        let mut response = db.b.client().query(format!(
-            "SELECT count() AS total FROM {table} WHERE title = $title GROUP ALL;"
-        )).bind(("title", initial.title().as_str().to_owned())).await.unwrap().check().unwrap();
+        let mut response = db.b.client().query(include_str!("../queries/knowledge/bulk/maximum_member_vectors_fit_the_wire_and_failed_replacement_rolls_back_3.surql"))
+            .bind(("table", table.clone())).bind(("title", initial.title().as_str().to_owned())).await.unwrap().check().unwrap();
         assert_eq!(response.take::<Option<Count>>(0).unwrap().unwrap().total, 256);
         assert!(db.b.knowledge_candidates_page(&scope(&registration), generation, None, 100)
             .await.unwrap().is_empty(), "failed replacement must leave the reserved member stale");

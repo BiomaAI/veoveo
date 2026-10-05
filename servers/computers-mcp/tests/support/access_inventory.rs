@@ -8,7 +8,7 @@ use veoveo_mcp_contract::PolicyRuleId;
 
 #[tokio::test]
 async fn access_inventory_and_revocation_share_owned_state_and_resource_invalidations() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     let identity = support::browser::identity(&db, "alice").await;
     let actor = ComputerActor::from_verified(&identity).unwrap();
@@ -61,7 +61,7 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
         .await
         .unwrap()
         .computer_id;
-    db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'fixture-resource', process_id = 'fixture-process';")
+    db.a.client().query(include_str!("../queries/support/access_inventory/access_inventory_and_revocation_share_owned_state_and_resource_invalidations.surql"))
         .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid()))))
         .await.unwrap().check().unwrap();
     let ticket = store.issue_browser_grant(&actor, computer).await.unwrap();

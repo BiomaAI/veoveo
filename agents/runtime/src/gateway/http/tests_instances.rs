@@ -1,6 +1,7 @@
 use super::{tests::*, tests_templates::managed_state, *};
+use crate::persistence::AgentRepository;
+use crate::persistence::instances::ManagedAgentLimits;
 use serde_json::{Value, json};
-use veoveo_platform_store::agent_management::instances::ManagedAgentLimits;
 
 async fn published(app: &Router) -> Value {
     let (_, choices) = request(app, "GET", "agent-templates", Value::Null).await;
@@ -31,7 +32,11 @@ async fn publish_current_template(app: &Router, session: &str) -> Value {
 #[tokio::test]
 async fn approved_image_adoption_preserves_bindings_and_replays_after_template_removal() {
     use crate::gateway::ManagedTemplateCatalog;
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     crate::work_context_authority::setup(&db.a).await;
     let mut state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();
@@ -47,10 +52,10 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
     )
     .await
     .unwrap();
-    let before =
-        db.a.managed_agent(&actor.authority, "worker-one")
-            .await
-            .unwrap();
+    let before = AgentRepository::new(db.a.clone())
+        .managed_agent(&actor.authority, "worker-one")
+        .await
+        .unwrap();
     let original = state
         .templates
         .get(&wire::AgentTemplateId::parse("bounded").unwrap())
@@ -98,7 +103,8 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
             "{field}"
         );
         assert_eq!(
-            db.a.managed_agent(&actor.authority, "worker-one")
+            AgentRepository::new(db.a.clone())
+                .managed_agent(&actor.authority, "worker-one")
                 .await
                 .unwrap()
                 .resources,
@@ -123,7 +129,8 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
     );
     let candidate = publish_current_template(&upgraded, "session-one").await;
     assert_eq!(
-        db.a.managed_agent(&actor.authority, "worker-one")
+        AgentRepository::new(db.a.clone())
+            .managed_agent(&actor.authority, "worker-one")
             .await
             .unwrap()
             .requested_revision,
@@ -140,10 +147,10 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
     .await;
     assert_eq!(status, StatusCode::ACCEPTED, "{operation}");
     assert_eq!(operation["generation"], 2);
-    let after =
-        db.a.managed_agent(&actor.authority, "worker-one")
-            .await
-            .unwrap();
+    let after = AgentRepository::new(db.a.clone())
+        .managed_agent(&actor.authority, "worker-one")
+        .await
+        .unwrap();
     assert_eq!(after.identity, before.identity);
     assert_eq!(after.principal, before.principal);
     assert_eq!(after.public_key, before.public_key);
@@ -177,7 +184,11 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
 
 #[tokio::test]
 async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     crate::work_context_authority::setup(&db.a).await;
     let mut state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();
@@ -196,10 +207,10 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
     )
     .await
     .unwrap();
-    let before =
-        db.a.agent_management_revision(&actor.authority)
-            .await
-            .unwrap();
+    let before = AgentRepository::new(db.a.clone())
+        .agent_management_revision(&actor.authority)
+        .await
+        .unwrap();
     let bob_actor = authority::admit(
         &state,
         "operator".into(),
@@ -208,18 +219,18 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
     )
     .await
     .unwrap();
-    let bob_before =
-        db.a.agent_management_revision(&bob_actor.authority)
-            .await
-            .unwrap();
+    let bob_before = AgentRepository::new(db.a.clone())
+        .agent_management_revision(&bob_actor.authority)
+        .await
+        .unwrap();
     let body = json!({"requestId":uuid::Uuid::now_v7(),"id":"worker-one","name":"Worker one","definition":"worker","revision":definition["publishedDigest"]});
     let (status, operation) = request(&alice, "POST", "agent-instances", body.clone()).await;
     assert_eq!(status, StatusCode::ACCEPTED, "{operation}");
     assert_eq!(operation["phase"], "queued");
-    let after =
-        db.a.agent_management_revision(&actor.authority)
-            .await
-            .unwrap();
+    let after = AgentRepository::new(db.a.clone())
+        .agent_management_revision(&actor.authority)
+        .await
+        .unwrap();
     assert_ne!(after, before);
     let bob_actor = authority::admit(
         &state,
@@ -230,7 +241,8 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
     .await
     .unwrap();
     assert_eq!(
-        db.a.agent_management_revision(&bob_actor.authority)
+        AgentRepository::new(db.a.clone())
+            .agent_management_revision(&bob_actor.authority)
             .await
             .unwrap(),
         bob_before
@@ -338,8 +350,12 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
 
 #[tokio::test]
 async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
-    use veoveo_platform_store::agent_management::instances::*;
-    let db = crate::test_store::TestDb::new().await;
+    use crate::persistence::instances::*;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     crate::work_context_authority::setup(&db.a).await;
     let state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();
@@ -356,43 +372,47 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
     )
     .await
     .unwrap();
-    let instance =
-        db.a.managed_agent(&actor.authority, "worker-one")
-            .await
-            .unwrap();
-    let owner = uuid::Uuid::now_v7();
-    let claim =
-        db.a.claim_managed_agent_operation(instance.operation, owner)
-            .await
-            .unwrap()
-            .unwrap()
-            .claim(owner)
-            .unwrap();
-    db.a.observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
+    let instance = AgentRepository::new(db.a.clone())
+        .managed_agent(&actor.authority, "worker-one")
         .await
         .unwrap();
-    db.a.register_managed_agent_key(
-        &claim,
-        ManagedAgentPublicKey {
-            kid: "test".into(),
-            n: "public-modulus".into(),
-            e: "AQAB".into(),
-        },
-    )
-    .await
-    .unwrap();
+    let owner = uuid::Uuid::now_v7();
+    let claim = AgentRepository::new(db.a.clone())
+        .claim_managed_agent_operation(instance.operation, owner)
+        .await
+        .unwrap()
+        .unwrap()
+        .claim(owner)
+        .unwrap();
+    AgentRepository::new(db.a.clone())
+        .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
+        .await
+        .unwrap();
+    AgentRepository::new(db.a.clone())
+        .register_managed_agent_key(
+            &claim,
+            ManagedAgentPublicKey {
+                kid: "test".into(),
+                n: "public-modulus".into(),
+                e: "AQAB".into(),
+            },
+        )
+        .await
+        .unwrap();
     for phase in [
         ManagedAgentPhase::Storage,
         ManagedAgentPhase::Draining,
         ManagedAgentPhase::Workload,
         ManagedAgentPhase::Ready,
     ] {
-        db.a.observe_managed_agent(&claim, phase, None)
+        AgentRepository::new(db.a.clone())
+            .observe_managed_agent(&claim, phase, None)
             .await
             .unwrap();
     }
     assert!(
-        db.a.automated_authority_for_oauth_client("test", "shared", &instance.identity.client_id)
+        AgentRepository::new(db.a.clone())
+            .automated_authority_for_oauth_client("test", "shared", &instance.identity.client_id)
             .await
             .unwrap()
             .is_some()
@@ -432,8 +452,7 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
             agent_key: "worker-one".into(),
             display_name: "Worker".into(),
             profile: "operator".into(),
-            authority: db
-                .a
+            authority: AgentRepository::new(db.a.clone())
                 .automated_authority_for_oauth_client(
                     "test",
                     "shared",
@@ -532,14 +551,15 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
         "credential rotation cannot replace the episode epoch"
     );
     db.a.client()
-        .query("UPDATE ONLY $principal SET enabled = false;")
+        .query(include_str!("../../queries/gateway/http/tests_instances/managed_dispatch_rechecks_model_generation_epoch_and_revocation/statement_1.surql"))
         .bind(("principal", instance.principal))
         .await
         .unwrap()
         .check()
         .unwrap();
     assert!(
-        db.a.automated_authority_for_oauth_client("test", "shared", &instance.identity.client_id)
+        AgentRepository::new(db.a.clone())
+            .automated_authority_for_oauth_client("test", "shared", &instance.identity.client_id)
             .await
             .unwrap()
             .is_none()

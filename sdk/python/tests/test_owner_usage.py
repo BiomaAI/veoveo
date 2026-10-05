@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 
+from query_files import test_query
 from veoveo_mcp.tasks import TaskTypeName
 from veoveo_mcp.tasks.types import task_record
 from test_owner_task_query import runtime  # noqa: F401
@@ -41,25 +42,28 @@ async def test_usage_pages_group_after_owner_admission_and_complete_in_sql(runti
         assert {record.model_id for record in records} == {"profile", "other-model"}
 
 
-@pytest.mark.parametrize("target,assignment", [
-    ("task", "request.owner.data_labels = ['restricted']"),
-    ("task", "profile = profile:other"),
-    ("task", "request.owner.principal_key = 'other'"),
-    ("task", "task_type = 'other'"),
-    ("usage", "server = mcp_server:other"),
-    ("usage", "tenant = tenant:other"),
-])
+@pytest.mark.parametrize(
+    'target,assignment',
+    [
+        ('task', 'test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata/mutation_01.surql'),
+        ('task', 'test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata/mutation_02.surql'),
+        ('task', 'test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata/mutation_03.surql'),
+        ('task', 'test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata/mutation_04.surql'),
+        ('usage', 'test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata/mutation_05.surql'),
+        ('usage', 'test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata/mutation_06.surql'),
+    ],
+)
 async def test_usage_point_page_and_completion_apply_current_parent_metadata(runtime, target, assignment):
     async with asyncio.timeout(15):
         caller = owner(f"usage-denial-{uuid.uuid4()}")
         task_id = await record_usage(runtime, caller)
         query = runtime.for_owner(caller).of_type(TaskTypeName("profile")).usage()
         assert len(await query.get(task_id)) == 1
-        table = "$task" if target == "task" else "domain_usage"
-        where = "" if target == "task" else " WHERE task = $task"
-        await runtime.store.query(f"UPDATE {table} SET {assignment}{where};",
+
+
+        await runtime.store.query(test_query(assignment),
                                   {"task": task_record(task_id)})
-        await runtime.store.query("UPDATE $task SET request.owner.authority = {};",
+        await runtime.store.query(test_query("test_owner_usage/test_usage_point_page_and_completion_apply_current_parent_metadata.surql"),
                                   {"task": task_record(task_id)})
         assert await query.get(task_id) == ()
         assert (await query.page(limit=1)).task_ids == ()

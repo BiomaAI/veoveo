@@ -5,7 +5,11 @@ use serde_json::{Value, json};
 
 #[tokio::test]
 async fn managed_publication_requires_exact_template_parameters_and_credential_admission() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     crate::work_context_authority::setup(&db.a).await;
     let mut state = managed_state(&db.a);
     let _stop = state.stop.clone().drop_guard();

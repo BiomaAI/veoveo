@@ -139,11 +139,20 @@ impl ComputersStore {
         )
         .map_err(|_| ComputerError::Forbidden)?
         .record_id();
-        let mut current = self.platform.client()
-            .query("SELECT * FROM ONLY $enterprise; SELECT * FROM ONLY $tenant; SELECT * FROM ONLY $source; SELECT * FROM ONLY $actor;")
+        let mut current = self
+            .platform
+            .client()
+            .query(include_str!(
+                "../queries/authority_snapshot/read_authority.surql"
+            ))
             .bind(("enterprise", deterministic_enterprise_id().record_id()))
-            .bind(("tenant", tenant.clone())).bind(("source", source_id.clone())).bind(("actor", actor_id.clone()))
-            .await.map_err(|_| ComputerError::Unavailable)?.check().map_err(|_| ComputerError::Unavailable)?;
+            .bind(("tenant", tenant.clone()))
+            .bind(("source", source_id.clone()))
+            .bind(("actor", actor_id.clone()))
+            .await
+            .map_err(|_| ComputerError::Unavailable)?
+            .check()
+            .map_err(|_| ComputerError::Unavailable)?;
         let enterprise: Option<EnterpriseRecord> =
             current.take(0).map_err(|_| ComputerError::Unavailable)?;
         let tenant_record: Option<TenantRecord> =

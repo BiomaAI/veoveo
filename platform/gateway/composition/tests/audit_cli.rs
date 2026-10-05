@@ -1,6 +1,8 @@
 //! Public verification against root-tampered records in an owned RocksDB database.
 #[path = "../../../../testing/fixtures/store/container.rs"]
 mod container;
+#[path = "../../../../testing/fixtures/module_lanes.rs"]
+mod module_lanes;
 
 use base64::{Engine, engine::general_purpose::STANDARD};
 use chrono::{TimeDelta, Utc};
@@ -10,6 +12,7 @@ use std::{num::NonZeroU32, process::Output, sync::Arc, time::Duration};
 use surrealdb::types::{Array, RecordId, SurrealValue};
 use tokio::process::Command;
 use veoveo_audit::{integrity::AuditSigningKey, *};
+use veoveo_computers_contract::{ComputerAuditTarget, ComputerId};
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials, StoreError};
 
 #[derive(Clone, Copy, Debug)]
@@ -36,18 +39,17 @@ async fn connect(endpoint: &str, password: &SecretString) -> PlatformStore {
         format!("case_{}", uuid::Uuid::now_v7().simple()),
         StoreCredentials::root("fixture_admin", password.clone()),
     )
-    .migrate_on_connect(true)
+    .audit_targets(veoveo_gateway_catalog::audit_target_registry().unwrap())
     .build()
     .unwrap();
     tokio::time::timeout(Duration::from_secs(45), async {
         loop {
             match PlatformStore::connect(config.clone()).await {
-                Ok(store) => return store,
-                Err(
-                    error @ (StoreError::MigrationExecution { .. }
-                    | StoreError::Migration(_)
-                    | StoreError::Config(_)),
-                ) => {
+                Ok(store) => {
+                    module_lanes::install(&store, Vec::new()).await.unwrap();
+                    return store;
+                }
+                Err(error @ (StoreError::FreshInstallationRequired | StoreError::Config(_))) => {
                     panic!("audit CLI fixture initialization failed: {error}");
                 }
                 Err(_) => tokio::time::sleep(Duration::from_millis(100)).await,
@@ -128,7 +130,13 @@ async fn qualify_export(store: &PlatformStore, password: &SecretString) {
     let lines: Vec<AuditExportLine> = String::from_utf8(output.stdout)
         .unwrap()
         .lines()
-        .map(|line| serde_json::from_str(line).expect("every stdout line must be audit JSONL"))
+        .map(|line| {
+            veoveo_gateway_catalog::audit_target_registry()
+                .unwrap()
+                .decoder()
+                .from_str(line)
+                .expect("every stdout line must be audit JSONL")
+        })
         .collect();
     let Some(AuditExportLine::Header {
         checkpoint: first, ..
@@ -151,6 +159,183 @@ async fn qualify_export(store: &PlatformStore, password: &SecretString) {
             .iter()
             .all(|line| matches!(line, AuditExportLine::Record { .. }))
     );
+}
+
+async fn qualify_owner_targets(store: &PlatformStore, password: &SecretString) {
+    let mut response = store
+        .client()
+        .query(include_str!(
+            "queries/audit_cli/owner_targets/computer_schema_present.surql"
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let computer_schema_present = response.take::<Option<bool>>(1).unwrap().unwrap();
+    assert!(
+        !computer_schema_present,
+        "read codecs must not install Computer schema"
+    );
+
+    let service = AuditService::start(
+        store.clone(),
+        Arc::new(AuditSigningKey::from_seed(&[39; 32])),
+        NonZeroU32::new(7).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let registry = store.audit_targets();
+    let registration = registry.registration::<ComputerAuditTarget>().unwrap();
+    let computers = [ComputerId::new(), ComputerId::new()];
+    let scope = AuditReadScope::new(None, true);
+    let partition = AuditPartition::Installation;
+    let mut records = Vec::new();
+    for computer in computers {
+        let target = registry.target(ComputerAuditTarget { computer }).unwrap();
+        let draft = AuditDraft::builder(
+            AuditRequest::background(),
+            target,
+            AuditDetail::Read {
+                method: AuditReadMethod::ResourceRead,
+            },
+            AuditOutcome::Allowed,
+            AuditReason::Accepted,
+        )
+        .build()
+        .unwrap();
+        store
+            .append_audit_records(std::slice::from_ref(&draft))
+            .await
+            .unwrap();
+        tokio::time::timeout(
+            Duration::from_secs(20),
+            store.audit_wait_sealed(&scope, &partition, draft.id()),
+        )
+        .await
+        .expect("Computer target fixture record was not sealed")
+        .unwrap();
+        records.push(draft);
+    }
+
+    // Both targets have the same codec and partition; only the complete target differs.
+    for (computer, draft) in computers.into_iter().zip(&records) {
+        let target = serde_json::to_string(draft.target()).unwrap();
+        let output = audit_command(
+            store,
+            password,
+            &["list", "--installation", "--target", &target],
+        )
+        .await;
+        assert!(
+            output.status.success(),
+            "Computer target list failed: {}",
+            diagnostic(&output, password)
+        );
+        let page: AuditPage = registry
+            .decoder()
+            .from_str(std::str::from_utf8(&output.stdout).unwrap())
+            .unwrap();
+        assert!(page.next.is_none());
+        assert_eq!(page.records.len(), 1);
+        assert_eq!(page.records[0].draft.id(), draft.id());
+        assert_eq!(page.records[0].draft.target(), draft.target());
+        assert_eq!(
+            registration
+                .get(registry, page.records[0].draft.target())
+                .unwrap()
+                .computer,
+            computer
+        );
+    }
+
+    let target = serde_json::to_string(records[0].target()).unwrap();
+    let output = audit_command(
+        store,
+        password,
+        &["export", "--installation", "--target", &target],
+    )
+    .await;
+    assert!(
+        output.status.success(),
+        "Computer target export failed: {}",
+        diagnostic(&output, password)
+    );
+    let lines: Vec<AuditExportLine> = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| registry.decoder().from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 3);
+    let AuditExportLine::Header {
+        query,
+        checkpoint: first,
+        ..
+    } = &lines[0]
+    else {
+        panic!("Computer target export must begin with a header")
+    };
+    assert_eq!(query.target.as_ref(), Some(records[0].target()));
+    let AuditExportLine::Record { record } = &lines[1] else {
+        panic!("Computer target export must contain its selected record")
+    };
+    assert_eq!(record.draft.id(), records[0].id());
+    assert_eq!(record.draft.target(), records[0].target());
+    assert_eq!(
+        registration
+            .get(registry, record.draft.target())
+            .unwrap()
+            .computer,
+        computers[0]
+    );
+    let AuditExportLine::Complete {
+        records: count,
+        checkpoint: last,
+    } = &lines[2]
+    else {
+        panic!("Computer target export must end with a completion footer")
+    };
+    assert_eq!(*count, 1);
+    assert!(first.is_some());
+    assert_eq!(first, last);
+
+    for (case, target) in [
+        ("malformed JSON", String::from(r#"{"kind":"computer""#)),
+        (
+            "malformed owner ID",
+            String::from(r#"{"kind":"computer","computer":"invalid"}"#),
+        ),
+        (
+            "unknown codec",
+            String::from(r#"{"kind":"unregistered_owner"}"#),
+        ),
+        (
+            "duplicate owner field",
+            format!(
+                r#"{{"kind":"computer","computer":"{}","computer":"{}"}}"#,
+                computers[0], computers[1]
+            ),
+        ),
+    ] {
+        for command in ["list", "export"] {
+            let output = audit_command(
+                store,
+                password,
+                &[command, "--installation", "--target", &target],
+            )
+            .await;
+            assert!(!output.status.success(), "{command} accepted {case}");
+            assert!(
+                output.stdout.is_empty(),
+                "{command} emitted an audit result for {case}"
+            );
+            assert!(
+                !diagnostic(&output, password).is_empty(),
+                "{command} omitted its {case} diagnostic"
+            );
+        }
+    }
+    service.shutdown(Duration::from_secs(15)).await.unwrap();
+    println!("{{\"audit_cli\":\"computer_targets\",\"qualified\":true}}");
 }
 
 async fn qualify(store: &PlatformStore, password: &SecretString, attack: Attack) {
@@ -219,17 +404,14 @@ async fn qualify(store: &PlatformStore, password: &SecretString, attack: Attack)
     );
     let statement = match attack {
         Attack::ChangedRecord => {
-            "DEFINE FIELD OVERWRITE draft ON audit_record TYPE object FLEXIBLE;
-            DEFINE FIELD OVERWRITE recorded_at ON audit_record TYPE datetime DEFAULT ALWAYS time::now();
-            UPDATE $record SET draft.latency_ms = 17;"
+            include_str!("queries/audit_cli/qualify/statement_1.surql")
         }
-        Attack::DeletedRecord => "DELETE $record;",
-        Attack::DeletedBlock => "DELETE $block;",
+        Attack::DeletedRecord => include_str!("queries/audit_cli/qualify/statement_2.surql"),
+        Attack::DeletedBlock => include_str!("queries/audit_cli/qualify/statement_3.surql"),
         Attack::ForgedSignature => {
-            "DEFINE FIELD OVERWRITE block ON audit_block TYPE object FLEXIBLE;
-            UPDATE $block SET block.signature = $signature;"
+            include_str!("queries/audit_cli/qualify/statement_4.surql")
         }
-        Attack::BackdatedInsert => "RETURN NONE;",
+        Attack::BackdatedInsert => include_str!("queries/audit_cli/qualify/statement_5.surql"),
     };
     // Only the owned root client weakens READONLY fields to model a database administrator.
     store
@@ -302,4 +484,26 @@ async fn public_verify_detects_root_tampering_and_backdated_inserts() {
     })
     .await
     .expect("audit CLI acceptance exceeded 240 seconds");
+}
+
+#[tokio::test]
+async fn public_cli_filters_and_exports_registered_computer_targets_without_owner_schema() {
+    tokio::time::timeout(Duration::from_secs(420), async {
+        let password = SecretString::from(format!(
+            "{}{}",
+            uuid::Uuid::now_v7().simple(),
+            uuid::Uuid::now_v7().simple()
+        ));
+        let (_container, endpoint) = container::Container::start(
+            container::Docker::default(),
+            "rocksdb:/tmp/veoveo-test.db",
+            password.expose_secret(),
+        )
+        .await
+        .unwrap();
+        let store = connect(&endpoint, &password).await;
+        qualify_owner_targets(&store, &password).await;
+    })
+    .await
+    .expect("Computer target CLI acceptance exceeded 420 seconds");
 }

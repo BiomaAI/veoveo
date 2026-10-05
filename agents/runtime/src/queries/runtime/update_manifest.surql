@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $agent SET manifest = $manifest, revision += 1, updated_at = $now WHERE revision = $revision AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated = NONE { THROW 'agent manifest update conflict'; }; COMMIT TRANSACTION;

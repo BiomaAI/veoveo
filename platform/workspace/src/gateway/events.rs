@@ -1,9 +1,11 @@
 //! LIVE is a contentless latency hint. Every browser wake is based on a fresh,
 //! authorized durable head. Database reconciliation never queries a provider.
+use crate::persistence::WorkspaceRepository;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use veoveo_gateway_contract::AuthorizationServerId;
 
 use crate::contract::ChatWake;
+use crate::persistence::WorkspaceChatId;
 use axum::{
     Router,
     extract::{Extension, Path, State},
@@ -22,7 +24,7 @@ use uuid::Uuid;
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::http::stream_limits::Limits;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
-use veoveo_platform_store::{PlatformStore, RecordId, WorkspaceChatId};
+use veoveo_platform_store::{PlatformStore, RecordId};
 
 use super::{WorkspaceState, authority, fault};
 
@@ -51,7 +53,7 @@ pub(crate) fn router(
     Ok(Router::new()
         .route("/workspace-api/{profile}/chats/{chat}/events", get(events))
         .with_state(EventState {
-            workspace: WorkspaceState { store },
+            workspace: WorkspaceState::new(store),
             gateway,
             catalog,
             wake,
@@ -67,8 +69,9 @@ fn spawn_hub(
     scope: &veoveo_mcp_gateway::http::ModuleTaskScope,
 ) -> anyhow::Result<()> {
     scope.spawn(async move {
+        let repository = WorkspaceRepository::new(store);
         loop {
-            let source = tokio::select! { _ = stop.cancelled() => return, result = store.workspace_wakes() => result };
+            let source = tokio::select! { _ = stop.cancelled() => return, result = repository.workspace_wakes() => result };
             if let Ok(mut source) = source {
                 loop {
                     tokio::select! {
@@ -204,7 +207,7 @@ async fn current_head(
         }
         let actor = authority::admit(workspace, subject).await?;
         workspace
-            .store
+            .repository
             .workspace_head(&actor, chat)
             .await
             .map_err(fault)
@@ -219,11 +222,19 @@ mod tests {
 
     #[tokio::test]
     async fn durable_heads_and_live_hints_recheck_membership_and_token_expiry() {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                crate::test_store::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("workspace").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         super::super::tests::setup(&db.a).await;
-        let workspace = WorkspaceState {
-            store: db.a.clone(),
-        };
+        let workspace = WorkspaceState::new(db.a.clone());
         let gateway =
             crate::gateway_test_state(db.b.clone(), Arc::new(Default::default())).unwrap();
         let mut subject = super::super::tests::subject("Alice");
@@ -231,8 +242,12 @@ mod tests {
         let server = AuthorizationServerId::parse("test").unwrap();
         let chat = WorkspaceChatId::from_uuid(Uuid::now_v7());
         let actor = authority::admit(&workspace, &subject).await.unwrap();
-        let mut live = db.b.workspace_wakes().await.unwrap();
-        db.a.create_workspace_chat(&actor, chat, "Live chat")
+        let mut live = WorkspaceRepository::new(db.b.clone())
+            .workspace_wakes()
+            .await
+            .unwrap();
+        WorkspaceRepository::new(db.a.clone())
+            .create_workspace_chat(&actor, chat, "Live chat")
             .await
             .unwrap();
         let notification = tokio::time::timeout(Duration::from_secs(3), live.next())
@@ -254,7 +269,7 @@ mod tests {
             1
         );
         db.b.client()
-            .query("UPDATE ONLY $person SET enabled = false;")
+            .query(include_str!("../queries/gateway/events/durable_heads_and_live_hints_recheck_membership_and_token_expiry/statement_1.surql"))
             .bind(("person", actor.principal.clone()))
             .await
             .unwrap()

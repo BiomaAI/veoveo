@@ -40,7 +40,7 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 .is_some()
         );
         db.b.client()
-            .query("CREATE ONLY task_policy_probe:authority CONTENT $authority RETURN NONE;")
+            .query(include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/statement_1.surql"))
             .bind(("authority", serde_json::to_value(authority()).unwrap()))
             .await
             .unwrap()
@@ -49,22 +49,22 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
         let mut excluded = vec![foreign.task_id];
         // Each row disagrees at a different stored authority location. Its
         // malformed payload proves rejection happens in SQL, before decoding.
-        for assignment in [
-            "work_context = $foreign_context",
-            "profile = profile:another",
-            "request.owner.profile = 'another-profile'",
-            "request.owner.principal_key = 'another-principal'",
-            "request.owner.data_labels = ['secret']",
-            "request.owner.data_labels = NONE",
-            "request.owner.data_labels = 'internal'",
-            "request.owner.data_labels = ['internal', NONE]",
-            "request.owner.authority = task_policy_probe:authority",
-            "authority.context_key = 'another-context'",
-            "request.owner.authority.work_context = 'another-context'",
-            "request.owner.authority.tenant = 'another-tenant'",
-            "request.owner.authority.work_context = NONE",
-            "task_type = 'other-operation'",
-        ] {
+        for (_assignment, sql) in [
+("work_context case 1", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_01.surql")),
+("profile case 2", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_02.surql")),
+("request.owner.profile case 3", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_03.surql")),
+("request.owner.principal_key case 4", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_04.surql")),
+("request.owner.data_labels case 5", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_05.surql")),
+("request.owner.data_labels case 6", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_06.surql")),
+("request.owner.data_labels case 7", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_07.surql")),
+("request.owner.data_labels case 8", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_08.surql")),
+("request.owner.authority case 9", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_09.surql")),
+("authority.context_key case 10", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_10.surql")),
+("request.owner.authority.work_context case 11", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_11.surql")),
+("request.owner.authority.tenant case 12", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_12.surql")),
+("request.owner.authority.work_context case 13", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_13.surql")),
+("task_type case 14", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_14.surql"))
+] {
             let id = runtime
                 .create(draft(SELECTED.as_str(), RecoveryClass::Resume))
                 .await
@@ -72,9 +72,7 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 .snapshot
                 .task_id;
             db.b.client()
-                .query(format!(
-                    "UPDATE ONLY $id SET {assignment}, request.input = NONE RETURN NONE;"
-                ))
+                .query(sql)
                 .bind(("id", task_record_id(id)))
                 .bind((
                     "foreign_context",
@@ -97,7 +95,7 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
             ));
             let mut result =
                 db.b.client()
-                    .query("SELECT VALUE status FROM ONLY $id;")
+                    .query(include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/statement_2.surql"))
                     .bind(("id", task_record_id(id)))
                     .await
                     .unwrap()
@@ -312,7 +310,7 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
         let query = reader.for_owner(&owner()).of_type(SELECTED).in_work_context().unwrap();
         let mut updates = query.subscribe(&ids).await.unwrap().updates;
         for _ in 0..3 { updates.next().await.unwrap().unwrap(); }
-        db.b.client().query("UPDATE ONLY $task SET authority.context_key = 'another-context', request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("../queries/support/context_query_cases/context_selection_survives_updates_and_store_reconnect_without_events/statement_1.surql"))
             .bind(("task", task_record_id(ids[0]))).await.unwrap().check().unwrap();
         writer.transition(ids[2], TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
         loop {
@@ -321,7 +319,7 @@ async fn context_selection_survives_updates_and_store_reconnect_without_events()
             if update.snapshot.task_id == ids[2] && update.snapshot.progress == 0.5 { break; }
         }
         switch.set_enabled(false).await;
-        db.b.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'another-context', request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("../queries/support/context_query_cases/context_selection_survives_updates_and_store_reconnect_without_events/statement_2.surql"))
             .bind(("task", task_record_id(ids[1]))).await.unwrap().check().unwrap();
         writer.transition(ids[2], TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
 

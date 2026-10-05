@@ -1,0 +1,1 @@
+RETURN array::len(SELECT id FROM audit_record); RETURN array::len(SELECT id FROM audit_export_delivery); RETURN array::len(SELECT id FROM audit_export_cursor); RETURN array::len(SELECT id FROM audit_retention_anchor); RETURN array::len(SELECT id FROM audit_record_seal);

@@ -43,12 +43,9 @@ impl ArtifactSubscriptions {
             Some(identity.authority.work_context.clone()),
         )?;
         let mut response = scope
-            .bind(
-                self.store.client().query(
-                    include_str!("deadlines.surql")
-                        .replace("{{ADMISSION}}", ArtifactReadScope::ADMISSION),
-                ),
-            )
+            .bind(self.store.client().query(include_str!(
+                "../../../../queries/bin/server/subscriptions/deadlines.surql"
+            )))
             .bind(("all", members.is_none()))
             .bind((
                 "members",

@@ -5,6 +5,26 @@ use veoveo_task_runtime::TaskOwner;
 #[path = "../../../../testing/fixtures/store.rs"]
 pub mod store;
 pub use store::TestDb;
+
+/// Explicit selected persistence owner and independently registered read codec.
+#[allow(
+    dead_code,
+    reason = "Each owner fixture chooses its exercised operations"
+)]
+pub async fn database() -> TestDb {
+    TestDb::with_composition(
+        store::StoreBackend::Memory,
+        vec![
+            veoveo_computers::schema::module_setup(
+                store::module_lanes::execution("computers").unwrap(),
+            )
+            .unwrap(),
+        ],
+        veoveo_gateway_catalog::audit_target_registry().unwrap(),
+    )
+    .await
+}
+
 #[allow(dead_code)]
 pub mod browser;
 #[allow(dead_code)]

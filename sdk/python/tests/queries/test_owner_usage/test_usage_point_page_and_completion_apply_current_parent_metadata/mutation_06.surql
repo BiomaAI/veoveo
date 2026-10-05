@@ -1,0 +1,1 @@
+UPDATE domain_usage SET tenant = tenant:other WHERE task = $task;

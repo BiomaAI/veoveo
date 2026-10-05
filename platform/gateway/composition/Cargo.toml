@@ -8,6 +8,7 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+veoveo-recording-store = { workspace = true }
 veoveo-http.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-mcp-gateway = { path = ".." }
@@ -74,5 +75,6 @@ veoveo-media-mcp = { path = "../../../servers/media-mcp", default-features = fal
 veoveo-optimization-mcp = { path = "../../../servers/optimization-mcp", default-features = false, features = ["schema"] }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 base64.workspace = true
 rcgen.workspace = true

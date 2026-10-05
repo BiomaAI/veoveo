@@ -11,8 +11,6 @@ use crate::{
 };
 use veoveo_platform_store::{PlatformStore, PrincipalKind};
 
-use crate::test_store as fixture;
-
 mod knowledge;
 mod metadata;
 mod numeric;
@@ -66,7 +64,7 @@ async fn event(catalog: &TimeCatalog, owner: &TimeAccessContext, key: &str) -> T
 #[tokio::test]
 async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
     // This is native Store qualification; no reference installation or GPU is required.
-    let db = fixture::TestDb::new().await;
+    let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
     tokio::time::timeout(Duration::from_secs(90), async {
         let owner = scope(&db.a, "time-query-test", "owner").await;
         let peer = scope(&db.a, "time-query-test", "peer").await;

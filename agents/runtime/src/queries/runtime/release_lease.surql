@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $released = (UPDATE ONLY $agent SET lease_owner = NONE, lease_expires_at = NONE, heartbeat_at = $now, state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN AFTER); IF $released = NONE { THROW 'agent lease lost'; }; COMMIT TRANSACTION;

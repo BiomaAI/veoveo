@@ -23,7 +23,7 @@ async fn prepare(
 #[tokio::test]
 async fn activation_serializes_both_families_from_the_preflighted_pair() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::with_backend(crate::test_store::StoreBackend::RocksDb).await;
+        let db = crate::test_database(crate::test_store::StoreBackend::RocksDb).await;
         let files = AuthorityFiles::new().await;
         let left = TimeCatalog::new(db.a.clone());
         let right = TimeCatalog::new(db.b.clone());
@@ -84,7 +84,7 @@ async fn activation_serializes_both_families_from_the_preflighted_pair() {
 #[tokio::test]
 async fn changed_preflight_inputs_reject_publication_without_advancing_authority() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.b.clone());
         let registry = files.registry();
@@ -103,7 +103,9 @@ async fn changed_preflight_inputs_reject_publication_without_advancing_authority
             let draft = prepare(&registry, &catalog, &owner, &tzdb, TimeWriteGuard::Absent).await;
             let record = RecordId::new("time_authority_release", target.release_id.to_string());
             db.a.client()
-                .query("UPDATE $record SET artifact_path = '/changed-after-preflight' RETURN NONE;")
+                .query(include_str!(
+                    "../../tests/queries/change_artifact_path.surql"
+                ))
                 .bind(("record", record.clone()))
                 .await
                 .unwrap()
@@ -111,7 +113,9 @@ async fn changed_preflight_inputs_reject_publication_without_advancing_authority
                 .unwrap();
             assert!(catalog.commit_activation(&owner, draft).await.is_err());
             db.a.client()
-                .query("UPDATE $record SET artifact_path = $path RETURN NONE;")
+                .query(include_str!(
+                    "../../tests/queries/restore_artifact_path.surql"
+                ))
                 .bind(("record", record))
                 .bind(("path", target.artifact_path.clone()))
                 .await
@@ -135,7 +139,9 @@ async fn changed_preflight_inputs_reject_publication_without_advancing_authority
 
         let draft = prepare(&registry, &catalog, &owner, &tzdb, TimeWriteGuard::Absent).await;
         db.a.client()
-            .query("DELETE time_active_authority WHERE tenant = $tenant RETURN NONE;")
+            .query(include_str!(
+                "../../tests/queries/delete_active_authorities.surql"
+            ))
             .bind(("tenant", owner.identity.tenant_id.record_id()))
             .await
             .unwrap()
@@ -153,7 +159,7 @@ async fn changed_preflight_inputs_reject_publication_without_advancing_authority
 #[tokio::test]
 async fn failed_file_preflight_never_publishes_an_authority() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.b.clone());
         let registry = files.registry();
@@ -196,7 +202,7 @@ async fn failed_file_preflight_never_publishes_an_authority() {
 #[tokio::test]
 async fn locked_activation_inputs_detect_pointer_and_release_repairs() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::with_backend(crate::test_store::StoreBackend::RocksDb).await;
+        let db = crate::test_database(crate::test_store::StoreBackend::RocksDb).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.a.clone());
         let registry = files.registry();
@@ -227,7 +233,9 @@ async fn locked_activation_inputs_detect_pointer_and_release_repairs() {
             )
         });
         db.a.client()
-            .query("DEFINE TABLE activation_probe SCHEMALESS;")
+            .query(include_str!(
+                "../../tests/queries/define_activation_probe.surql"
+            ))
             .await
             .unwrap()
             .check()
@@ -235,7 +243,9 @@ async fn locked_activation_inputs_detect_pointer_and_release_repairs() {
         for changed in pointers.iter().chain(releases.iter()) {
             let transaction = db.a.client().clone().begin().await.unwrap();
             transaction
-                .query(include_str!("../../persistence/activation_locks.surql"))
+                .query(include_str!(
+                    "../../persistence/queries/activation_locks.surql"
+                ))
                 .bind(("pointers", pointers.clone()))
                 .bind(("releases", releases.clone()))
                 .await
@@ -244,14 +254,18 @@ async fn locked_activation_inputs_detect_pointer_and_release_repairs() {
                 .unwrap();
             // A separate writer can repair either family or its source metadata.
             db.b.client()
-                .query("UPDATE $changed SET record_version += 1 RETURN NONE;")
+                .query(include_str!(
+                    "../../tests/queries/increment_record_version.surql"
+                ))
                 .bind(("changed", changed.clone()))
                 .await
                 .unwrap()
                 .check()
                 .unwrap();
             transaction
-                .query("CREATE activation_probe:one SET accepted = true;")
+                .query(include_str!(
+                    "../../tests/queries/create_activation_probe.surql"
+                ))
                 .await
                 .unwrap()
                 .check()
@@ -262,7 +276,9 @@ async fn locked_activation_inputs_detect_pointer_and_release_repairs() {
             );
             let count: Option<i64> =
                 db.b.client()
-                    .query("RETURN array::len(SELECT * FROM activation_probe);")
+                    .query(include_str!(
+                        "../../tests/queries/count_activation_probes.surql"
+                    ))
                     .await
                     .unwrap()
                     .check()

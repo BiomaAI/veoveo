@@ -1,4 +1,5 @@
 //! Native database lifecycle shared by artifact durability acceptance.
+use super::native_store::module_lanes;
 use chrono::Utc;
 use secrecy::SecretString;
 use std::{
@@ -86,7 +87,6 @@ impl Database {
             "fixture",
             platform::StoreCredentials::root("fixture", SecretString::from(self.password.clone())),
         )
-        .migrate_on_connect(false)
         .build()
         .unwrap();
         platform::PlatformStore::connect(config)
@@ -96,10 +96,9 @@ impl Database {
 
     pub(super) async fn connect(&mut self) -> platform::PlatformStore {
         let store = self.connect_unmigrated().await;
-        store
-            .migrate()
+        module_lanes::install(&store, Vec::new())
             .await
-            .expect("native schema migration failed");
+            .expect("native kernel lanes failed");
         store
     }
 
@@ -163,7 +162,9 @@ pub(super) async fn context(
     };
     store
         .client()
-        .query("CREATE ONLY $record CONTENT $content;")
+        .query(include_str!(
+            "../../../tests/queries/service/tests/native_database/context.surql"
+        ))
         .bind(("record", id.clone()))
         .bind(("content", context))
         .await

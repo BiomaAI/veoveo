@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 from surrealdb import RecordID
 
+from .queries import OwnerStatement, owner_statement
 from .types import (
     TaskError, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskSnapshot, TaskTypeName,
     deterministic_work_context_id, parse_task_id, profile_record, server_record,
@@ -19,13 +20,6 @@ if TYPE_CHECKING:
     from .owner_subscriptions import OwnerTaskSubscription
     from .owner_usage import OwnerTaskUsageQuery
     from .runtime import TaskRuntime
-
-
-_VISIBLE_TASK = """{p}server = $server AND {p}tenant = $tenant AND {p}owner = $owner
-    AND {p}profile = $profile AND {p}request.owner.principal_key = $principal_key
-    AND {p}request.owner.profile = $profile_key
-    AND ({p}request.owner.tenant_key ?? NONE) = $tenant_key
-    AND {p}request.owner.data_labels ALLINSIDE $labels"""
 
 
 def native_task_id(value: uuid.UUID) -> uuid.UUID:
@@ -71,17 +65,10 @@ class OwnerTaskQuery:
             raise TaskError("Task operation selection requires 1–32 typed names")
         return replace(self, _task_types=frozenset(kinds))
 
-    def predicate(self, *, linked_task: bool = False) -> str:
-        prefix = "task." if linked_task else ""
-        selection = _VISIBLE_TASK.format(p=prefix)
-        if self._task_types is not None:
-            selection += f" AND {prefix}task_type IN $task_types"
-        if self._context:
-            selection += f""" AND {prefix}work_context = $work_context
-                AND {prefix}authority.context_key = $work_context_key
-                AND {prefix}request.owner.authority.work_context = $work_context_key
-                AND {prefix}request.owner.authority.tenant = $authority_tenant"""
-        return selection
+    def _statement(self, kind: OwnerStatement, *, after: bool = False) -> str:
+        return owner_statement(
+            kind, context=self._context, types=self._task_types is not None, after=after,
+        )
 
     def bindings(self) -> dict[str, Any]:
         owner = self.owner
@@ -108,7 +95,7 @@ class OwnerTaskQuery:
         from .runtime import _record_to_snapshot
 
         rows = await self.runtime.store.query(
-            f"SELECT * FROM $task WHERE {self.predicate()} LIMIT 1;",
+            self._statement(OwnerStatement.GET),
             {**self.bindings(), "task": task_record(native_task_id(task_id))},
         )
         return _record_to_snapshot(rows[0][0]) if rows[0] else None
@@ -118,18 +105,16 @@ class OwnerTaskQuery:
 
         if type(limit) is not int or not 1 <= limit <= 1000:
             raise TaskError("Task page size must be 1–1000")
-        position = ""
+
         bindings = {**self.bindings(), "limit": limit + 1}
         if after is not None:
             if not isinstance(after, TaskPageCursor):
                 raise TaskError("Task page position must be a TaskPageCursor")
-            position = """AND (created_at > $after_created_at OR
-                (created_at = $after_created_at AND id > $after_task))"""
+
             bindings.update({"after_created_at": after.created_at,
                              "after_task": task_record(after.task_id)})
         rows = await self.runtime.store.query(
-            f"SELECT * FROM task WHERE {self.predicate()} {position} "
-            "ORDER BY created_at ASC, id ASC LIMIT $limit;", bindings,
+            self._statement(OwnerStatement.PAGE, after=after is not None), bindings,
         )
         records = rows[0] or []
         items = tuple(_record_to_snapshot(record) for record in records[:limit])
@@ -144,9 +129,7 @@ class OwnerTaskQuery:
 
         # The parent selection and child read share one database statement.
         rows = await self.runtime.store.query(
-            "SELECT * FROM task_input WHERE task IN "
-            f"(SELECT VALUE id FROM $task WHERE {self.predicate()}) "
-            "AND response = NONE ORDER BY created_at ASC;",
+            self._statement(OwnerStatement.INPUTS),
             {**self.bindings(), "task": task_record(native_task_id(task_id))},
         )
         exchanges = [_input_record_to_exchange(record) for record in rows[0] or []]

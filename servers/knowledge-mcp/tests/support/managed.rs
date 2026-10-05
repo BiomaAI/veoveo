@@ -2,9 +2,10 @@
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use std::collections::BTreeMap;
 use uuid::Uuid;
+use veoveo_agent_runtime::persistence::AgentRepository;
+use veoveo_agent_runtime::persistence::{instances::*, *};
 use veoveo_platform_store::{
-    PlatformStore, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
-    deterministic_work_context_id,
+    PlatformStore, WorkContextMembershipLevel, deterministic_work_context_id,
 };
 pub async fn provision(
     store: &PlatformStore,
@@ -126,7 +127,7 @@ pub async fn provision(
     };
     store
         .client()
-        .query("CREATE ONLY $context CONTENT $record;")
+        .query(include_str!("../queries/support/managed/level.surql"))
         .bind(("context", context.record_id()))
         .bind(("record", record))
         .await
@@ -177,7 +178,7 @@ pub async fn provision(
             resource_subscriptions: vec![],
         },
     };
-    let draft = store
+    let draft = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             "pilot",
@@ -191,7 +192,7 @@ pub async fn provision(
         )
         .await
         .unwrap();
-    let definition = store
+    let definition = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             "pilot",
@@ -207,7 +208,7 @@ pub async fn provision(
         )
         .await
         .unwrap();
-    let operation = store
+    let operation = AgentRepository::new(store.clone())
         .mutate_managed_agent(
             &authority,
             "one",
@@ -252,14 +253,14 @@ pub async fn provision(
         .await
         .unwrap();
     let owner = Uuid::now_v7();
-    let claim = store
+    let claim = AgentRepository::new(store.clone())
         .claim_managed_agent_operation(operation.id, owner)
         .await
         .unwrap()
         .unwrap()
         .claim(owner)
         .unwrap();
-    store
+    AgentRepository::new(store.clone())
         .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
         .await
         .unwrap();
@@ -268,7 +269,7 @@ pub async fn provision(
     let AlgorithmParameters::RSA(key) = &keys.keys[0].algorithm else {
         panic!("RSA fixture")
     };
-    store
+    AgentRepository::new(store.clone())
         .register_managed_agent_key(
             &claim,
             ManagedAgentPublicKey {
@@ -285,11 +286,14 @@ pub async fn provision(
         ManagedAgentPhase::Workload,
         ManagedAgentPhase::Ready,
     ] {
-        store
+        AgentRepository::new(store.clone())
             .observe_managed_agent(&claim, phase, None)
             .await
             .unwrap();
     }
-    let instance = store.managed_agent(&authority, "one").await.unwrap();
+    let instance = AgentRepository::new(store.clone())
+        .managed_agent(&authority, "one")
+        .await
+        .unwrap();
     (authority, definition, instance)
 }

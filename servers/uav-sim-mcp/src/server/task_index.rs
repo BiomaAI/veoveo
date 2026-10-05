@@ -16,24 +16,6 @@ use crate::{
     uris,
 };
 
-const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels";
-const PLAN_VISIBLE: &str =
-    "tenant = $tenant AND work_context = $context AND principal_key = $principal_key";
-const MISSION_TASK: &str = "work_context = $context AND task_type = $mission_task_type";
-const EXECUTION_LINK: &str = "tenant = $tenant AND work_context = $context
-    AND principal_key = $principal_key
-    AND plan.tenant = tenant AND plan.work_context = work_context
-    AND plan.principal_key = principal_key AND plan.state != 'prepared'
-    AND task.request.input.plan_id = plan.plan_id
-    AND record::id(id) = record::id(task)";
-
-fn admitted_plans_sql() -> String {
-    format!(
-        "SELECT VALUE plan FROM uav_mission_execution WHERE {EXECUTION_LINK}
-         AND task IN (SELECT VALUE id FROM task WHERE {VISIBLE} AND {MISSION_TASK})"
-    )
-}
-
 // Bind fields as individual parameters so the database can plan indexed equality reads.
 #[derive(SurrealValue)]
 struct Scope {
@@ -114,9 +96,7 @@ pub(super) async fn task(
 ) -> Result<Option<TaskSnapshot>> {
     let mut response = store
         .client()
-        .query(format!(
-            "SELECT * FROM ONLY $task WHERE {VISIBLE} AND task_type IN $types;"
-        ))
+        .query(include_str!("queries/task_index/task.surql"))
         .bind(("task", veoveo_platform_store::task_record_id(id)))
         .bind(scope(identity)?)
         .bind((
@@ -142,12 +122,12 @@ pub(super) async fn mission(
 ) -> Result<Option<TaskSnapshot>> {
     let mut response = store
         .client()
-        .query(mission_sql())
+        .query(include_str!("queries/task_index/mission.surql"))
         .bind(scope(identity)?)
         .bind(("mission", id.to_string()))
         .await?
         .check()?;
-    let rows: Vec<TaskRecord> = response.take(1)?;
+    let rows: Vec<TaskRecord> = response.take(2)?;
     rows.into_iter()
         .next()
         .map(TaskSnapshot::try_from)
@@ -155,24 +135,25 @@ pub(super) async fn mission(
         .map_err(Into::into)
 }
 
-fn mission_sql() -> String {
-    // Resolve matching plans before planning the Task read. Select their index explicitly:
-    // the creation-order owner index can scan unrelated history for an old mission.
-    format!(
-        "LET $matching_plans = ({});
-         SELECT * FROM task WITH INDEX task_uav_plan WHERE {VISIBLE} AND {MISSION_TASK}
-         AND request.input.plan_id IN $matching_plans.plan_id
-         AND id IN (SELECT VALUE task FROM uav_mission_execution
-             WHERE plan IN $matching_plans.id AND {EXECUTION_LINK})
-         ORDER BY created_at DESC, id DESC LIMIT 1",
-        mission_plan_sql()
-    )
+#[cfg(test)]
+#[derive(Debug, SurrealValue)]
+pub(super) struct ExplainNode {
+    pub operator: String,
+    #[surreal(default)]
+    pub attributes: std::collections::BTreeMap<String, String>,
+    #[surreal(default)]
+    pub children: Vec<ExplainNode>,
 }
-
-fn mission_plan_sql() -> String {
-    format!(
-        "SELECT id, plan_id FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE} AND mission_id = $mission"
-    )
+#[cfg(test)]
+impl ExplainNode {
+    pub fn any(&self, predicate: impl Fn(&Self) -> bool + Copy) -> bool {
+        predicate(self) || self.children.iter().any(|child| child.any(predicate))
+    }
+}
+#[cfg(test)]
+pub(super) struct MissionExplain {
+    pub tasks: ExplainNode,
+    pub summary: String,
 }
 
 #[cfg(test)]
@@ -180,23 +161,21 @@ pub(super) async fn explain_mission(
     store: &PlatformStore,
     identity: &GatewayInternalIdentity,
     id: &MissionId,
-) -> Result<String> {
+) -> Result<MissionExplain> {
     let mut response = store
         .client()
-        .query(format!(
-            "{} EXPLAIN FULL; {} EXPLAIN FULL",
-            mission_sql(),
-            mission_plan_sql()
-        ))
+        .query(include_str!("queries/task_index/explain_mission.surql"))
         .bind(scope(identity)?)
         .bind(("mission", id.to_string()))
         .await?
         .check()?;
-    Ok(format!(
-        "{:?} {:?}",
-        response.take::<surrealdb::types::Value>(1)?,
-        response.take::<surrealdb::types::Value>(2)?
-    ))
+    let tasks = ExplainNode::from_value(response.take::<surrealdb::types::Value>(2)?)?;
+    let plans = response.take::<surrealdb::types::Value>(3)?;
+    let executions = response.take::<surrealdb::types::Value>(4)?;
+    Ok(MissionExplain {
+        summary: format!("{tasks:?} {plans:?} {executions:?}"),
+        tasks,
+    })
 }
 
 pub(super) async fn missions_page(
@@ -206,13 +185,7 @@ pub(super) async fn missions_page(
 ) -> Result<CollectionPage<String>> {
     let mut response = store
         .client()
-        .query(format!(
-            "SELECT mission_id FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE}
-         AND id IN ({})
-         AND ($after = NONE OR mission_id > $after)
-         GROUP BY mission_id ORDER BY mission_id ASC LIMIT $limit;",
-            admitted_plans_sql()
-        ))
+        .query(include_str!("queries/task_index/missions_page.surql"))
         .bind(scope(identity)?)
         .bind(("after", after.map(ToString::to_string)))
         .bind(("limit", index::PAGE_SIZE + 1))
@@ -249,15 +222,8 @@ pub(super) async fn complete(
     needle: &str,
 ) -> Result<Vec<String>> {
     let sql = match domain {
-        CompletionDomain::Tasks => format!(
-            "SELECT type::string(record::id(id)) AS value FROM task WHERE {VISIBLE} AND task_type IN $types
-             AND string::contains(string::lowercase(type::string(record::id(id))), $needle) ORDER BY value ASC LIMIT $limit;"
-        ),
-        CompletionDomain::Missions => format!(
-            "SELECT mission_id AS value FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE}
-             AND id IN ({})
-             AND string::contains(string::lowercase(mission_id), $needle) GROUP BY value ORDER BY value ASC LIMIT $limit;", admitted_plans_sql()
-        ),
+        CompletionDomain::Tasks => include_str!("queries/task_index/complete_tasks.surql"),
+        CompletionDomain::Missions => include_str!("queries/task_index/complete_missions.surql"),
     };
     #[derive(SurrealValue)]
     struct Completion {

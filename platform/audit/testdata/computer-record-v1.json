@@ -1,0 +1,38 @@
+{
+  "draft": {
+    "id": "019f25e8-cf39-7000-8000-000000000002",
+    "schema": "veoveo.ai/audit-record/v1",
+    "partition": {
+      "kind": "installation"
+    },
+    "actor": null,
+    "authority": {
+      "profile": null,
+      "work_context": null,
+      "policy_revision": null,
+      "scopes": [],
+      "data_labels": []
+    },
+    "target": {
+      "kind": "computer",
+      "computer": "019f25e8-cf39-7000-8000-000000000001"
+    },
+    "detail": {
+      "kind": "computer",
+      "activity": "create",
+      "stage": "reserved",
+      "task": null
+    },
+    "outcome": "succeeded",
+    "reason": "accepted",
+    "request": {
+      "id": "019f25e8-cf39-7000-8000-000000000003",
+      "trace_id": "11111111111111111111111111111111",
+      "span_id": "1111111111111111",
+      "source_ip": null
+    },
+    "occurred_at": "2026-10-04T12:00:00Z",
+    "latency_ms": null
+  },
+  "recorded_at": "2026-10-04T12:00:01Z"
+}

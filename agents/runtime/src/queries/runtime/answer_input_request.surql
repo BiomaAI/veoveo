@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;

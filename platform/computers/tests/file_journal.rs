@@ -12,7 +12,7 @@ use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskTransition};
 async fn slots(db: &support::TestDb) -> usize {
     let mut read =
         db.a.client()
-            .query("SELECT * FROM computer_execution_slot;")
+            .query(include_str!("queries/file_journal/slots/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -22,7 +22,7 @@ async fn slots(db: &support::TestDb) -> usize {
 
 #[tokio::test]
 async fn one_dispatch_survives_a_lost_ticket_and_owner_authority_is_current() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, _, _, computer) = setup(&db).await;
     let identity = support::browser::identity(&db, "alice").await;
     let owner = ComputerActor::from_verified(&identity).unwrap();
@@ -45,7 +45,7 @@ async fn one_dispatch_survives_a_lost_ticket_and_owner_authority_is_current() {
         .as_ref()
         .unwrap();
     db.a.client()
-        .query("UPDATE $family SET revoked_at=time::now();")
+        .query(include_str!("queries/file_journal/one_dispatch_survives_a_lost_ticket_and_owner_authority_is_current/statement_1.surql"))
         .bind((
             "family",
             veoveo_platform_store::gateway_refresh_family_record_id(
@@ -125,7 +125,7 @@ fn control() -> veoveo_mcp_contract::GatewayControlPlane {
 
 #[tokio::test]
 async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_results() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, _, computer) = setup(&db).await;
     for scenario in ["import", "export", "reject"] {
         let artifact = veoveo_computers::api::ArtifactId::new();
@@ -205,7 +205,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             assert_eq!(result.direction(), payload.transfer().direction());
             tasks.transition(completed.task_id(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
             db.a.client()
-                .query("UPDATE $task SET result.payload.structuredContent.artifactId=$wrong;")
+                .query(include_str!("queries/file_journal/known_import_export_and_rejection_release_the_slot_and_preserve_exact_results/statement_1.surql"))
                 .bind(("task", task_record_id(completed.task_id())))
                 .bind(("wrong", Uuid::now_v7().to_string()))
                 .await
@@ -214,7 +214,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 .unwrap();
             assert!(b.acknowledge_file_task(&completed).await.is_err());
             db.a.client()
-                .query("UPDATE $task SET result.payload.structuredContent.artifactId=$correct;")
+                .query(include_str!("queries/file_journal/known_import_export_and_rejection_release_the_slot_and_preserve_exact_results/statement_2.surql"))
                 .bind(("task", task_record_id(completed.task_id())))
                 .bind(("correct", artifact.to_string()))
                 .await
@@ -243,7 +243,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
     }
     let mut read =
         db.a.client()
-            .query("SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'settled';")
+            .query(include_str!("queries/file_journal/known_import_export_and_rejection_release_the_slot_and_preserve_exact_results/statement_3.surql"))
             .await
             .unwrap()
             .check()
@@ -266,7 +266,7 @@ async fn uncertain_effects_and_substituted_import_occurrences_cannot_be_complete
         "run",
         "containing",
     ] {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (a, _, owner, _, computer) = setup(&db).await;
         let source = veoveo_computers::api::ArtifactId::new();
         let input = FileTransferPayload::new(
@@ -297,7 +297,7 @@ async fn uncertain_effects_and_substituted_import_occurrences_cannot_be_complete
                     .unwrap(),
                 "run" => {
                     db.a.client()
-                        .query("UPDATE $computer SET process_id='replacement-run';")
+                        .query(include_str!("queries/file_journal/uncertain_effects_and_substituted_import_occurrences_cannot_be_completed/statement_1.surql"))
                         .bind(("computer", computer_record(computer)))
                         .await
                         .unwrap()
@@ -329,7 +329,7 @@ async fn uncertain_effects_and_substituted_import_occurrences_cannot_be_complete
 
 #[tokio::test]
 async fn preparation_expiry_and_cancelled_admission_never_dispatch() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, _, computer) = setup(&db).await;
     for cancel in [false, true] {
         let claim = queue(&db, &a, &owner, computer, None, &payload("retained.txt")).await;
@@ -344,7 +344,7 @@ async fn preparation_expiry_and_cancelled_admission_never_dispatch() {
                 .await
                 .unwrap();
         } else {
-            db.a.client().query("UPDATE computer_file_transfer SET created_at=time::now()-301s WHERE stage='queued';").await.unwrap().check().unwrap();
+            db.a.client().query(include_str!("queries/file_journal/preparation_expiry_and_cancelled_admission_never_dispatch/statement_1.surql")).await.unwrap().check().unwrap();
         }
         assert!(a.begin_file_dispatch(&claim, &keys()).await.is_err());
         let reason = if cancel {
@@ -360,7 +360,7 @@ async fn preparation_expiry_and_cancelled_admission_never_dispatch() {
 
 #[tokio::test]
 async fn source_preparation_keeps_queued_authority_short_and_cancellable() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))

@@ -72,7 +72,7 @@ impl TimePersistence {
     ) -> Result<Vec<TimeAcquisitionRecord>, PersistenceError> {
         select_list(
             self,
-            "SELECT * FROM time_acquisition WHERE tenant = $tenant ORDER BY created_at DESC;",
+            include_str!("queries/list_acquisitions.surql"),
             tenant_id,
         )
         .await
@@ -86,7 +86,7 @@ impl TimePersistence {
         validate_key("staged_release_key", release_key, "time-release-")?;
         let mut response = self
             .client()
-            .query("SELECT * FROM time_acquisition WHERE tenant = $tenant AND staged_release_key = $release_key LIMIT 1;")
+            .query(include_str!("queries/acquisition_for_release.surql"))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("release_key", release_key.to_string()))
             .await?
@@ -109,8 +109,25 @@ impl TimePersistence {
         if let Some(release) = &update.staged_release_key {
             validate_key("staged_release_key", release, "time-release-")?;
         }
-        let mut response = self.client().query("UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
-            .bind(("record", time_record("time_acquisition", &update.acquisition_key))).bind(("tenant", update.tenant_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged", update.staged_release_key.map(String::from))).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version.get() as i64)).bind(("next", update.expected_record_version.checked_next()?.get() as i64)).await?.check()?;
+        let mut response = self
+            .client()
+            .query(include_str!("queries/update_acquisition.surql"))
+            .bind((
+                "record",
+                time_record("time_acquisition", &update.acquisition_key),
+            ))
+            .bind(("tenant", update.tenant_id.record_id()))
+            .bind(("status", update.status))
+            .bind(("phase", update.phase))
+            .bind(("staged", update.staged_release_key.map(String::from)))
+            .bind(("canonical_json", update.canonical_json))
+            .bind(("expected", update.expected_record_version.get() as i64))
+            .bind((
+                "next",
+                update.expected_record_version.checked_next()?.get() as i64,
+            ))
+            .await?
+            .check()?;
         response
             .take::<Option<TimeAcquisitionRecord>>(0)?
             .ok_or_else(|| conflict("acquisition", update.acquisition_key.to_string()))
@@ -123,7 +140,14 @@ impl TimePersistence {
         key: &str,
     ) -> Result<Option<TimeAcquisitionRecord>, PersistenceError> {
         validate_text("idempotency_key", key, 256)?;
-        let mut response = self.client().query("SELECT * FROM time_acquisition WHERE tenant = $tenant AND owner = $owner AND idempotency_key = $key LIMIT 1;").bind(("tenant", tenant_id.record_id())).bind(("owner", owner.record_id())).bind(("key", key.to_owned())).await?.check()?;
+        let mut response = self
+            .client()
+            .query(include_str!("queries/acquisition_by_idempotency.surql"))
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("owner", owner.record_id()))
+            .bind(("key", key.to_owned()))
+            .await?
+            .check()?;
         let records: Vec<TimeAcquisitionRecord> = response.take(0)?;
         Ok(records.into_iter().next())
     }

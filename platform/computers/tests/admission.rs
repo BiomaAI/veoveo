@@ -35,7 +35,7 @@ async fn store(db: veoveo_platform_store::PlatformStore, limit: u32) -> Computer
 
 #[tokio::test]
 async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let a = store(db.a.clone(), 2).await;
     let b = store(db.b.clone(), 2).await;
     let owner = owner("alice");
@@ -98,7 +98,7 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
         Err(ComputerError::RequestConflict)
     ));
     // An exact request creates one audit record and consumes one retained slot.
-    let mut response = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_create' AND draft.detail.stage = 'reserved'; SELECT * FROM computer_usage;").await.unwrap().check().unwrap();
+    let mut response = db.a.client().query(include_str!("queries/admission/racing_same_request_reserves_once_and_changed_input_is_rejected/statement_1.surql")).await.unwrap().check().unwrap();
     let events: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     assert_eq!(events.len(), 1);
     let usage: Vec<surrealdb::types::Value> = response.take(1).unwrap();
@@ -110,7 +110,7 @@ async fn racing_same_request_reserves_once_and_changed_input_is_rejected() {
 
 #[tokio::test]
 async fn collections_support_services_and_contexts_without_multiplying_owner_quota() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let a = store(db.a.clone(), 3).await;
     let alice = owner("alice");
     let bob = owner("bob");
@@ -200,7 +200,7 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
 
 #[tokio::test]
 async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let capacity = CapacityPolicy {
         per_owner: 2,
         per_tenant: 3,

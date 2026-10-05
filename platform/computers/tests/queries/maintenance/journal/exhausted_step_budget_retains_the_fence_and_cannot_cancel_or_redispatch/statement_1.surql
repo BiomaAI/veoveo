@@ -1,0 +1,1 @@
+LET $now = time::now(); UPDATE ONLY $operation SET progress.steps[0].dispatched_at = <string>($now - 181s), progress.steps[0].observation_started_at = <string>($now - 181s), progress.steps[0].observation_deadline = <string>($now - 1s);

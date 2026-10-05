@@ -1,254 +1,133 @@
-# Computers Public Types
+# Audit Record Contract
 
 ## Standards And Protocols
 
-| Boundary | Supported profile |
+| Boundary | Profile |
 |---|---|
-| JSON and JSON Schema | Serde DTOs and Schemars-generated schema bundle using the workspace's qualified pins; closed request objects and RFC 3339 timestamps |
-| Veoveo Computers projection | Collection snapshots, lifecycle receipts and public phases; this library does not serve an HTTP or MCP endpoint |
-| Veoveo terminal v2 | Bounded authenticated first frame, resize, ready, sequenced lease deadlines and explicit replay-complete controls; raw terminal bytes remain a separate frame type |
-| Veoveo execution result | Known foreground exit code and stdout/stderr Artifact occurrence references; byte counts are bounded metadata, without command text or capability secrets |
-| Veoveo regular-file handoff | Closed import/export request, canonical retained-relative path, explicit whole-run interruption scope and bounded Artifact result; typed public Task and result projection |
-| Veoveo maintenance projection | Closed update input, admitted target inventory, progress/recovery phases and completed Task identity with the existing Computer resource URI; provider instances and protected policy remain private |
-| Veoveo automation grant v1 | Named principal and OAuth-client scope, explicit permissions and bounded execution limits; generated JSON projection, no bearer authority |
-| RFC 9562 UUIDs | UUIDv7 resource and grant identities, UUIDv4/v7 request keys and UUIDv4/v7/v8 provider instances; lowercase hyphenated spelling and the RFC variant |
-| RFC 3986 and RFC 6570 | The `computer` resource scheme uses foundational URI parsing/building and declared templates; collection continuation uses the optional `after` query variable |
-| OpenShell CLI `0.0.116` pairing adapter | Custom confirmation-code and IPv4 loopback JSON callback; public requests select no host or authority |
+| RFC 9562 | Canonical UUIDv7 record and HTTP request identities |
+| W3C Trace Context | Nonzero lowercase 32-hex trace IDs and 16-hex span IDs |
+| RFC 9162, RFC 8785 and RFC 8032 | Typed block heads, decimal-string versionstamps, Merkle roots and Ed25519 signatures |
+| RFC 3339 and JSON | Typed timestamps, tagged closed enums and checked deserialization |
+| `veoveo.ai/audit-record/v1` | One reviewed record shape across platform producers and readers |
+| `ai.veoveo/knowledge-source` | Reviewed observation fields from the protocol-independent extension contract |
 
-## Owned Identities And Resources
+This library owns the protocol-independent audit vocabulary. It depends on foundational
+names and lightweight Artifact identities. Computers supplies its Audit target codec
+through the installation registry. Store and MCP both depend
+on this crate. The writer depends on Store; separating this contract avoids a Cargo
+cycle and prevents persistence from importing the MCP runtime.
 
-`ComputerId`, `ExecutionId`, `FileTransferId`, `AutomationGrantId`, `AccessGrantId`,
-`CliPairingId` and `AccessConnectionId` distinguish identities at compile time. Their
-constructors generate UUIDv7 values; parsing and deserialization reject other versions,
-variants and spellings. Browser and CLI grants share `AccessGrantId`; named automation
-authority uses `AutomationGrantId`. Pairing challenges and connection leases have
-separate identities. An ID locates a record and supplies no authority.
+The draft builder derives the partition from the authenticated actor. Accepted outcomes
+require the accepted reason. Serialization and input admission share these checks.
+Details expose only reviewed enums, identifiers, digests, counters and timestamps.
+`tests/detail_schema.rs` walks the generated detail schema and rejects free text,
+open maps and unreviewed string wrappers. It also recognizes the reviewed, inlined
+SHA-256 pattern. These identifier allowlists belong to this contract and must be
+reviewed when a detail gains a new identifier type.
+Numeric counters must fit the exact I-JSON integer range before a draft can be stored.
+Tool, discovery and Task details must match the corresponding typed target. A platform
+Task uses its UUID record link; an external Task uses its opaque gateway route and
+server identity. These identities have separate variants.
+Knowledge read details bind the member and collection owner to their resource target.
+Successful reads require an observation whose conditional status matches the outcome.
+Denied or failed reads cannot claim a returned revision. `KnowledgeReadObservation`
+copies source identity, revision, digest, times, attribution and access fields. Its
+external identity excludes navigation URLs because they can carry signed query
+credentials. The closed audit schema rejects those URLs on input as well.
+The access descriptor includes the source's closed read policy and its optional
+`GatewayProfileId` restriction. That identifier is an installation profile route token
+validated by the foundational type; it carries no credential or free-form description.
+`IndexingRead` admits only collection-matching resource reads by a tenant service
+client. Denials cannot enter an aggregate. `IndexingWindow` requires a matching server
+target, five-minute UTC bounds, positive reads and consistent outcome counters. Its
+occurrence time equals the window end. Constructor and decode checks share these rules.
+Store owns conversion to compound record IDs and native record links. A partition key
+distinguishes the installation partition from a tenant literally named `installation`.
 
-`RequestId` accepts canonical RFC UUIDv4 and UUIDv7 idempotency keys. Its native
-constructor generates UUIDv7. `ProviderInstanceId` also accepts UUIDv8, which the
-unconfigured installation uses for deterministic identity. Both reject nil, other
-versions, non-RFC variants and alternate spellings. `TemplateId` admits 1–64 lowercase
-ASCII letters, digits and hyphens, starting with a letter or digit. Configuration,
-admission and public projections share that type.
+The reader's policy owner supplies an `AuditReadScope`. Store checks it before query
+execution and includes its admitted partition in SQL before decoding or limiting rows.
+Cursors carry their partition and ordering and cannot move a reader to another tenant. Daily counts
+use UTC day bounds and a keyset of day, class and outcome; readers can traverse every
+page without silently truncating at a fixed total.
 
-Lifecycle and maintenance operations carry the foundational `TaskId` through receipts,
-views and worker APIs. Execution and transfer IDs expose their native Task identity
-explicitly. Client request IDs remain distinct from Task and resource identities. Store adapters convert typed identities to driver UUID values when
-binding queries or writing private records.
+The audit domain owns `AuditScope::Read`. Protocol cores carry its `ScopeName` without
+defining the domain vocabulary. Gateway readers check that scope on the current actor.
+The actor's tenant selects its tenant partition; the `administrator` and `auditor`
+roles also admit installation records.
 
-`ComputerResource` owns the complete resource vocabulary, including collection
-continuation, management children, completed results and embedded documents. Builders
-accept each route's specific identity types and delegate component encoding to
-`veoveo-types`. Parsing returns the same closed variants and rejects additional query
-parameters, fragments and alternate route spellings. `ExecutionResultUri` and
-`FileTransferResultUri` constrain result links to their own families.
-`ComputerResultUri` constrains lifecycle and maintenance links to Computer resources.
+`AuditRecordSummary` keeps typed targets and activities through browser delivery.
+`reader_schema(registry)` composes this projection, page queries, daily counts and view receipts
+for the existing client generator. A view receipt refers to a committed access record;
+it grants no authority. Each read verifies the current actor, profile, selected
+partition and receipt lifetime. JSON Lines exports contain a header, records and a
+completion footer. Readers require that footer before accepting a complete download.
 
-`ComputerScope` declares an empty domain scope vocabulary. Gateway actions, retained
-ownership and named automation permissions supply authorization. These public values
-identify a resource; the domain evaluates current authority for every operation.
+`AuditContext` carries verified actor, request correlation and invocation authority into
+a domain operation. The MCP adapter derives it from `GatewayRequestContext` only after
+validating the source-principal, actor and invocation relationship. Domain services keep
+that attribution for background expiry and terminal records. Dictation summaries expose
+an end reason, accepted chunk count and audio duration; they cannot carry transcript text.
 
-## Completed Result Construction
+Implementation and qualification are in progress under the
+[audit acceptance](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
 
-Lifecycle, maintenance, execution and file-transfer results expose constructors and
-read-only accessors. Constructors derive resource addresses from typed identities;
-deserialization checks the supplied address against that same identity. Lifecycle
-Create includes a Computer address, while Start and Stop omit it. Maintenance carries
-the selected `TemplateId` and its Task identity.
+Destination IDs wrap configuration hashes separately from content digests. Export
+intents bind both content and signed-block hashes. Closed rejection codes carry no
+provider response text and survive replica changes.
 
-Command output and file results use the Artifact owner's `ArtifactId`. A completed
-command requires distinct stdout/stderr occurrences, at most 64 MiB of combined output
-and a known exit code; reserved timeout code 124 cannot represent completion. File
-results admit at most 64 MiB and use `Sha256Digest` internally with a 64-character
-lowercase hexadecimal JSON representation. The domain separately checks the current
-Task, accepted limits and provider receipt before publishing a result.
+## Activity Vocabularies
 
-## Public Projections
-
-These types carry public state without provider resource identifiers or authority
-envelopes. Computer limits describe installation policy; a default of one does not
-change the collection shape. Recovery Required describes an unresolved operation
-whose domain fence remains held. A new Create requires a stable request UUID.
-Start and Stop require that UUID as well. Create may supply an owned Reserved
-`computerId` to finish interrupted provisioning from the visible collection. Omitting
-it requests a new reservation. Reservation idempotency is owner-scoped; subsequent
-lifecycle idempotency is scoped to the Computer. Their unreleased optional-request-ID
-shape is removed before client generation. Lifecycle inputs never select an owner
-or provider. Collection availability distinguishes Setup Required, quota exhaustion
-and unavailable capacity. An unconfigured installation has no default template or
-capacity limits. Action flags combine current policy, admitted state and availability;
-the server still arbitrates concurrent admission.
-
-Lifecycle requests may include `grantId`. Start requires its Start permission; Stop
-requires Stop. The owner omits this field when using retained ownership. The request
-identity includes the selected grant and cannot become an ungranted retry. Neither
-form transfers ownership. Task reads and cancellation retain the actual accepted actor
-while the owner can recover the operation after agent revocation.
-
-Computer views declare `accessMode` as `owner` or `granted`. `grantedAccess` lists only
-the caller's currently usable named grants under the same OAuth client, tenant,
-profile and Work Context. Their permission sets and limits reflect current policy.
-A grantee needs an explicit Read permission to discover Computer metadata. Start or
-Execute alone supplies no read permission. Multiple named grants can provide separate
-actions. Every action still presents its selected grant and checks it independently.
-The canonical Computer URI is unchanged. A granted view supplies no owner management
-or terminal attachment authority. Deploy the generated Console client with this view
-shape after the drained lifecycle migration; older view decoders are unsupported in
-this coordinated candidate upgrade.
-
-`access.rs` defines the bounded inventory and idempotent revocation receipt. An access
-grant ID locates an owned record and grants no authority. The inventory includes at
-most 128 outstanding browser and CLI grants, with their kind and display name.
-Redemption records a past event; it does not
-claim a live attachment. `currentSession` identifies the caller's sign-in family,
-which may include other tabs. `expiresAt` is an upper bound; policy, idle expiry and
-revocation can close access sooner. Public values omit tokens, provider identifiers
-and session-family IDs. These additions reuse the existing stored grant format and
-terminal v2. Older endpoints reject the new routes without mutating a grant; retries
-use the same Computer and grant IDs after the coordinated application rollout.
-
-`pairing.rs` defines the stock CLI confirmation inputs and no-store responses. The
-comparison code uses the qualified eight-character alphabet; names are trimmed,
-contain no controls and fit 64 UTF-8 bytes. A callback port must be 1024–65535.
-No input accepts a callback hostname, actor, profile or destination. The browser
-delivers the one-use result only to `http://127.0.0.1:{port}/callback`. The result
-binds the exact Computer, pairing and grant IDs. Its token has no Debug or Display
-implementation and remains absent from inventories and URLs. This is a custom
-OpenShell `0.0.116` adapter, without a claim of standardized device authorization.
-
-The native Console and MCP projections share this schema. Implemented endpoint
-coverage belongs in their own designs. Terminal tokens deliberately cannot be
-formatted through Debug or Display; serialization is an explicit secret boundary.
-
-`files.rs` defines regular-file import and export requests and their public Task
-projection. The first profile caps each file at 64 MiB and each provider transfer at
-300 seconds. A canonical path is relative to the retained home; the wire decoder
-rejects traversal, empty components and controls while preserving Unicode and spaces.
-The guest helper independently enforces kernel confinement. Import creates a new
-file without overwriting. Archives remain opaque files. Neither extraction options
-nor provider/owner selectors exist in this request.
-
-The owner may omit `grantId`; delegated work must present current named authority.
-Both paths require the existing Artifact read or write capability and current
-Computer policy. `onInterruption: "stop_computer"` declares the active transfer's
-whole-run containment scope. Task results contain a governed Artifact occurrence,
-exact bytes and SHA-256. They expose no path, body or capability secret. These types
-and generated clients do not activate the public tool or qualify its domain worker.
-
-Terminal Ready establishes the connection and its initial short authority deadline.
-A Lease control carries a strictly increasing connection-local sequence and a current
-service-issued expiry. Relays preserve these values and enforce expiry with the clock
-allowance in `platform/computers/transport/DESIGN.md`. A client-originated Lease control
-is invalid. This addition is coordinated within unreleased terminal v2.
-
-`automation.rs` defines named-principal grant input, inventory and revocation DTOs.
-`principalId` identifies the grantee; it never selects the Computer owner.
-`oauthClientId` binds the application through which that principal may use the grant.
-Automation issuance uses the foundational OAuth-client lexical schema and adds the
-Computer service's 256-byte input limit as a 256-character JSON Schema ceiling. The
-service checks UTF-8 bytes during admission because JSON Schema lengths count characters.
-
-Inputs, views and client choices carry foundational `PrincipalId` and `OAuthClientId`
-values through domain admission and authority checks. JSON decoding rejects malformed
-identities; the database adapter converts them to text when writing driver records.
-Permissions are a nonempty unique set of Read, Execute, Start and Stop. Execute
-requires explicit time and output limits plus `onInterruption: "stop_computer"`.
-Cancellation, expiry or uncertain execution can stop other processes on that Computer
-run while keeping retained files. This scope does not grant an independent Stop
-action. The wire deserializer rejects duplicate and empty permission arrays. The domain enforces that conditional rule
-and current installation ceilings in addition to schema validation. Public views
-show the original scope and expiry; current policy can narrow them. These types are
-shared by the public grant routes and command Tasks. The collection reports current
-management hints and installation ceilings; each mutation checks current policy.
-
-`grantablePermissions` is the owner's current subset of the four named permissions.
-`clientChoices` contains at most 128 matching registrations with `oauthClientId`,
-`displayName` and optional `servicePrincipalId`. `clientChoicesTruncated` explicitly
-reports truncation. These fields contain no credentials and authorize no action.
-Automated client issuance binds its canonical service principal; direct clients keep
-an explicit principal. The required collection fields ship in a coordinated rollout
-of Computers, gateway, BFF and Console. They add no persistent format migration.
-
-
-`execution.rs` defines a completed foreground result. Each stream has its own UUIDv7
-Artifact occurrence, including an empty stream, and an exact byte count. The command
-Task finishes with the standard tool result envelope. A nonzero exit sets `isError`
-while preserving the known exit code and output references. Read authority is checked
-by Artifacts; a result link does not confer it. The native profile reserves exit 124
-for unknown execution, which cannot produce this result.
-
-Foreground completion leaves the Computer running. Programs may leave detached
-children, and revoking a grant does not undo completed writes or terminate those
-children retroactively. The owner can Stop the Computer to end its run. Interruption
-of an active command uses the grant's explicit whole-run Stop consent. A cancellation
-received after a known foreground exit remains recorded in Task history; it cannot
-replace that known result with a claim that the command never ran. An independently
-admitted owner Stop keeps its own lifecycle fence through result settlement.
-
-`ExecuteInput` is a closed command envelope with explicit argv, home-relative directory,
-environment, standard padded base64 stdin and bounded execution limits. It accepts no
-owner, tenant, image, provider endpoint or credential selector. It has no Debug surface.
-The service and native codec enforce byte limits in addition to the JSON schema.
-`ExecutionResultUri` accepts only the canonical UUIDv7 result path. Completed commands
-use `computer://executions/{execution_id}` as their single addressable product. Artifact
-IDs resolve through `artifact://{artifact_id}` under Artifact read authority.
-
-`AutomationGrantResult` wraps one grant and its canonical result URI. Exact grant reads
-include revoked/expired records even when the live inventory no longer lists them.
-Construction derives `AutomationGrantUri` from the grant's typed Computer and grant
-IDs. JSON decoding rejects a different parent, grant, resource kind or query component.
-Consumers use the checked result and still enforce the requested Computer and grant.
-The empty `RevokeAutomationGrantBody` is closed and cannot carry additional authority.
-
-`UpdateTemplateInput` selects an admitted template ID or the first request's default.
-`MaintenanceState` exposes permitted targets and one active update. `MaintenanceView`
-retains its Task identity and explicit progress/recovery phase. A saved target never
-changes because a default changes. These types accept no image, fingerprint, owner or
-provider selector. Cancellation and exhausted recovery do not imply source retirement
-or release of retained capacity.
-
-`ResumeUpdateInput` names the existing Computer/Task, a fresh request ID and the exact
-paused `updatedAt`. A pending cancellation requires its timestamp in
-`acknowledgedCancellationAt`. This input selects no new target or provider identity.
-The same request cannot renew a recovery budget twice. Service and Console projections
-use the qualified domain journal. `MaintenanceView.canResume` is an eligibility hint,
-and `pendingCancellationAt` identifies the exact pending Task cancellation to acknowledge.
-An acknowledged cancellation stays in private Task history while this public pending
-field clears. A newer cancellation produces a new timestamp.
-
-`FileTransferView` contains the domain stage and the shared Task's message, cancellation
-request and completion times. It carries no path or capability. A Completed stage can
-precede Task projection; consumers wait for its result before offering the Artifact.
-`FileTransferResultUri` accepts only the exact canonical UUIDv7 resource address.
-
-`ComputerView.activeExecution` names the current command or file Task independently
-of `activeTaskId`, which retains the lifecycle/maintenance operation. Busy includes
-both fences. `canTransferFiles` reflects current direct-owner eligibility, the Ready
-phase, available capacity and an installation-qualified template. A held execution
-slot disables Start after Stop; it does not remove the owner's Stop action while Ready.
-
-`task_kind.rs` owns `ComputerTaskKind` and its checked Task operation declarations.
-Lifecycle, execution, file transfer and maintenance consumers share these names through
-`veoveo-types::TaskTypeDefinition`; shared Task infrastructure imports no Computers types.
+Activity enums use the foundation's `Vocabulary` derive. Their snake_case spellings,
+variant order and Serde unit-enum profile form part of the frozen audit format.
+Owner-local tests compare every activity enum's JSON and schema with its previous
+declaration and check nonhuman unit-variant ordinals. The derive introduces no audit
+variants or authorization decisions.
 
 ## Identity Declaration Mechanics
 
-Computers identities implement the foundational `Identity` admission interface through `Id`. Owner functions choose accepted UUID versions and canonical RFC spelling. Serde serializes the inner UUID and decodes through validated String admission, including in nonhuman formats; schema generation preserves the owner UUID pattern and length fields.
+Audit identities use `Id` with Audit-owned canonical RFC UUIDv7 and lowercase nonzero hexadecimal admission. Their owner schema functions preserve each UUID pattern, trace/span length and nonzero constraint. Serde uses checked String conversion for these IDs; the independent Activity enum wire profile does not change.
 
-## Resource Address Declarations
+## Integrity Counter Admission
 
-`ComputerResource` and the small result addresses declare their typed component routes
-with the shared `ResourceAddress` derive. Discovery templates alias generated named
-constants, and checked constructors retain each concrete ID. Owner result schema hooks
-preserve their family-specific UUID constraints and metadata. Domain accessors retain
-their borrowed or copied signatures. Route selection precedes ID admission; malformed
-fields on a matching route do not fall through to another resource.
+`AuditBlockSequence` admits 1 through i64::MAX; `AuditVersionstamp` also admits zero.
+Their owner validator and decimal parser require the canonical unsigned spelling.
+Serde converts through String in both human-readable and binary formats. JSON and
+JCS therefore preserve versionstamps that exceed exact IEEE-754 integer precision.
+The nominal counter types keep copied getters and their existing schema profiles.
 
+## Owner Target Admission
 
-## Attachment Policy Declaration
+`AuditTargetRegistry` binds each owner discriminator to its typed decoder, closed
+JSON Schema and checked lookup reference. `AuditTargetRegistration<T>` constructs
+and retrieves the registered owner type. The immutable registry shares its identity
+through clones; a target from another registry cannot enter an append or query.
+Target equality compares admitted JSON. Serialization emits the owner object directly,
+and excludes registry identity, cached payloads and lookup references.
 
-`ComputerAction::Attach` owns the `computer_attach` spelling. Its pure catalog
-descriptor requires Computer server resource support. Browser and CLI grant admission
-resolves that registered action and independently requires kernel resource-read
-permission against the same Computer resource. Registry binding grants no current
-session, membership or provider authority; the service still checks those conditions.
+`AuditDecoder` admits target-bearing drafts, records, queries, summaries, pages and
+export lines with an explicit registry. Its JSON parser rejects duplicate object
+fields before creating a JSON value. Private input models carry unadmitted values;
+the decoder then applies target admission and the draft's existing relationship
+checks. Attribution-only `AuditContext` has no registry state.
+
+Owner registration rejects unknown, repeated and core-colliding discriminators.
+Schema composition rejects duplicate definition names and joins owner branches into
+the target's closed union. An installation keeps supported read codecs registered
+when it disables an owner's workload. Missing codecs produce a configuration error
+when reading existing records. Registering a codec installs no runtime or database
+schema.
+
+Store extracts unadmitted driver values privately and decodes them with its configured
+registry. Every returned row, including pagination's extra row, validates its record
+identity, partition and lookup reference. Queries validate target registry identity
+before executing SQL and match the entire `draft.target` object. Transaction writes
+receive the same registry and append alongside the caller's domain write.
+
+## Audit Target Codec
+
+`ComputerAuditTarget` owns the frozen `{"kind":"computer","computer":"..."}`
+Audit target object. Its `ComputerId` remains typed until the owner projects the
+`computer` table and UUID lookup key. `register_audit_target` binds decoder, closed
+schema and projection together in the installation's Audit registry. The codec
+requires no Computers runtime or schema lane and supports reading historical Computer
+records when the workload is disabled. Audit and Store import no Computer identities.

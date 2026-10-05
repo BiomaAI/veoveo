@@ -51,11 +51,19 @@ fn indexing_summary_checks_attribution_bounds_counts_and_collection_on_decode() 
         let mut invalid = value.clone();
         *invalid.pointer_mut(path).unwrap() = bad;
         assert!(
-            serde_json::from_value::<AuditDraft>(invalid).is_err(),
+            AuditTargetRegistry::empty()
+                .decoder()
+                .from_value::<AuditDraft>(invalid)
+                .is_err(),
             "{path}"
         );
     }
-    assert!(serde_json::from_value::<AuditDraft>(value).is_ok());
+    assert!(
+        AuditTargetRegistry::empty()
+            .decoder()
+            .from_value::<AuditDraft>(value)
+            .is_ok()
+    );
 }
 #[test]
 fn indexing_reads_reject_denials_and_wrong_owners() {

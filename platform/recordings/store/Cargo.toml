@@ -1,0 +1,40 @@
+[package]
+name = "veoveo-recording-store"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["persistence"]
+schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
+persistence = ["dep:tokio", "schema", "dep:veoveo-platform-store", "dep:chrono", "dep:serde_json", "dep:surrealdb", "dep:uuid", "dep:thiserror", "dep:sha2", "dep:hex"]
+
+[dependencies]
+tokio = { workspace = true, features = ["time"], optional = true }
+veoveo-modules = { workspace = true, default-features = false, optional = true }
+veoveo-types = { workspace = true, optional = true }
+veoveo-platform-store = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
+
+[dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
+tokio = { workspace = true, features = ["process", "macros", "rt-multi-thread", "net", "io-util", "time"] }
+
+[[test]]
+name = "recording_grants"
+required-features = ["persistence"]
+
+[[test]]
+name = "recording_projections"
+required-features = ["persistence"]
+
+[[test]]
+name = "recording_catalog"
+required-features = ["persistence"]

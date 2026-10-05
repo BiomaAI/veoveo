@@ -33,7 +33,7 @@ pub(super) async fn watch(
     for id in ids {
         let operation = state
             .workspace
-            .store
+            .repository
             .workspace_operation(&authority, WorkspaceOperationId::from_uuid(id))
             .await
             .map_err(fault)?;

@@ -1,14 +1,9 @@
 //! One database statement selects each body and its current layer access together.
 use super::*;
+use crate::persistence::{MapFeatureHeadRecord, MapFeatureLayerRecord, MapLayerPublicationRecord};
 use veoveo_mcp_knowledge_extension::ReadPolicy;
-use veoveo_platform_store::{
-    ArtifactGrantSubjectKind, MapFeatureHeadRecord, MapFeatureLayerRecord,
-    MapLayerPublicationRecord, deterministic_work_context_id,
-};
+use veoveo_platform_store::{ArtifactGrantSubjectKind, deterministic_work_context_id};
 use veoveo_types::{AccessLevel, AccessSubject};
-
-const VISIBLE: &str =
-    "tenant = $tenant AND work_context = $context AND $labels CONTAINSALL data_labels";
 
 pub(super) async fn select(
     catalog: &MapCatalog,
@@ -25,41 +20,29 @@ pub(super) async fn select(
             .allows(AccessLevel::Read),
         "Work Context read membership required"
     );
-    let (table, key, order, position, parent, layer) = match (collection, exact.or(after)) {
+    let (position, layer) = match (collection, exact.or(after)) {
         (MapKnowledgeCollection::Layers, address) => (
-            "map_feature_layer",
-            "layer_key",
-            "layer_key",
             address.map(|v| match v {
                 MapKnowledgeMember::Layer { layer } => layer.as_str(),
                 _ => unreachable!(),
             }),
             None,
-            None,
         ),
         (MapKnowledgeCollection::Features, address) => (
-            "map_feature_head",
-            "feature_key",
-            "layer_key, feature_key",
             address.map(|v| match v {
                 MapKnowledgeMember::Feature { feature, .. } => feature.as_str(),
                 _ => unreachable!(),
             }),
-            Some("feature"),
             address.map(|v| match v {
                 MapKnowledgeMember::Feature { layer, .. } => layer.as_str(),
                 _ => unreachable!(),
             }),
         ),
         (MapKnowledgeCollection::Publications, address) => (
-            "map_layer_publication",
-            "publication_key",
-            "publication_key",
             address.map(|v| match v {
                 MapKnowledgeMember::Publication { publication, .. } => publication.as_str(),
                 _ => unreachable!(),
             }),
-            Some("publication"),
             address.map(|v| match v {
                 MapKnowledgeMember::Publication { layer, .. } => layer.as_str(),
                 _ => unreachable!(),
@@ -67,37 +50,35 @@ pub(super) async fn select(
         ),
         _ => anyhow::bail!("invalid authoring collection"),
     };
-    let selection = if exact.is_some() {
-        if parent.is_some() {
-            format!("AND {key} = $key AND layer_key = $layer")
-        } else {
-            format!("AND {key} = $key")
+    let sql = match (collection, exact.is_some(), after.is_some()) {
+        (MapKnowledgeCollection::Layers, true, _) => {
+            include_str!("../queries/knowledge/authoring/layers_exact.surql")
         }
-    } else if after.is_some() {
-        if collection == MapKnowledgeCollection::Features {
-            "AND (layer_key > $layer OR (layer_key = $layer AND feature_key > $key))".into()
-        } else {
-            format!("AND {key} > $key")
+        (MapKnowledgeCollection::Layers, false, true) => {
+            include_str!("../queries/knowledge/authoring/layers_after.surql")
         }
-    } else {
-        String::new()
-    };
-    let predicate = if parent.is_some() {
-        format!(
-            "tenant = $tenant AND work_context = $context AND layer_key IN (SELECT VALUE layer_key FROM map_feature_layer WHERE {VISIBLE})"
-        )
-    } else {
-        VISIBLE.into()
-    };
-    let select = format!(
-        "SELECT * FROM {table} WHERE {predicate} {selection} ORDER BY {order} LIMIT $limit"
-    );
-    let sql = if parent.is_some() {
-        format!(
-            "RETURN ({select}).map(|$row| [$row, (SELECT * FROM ONLY type::record('map_feature_layer', [$tenant_key, $row.layer_key]) WHERE {VISIBLE})]);"
-        )
-    } else {
-        format!("{select};")
+        (MapKnowledgeCollection::Layers, false, false) => {
+            include_str!("../queries/knowledge/authoring/layers_first.surql")
+        }
+        (MapKnowledgeCollection::Features, true, _) => {
+            include_str!("../queries/knowledge/authoring/features_exact.surql")
+        }
+        (MapKnowledgeCollection::Features, false, true) => {
+            include_str!("../queries/knowledge/authoring/features_after.surql")
+        }
+        (MapKnowledgeCollection::Features, false, false) => {
+            include_str!("../queries/knowledge/authoring/features_first.surql")
+        }
+        (MapKnowledgeCollection::Publications, true, _) => {
+            include_str!("../queries/knowledge/authoring/publications_exact.surql")
+        }
+        (MapKnowledgeCollection::Publications, false, true) => {
+            include_str!("../queries/knowledge/authoring/publications_after.surql")
+        }
+        (MapKnowledgeCollection::Publications, false, false) => {
+            include_str!("../queries/knowledge/authoring/publications_first.surql")
+        }
+        _ => anyhow::bail!("invalid authoring collection"),
     };
     let mut response = catalog
         .store()

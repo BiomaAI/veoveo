@@ -35,7 +35,7 @@ impl PlatformStore {
         }
         let mut response = self
             .db
-            .query(include_str!("view.surql"))
+            .query(include_str!("../queries/audit/view.surql"))
             .bind(("id", super::record_id(actor_partition, view)))
             .bind(("actor_partition", actor_partition.storage_key()))
             .bind(("actor", actor.to_string()))
@@ -65,16 +65,23 @@ impl PlatformStore {
         if !scope.permits(partition) {
             return Err(StoreError::AuditAccessDenied);
         }
-        let mut response = self.db.query("LIVE SELECT id, partition, draft, recorded_at FROM audit_record WHERE partition = $partition;")
-            .bind(("partition", partition.storage_key())).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!(
+                "../queries/audit/subscriptions/audit_live.surql"
+            ))
+            .bind(("partition", partition.storage_key()))
+            .await?
+            .check()?;
         let stream = response.stream::<Notification<Value>>(0)?;
-        Ok(Box::pin(stream.map(|notification| {
+        let registry = self.audit_targets().clone();
+        Ok(Box::pin(stream.map(move |notification| {
             let notification = notification.map_err(StoreError::from)?;
             if notification.action == surrealdb::types::Action::Delete {
                 return Ok(AuditLiveChange::RetainedRangeChanged);
             }
             let row = Row::from_value(notification.data).map_err(|_| StoreError::AuditIntegrity)?;
-            Ok(AuditLiveChange::Record(Box::new(row.checked()?)))
+            Ok(AuditLiveChange::Record(Box::new(row.checked(&registry)?)))
         })))
     }
     pub async fn audit_sealer_wakes(
@@ -82,7 +89,9 @@ impl PlatformStore {
     ) -> Result<BoxStream<'static, Result<(), StoreError>>, StoreError> {
         let mut response = self
             .db
-            .query("LIVE SELECT id FROM audit_record;")
+            .query(include_str!(
+                "../queries/audit/subscriptions/audit_sealer_wakes.surql"
+            ))
             .await?
             .check()?;
         let stream = response.stream::<Notification<Identity>>(0)?;
@@ -98,7 +107,9 @@ impl PlatformStore {
     ) -> Result<BoxStream<'static, Result<(), StoreError>>, StoreError> {
         let mut response = self
             .db
-            .query("LIVE SELECT id FROM audit_block;")
+            .query(include_str!(
+                "../queries/audit/subscriptions/audit_export_wakes.surql"
+            ))
             .await?
             .check()?;
         let stream = response.stream::<Notification<Identity>>(0)?;
@@ -127,7 +138,9 @@ impl PlatformStore {
         }
         let mut response = self
             .db
-            .query("LIVE SELECT sequence FROM audit_block WHERE partition = $partition;")
+            .query(include_str!(
+                "../queries/audit/subscriptions/audit_blocks_live.surql"
+            ))
             .bind(("partition", partition.storage_key()))
             .await?
             .check()?;
@@ -153,14 +166,18 @@ impl PlatformStore {
         let id = RecordId::new("audit_record_seal", super::record_id(partition, record).key);
         let mut response = self
             .db
-            .query("LIVE SELECT id FROM audit_record_seal WHERE id = $id;")
+            .query(include_str!(
+                "../queries/audit/subscriptions/audit_wait_sealed.surql"
+            ))
             .bind(("id", id.clone()))
             .await?
             .check()?;
         let mut live = response.stream::<Notification<Identity>>(0)?;
         let mut current = self
             .db
-            .query("SELECT id FROM ONLY $id;")
+            .query(include_str!(
+                "../queries/audit/subscriptions/audit_wait_sealed_2.surql"
+            ))
             .bind(("id", id))
             .await?
             .check()?;

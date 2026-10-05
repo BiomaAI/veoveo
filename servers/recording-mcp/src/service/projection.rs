@@ -11,10 +11,11 @@ use chrono::{DateTime, Utc};
 use sha2::{Digest as _, Sha256};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
-use veoveo_platform_store::{
-    RecordId, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
-    RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionRequest,
-    RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantId,
+use veoveo_platform_store::RecordId;
+use veoveo_recording_store::{
+    RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft, RecordingProjectionReceiptId,
+    RecordingProjectionReceiptRecord, RecordingProjectionRequest, RecordingProjectionState,
+    RecordingReadGrantClass, RecordingReadGrantId,
 };
 use veoveo_rrd::projection::{
     ArrowProjectionQuery, ArrowProjectionSummary, write_arrow_projection_cancelable,
@@ -100,7 +101,7 @@ impl RecordingService {
             query_digest.clone(),
         )?;
         let existing = self
-            .store
+            .recordings
             .recording_projection_by_idempotency_key(&scope, &request_identity)
             .await?;
         let receipt = if let Some(existing) = existing {
@@ -120,7 +121,7 @@ impl RecordingService {
                 &grant.id,
                 RecordingReadGrantId::TABLE,
             )?);
-            self.store
+            self.recordings
                 .reserve_recording_projection(RecordingProjectionReceiptDraft {
                     scope: scope.clone(),
                     request: request_identity,
@@ -139,7 +140,7 @@ impl RecordingService {
             && paths.final_metadata.is_file()
         {
             let handle = read_handle(&paths, &receipt, &request, HandleReadMode::Recovering)?;
-            self.store
+            self.recordings
                 .complete_recording_projection(
                     &scope,
                     recording_id,
@@ -159,7 +160,7 @@ impl RecordingService {
             projection_id,
             request.query.maximum_bytes + MAX_METADATA_BYTES,
         )?;
-        self.store
+        self.recordings
             .begin_recording_projection(&scope, recording_id, projection_id)
             .await?;
         remove_projection_paths(&paths, false)?;
@@ -196,7 +197,7 @@ impl RecordingService {
             remove_projection_paths(&paths, true)?;
             match terminal {
                 ProjectionTerminal::Cancelled => {
-                    self.store
+                    self.recordings
                         .cancel_recording_projection(
                             &scope,
                             recording_id,
@@ -207,7 +208,7 @@ impl RecordingService {
                     anyhow::bail!("recording projection was cancelled");
                 }
                 ProjectionTerminal::Deadline => {
-                    self.store
+                    self.recordings
                         .fail_recording_projection(
                             &scope,
                             recording_id,
@@ -223,7 +224,7 @@ impl RecordingService {
             Ok(Ok(summary)) => summary,
             Ok(Err(error)) => {
                 remove_projection_paths(&paths, true)?;
-                self.store
+                self.recordings
                     .fail_recording_projection(
                         &scope,
                         recording_id,
@@ -235,7 +236,7 @@ impl RecordingService {
             }
             Err(error) => {
                 remove_projection_paths(&paths, true)?;
-                self.store
+                self.recordings
                     .fail_recording_projection(&scope, recording_id, projection_id, "worker_failed")
                     .await?;
                 return Err(error.into());
@@ -253,7 +254,7 @@ impl RecordingService {
             Ok(handle) => handle,
             Err(error) => {
                 remove_projection_paths(&paths, true)?;
-                self.store
+                self.recordings
                     .fail_recording_projection(
                         &scope,
                         recording_id,
@@ -272,7 +273,7 @@ impl RecordingService {
             handle.result.byte_len.get() + paths.final_metadata.metadata()?.len(),
             handle.expires_at,
         )?;
-        self.store
+        self.recordings
             .complete_recording_projection(
                 &scope,
                 recording_id,
@@ -297,7 +298,7 @@ impl RecordingService {
         let platform_identity = self.platform_identity(identity).await?;
         let scope = super::grants::recording_access_scope(identity, &platform_identity)?;
         let Some(receipt) = self
-            .store
+            .recordings
             .ready_recording_projection(&scope, recording_id, projection_id)
             .await?
         else {

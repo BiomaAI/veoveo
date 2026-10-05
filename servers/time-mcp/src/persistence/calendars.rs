@@ -130,11 +130,13 @@ impl TimePersistence {
         epoch_key: &MissionEpochId,
     ) -> Result<Option<TimeMissionEpochRecord>, PersistenceError> {
         validate_key("epoch_key", epoch_key, "epoch-")?;
-        let mut response = self.client()
-            .query("SELECT * FROM time_mission_epoch WHERE tenant = $tenant AND epoch_key = $key ORDER BY epoch_version DESC LIMIT 1;")
+        let mut response = self
+            .client()
+            .query(include_str!("queries/latest_epoch.surql"))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("key", epoch_key.to_string()))
-            .await?.check()?;
+            .await?
+            .check()?;
         let rows: Vec<TimeMissionEpochRecord> = response.take(0)?;
         Ok(rows.into_iter().next())
     }

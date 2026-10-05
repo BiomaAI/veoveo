@@ -1,6 +1,6 @@
 //! Binary-owned composition and checked installation command inputs.
 mod commands;
-mod composition;
+pub(super) mod composition;
 use anyhow::{Context, ensure};
 use clap::Args;
 pub(super) use commands::*;
@@ -86,7 +86,6 @@ pub(super) fn preparation_key(
         b"veoveo.ai/installation-preparation/v1".as_slice(),
         serde_json::to_vec(plan)?.as_slice(),
         args.runtime_username.as_bytes(),
-        veoveo_platform_store::schema_catalog_identity().as_bytes(),
     ] {
         hash.update((bytes.len() as u64).to_be_bytes());
         hash.update(bytes);

@@ -1,0 +1,1 @@
+UPDATE ONLY $task SET lease_owner = NONE, lease_expires_at = NONE WHERE server = $server AND recovery_class = 'provider_wait' AND lease_owner = $worker AND lease_expires_at = $expiry AND lease_expires_at > time::now() AND status IN ['queued', 'running', 'waiting', 'cancel_requested'] RETURN AFTER;

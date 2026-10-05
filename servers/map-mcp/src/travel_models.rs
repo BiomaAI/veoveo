@@ -13,27 +13,6 @@ use veoveo_platform_store::{
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::TaskTypeDefinition;
 
-const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
-    AND profile = $profile AND work_context = $context
-    AND request.owner.principal_key = $principal_key AND request.owner.profile = $profile_key
-    AND (request.owner.tenant_key ?? NONE) = $tenant_key
-    AND request.owner.data_labels ALLINSIDE $labels
-    AND authority.context_key = $context_key
-    AND request.owner.authority.work_context = $context_key
-    AND request.owner.authority.tenant = $authority_tenant
-    AND request.input.request.identity.actor.id = $principal_key
-    AND request.input.request.identity.profile = $profile_key
-    AND (request.input.request.identity.actor.tenant ?? NONE) = $tenant_key
-    AND request.input.request.identity.actor.data_labels ALLINSIDE $labels
-    AND request.input.request.identity.authority.work_context = $context_key
-    AND request.input.request.identity.authority.tenant = $authority_tenant";
-const COMPLETED: &str = "task_type = $task_type
-    AND request.input.kind = $task_type
-    AND status = 'succeeded' AND (result.payload.isError ?? false) = false
-    AND result.payload.structuredContent.created_by = $principal_key
-    AND result.payload.structuredContent.work_context = $context_key
-    AND result.payload.structuredContent.travel_model_id = request.input.request.travel_model_id";
-
 pub struct TravelModelReads<'a> {
     store: &'a PlatformStore,
 }
@@ -112,16 +91,10 @@ impl<'a> TravelModelReads<'a> {
             "Map owner and Work Context belong to different tenants"
         );
         let statement = match selection {
-            Selection::Page(cursor) => {
-                let after = if cursor.is_some() { "AND id > $after" } else { "" };
-                format!("SELECT record::id(id) AS task_id, result.payload.structuredContent AS record FROM task WHERE {VISIBLE} AND {COMPLETED} {after} ORDER BY task_id ASC LIMIT 101;")
-            }
-            Selection::Exact(_) => format!("SELECT VALUE result.payload.structuredContent FROM task
-                WHERE {VISIBLE} AND {COMPLETED} AND request.input.request.travel_model_id = $identity LIMIT 2;"),
-            Selection::Completion(_) => format!("SELECT VALUE result.payload.structuredContent.travel_model_id FROM task
-                WHERE {VISIBLE} AND {COMPLETED} AND result.payload.structuredContent.travel_model_id != NONE
-                AND string::lowercase(result.payload.structuredContent.travel_model_id) CONTAINS $needle
-                GROUP BY result.payload.structuredContent.travel_model_id ORDER BY result.payload.structuredContent.travel_model_id ASC LIMIT 101;"),
+            Selection::Page(None) => include_str!("queries/travel_models/first_page.surql"),
+            Selection::Page(Some(_)) => include_str!("queries/travel_models/after_page.surql"),
+            Selection::Exact(_) => include_str!("queries/travel_models/exact.surql"),
+            Selection::Completion(_) => include_str!("queries/travel_models/completion.surql"),
         };
         let query = self
             .store

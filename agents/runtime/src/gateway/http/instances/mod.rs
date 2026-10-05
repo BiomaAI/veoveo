@@ -1,10 +1,12 @@
 //! Governed intent admission. Kubernetes writes belong to the lifecycle manager.
 use crate::contract::AgentAction as Action;
+use crate::persistence::AgentRepository;
 use veoveo_http::RequestJson;
 mod admission;
 mod projection;
 
 use crate::contract::authoring as wire;
+use crate::persistence::instances::*;
 use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
@@ -14,7 +16,7 @@ use axum::{
 use uuid::Uuid;
 use veoveo_mcp_contract::PolicyTarget;
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::{RecordId, agent_management::instances::*};
+use veoveo_platform_store::RecordId;
 
 use super::{
     AgentManagementState, Api, Fault, Page,
@@ -47,8 +49,7 @@ async fn list(
     Query(page): Query<Page>,
 ) -> Api<wire::InstancePage> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsRead).await?;
-    let values = state
-        .store()
+    let values = AgentRepository::new(state.store().clone())
         .managed_agents(&actor.authority, page.after.as_deref(), page.limit)
         .await?;
     let items = projection::instances(&state, &actor, values).await?;
@@ -64,7 +65,9 @@ async fn read(
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Api<wire::ManagedInstance> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsRead).await?;
-    let value = state.store().managed_agent(&actor.authority, &id).await?;
+    let value = AgentRepository::new(state.store().clone())
+        .managed_agent(&actor.authority, &id)
+        .await?;
     let result = projection::instances(&state, &actor, vec![value])
         .await?
         .pop()
@@ -78,8 +81,7 @@ async fn operation(
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Api<wire::LifecycleOperation> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsRead).await?;
-    let value = state
-        .store()
+    let value = AgentRepository::new(state.store().clone())
         .managed_agent_operation(
             &actor.authority,
             RecordId::new("managed_agent_operation", surrealdb::types::Uuid::from(id)),
@@ -155,7 +157,9 @@ async fn update(
 ) -> Result<(StatusCode, Json<wire::LifecycleOperation>), Fault> {
     let actor = authority::admit(&state, profile, subject, Action::AgentInstancesControl).await?;
     let result = async {
-        let instance = state.store().managed_agent(&actor.authority, &id).await?;
+        let instance = AgentRepository::new(state.store().clone())
+            .managed_agent(&actor.authority, &id)
+            .await?;
         let mut mutation = match request.change {
             wire::InstanceChange::State { desired } => ManagedAgentMutation::State {
                 desired: projection::desired(desired),
@@ -167,8 +171,7 @@ async fn update(
             wire::InstanceChange::Stop => ManagedAgentMutation::Stop,
             wire::InstanceChange::Retry => ManagedAgentMutation::Retry,
         };
-        if let Some(receipt) = state
-            .store()
+        if let Some(receipt) = AgentRepository::new(state.store().clone())
             .replay_managed_agent(
                 &actor.authority,
                 &id,
@@ -206,8 +209,7 @@ async fn update(
             let template =
                 admission::template(&state, &actor, projected.definition.as_str(), digest).await?;
             if let ManagedAgentMutation::Revision { image, .. } = &mut mutation {
-                let previous = state
-                    .store()
+                let previous = AgentRepository::new(state.store().clone())
                     .agent_revision(
                         &actor.authority,
                         projected.definition.as_str(),
@@ -219,8 +221,7 @@ async fn update(
             }
         }
         authority::live_session(&state, &actor.profile, &actor.subject).await?;
-        Ok(state
-            .store()
+        Ok(AgentRepository::new(state.store().clone())
             .mutate_managed_agent(
                 &actor.authority,
                 &id,

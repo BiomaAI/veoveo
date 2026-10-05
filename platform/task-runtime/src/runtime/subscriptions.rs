@@ -165,8 +165,8 @@ impl TaskRuntime {
             return Ok(vec![]);
         }
         let sql = match ids {
-            Some(_) => "SELECT * FROM $records WHERE server = $server;",
-            None => "SELECT * FROM task WHERE server = $server ORDER BY created_at ASC;",
+            Some(_) => include_str!("../../queries/runtime/subscriptions/selected_tasks.surql"),
+            None => include_str!("../../queries/runtime/subscriptions/server_tasks.surql"),
         };
         let mut query = self
             .store

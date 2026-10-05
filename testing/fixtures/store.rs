@@ -1,10 +1,13 @@
 //! Shared Rust fixture: exact disposable store, no installation data or credentials.
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+use veoveo_platform_store::audit::AuditTargetRegistry;
 #[path = "store/container.rs"]
 mod container;
 #[path = "store/io.rs"]
 pub mod io;
 use container::{Container, Docker};
+#[path = "module_lanes.rs"]
+pub mod module_lanes;
 use uuid::Uuid;
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
@@ -26,7 +29,6 @@ pub struct TestDb {
         reason = "Only storage measurements reconnect as fixture admin"
     )]
     admin_config: StoreConfig,
-    runtime_credentials: StoreCredentials,
     pub a: PlatformStore,
     #[allow(dead_code, reason = "Only replica fixtures use the second connection")]
     pub b: PlatformStore,
@@ -129,18 +131,9 @@ impl TestDb {
         reason = "Only reconnect qualification replaces its endpoint"
     )]
     pub async fn connect_at(&self, endpoint: &str) -> PlatformStore {
-        PlatformStore::connect(
-            StoreConfig::builder(
-                endpoint,
-                self.a.config().namespace(),
-                self.a.config().database(),
-                self.runtime_credentials.clone(),
-            )
-            .build()
-            .unwrap(),
-        )
-        .await
-        .unwrap()
+        PlatformStore::connect(self.a.config().clone().with_endpoint(endpoint).unwrap())
+            .await
+            .unwrap()
     }
 
     #[allow(
@@ -156,10 +149,70 @@ impl TestDb {
         reason = "Fixture consumers select memory or RocksDB explicitly"
     )]
     pub async fn with_backend(backend: StoreBackend) -> Self {
-        Self::with_backend_and_schema(backend, "").await
+        Self::with_backend_and_modules(backend, Vec::new()).await
     }
 
+    #[allow(
+        dead_code,
+        reason = "Only owner-native fixtures install additional test tables"
+    )]
     pub async fn with_backend_and_schema(backend: StoreBackend, schema: &str) -> Self {
+        Self::with_setup(
+            backend,
+            Vec::new(),
+            schema,
+            Arc::new(AuditTargetRegistry::empty()),
+        )
+        .await
+    }
+
+    #[allow(dead_code, reason = "Only optional-owner fixtures select domain lanes")]
+    pub async fn with_modules(modules: Vec<veoveo_modules::ModuleSetup>) -> Self {
+        Self::with_backend_and_modules(StoreBackend::Memory, modules).await
+    }
+
+    pub async fn with_backend_and_modules(
+        backend: StoreBackend,
+        modules: Vec<veoveo_modules::ModuleSetup>,
+    ) -> Self {
+        Self::with_setup(backend, modules, "", Arc::new(AuditTargetRegistry::empty())).await
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only contextual Audit fixtures install target codecs"
+    )]
+    pub async fn with_audit_targets(targets: Arc<AuditTargetRegistry>) -> Self {
+        Self::with_setup(StoreBackend::Memory, Vec::new(), "", targets).await
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Owners select explicit modules and codecs for native fixtures"
+    )]
+    pub async fn with_composition(
+        backend: StoreBackend,
+        modules: Vec<veoveo_modules::ModuleSetup>,
+        targets: Arc<AuditTargetRegistry>,
+    ) -> Self {
+        Self::with_setup(backend, modules, "", targets).await
+    }
+
+    async fn with_setup(
+        backend: StoreBackend,
+        modules: Vec<veoveo_modules::ModuleSetup>,
+        schema: &str,
+        audit_targets: Arc<AuditTargetRegistry>,
+    ) -> Self {
+        // Complete SQL/dependency admission precedes database or container effects.
+        let selected = modules.iter().map(|module| module.name().clone()).collect();
+        let registry = module_lanes::registry(modules).expect("fixture lane declarations");
+        let prepared = veoveo_modules::runner::prepare(
+            registry
+                .select(selected)
+                .expect("fixture selected prerequisites"),
+        )
+        .expect("fixture schema admission");
         let storage = match backend {
             StoreBackend::Memory => "memory",
             StoreBackend::RocksDb => "rocksdb:/tmp/veoveo-test.db",
@@ -176,7 +229,7 @@ impl TestDb {
             &database,
             admin_credentials.clone(),
         )
-        .migrate_on_connect(true)
+        .audit_targets(audit_targets.clone())
         .build()
         .unwrap();
         let admin = tokio::time::timeout(Duration::from_secs(60), async {
@@ -188,8 +241,7 @@ impl TestDb {
                     // behind a full minute of reconnects. Migration diagnostics
                     // contain only repository-owned SQL, never fixture secrets.
                     Err(
-                        error @ (veoveo_platform_store::StoreError::MigrationExecution { .. }
-                        | veoveo_platform_store::StoreError::Migration(_)
+                        error @ (veoveo_platform_store::StoreError::FreshInstallationRequired
                         | veoveo_platform_store::StoreError::Config(_)),
                     ) => {
                         panic!("isolated store initialization failed: {error}");
@@ -200,8 +252,13 @@ impl TestDb {
         })
         .await
         .expect("isolated migrations/readiness failed");
+        tokio::time::timeout(Duration::from_secs(60), prepared.apply(admin.client()))
+            .await
+            .expect("fixture selected bootstrap exceeded60seconds")
+            .unwrap_or_else(|error| panic!("fixture selected bootstrap failed: {error}"));
         let admin_config =
             StoreConfig::builder(&endpoint, "veoveo_fixture", &database, admin_credentials)
+                .audit_targets(audit_targets.clone())
                 .build()
                 .unwrap();
         if !schema.is_empty() {
@@ -227,6 +284,7 @@ impl TestDb {
             database,
             runtime_credentials.clone(),
         )
+        .audit_targets(audit_targets.clone())
         .build()
         .unwrap();
         let a = connect(config.clone(), "first runtime client").await;
@@ -234,7 +292,6 @@ impl TestDb {
         Self {
             _container: container,
             admin_config,
-            runtime_credentials,
             a,
             b,
         }
@@ -245,14 +302,7 @@ impl TestDb {
         reason = "Only network-recovery fixtures select a fault-injection endpoint"
     )]
     pub async fn connect_via(&self, endpoint: &str) -> PlatformStore {
-        let config = StoreConfig::builder(
-            endpoint,
-            self.a.config().namespace(),
-            self.a.config().database(),
-            self.runtime_credentials.clone(),
-        )
-        .build()
-        .unwrap();
+        let config = self.a.config().clone().with_endpoint(endpoint).unwrap();
         connect(config, "fault-injection client").await
     }
 }

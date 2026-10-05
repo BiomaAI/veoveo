@@ -23,7 +23,7 @@ constructed from the gateway listener; request bodies cannot choose a destinatio
 profile, identity or credential. Redirects are disabled. A new native client
 per request avoids retaining credentials beyond the bounded operation lifetime.
 
-The private [operation store](../../../../store/src/workspace/operations/DESIGN.md)
+The private [operation store](../../persistence/operations/DESIGN.md)
 commits a stable dispatch identity before `tools/call`. Sixteen process slots bound
 concurrent dispatch. Only the receipt claimant sends the call. The HTTP response
 returns the receipt immediately while the owned worker records the native outcome.

@@ -18,6 +18,7 @@ veoveo-mcp-gateway = { path = "../../../platform/gateway" }
 veoveo-platform-store = { path = "../../../platform/store" }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["gateway"] }
 veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["gateway"] }
 veoveo-types.workspace = true

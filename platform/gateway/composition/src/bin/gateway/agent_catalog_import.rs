@@ -4,12 +4,15 @@ use clap::Args;
 use serde::{Deserialize, Serialize};
 use std::{fs::OpenOptions, io::Write, path::PathBuf};
 use veoveo_agent_runtime::contract::authoring as wire;
+use veoveo_agent_runtime::persistence as domain;
+use veoveo_agent_runtime::persistence::AgentRepository;
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayControlStore};
 use veoveo_platform_store::{
-    StoreAuthLevel, WorkContextMembershipLevel, agent_management as domain,
-    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
+    StoreAuthLevel, WorkContextMembershipLevel, deterministic_principal_id,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_types::{TenantId, WorkContextId};
+use veoveo_workspace::persistence::{self as workspace, WorkspaceRepository};
 
 #[derive(Args, Debug)]
 pub(crate) struct Arguments {
@@ -56,7 +59,7 @@ struct Recovery {
     tenant: TenantId,
     work_context: WorkContextId,
     source_digest: String,
-    bindings: Vec<domain::AgentChatImport>,
+    bindings: Vec<workspace::AgentChatImport>,
 }
 
 pub(crate) async fn run(args: Arguments) -> Result<()> {
@@ -78,7 +81,18 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
     let control =
         GatewayControlStore::connect(args.store.into_config()?, crate::catalog_admission()?)
             .await?;
-    control.migrate().await?;
+    let registry = super::module_installation::composition::registry()?;
+    let prepared = veoveo_modules::runner::prepare(registry.select(vec![
+        veoveo_modules::ModuleName::new("agents")?,
+        veoveo_modules::ModuleName::new("workspace")?,
+    ])?)?;
+    ensure!(
+        prepared
+            .status(control.platform_store().client())
+            .await?
+            .is_current(),
+        "agent-catalog-import requires current Agents and Workspace module lanes"
+    );
     let store = control.platform_store();
     let context = store
         .artifact_read_context_version(source.tenant.as_str(), source.work_context.as_str())
@@ -93,8 +107,15 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
         true,
         1000,
     );
-    let mut check = store.client().query("SELECT VALUE <string> id FROM workspace_run WHERE chat.tenant = $tenant AND chat.work_context = $context AND state IN ['queued', 'running'] LIMIT 1;")
-        .bind(("tenant", authority.tenant.clone())).bind(("context", authority.work_context.clone())).await?.check()?;
+    let mut check = store
+        .client()
+        .query(include_str!(
+            "../../queries/bin/gateway/agent_catalog_import/run/statement_1.surql"
+        ))
+        .bind(("tenant", authority.tenant.clone()))
+        .bind(("context", authority.work_context.clone()))
+        .await?
+        .check()?;
     let active: Vec<String> = check.take(0)?;
     ensure!(
         active.is_empty(),
@@ -103,11 +124,11 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
     if args.restore {
         let recovery: Recovery = serde_json::from_slice(&std::fs::read(&args.recovery)?)?;
         verify_recovery(&recovery, &source, &source_digest)?;
-        let count = store
+        let count = WorkspaceRepository::new(store.clone())
             .apply_agent_chat_import(
                 &authority,
                 &recovery.bindings,
-                domain::AgentChatImportDirection::Restore,
+                workspace::AgentChatImportDirection::Restore,
             )
             .await?;
         println!(
@@ -159,7 +180,7 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
     }
     for (definition, content) in admitted {
         let digest = content.digest()?;
-        let draft = match store
+        let draft = match AgentRepository::new(store.clone())
             .agent_definition(&authority, definition.id.as_str())
             .await
         {
@@ -174,7 +195,7 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
                 existing
             }
             Err(domain::AgentManagementError::NotFound) => {
-                store
+                AgentRepository::new(store.clone())
                     .mutate_agent_definition(
                         &authority,
                         definition.id.as_str(),
@@ -191,7 +212,7 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
             Err(error) => return Err(error.into()),
         };
         if draft.published.is_none() {
-            store
+            AgentRepository::new(store.clone())
                 .mutate_agent_definition(
                     &authority,
                     definition.id.as_str(),
@@ -207,7 +228,7 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
                 )
                 .await?;
         } else {
-            let current = store
+            let current = AgentRepository::new(store.clone())
                 .agent_executable(&authority, definition.id.as_str(), None)
                 .await?;
             ensure!(
@@ -215,7 +236,7 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
                 "published definition differs from the seed"
             );
         }
-        mappings.push(domain::AgentChatImportMapping {
+        mappings.push(workspace::AgentChatImportMapping {
             key: definition.id.to_string(),
             source_digests: definition.source_digests.clone(),
             target_digest: digest,
@@ -226,7 +247,9 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
         verify_recovery(&recovery, &source, &source_digest)?;
         recovery
     } else {
-        let bindings = store.plan_agent_chat_import(&authority, &mappings).await?;
+        let bindings = WorkspaceRepository::new(store.clone())
+            .plan_agent_chat_import(&authority, &mappings)
+            .await?;
         let recovery = Recovery {
             tenant: source.tenant.clone(),
             work_context: source.work_context.clone(),
@@ -245,15 +268,15 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
         file.sync_all()?;
         recovery
     };
-    let count = store
+    let count = WorkspaceRepository::new(store.clone())
         .apply_agent_chat_import(
             &authority,
             &recovery.bindings,
-            domain::AgentChatImportDirection::Apply,
+            workspace::AgentChatImportDirection::Apply,
         )
         .await?;
     ensure!(
-        store
+        WorkspaceRepository::new(store.clone())
             .plan_agent_chat_import(&authority, &mappings)
             .await?
             .is_empty(),

@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.b.clone());
         let owner = scope(&db.a, "digest-owner").await;

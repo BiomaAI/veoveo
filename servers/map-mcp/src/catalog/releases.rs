@@ -1,4 +1,5 @@
 //! Dataset release pages and exact reads, backed by tenant/parent-scoped SQL.
+use crate::persistence::MapRepository;
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
@@ -11,22 +12,7 @@ use crate::contract::{
 
 pub const PAGE_SIZE: usize = 100;
 
-const SELECT_ACTIVE: &str = "SELECT record::id(id) AS pointer_id,
-    dataset_key AS dataset_id, release_key AS release_id,
-    previous_release_key AS previous_release_id, record_version, activated_at,
-    release.source_key AS source_id, release.record_version AS release_version,
-    release.version_label AS version_label,
-    release.source_digest_sha256 AS source_digest_sha256,
-    release.valid_from AS valid_from, release.valid_until AS valid_until,
-    release.canonical_json AS canonical_json
-FROM (
-    SELECT *, type::record('map_dataset_release', release_key) AS release
-    FROM map_active_release
-    WHERE tenant = $tenant AND ($dataset = NONE OR dataset_key = $dataset)
-) WHERE release.tenant = $tenant AND release.release_key = release_key
-    AND release.dataset_key = dataset_key AND release.state = 'active'
-    AND ($source = NONE OR release.source_key = $source)
-ORDER BY dataset_id ASC LIMIT $limit TIMEOUT 5s;";
+const SELECT_ACTIVE: &str = include_str!("../queries/catalog/releases/releases/statement_1.surql");
 
 #[derive(Deserialize)]
 struct ActiveReleaseRow {
@@ -122,7 +108,7 @@ impl MapCatalog {
         dataset: &MapDatasetId,
         release: &DatasetReleaseId,
     ) -> Result<Option<DatasetRelease>> {
-        self.store()
+        MapRepository::new(self.store().clone())
             .map_release_in_dataset(scope.identity.tenant_id, dataset.as_str(), release.as_str())
             .await?
             .map(checked_release)
@@ -135,8 +121,7 @@ impl MapCatalog {
         dataset: Option<&MapDatasetId>,
         after: Option<&DatasetReleaseId>,
     ) -> Result<ReleasePage> {
-        let mut rows = self
-            .store()
+        let mut rows = MapRepository::new(self.store().clone())
             .map_releases_page(
                 scope.identity.tenant_id,
                 dataset.map(MapDatasetId::as_str),
@@ -171,7 +156,7 @@ impl MapCatalog {
     }
 }
 
-fn checked_release(row: veoveo_platform_store::MapDatasetReleaseRecord) -> Result<DatasetRelease> {
+fn checked_release(row: crate::persistence::MapDatasetReleaseRecord) -> Result<DatasetRelease> {
     let release: DatasetRelease = decode(&row.canonical_json, "dataset release")?;
     release.validate()?;
     ensure!(
@@ -297,7 +282,7 @@ mod tests {
     #[tokio::test]
     async fn active_release_filters_precede_limits_and_denied_document_decode() {
         tokio::time::timeout(std::time::Duration::from_secs(90), async {
-            let db = crate::test_store::TestDb::new().await;
+            let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
             let writer = MapCatalog::new(db.a.clone());
             let reader = MapCatalog::new(db.b.clone());
             let scope = active_scope(&db.a, "active-selection").await;
@@ -309,7 +294,7 @@ mod tests {
                 activate_fixture(&writer, &scope, n + 105, n + 105).await;
             }
             db.a.client()
-                .query("UPDATE map_dataset_release SET canonical_json = '{' RETURN NONE;")
+                .query(include_str!("../queries/catalog/releases/active_release_filters_precede_limits_and_denied_document_decode/statement_1.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -359,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn active_release_limits_pointer_changes_and_document_agreement() {
         tokio::time::timeout(std::time::Duration::from_secs(90), async {
-            let db = crate::test_store::TestDb::new().await;
+            let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
             let writer = MapCatalog::new(db.a.clone());
             let reader = MapCatalog::new(db.b.clone());
             let scope = active_scope(&db.a, "active-limits").await;
@@ -405,7 +390,7 @@ mod tests {
                     "state" => serde_json::json!("staged"),
                     _ => unreachable!(),
                 };
-                db.a.client().query("UPDATE ONLY $record SET canonical_json = $body RETURN NONE;")
+                db.a.client().query(include_str!("../queries/catalog/releases/active_release_limits_pointer_changes_and_document_agreement/statement_1.surql"))
                     .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", next.release_id.as_str())))
                     .bind(("body", serde_json::to_string(&body).unwrap()))
                     .await.unwrap().check().unwrap();
@@ -414,16 +399,16 @@ mod tests {
             }
             // Relationships are admission predicates too, before retained-body decoding.
             for mutation in [
-                "tenant = tenant:other",
-                "dataset_key = 'dataset-ffffffff-0000-7000-8000-000000000000'",
-                "release_key = 'release-ffffffff-0000-7000-8000-000000000000'",
-                "state = 'retired'",
+                include_str!("../queries/catalog/releases/mutation_01.surql"),
+                include_str!("../queries/catalog/releases/mutation_02.surql"),
+                include_str!("../queries/catalog/releases/mutation_03.surql"),
+                include_str!("../queries/catalog/releases/mutation_04.surql"),
             ] {
-                db.a.client().query(format!("UPDATE ONLY $record SET {mutation}, canonical_json = '{{' RETURN NONE;"))
+                db.a.client().query(mutation)
                     .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", next.release_id.as_str())))
                     .await.unwrap().check().unwrap();
                 assert!(reader.active_releases(&scope, &request).await.unwrap().releases.is_empty());
-                db.a.client().query("UPDATE ONLY $record SET tenant = $tenant, dataset_key = $dataset, release_key = $release, state = 'active' RETURN NONE;")
+                db.a.client().query(include_str!("../queries/catalog/releases/active_release_limits_pointer_changes_and_document_agreement/statement_2.surql"))
                     .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", next.release_id.as_str())))
                     .bind(("tenant", scope.identity.tenant_id.record_id()))
                     .bind(("dataset", next.dataset_id.as_str()))
@@ -470,7 +455,11 @@ mod tests {
     }
 
     async fn qualify() {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let scope = MapAccessContext {
@@ -603,23 +592,26 @@ mod tests {
         );
         for limit in [0, 102, usize::MAX] {
             assert!(
-                db.b.map_releases_page(
-                    scope.identity.tenant_id,
-                    Some(dataset.as_str()),
-                    None,
-                    limit
-                )
-                .await
-                .is_err()
+                MapRepository::new(db.b.clone())
+                    .map_releases_page(
+                        scope.identity.tenant_id,
+                        Some(dataset.as_str()),
+                        None,
+                        limit
+                    )
+                    .await
+                    .is_err()
             );
         }
         assert!(
-            db.b.map_releases_page(scope.identity.tenant_id, Some("dataset-invalid"), None, 1)
+            MapRepository::new(db.b.clone())
+                .map_releases_page(scope.identity.tenant_id, Some("dataset-invalid"), None, 1)
                 .await
                 .is_err()
         );
         assert!(
-            db.b.map_releases_page(scope.identity.tenant_id, None, Some("release-invalid"), 1)
+            MapRepository::new(db.b.clone())
+                .map_releases_page(scope.identity.tenant_id, None, Some("release-invalid"), 1)
                 .await
                 .is_err()
         );

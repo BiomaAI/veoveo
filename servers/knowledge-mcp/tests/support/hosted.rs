@@ -109,8 +109,16 @@ pub async fn install(store: &PlatformStore, plane: &GatewayControlPlane) {
         tenant: None,
         control_plane: serde_json::from_value(serde_json::to_value(plane).unwrap()).unwrap(),
     };
-    store.client().query("BEGIN TRANSACTION; CREATE ONLY $revision CONTENT $content; UPSERT gateway_control_active:current SET revision=$revision, revision_id=$name, updated_at=time::now(); COMMIT TRANSACTION;")
-        .bind(("revision",revision)).bind(("content", content)).bind(("name",name)).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!("../queries/support/hosted/install.surql"))
+        .bind(("revision", revision))
+        .bind(("content", content))
+        .bind(("name", name))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let stored = store
         .active_gateway_control_revision()
         .await

@@ -85,7 +85,15 @@ fn subject() -> AuthenticatedSubject {
 
 #[tokio::test]
 async fn admission_preserves_signed_source_context_without_admin_permission_and_audits_denials() {
-    let db = store::TestDb::new().await;
+    let db = store::TestDb::with_composition(
+        store::StoreBackend::Memory,
+        vec![
+            crate::schema::module_setup(store::module_lanes::execution("computers").unwrap())
+                .unwrap(),
+        ],
+        veoveo_gateway_catalog::audit_target_registry().unwrap(),
+    )
+    .await;
     let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
     let issuer = TokenIssuer::parse(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap();
     let trust = GatewayInternalTrustBundle::from_json(&serde_json::json!({"keys":[{"kty":"OKP","crv":"Ed25519","x":URL_SAFE_NO_PAD.encode(key.public_key_raw()),"alg":"EdDSA","use":"sig","kid":"fixture"}]}).to_string()).unwrap();

@@ -67,7 +67,7 @@ fn stock_pairing_accepts_only_the_qualified_code_and_loopback_port_profile() {
 
 #[tokio::test]
 async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_grant() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let other_session = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let other_owner = ComputerActor::from_verified(&browser(&db, "bob").await).unwrap();
@@ -111,7 +111,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     );
     let mut stored =
         db.b.client()
-            .query("SELECT VALUE credential_hash FROM ONLY $grant;")
+            .query(include_str!("queries/cli_grants/pairing_is_one_use_private_and_connection_close_preserves_the_named_grant/statement_1.surql"))
             .bind((
                 "grant",
                 record("computer_cli_grant", paired.grant_id.as_uuid()),
@@ -243,7 +243,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
 
 #[tokio::test]
 async fn shared_browser_cli_quota_and_pairing_rate_are_atomic_across_replicas() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
     let paired = pair(&a, &b, &actor, computer, "ABC-2345").await;
@@ -292,7 +292,7 @@ async fn shared_browser_cli_quota_and_pairing_rate_are_atomic_across_replicas() 
 
 #[tokio::test]
 async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
     let paired = pair(&a, &b, &actor, computer, "ABC-2345").await;
@@ -323,7 +323,7 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
         .await
         .is_ok()
     );
-    db.b.client().query("UPDATE computer_cli_connection SET expires_at = time::now() - 1s WHERE grant_id = $grant;").bind(("grant", paired.grant_id.as_uuid())).await.unwrap().check().unwrap();
+    db.b.client().query(include_str!("queries/cli_grants/connection_slots_are_shared_and_expired_connections_cannot_revive/statement_1.surql")).bind(("grant", paired.grant_id.as_uuid())).await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handles[1], true).await.is_err());
     assert!(
         a.open_cli_connection(
@@ -338,7 +338,7 @@ async fn connection_slots_are_shared_and_expired_connections_cannot_revive() {
 
 #[tokio::test]
 async fn paired_client_crosses_token_and_process_changes_but_old_connections_and_logout_do_not() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let mut identity = browser(&db, "alice").await;
     identity.expires_at = Utc::now() + TimeDelta::seconds(3);
     identity
@@ -376,7 +376,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     );
     support::policy::install(&db.b, control()).await;
     db.b.client()
-        .query("UPDATE ONLY $computer SET process_id = 'replacement-process';")
+        .query(include_str!("queries/cli_grants/paired_client_crosses_token_and_process_changes_but_old_connections_and_logout_do_not/statement_1.surql"))
         .bind(("computer", record("computer", computer.as_uuid())))
         .await
         .unwrap()
@@ -407,7 +407,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
             .unwrap(),
     );
     db.b.client()
-        .query("UPDATE ONLY $family SET revoked_at = time::now();")
+        .query(include_str!("queries/cli_grants/paired_client_crosses_token_and_process_changes_but_old_connections_and_logout_do_not/statement_2.surql"))
         .bind(("family", family))
         .await
         .unwrap()
@@ -427,7 +427,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
 
 #[tokio::test]
 async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
     let challenge = a
@@ -435,7 +435,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .await
         .unwrap();
     db.b.client()
-        .query("UPDATE ONLY $pairing SET expires_at = time::now() - 1s;")
+        .query(include_str!("queries/cli_grants/expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity/statement_1.surql"))
         .bind((
             "pairing",
             record("computer_cli_pairing", challenge.pairing_id.as_uuid()),
@@ -460,7 +460,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .unwrap();
     let mut before =
         db.b.client()
-            .query("SELECT VALUE idle_expires_at FROM ONLY $grant;")
+            .query(include_str!("queries/cli_grants/expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity/statement_2.surql"))
             .bind((
                 "grant",
                 record("computer_cli_grant", paired.grant_id.as_uuid()),
@@ -473,7 +473,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
     a.renew_cli_grant(&handle, false).await.unwrap();
     let mut after =
         db.b.client()
-            .query("SELECT VALUE idle_expires_at FROM ONLY $grant;")
+            .query(include_str!("queries/cli_grants/expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity/statement_3.surql"))
             .bind((
                 "grant",
                 record("computer_cli_grant", paired.grant_id.as_uuid()),
@@ -493,7 +493,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         ..LIMITS
     };
     db.b.client()
-        .query("UPDATE ONLY $grant SET issued_at = time::now() - 2s;")
+        .query(include_str!("queries/cli_grants/expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity/statement_4.surql"))
         .bind((
             "grant",
             record("computer_cli_grant", paired.grant_id.as_uuid()),
@@ -539,7 +539,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .await
         .unwrap();
     db.b.client()
-        .query("UPDATE ONLY $grant SET idle_expires_at = time::now() - 1s;")
+        .query(include_str!("queries/cli_grants/expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity/statement_5.surql"))
         .bind((
             "grant",
             record("computer_cli_grant", paired.grant_id.as_uuid()),
@@ -558,7 +558,7 @@ async fn expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_ac
         .await
         .is_err()
     );
-    db.b.client().query("UPDATE ONLY $grant SET idle_expires_at = time::now() + 1m, expires_at = time::now() - 1s;")
+    db.b.client().query(include_str!("queries/cli_grants/expired_pairing_and_tightened_or_expired_grants_never_gain_time_from_activity/statement_6.surql"))
         .bind(("grant", record("computer_cli_grant", paired.grant_id.as_uuid())))
         .await.unwrap().check().unwrap();
     assert!(b.renew_cli_grant(&handle, true).await.is_err());

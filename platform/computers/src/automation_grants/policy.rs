@@ -56,7 +56,9 @@ impl ComputersStore {
     pub(super) async fn stored_automation_policy(&self) -> Result<StoredPolicy> {
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $policy;",
+                include_str!(
+                    "../../queries/automation_grants/policy/stored_automation_policy.surql"
+                ),
                 vec![("policy", self.automation_policy_record().into_value())],
             )
             .await?;

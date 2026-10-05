@@ -2,12 +2,11 @@
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue, Value};
+use veoveo_agent_runtime::persistence::{
+    AgentDefinition, AgentExecution, AgentRevision, agent_definition_record, instances::*,
+};
 use veoveo_platform_store::{
-    PlatformStore,
-    agent_management::{
-        AgentDefinition, AgentExecution, AgentRevision, agent_definition_record, instances::*,
-    },
-    deterministic_tenant_id, deterministic_work_context_id,
+    PlatformStore, deterministic_tenant_id, deterministic_work_context_id,
 };
 
 #[derive(Clone, Serialize, Deserialize, SurrealValue)]

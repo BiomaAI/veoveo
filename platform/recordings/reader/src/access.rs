@@ -74,7 +74,7 @@ mod tests {
     use std::fs;
     #[test]
     fn record_admission_requires_the_native_key_and_declared_table() {
-        let id = veoveo_platform_store::RecordingId::new();
+        let id = veoveo_recording_store::RecordingId::new();
         assert_eq!(
             record_uuid(&id.record_id(), "recording").unwrap(),
             id.as_uuid()
@@ -87,7 +87,7 @@ mod tests {
             "01983da0-0000-7000-c000-000000000001",
         ] {
             let raw = uuid::Uuid::parse_str(raw).unwrap();
-            let record = veoveo_platform_store::RecordingId::from_uuid(raw).record_id();
+            let record = veoveo_recording_store::RecordingId::from_uuid(raw).record_id();
             assert!(record_uuid(&record, "recording").is_err());
         }
     }

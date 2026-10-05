@@ -58,7 +58,7 @@ fn reached(operation: &Operation, phase: ReachedPhase, process: &str) -> Reached
 
 #[tokio::test]
 async fn accepted_lifecycle_outlives_the_source_token_but_not_the_named_grant() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     let granted = grant(&store, &owner, computer).await;
     let mut identity = support::identity(agent.owner());
@@ -99,8 +99,8 @@ async fn accepted_lifecycle_outlives_the_source_token_but_not_the_named_grant() 
 }
 
 #[tokio::test]
-async fn prior_owner_only_rows_migrate_without_inventing_a_delegation() {
-    let db = support::TestDb::new().await;
+async fn owner_operation_reconnect_preserves_identity_without_inventing_delegation() {
+    let db = support::database().await;
     let (store, _, owner, _, computer) = support::automation::setup(&db).await;
     let operation = store
         .queue_operation(
@@ -111,16 +111,13 @@ async fn prior_owner_only_rows_migrate_without_inventing_a_delegation() {
         )
         .await
         .unwrap();
-    // Reconstruct the prior private schema in this disposable database only.
-    db.a.client().query("REMOVE FIELD owner_context ON computer_operation; REMOVE FIELD automation_grant_id ON computer_operation; UPDATE computer_operation UNSET owner_context, automation_grant_id;").await.unwrap().check().unwrap();
-    db.a.client()
-        .query(include_str!(
-            "../../store/migrations/0076_computer_lifecycle_delegation.surql"
-        ))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
+    let reconnect = db.connect_at(db.a.config().endpoint().as_str()).await;
+    let store = ComputersStore::new(
+        reconnect,
+        store.provider_instance_id(),
+        veoveo_gateway_catalog::registry().unwrap(),
+    )
+    .unwrap();
     let migrated = store
         .operation(owner.owner(), operation.operation_id)
         .await
@@ -132,7 +129,7 @@ async fn prior_owner_only_rows_migrate_without_inventing_a_delegation() {
         .ensure_operation_task(owner.owner(), operation.operation_id)
         .await
         .unwrap();
-    let tasks = TaskRuntime::new(db.a.clone(), "computers", "migrated-worker");
+    let tasks = TaskRuntime::new(db.a.clone(), "computers", "reconnected-worker");
     let claim = tasks
         .claim_observation(operation.task_id(), Duration::from_secs(60))
         .await
@@ -142,7 +139,7 @@ async fn prior_owner_only_rows_migrate_without_inventing_a_delegation() {
 
 #[tokio::test]
 async fn an_owner_cannot_turn_a_granted_retry_into_an_ungranted_request() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, _, computer) = support::automation::setup(&db).await;
     let mut input = support::automation::input(computer);
     input.principal_id = owner.owner().principal_key.clone().try_into().unwrap();
@@ -183,7 +180,7 @@ async fn an_owner_cannot_turn_a_granted_retry_into_an_ungranted_request() {
 #[tokio::test]
 async fn queued_agent_work_rechecks_both_principals_and_policy() {
     for mode in 0..3 {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         let granted = grant(&store, &owner, computer).await;
         let operation = queue(
@@ -213,7 +210,7 @@ async fn queued_agent_work_rechecks_both_principals_and_policy() {
             .unwrap()
             .record_id();
             db.a.client()
-                .query("UPDATE ONLY $principal SET enabled = false;")
+                .query(include_str!("queries/automation_lifecycle/queued_agent_work_rechecks_both_principals_and_policy/statement_1.surql"))
                 .bind(("principal", record))
                 .await
                 .unwrap()
@@ -245,7 +242,7 @@ async fn queued_agent_work_rechecks_both_principals_and_policy() {
 
 #[tokio::test]
 async fn agent_stop_start_preserve_owner_and_current_named_dispatch_evidence() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, owner, agent, computer) = support::automation::setup(&db).await;
     let granted = grant(&store, &owner, computer).await;
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "lifecycle-worker");
@@ -336,7 +333,7 @@ async fn agent_stop_start_preserve_owner_and_current_named_dispatch_evidence() {
 
 #[tokio::test]
 async fn revocation_fences_admission_and_dispatch_but_preserves_owner_recovery() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, owner, agent, computer) = support::automation::setup(&db).await;
     let granted = grant(&store, &owner, computer).await;
     let authority = store
@@ -462,7 +459,7 @@ async fn revocation_fences_admission_and_dispatch_but_preserves_owner_recovery()
 
 #[tokio::test]
 async fn lost_agent_dispatch_can_settle_after_revocation_without_repeating_the_effect() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, owner, agent, computer) = support::automation::setup(&db).await;
     let granted = grant(&store, &owner, computer).await;
     let operation = queue(
@@ -524,7 +521,7 @@ async fn lost_agent_dispatch_can_settle_after_revocation_without_repeating_the_e
 
 #[tokio::test]
 async fn a_grant_does_not_admit_create_other_computers_other_clients_or_changed_retries() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     let first = grant(&store, &owner, computer).await;
     assert!(

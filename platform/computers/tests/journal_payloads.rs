@@ -85,7 +85,9 @@ impl Kind {
 
 async fn payload_value(db: &support::TestDb, payload: &RecordId) -> Option<Value> {
     db.b.client()
-        .query("SELECT * FROM ONLY $payload;")
+        .query(include_str!(
+            "queries/journal_payloads/payload_value/statement_1.surql"
+        ))
         .bind(("payload", payload.clone()))
         .await
         .unwrap()
@@ -99,14 +101,14 @@ async fn payload_value(db: &support::TestDb, payload: &RecordId) -> Option<Value
 async fn payloads_are_readonly_private_and_owned_by_their_journals() {
     tokio::time::timeout(Duration::from_secs(120), async {
         for kind in [Kind::Command, Kind::File] {
-            let db = support::TestDb::new().await;
+            let db = support::database().await;
             let (replica, journal) = kind.admit(&db).await.unwrap();
             let payload = RecordId::new(kind.payload(), journal.key.clone());
             let original = payload_value(&db, &payload).await.unwrap();
             assert!(original.get("journal") == Value::RecordId(journal.clone()));
             let info: Value =
                 db.a.client()
-                    .query("INFO FOR DB;")
+                    .query(include_str!("queries/journal_payloads/schema.surql"))
                     .await
                     .unwrap()
                     .check()
@@ -119,7 +121,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
             assert!(!definition.contains("CHANGEFEED"));
             assert!(
                 db.a.client()
-                    .query("UPDATE ONLY $payload SET sealed.ciphertext = 'forbidden';")
+                    .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_1.surql"))
                     .bind(("payload", payload.clone()))
                     .await
                     .unwrap()
@@ -132,7 +134,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
             );
             let cursor = db.a.changefeed_head().await.unwrap();
             db.a.client()
-                .query("UPDATE ONLY $journal SET updated_at = time::now();")
+                .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_2.surql"))
                 .bind(("journal", journal.clone()))
                 .await
                 .unwrap()
@@ -156,7 +158,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
             assert_eq!(matched, 1);
             assert!(
                 db.a.client()
-                    .query("BEGIN; DELETE $journal; THROW 'qualification_rollback'; COMMIT;")
+                    .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_3.surql"))
                     .bind(("journal", journal.clone()))
                     .await
                     .unwrap()
@@ -170,7 +172,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
 
             // Missing retained input fails recovery without releasing the execution fence.
             db.a.client()
-                .query("DELETE $payload;")
+                .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_4.surql"))
                 .bind(("payload", payload.clone()))
                 .await
                 .unwrap()
@@ -183,7 +185,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
             let fenced: Vec<RecordId> = db
                 .a
                 .client()
-                .query("SELECT VALUE id FROM computer_execution_slot WHERE execution = $journal;")
+                .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_5.surql"))
                 .bind(("journal", journal.clone()))
                 .await
                 .unwrap()
@@ -193,7 +195,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
                 .unwrap();
             assert_eq!(fenced.len(), 1);
             db.a.client()
-                .query("CREATE ONLY $payload CONTENT $original RETURN NONE;")
+                .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_6.surql"))
                 .bind(("payload", payload.clone()))
                 .bind(("original", original))
                 .await
@@ -201,7 +203,7 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
                 .check()
                 .unwrap();
             db.a.client()
-                .query("DELETE $journal;")
+                .query(include_str!("queries/journal_payloads/payloads_are_readonly_private_and_owned_by_their_journals/statement_7.surql"))
                 .bind(("journal", journal))
                 .await
                 .unwrap()
@@ -221,12 +223,15 @@ async fn payloads_are_readonly_private_and_owned_by_their_journals() {
 async fn payload_failure_rolls_back_journal_slot_request_and_audit() {
     tokio::time::timeout(Duration::from_secs(120), async {
         for kind in [Kind::Command, Kind::File] {
-            let schema = format!("DEFINE EVENT qualification_failure ON {} WHEN $event = 'CREATE' THEN {{ THROW 'qualification_payload_failure'; }};", kind.payload());
-            let db = support::TestDb::with_backend_and_schema(support::store::StoreBackend::Memory, &schema).await;
+            let schema = match kind { Kind::Command => include_str!("queries/journal_payloads/payload_failure/command.surql"), Kind::File => include_str!("queries/journal_payloads/payload_failure/file.surql") };
+            let db = support::TestDb::with_composition(support::store::StoreBackend::Memory,
+                vec![veoveo_computers::schema::module_setup(support::store::module_lanes::execution("computers").unwrap()).unwrap()],
+                veoveo_gateway_catalog::audit_target_registry().unwrap()).await;
+            db.admin().await.client().query(schema).await.unwrap().check().unwrap();
             assert!(kind.admit(&db).await.is_err());
             let statement = match kind {
-                Kind::Command => "SELECT * FROM computer_execution; SELECT * FROM computer_execution_payload; SELECT * FROM computer_execution_request; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command';",
-                Kind::File => "SELECT * FROM computer_file_transfer; SELECT * FROM computer_file_transfer_payload; SELECT * FROM computer_file_transfer_request; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_file_transfer';",
+                Kind::Command => include_str!("queries/journal_payloads/payload_failure_rolls_back_journal_slot_request_and_audit/statement_1.surql"),
+                Kind::File => include_str!("queries/journal_payloads/payload_failure_rolls_back_journal_slot_request_and_audit/statement_2.surql"),
             };
             let mut response = db.a.client().query(statement).await.unwrap().check().unwrap();
             for index in 0..5 {

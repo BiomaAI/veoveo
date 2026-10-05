@@ -1,0 +1,1 @@
+LET $instance = SELECT * FROM ONLY $command.instance; IF !fn::managed_agent_enabled($command.instance) OR $instance.desired != 'running' OR $instance.active_generation < 1 OR $instance.active_generation != $command.generation OR $instance.generation != $command.generation OR $instance.observed NOT IN ['workload', 'ready'] { RETURN NONE; }; RETURN $instance.dispatch_epoch;

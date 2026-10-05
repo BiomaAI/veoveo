@@ -4,13 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::persistence::AgentCatalogAuthority;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{GatewayProfile, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog, PolicyRequest};
 use veoveo_platform_store::{
-    WorkContextMembershipLevel, agent_management::AgentCatalogAuthority,
-    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
+    WorkContextMembershipLevel, deterministic_principal_id, deterministic_tenant_id,
+    deterministic_work_context_id,
 };
 use veoveo_types::WorkContextId;
 
@@ -148,7 +149,7 @@ pub(crate) async fn context(
         .map_err(|_| Fault::unavailable())?;
     let snapshot = tokio::time::timeout(
         Duration::from_secs(5),
-        state.store().workspace_context(context),
+        state.store().work_context_snapshot(context),
     )
     .await
     .map_err(|_| Fault::unavailable())?

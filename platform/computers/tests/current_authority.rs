@@ -87,7 +87,7 @@ async fn queued(
 
 #[tokio::test]
 async fn queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_decision() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let baseline = policy::control();
     policy::install(&db.a, baseline.clone()).await;
     let (store, owner, operation, claim) =
@@ -190,7 +190,7 @@ async fn queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_deci
     // Corrupt accepted evidence cannot become observation authority on another replica.
     db.b.client()
         .query(
-            "UPDATE ONLY $operation SET dispatch_authority.decision.trace_id = 'wrong-operation';",
+            include_str!("queries/current_authority/queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_decision/statement_1.surql"),
         )
         .bind((
             "operation",
@@ -211,7 +211,7 @@ async fn queued_work_obeys_current_policy_and_preserves_the_actual_dispatch_deci
 
 #[tokio::test]
 async fn accepted_work_outlives_its_token_but_not_current_account_authority() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     policy::install_default(&db.a).await;
     let mut identity = support::identity(&support::owner("alice"));
     identity
@@ -235,7 +235,7 @@ async fn accepted_work_outlives_its_token_but_not_current_account_authority() {
             .record_id(),
     ] {
         db.b.client()
-            .query("UPDATE ONLY $record SET enabled = false;")
+            .query(include_str!("queries/current_authority/accepted_work_outlives_its_token_but_not_current_account_authority/statement_1.surql"))
             .bind(("record", record.clone()))
             .await
             .unwrap()
@@ -246,7 +246,7 @@ async fn accepted_work_outlives_its_token_but_not_current_account_authority() {
             Err(ComputerError::Forbidden)
         ));
         db.b.client()
-            .query("UPDATE ONLY $record SET enabled = true;")
+            .query(include_str!("queries/current_authority/accepted_work_outlives_its_token_but_not_current_account_authority/statement_2.surql"))
             .bind(("record", record))
             .await
             .unwrap()
@@ -264,7 +264,7 @@ async fn accepted_work_outlives_its_token_but_not_current_account_authority() {
 
 #[tokio::test]
 async fn unavailable_or_corrupt_current_policy_never_dispatches() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (store, _, operation, claim) =
         queued(&db, support::identity(&support::owner("alice"))).await;
     assert!(matches!(
@@ -273,7 +273,7 @@ async fn unavailable_or_corrupt_current_policy_never_dispatches() {
     ));
     let revision = policy::install(&db.b, policy::control()).await;
     db.b.client()
-        .query("BEGIN; LET $original = SELECT * FROM ONLY $revision; CREATE gateway_control_revision:corrupt CONTENT { revision_id: 'corrupt', sha256: $wrong, source: $original.source, applied_at: time::now(), applied_by: 'isolated-test', control_plane: $original.control_plane }; UPSERT gateway_control_active:current SET revision = gateway_control_revision:corrupt, revision_id = 'corrupt', updated_at = time::now(); COMMIT;")
+        .query(include_str!("queries/current_authority/unavailable_or_corrupt_current_policy_never_dispatches/statement_1.surql"))
         .bind((
             "revision",
             RecordId::new("gateway_control_revision", revision),
@@ -298,7 +298,7 @@ async fn unavailable_or_corrupt_current_policy_never_dispatches() {
 #[tokio::test]
 async fn services_use_current_actor_and_source_authority_without_a_browser_session() {
     for delegated in [false, true] {
-        let db = TestDb::new().await;
+        let db = support::database().await;
         policy::install_default(&db.a).await;
         let mut owner = support::owner(if delegated { "delegated" } else { "service" });
         owner.principal_kind = veoveo_platform_store::PrincipalKind::Service;
@@ -335,7 +335,7 @@ async fn services_use_current_actor_and_source_authority_without_a_browser_sessi
                 .unwrap()
                 .record_id();
             db.b.client()
-                .query("UPDATE ONLY $principal SET enabled = false;")
+                .query(include_str!("queries/current_authority/services_use_current_actor_and_source_authority_without_a_browser_session/statement_1.surql"))
                 .bind(("principal", id.clone()))
                 .await
                 .unwrap()
@@ -346,7 +346,7 @@ async fn services_use_current_actor_and_source_authority_without_a_browser_sessi
                 Err(ComputerError::Forbidden)
             ));
             db.b.client()
-                .query("UPDATE ONLY $principal SET enabled = true;")
+                .query(include_str!("queries/current_authority/services_use_current_actor_and_source_authority_without_a_browser_session/statement_2.surql"))
                 .bind(("principal", id))
                 .await
                 .unwrap()

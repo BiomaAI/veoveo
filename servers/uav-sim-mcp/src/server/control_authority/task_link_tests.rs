@@ -3,7 +3,7 @@ use super::*;
 use crate::server::{
     catalog_tests::{grant, mission_request},
     task_index,
-    test_support::{fixture::TestDb, identity},
+    test_support::identity,
 };
 use std::time::Duration as Timeout;
 use veoveo_task_runtime::{TaskFailure, TaskStatus, TaskTransition};
@@ -42,7 +42,10 @@ async fn assert_mission_hidden(
 #[tokio::test]
 async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_identity() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(90), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("task-link", "operations", "pilot", &[]);
@@ -99,7 +102,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
         }
         // A damaged pointer must not resurrect the newer rejected attempt.
         db.b.client()
-            .query("UPDATE ONLY $link SET task = $wrong;")
+            .query(include_str!("queries/tests/replace_execution_task.surql"))
             .bind(("link", task_link::record(admitted.task_id)))
             .bind((
                 "wrong",
@@ -111,7 +114,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .unwrap();
         assert_mission_hidden(&db.b, &pilot, &plan.mission_id).await;
         db.b.client()
-            .query("UPDATE ONLY $link SET task = $right;")
+            .query(include_str!("queries/tests/restore_execution_task.surql"))
             .bind(("link", task_link::record(admitted.task_id)))
             .bind((
                 "right",
@@ -144,7 +147,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .unwrap();
         // A damaged request must not redirect retention checks to another prepared plan.
         db.b.client()
-            .query("UPDATE ONLY $task SET request.input.plan_id = $plan;")
+            .query(include_str!("queries/tests/replace_task_plan.surql"))
             .bind((
                 "task",
                 veoveo_platform_store::task_record_id(admitted.task_id),
@@ -157,7 +160,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
         let damaged = tasks.get(admitted.task_id).await.unwrap().unwrap();
         assert!(authority.task_retention_releasable(&damaged).await.is_err());
         db.b.client()
-            .query("UPDATE ONLY $task SET request.input.plan_id = $plan;")
+            .query(include_str!("queries/tests/replace_task_plan.surql"))
             .bind((
                 "task",
                 veoveo_platform_store::task_record_id(admitted.task_id),
@@ -168,7 +171,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .check()
             .unwrap();
         db.b.client()
-            .query("UPDATE ONLY $task SET retention_expires_at = time::now() - 1s;")
+            .query(include_str!("queries/tests/expire_task_retention.surql"))
             .bind((
                 "task",
                 veoveo_platform_store::task_record_id(admitted.task_id),
@@ -205,41 +208,108 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
 #[tokio::test]
 async fn native_cancelled_task_and_link_failure_cannot_partially_admit_a_mission() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(90), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("task-guard", "operations", "pilot", &[]);
-        authority.grant(&pilot, grant(&pilot, "grant")).await.unwrap();
-        let plan = authority.prepare_plan(&pilot, mission_request("mission")).await.unwrap();
-        let draft = authority.prepare_execution(&pilot, &plan.plan_id, 0).await.unwrap();
+        authority
+            .grant(&pilot, grant(&pilot, "grant"))
+            .await
+            .unwrap();
+        let plan = authority
+            .prepare_plan(&pilot, mission_request("mission"))
+            .await
+            .unwrap();
+        let draft = authority
+            .prepare_execution(&pilot, &plan.plan_id, 0)
+            .await
+            .unwrap();
         let (tasks, cancelled) = execution_test_support::task(&authority, &pilot, &plan).await;
         let terminal = tasks.cancel(cancelled.task_id).await.unwrap();
-        assert!(matches!(authority.admit_execution(draft, &tasks, &cancelled).await, Err(ControlAuthorityError::Conflict)));
-        assert!(authority.task_retention_releasable(&terminal).await.unwrap());
-        assert_eq!(authority.visible_plan(&pilot, false, &plan.plan_id).await.unwrap().unwrap(), plan);
+        assert!(matches!(
+            authority.admit_execution(draft, &tasks, &cancelled).await,
+            Err(ControlAuthorityError::Conflict)
+        ));
+        assert!(
+            authority
+                .task_retention_releasable(&terminal)
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            authority
+                .visible_plan(&pilot, false, &plan.plan_id)
+                .await
+                .unwrap()
+                .unwrap(),
+            plan
+        );
         let (tasks, task) = execution_test_support::task(&authority, &pilot, &plan).await;
-        db.b.client().query("DEFINE EVENT reject_link ON TABLE uav_mission_execution WHEN $event = 'CREATE' THEN { THROW 'native link failure'; };")
-            .await.unwrap().check().unwrap();
-        let draft = authority.prepare_execution(&pilot, &plan.plan_id, 0).await.unwrap();
-        assert!(authority.admit_execution(draft, &tasks, &task).await.is_err());
-        assert_eq!(authority.visible_plan(&pilot, false, &plan.plan_id).await.unwrap().unwrap(), plan);
+        db.b.client()
+            .query(include_str!("queries/tests/reject_execution_link.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let draft = authority
+            .prepare_execution(&pilot, &plan.plan_id, 0)
+            .await
+            .unwrap();
+        assert!(
+            authority
+                .admit_execution(draft, &tasks, &task)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            authority
+                .visible_plan(&pilot, false, &plan.plan_id)
+                .await
+                .unwrap()
+                .unwrap(),
+            plan
+        );
         assert_eq!(tasks.get(task.task_id).await.unwrap().unwrap(), task);
-        let mut empty = db.b.client().query("SELECT VALUE id FROM uav_mission_execution; SELECT VALUE id FROM uav_vehicle_command_lease;")
-            .await.unwrap().check().unwrap();
+        let mut empty =
+            db.b.client()
+                .query(include_str!("queries/tests/execution_and_lease_ids.surql"))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
         assert!(empty.take::<Vec<RecordId>>(0).unwrap().is_empty());
         assert!(empty.take::<Vec<RecordId>>(1).unwrap().is_empty());
-        db.b.client().query("REMOVE EVENT reject_link ON TABLE uav_mission_execution;").await.unwrap().check().unwrap();
-        let draft = authority.prepare_execution(&pilot, &plan.plan_id, 0).await.unwrap();
-        let (_, guard) = authority.admit_execution(draft, &tasks, &task).await.unwrap();
+        db.b.client()
+            .query(include_str!("queries/tests/remove_link_event.surql"))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let draft = authority
+            .prepare_execution(&pilot, &plan.plan_id, 0)
+            .await
+            .unwrap();
+        let (_, guard) = authority
+            .admit_execution(draft, &tasks, &task)
+            .await
+            .unwrap();
         assert_eq!(guard.task_id(), task.task_id);
         authority.abort_execution(&guard).await.unwrap();
-    }).await.expect("Task admission rollback qualification exceeded 90 seconds");
+    })
+    .await
+    .expect("Task admission rollback qualification exceeded 90 seconds");
 }
 
 #[tokio::test]
 async fn native_pin_reconciliation_filters_before_its_page_limit() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(120), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("pin-pages", "operations", "pilot", &[]);

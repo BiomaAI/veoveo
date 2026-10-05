@@ -9,7 +9,13 @@ mod fixture;
 async fn unknown_tool_arguments_complete_without_provider_dispatch() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = fixture::TestDb::new().await;
+        let db = fixture::TestDb::with_modules(vec![
+            veoveo_media_mcp::schema::module_setup(
+                fixture::module_lanes::execution("media").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let args = config::Args::try_parse_from([
             "server",
             "--public-base-url",

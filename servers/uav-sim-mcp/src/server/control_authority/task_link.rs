@@ -26,19 +26,7 @@ impl super::VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query(
-                "SELECT VALUE id FROM task
-             WHERE server = $server AND task_type = $task_type
-             AND recovery_class = 'interrupted_indeterminate'
-             AND retention_pins CONTAINS $pin AND status IN ['succeeded', 'failed', 'cancelled']
-             AND created_at <= $before AND ($after = NONE OR id > $after)
-             AND (SELECT VALUE id FROM uav_vehicle_mission_plan
-                 WHERE tenant = $parent.tenant AND work_context = $parent.work_context
-                 AND principal_key = $parent.request.owner.principal_key
-                 AND plan_id = $parent.request.input.plan_id
-                 AND state IN ['prepared', 'completed', 'failed', 'cancelled'] LIMIT 1) != []
-             ORDER BY id ASC LIMIT 100;",
-            )
+            .query(include_str!("queries/settled_task_ids.surql"))
             .bind(("server", RecordId::new("mcp_server", "uav-sim")))
             .bind((
                 "task_type",
@@ -89,15 +77,24 @@ impl super::VehicleControlAuthority {
             context,
             request.plan_id.as_str(),
         );
-        let mut response = self.store.client().query(
-            "SELECT * FROM ONLY $plan WHERE tenant = $tenant AND work_context = $context AND principal_key = $principal;
-             SELECT VALUE (plan = $plan AND task = $task AND tenant = $tenant AND work_context = $context AND principal_key = $principal) FROM ONLY $execution;"
-        ).bind(("plan", plan_id)).bind(("tenant", deterministic_tenant_id(tenant.as_str())?.record_id()))
-            .bind(("context", deterministic_work_context_id(tenant.as_str(), context.as_str())?.record_id()))
+        let mut response = self
+            .store
+            .client()
+            .query(include_str!("queries/task_retention_releasable.surql"))
+            .bind(("plan", plan_id))
+            .bind((
+                "tenant",
+                deterministic_tenant_id(tenant.as_str())?.record_id(),
+            ))
+            .bind((
+                "context",
+                deterministic_work_context_id(tenant.as_str(), context.as_str())?.record_id(),
+            ))
             .bind(("principal", task.owner.principal_key.clone()))
             .bind(("task", veoveo_platform_store::task_record_id(task.task_id)))
             .bind(("execution", record(task.task_id)))
-            .await?.check()?;
+            .await?
+            .check()?;
         let Some(row) = response.take::<Option<PlanRecord>>(0)? else {
             return Ok(false);
         };

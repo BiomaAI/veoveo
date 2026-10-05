@@ -610,10 +610,6 @@ export type AuditTarget =
       kind: "artifact";
     }
   | {
-      computer: ComputerId;
-      kind: "computer";
-    }
-  | {
       kind: "task";
       task: TaskId;
     }
@@ -671,7 +667,8 @@ export type AuditTarget =
     }
   | {
       kind: "installation";
-    };
+    }
+  | ComputerAuditTarget;
 /**
  * Canonical hosted MCP server id used in manifests, profiles, and gateway routes.
  *
@@ -687,11 +684,6 @@ export type ServerSlug = string;
  * via the `definition` "ArtifactId".
  */
 export type ArtifactId = string;
-/**
- * This interface was referenced by `AuditReaderApi`'s JSON-Schema
- * via the `definition` "ComputerId".
- */
-export type ComputerId = string;
 /**
  * Opaque gateway task route bound to current invocation authority.
  *
@@ -734,6 +726,11 @@ export type PromptName = string;
  * via the `definition` "OAuthClientId".
  */
 export type OAuthClientId = string;
+/**
+ * This interface was referenced by `AuditReaderApi`'s JSON-Schema
+ * via the `definition` "ComputerId".
+ */
+export type ComputerId = string;
 /**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema
  * via the `definition` "AuditTraceId".
@@ -874,6 +871,10 @@ export interface KnowledgeExternalIdentity {
   mirroredAt?: string | null;
   nativeId: ExternalRecordId;
   system: ExternalSystemId;
+}
+export interface ComputerAuditTarget {
+  computer: ComputerId;
+  kind: "computer";
 }
 /**
  * This interface was referenced by `AuditReaderApi`'s JSON-Schema

@@ -1,0 +1,1 @@
+UPDATE domain_usage SET server = mcp_server:other WHERE task = $task RETURN NONE;

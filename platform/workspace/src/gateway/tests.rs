@@ -18,11 +18,9 @@ use veoveo_platform_store::{PlatformStore, deterministic_work_context_id};
 pub(crate) use crate::work_context_authority::{setup, subject};
 
 fn app(store: &PlatformStore, subject: AuthenticatedSubject) -> Router {
-    super::router(super::WorkspaceState {
-        store: store.clone(),
-    })
-    .merge(super::runs::tests::empty_routes(store))
-    .layer(Extension(subject))
+    super::router(super::WorkspaceState::new(store.clone()))
+        .merge(super::runs::tests::empty_routes(store))
+        .layer(Extension(subject))
 }
 
 async fn request(app: &Router, method: &str, path: &str, body: Value) -> (StatusCode, Vec<u8>) {
@@ -69,7 +67,15 @@ async fn ok<T: DeserializeOwned>(app: &Router, method: &str, path: &str, body: V
 
 #[tokio::test]
 async fn ordinary_humans_collaborate_and_cannot_forge_authors_or_read_another_chat() {
-    let db = fixture::TestDb::new().await;
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            fixture::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+        crate::schema::module_setup(fixture::module_lanes::execution("workspace").unwrap())
+            .unwrap(),
+    ])
+    .await;
     setup(&db.a).await;
     let alice = app(&db.a, subject("Alice"));
     let bob = app(&db.b, subject("Bob"));
@@ -184,7 +190,15 @@ async fn ordinary_humans_collaborate_and_cannot_forge_authors_or_read_another_ch
 
 #[tokio::test]
 async fn stored_policy_revocation_and_service_identity_cannot_be_bypassed_by_token_claims() {
-    let db = fixture::TestDb::new().await;
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            fixture::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+        crate::schema::module_setup(fixture::module_lanes::execution("workspace").unwrap())
+            .unwrap(),
+    ])
+    .await;
     setup(&db.a).await;
     let mut service = subject("Alice");
     service.principal.kind = PrincipalKind::Service;
@@ -197,7 +211,7 @@ async fn stored_policy_revocation_and_service_identity_cannot_be_bypassed_by_tok
     let alice = app(&db.a, subject("Alice"));
     let _: Vec<workspace::Chat> = ok(&alice, "GET", "/chats", Value::Null).await;
     db.a.client()
-        .query("UPDATE ONLY $context SET memberships = [], policy_revision = 'v2';")
+        .query(include_str!("../queries/gateway/tests/stored_policy_revocation_and_service_identity_cannot_be_bypassed_by_token_claims/statement_1.surql"))
         .bind((
             "context",
             deterministic_work_context_id("test", "shared")

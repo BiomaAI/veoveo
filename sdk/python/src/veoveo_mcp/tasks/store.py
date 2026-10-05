@@ -2,9 +2,8 @@
 
 A focused port of the `veoveo-platform-store` surfaces the task runtime and
 domain servers need: checked multi-statement queries, canonical identity
-upserts, native LIVE wakeups, and domain usage. Schema migrations remain
-owned by the Rust `platform-store` crate; this module only reads and writes
-the existing schema with the database-level runtime user.
+upserts, native LIVE wakeups, and domain usage. Schema lanes belong to their Rust owners and the module runner installs them;
+this module reads and writes that schema with the database-level runtime user.
 """
 
 from __future__ import annotations
@@ -21,6 +20,7 @@ from typing import Any
 from surrealdb import AsyncSurreal, RecordID
 from surrealdb.cbor import CBORSimpleValue
 
+from .queries import query
 from .types import (
     InvalidRecord,
     TaskOwner,
@@ -218,28 +218,7 @@ class SurrealStore:
         segments = [part.strip() for part in re.split(r"[#/]", owner.subject) if part.strip()]
         display_name = segments[-1][:128] if segments else "Principal"
         await self.query(
-            """BEGIN TRANSACTION;
-            LET $current_enterprise = SELECT * FROM ONLY $enterprise;
-            IF $current_enterprise = NONE {
-                CREATE ONLY $enterprise CONTENT $enterprise_content RETURN NONE;
-            };
-            LET $current_tenant = SELECT * FROM ONLY $tenant;
-            IF $current_tenant = NONE {
-                CREATE ONLY $tenant CONTENT $tenant_content RETURN NONE;
-            } ELSE IF $current_tenant.enterprise != $enterprise
-                OR $current_tenant.slug != $tenant_content.slug {
-                THROW 'identity_tenant_conflict';
-            };
-            LET $current_principal = SELECT * FROM ONLY $principal;
-            IF $current_principal = NONE {
-                CREATE ONLY $principal CONTENT $principal_content RETURN NONE;
-            } ELSE IF $current_principal.tenant != $tenant
-                OR $current_principal.kind != $principal_content.kind
-                OR $current_principal.issuer != $principal_content.issuer
-                OR $current_principal.subject != $principal_content.subject {
-                THROW 'identity_principal_conflict';
-            };
-            COMMIT TRANSACTION;""",
+            query("store/_ensure_identity_once.surql"),
             {
                 "enterprise": enterprise_id,
                 "enterprise_content": {
@@ -265,7 +244,7 @@ class SurrealStore:
     async def task_wake(self) -> "NativeWake":
         async with self._lock:
             await self._replace_stale_connection()
-            live_id = await self._db.query("LIVE SELECT id FROM task;")
+            live_id = await self._db.query(query("store/task_wake.surql"))
             stream = await self._db.subscribe_live(live_id)
             return NativeWake(self._db, live_id, stream)
 
@@ -304,7 +283,7 @@ class SurrealStore:
         recorded_at: datetime | None = None,
     ) -> None:
         task_rows = await self.query(
-            "SELECT tenant FROM $task WHERE server = $server LIMIT 1;",
+            query("store/upsert_domain_usage.surql"),
             {"task": RecordID("task", task_id), "server": server_record(server)},
         )
         if not task_rows[0]:
@@ -339,7 +318,7 @@ class SurrealStore:
             "updated_at": _now(),
         }
         await self.query_with_retries(
-            "UPSERT ONLY $usage CONTENT $content RETURN NONE;",
+            query("store/upsert_domain_usage_2.surql"),
             {"usage": usage_id, "content": content},
         )
 

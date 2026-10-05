@@ -16,7 +16,7 @@ impl PlatformStore {
     ) -> Result<Option<AuditBlock>, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("export_candidate.surql"))
+            .query(include_str!("../queries/audit/export_candidate.surql"))
             .bind(("destination", destination.as_str().to_owned()))
             .await?
             .check()
@@ -113,7 +113,7 @@ impl PlatformStore {
     ) -> Result<(), StoreError> {
         let mut response = self
             .db
-            .query(include_str!("delivery.surql"))
+            .query(include_str!("../queries/audit/delivery.surql"))
             .bind(("owner", SurrealUuid::from(lease.owner)))
             .bind(("generation", lease.generation))
             .bind((

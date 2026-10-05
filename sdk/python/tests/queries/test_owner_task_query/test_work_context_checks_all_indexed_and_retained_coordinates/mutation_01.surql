@@ -1,0 +1,1 @@
+UPDATE $task SET work_context = work_context:wrong, request.input = NONE;

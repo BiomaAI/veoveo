@@ -1,7 +1,7 @@
 //! Derivation resource pages and SQL completion under the admitted Work Context.
 use super::*;
 use crate::catalog::MapAccessContext;
-use veoveo_platform_store::MapDerivationKind;
+use crate::persistence::MapDerivationKind;
 
 impl MapMcp {
     pub(super) async fn complete_derivation(

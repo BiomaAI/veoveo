@@ -114,13 +114,7 @@ impl PlatformStore {
                 "candidate cursor belongs to another tenant, generation or collection",
             ));
         }
-        let sql = include_str!("candidates.surql")
-            .replace("__ADMISSION__", include_str!("admitted.surql"))
-            .replace(
-                "__URI_SELECTION__",
-                include_str!("resource_selection.surql"),
-            )
-            .replace("__TABLE__", &chunk_table(generation));
+        let sql = include_str!("../queries/knowledge/candidates.surql");
         let mut response = scope
             .bind(self.client().query(sql), generation)
             .bind(("after_collection", after.map(|c| c.collection.to_string())))
@@ -171,6 +165,7 @@ impl CandidateScope {
             ))
             .bind(("active_context", self.active_work_context.to_string()))
             .bind(("generation", generation_record(generation)))
+            .bind(("chunk_table", chunk_table(generation)))
             .bind((
                 "active",
                 RecordId::new("knowledge_active", self.tenant.as_str()),

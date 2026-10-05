@@ -1,7 +1,8 @@
 //! Completion dispatch; persisted catalogs apply scope and matching in SQL.
 use super::*;
+use crate::persistence::MapRepository;
+use crate::persistence::{MapAuthoringCompletion as Authoring, MapCatalogCompletion as Catalog};
 use crate::{analytics::GeographyCompletion, catalog::MapAccessContext};
-use veoveo_platform_store::{MapAuthoringCompletion as Authoring, MapCatalogCompletion as Catalog};
 
 impl MapMcp {
     pub(super) async fn complete_index(
@@ -26,9 +27,7 @@ impl MapMcp {
         };
         if let Some(domain) = catalog {
             return finish(
-                self.state
-                    .catalog
-                    .store()
+                MapRepository::new(self.state.catalog.store().clone())
                     .complete_map_catalog(&scope.identity, domain, needle)
                     .await
                     .map_err(internal)?,

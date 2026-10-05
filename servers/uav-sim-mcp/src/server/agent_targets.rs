@@ -33,7 +33,7 @@ async fn scoped_targets(
 ) -> Result<Vec<String>> {
     let mut response = store
         .client()
-        .query(include_str!("agent_targets.surql"))
+        .query(include_str!("../../queries/server/agent_targets.surql"))
         .bind(("tenant", tenant))
         .bind(("context", context))
         .bind(("simulation_session", session.to_string()))

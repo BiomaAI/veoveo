@@ -1,3 +1,4 @@
+use crate::persistence::WorkspaceRepository;
 use veoveo_http::RequestJson;
 mod authority;
 pub(crate) mod events;
@@ -8,6 +9,10 @@ pub(crate) mod runs;
 pub(crate) mod tests;
 
 use crate::contract as wire;
+use crate::persistence::{
+    WorkspaceChatId, WorkspaceError, WorkspaceInvitationId, WorkspaceInvitationState,
+    WorkspaceSettings,
+};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, Query, State},
@@ -18,14 +23,21 @@ use serde::Deserialize;
 use tower_http::set_header::SetResponseHeaderLayer;
 use uuid::Uuid;
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::{
-    PlatformStore, PrincipalId, WorkspaceChatId, WorkspaceInvitationId,
-    workspace::{WorkspaceError, WorkspaceInvitationState, WorkspaceSettings},
-};
+use veoveo_platform_store::{PlatformStore, PrincipalId};
 
 #[derive(Clone)]
 pub(crate) struct WorkspaceState {
     pub store: PlatformStore,
+    pub repository: WorkspaceRepository,
+}
+
+impl WorkspaceState {
+    pub fn new(store: PlatformStore) -> Self {
+        Self {
+            repository: WorkspaceRepository::new(store.clone()),
+            store,
+        }
+    }
 }
 
 pub(crate) fn router(state: WorkspaceState) -> Router {
@@ -66,9 +78,7 @@ pub fn module(
     agents: veoveo_agent_runtime::gateway::http::AgentManagementConfig,
 ) -> anyhow::Result<veoveo_mcp_gateway::http::GatewayModuleRoutes> {
     let store = context.gateway_state.platform_store().clone();
-    let state = WorkspaceState {
-        store: store.clone(),
-    };
+    let state = WorkspaceState::new(store.clone());
     let stop = scope.cancellation_token();
     let agent_service =
         veoveo_agent_runtime::gateway::http::AgentManagementState::new(&context, &scope, agents)?;
@@ -111,7 +121,7 @@ async fn bootstrap(
 ) -> Api<wire::WorkspaceBootstrap> {
     let actor = authority::admit(&state, &subject).await?;
     let identity = state
-        .store
+        .repository
         .workspace_identity(&actor)
         .await
         .map_err(fault)?;
@@ -143,7 +153,7 @@ async fn list(
 ) -> Api<Vec<wire::Chat>> {
     let actor = authority::admit(&state, &subject).await?;
     let chats = state
-        .store
+        .repository
         .list_workspace_chats(&actor)
         .await
         .map_err(fault)?;
@@ -162,7 +172,7 @@ async fn create(
 ) -> Api<wire::Chat> {
     let actor = authority::admit(&state, &subject).await?;
     let chat = state
-        .store
+        .repository
         .create_workspace_chat(
             &actor,
             WorkspaceChatId::from_uuid(request.id.0),
@@ -191,13 +201,13 @@ async fn snapshot(
     let snapshot = match (page.after, page.before) {
         (Some(after), None) => {
             state
-                .store
+                .repository
                 .workspace_snapshot(&actor, chat, after, 100)
                 .await
         }
         (None, before) => {
             state
-                .store
+                .repository
                 .workspace_recent_snapshot(&actor, chat, before, 100)
                 .await
         }
@@ -205,7 +215,7 @@ async fn snapshot(
     }
     .map_err(fault)?;
     let people = state
-        .store
+        .repository
         .workspace_member_people(&actor, chat)
         .await
         .map_err(fault)?;
@@ -244,7 +254,7 @@ async fn invite(
 ) -> Api<wire::Invitation> {
     let actor = authority::admit(&state, &subject).await?;
     let invitation = state
-        .store
+        .repository
         .invite_workspace_member(
             &actor,
             WorkspaceChatId::from_uuid(chat),
@@ -262,7 +272,7 @@ async fn invitations(
 ) -> Api<Vec<wire::InvitationSummary>> {
     let actor = authority::admit(&state, &subject).await?;
     let invitations = state
-        .store
+        .repository
         .workspace_invitation_inbox(&actor)
         .await
         .map_err(fault)?;
@@ -294,7 +304,7 @@ async fn decide(
         wire::InvitationState::Revoked => WorkspaceInvitationState::Revoked,
     };
     let result = state
-        .store
+        .repository
         .decide_workspace_invitation(
             &actor,
             WorkspaceChatId::from_uuid(request.chat_id.0),
@@ -313,7 +323,7 @@ async fn remove(
 ) -> Result<StatusCode, StatusCode> {
     let actor = authority::admit(&state, &subject).await?;
     state
-        .store
+        .repository
         .remove_workspace_member(
             &actor,
             WorkspaceChatId::from_uuid(chat),
@@ -332,7 +342,7 @@ async fn settings(
 ) -> Api<wire::Chat> {
     let actor = authority::admit(&state, &subject).await?;
     let result = state
-        .store
+        .repository
         .update_workspace_settings(
             &actor,
             WorkspaceChatId::from_uuid(chat),
@@ -363,7 +373,7 @@ async fn people(
 ) -> Api<Vec<wire::Person>> {
     let actor = authority::admit(&state, &subject).await?;
     let people = state
-        .store
+        .repository
         .search_workspace_people(&actor, &search.q)
         .await
         .map_err(fault)?;

@@ -1,0 +1,1 @@
+SELECT VALUE id FROM ONLY $slot;

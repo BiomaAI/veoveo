@@ -81,14 +81,14 @@ impl PlatformStore {
         };
 
         self.client()
-            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/usage/upsert_domain_usage.surql"))
             .bind(("usage", usage_id.record_id()))
             .bind(("content", content))
             .await?
             .check()?;
         let mut response = self
             .client()
-            .query("SELECT * FROM ONLY $usage;")
+            .query(include_str!("queries/usage/upsert_domain_usage_2.surql"))
             .bind(("usage", usage_id.record_id()))
             .await?
             .check()?;
@@ -102,7 +102,7 @@ impl PlatformStore {
     async fn task_for_usage(&self, task_id: TaskId) -> Result<Option<TaskRecord>, StoreError> {
         let mut response = self
             .client()
-            .query("SELECT * FROM ONLY $task;")
+            .query(include_str!("queries/usage/task_for_usage.surql"))
             .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;

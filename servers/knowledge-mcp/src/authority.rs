@@ -8,6 +8,7 @@ use crate::{
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use veoveo_agent_runtime::persistence::AgentRepository;
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
     GatewayControlPlane, GatewayInternalIdentity, PolicyEffect, PolicyTarget, TraceId,
@@ -189,7 +190,7 @@ async fn resolve(
         .oauth_clients
         .iter()
         .find(|client| client.id == token.oauth_client_id);
-    let managed = store
+    let managed = AgentRepository::new(store.clone())
         .managed_agent_registration(token.oauth_client_id.as_str())
         .await
         .map_err(|_| ServiceError::AccessChanged)?;

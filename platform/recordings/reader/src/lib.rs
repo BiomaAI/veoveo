@@ -16,6 +16,7 @@ pub const MAX_LAYERS: u32 = 10_000;
 #[derive(Clone)]
 pub struct RecordingReader {
     store: PlatformStore,
+    recordings: veoveo_recording_store::RecordingRepository,
     spool_root: PathBuf,
     layer_cache: cache::LayerCache,
 }
@@ -38,6 +39,7 @@ impl RecordingReader {
             .canonicalize()
             .with_context(|| format!("canonicalizing spool root {}", spool_root.display()))?;
         Ok(Self {
+            recordings: veoveo_recording_store::RecordingRepository::new(store.clone()),
             store,
             spool_root,
             layer_cache,

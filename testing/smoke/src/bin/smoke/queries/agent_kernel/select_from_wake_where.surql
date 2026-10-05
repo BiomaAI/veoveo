@@ -1,0 +1,1 @@
+SELECT * FROM wake WHERE kind = 'resource_changed';

@@ -1,30 +1,5 @@
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum RecordingIngestQuota {
-    MaximumStreamBytes,
-    MaximumConcurrentStreams,
-    MaximumBatchesPerMinute,
-    MaximumBytesPerDay,
-    MaximumBlueprintBytes,
-    MaximumBlueprintMessages,
-    MaximumBlueprintRevisions,
-}
-
-impl std::fmt::Display for RecordingIngestQuota {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::MaximumStreamBytes => "maximum_stream_bytes",
-            Self::MaximumConcurrentStreams => "maximum_concurrent_streams",
-            Self::MaximumBatchesPerMinute => "maximum_batches_per_minute",
-            Self::MaximumBytesPerDay => "maximum_bytes_per_day",
-            Self::MaximumBlueprintBytes => "maximum_blueprint_bytes",
-            Self::MaximumBlueprintMessages => "maximum_blueprint_messages",
-            Self::MaximumBlueprintRevisions => "maximum_blueprint_revisions",
-        })
-    }
-}
-
 #[derive(Debug, Error, Clone, Eq, PartialEq)]
 pub enum StoreConfigError {
     #[error("SurrealDB endpoint must use ws or wss, got {0}")]
@@ -43,32 +18,21 @@ pub enum StoreConfigError {
     EmptyPassword,
     #[error("VEOVEO_SURREAL_AUTH_LEVEL must be root, namespace, or database, got {0}")]
     InvalidAuthLevel(String),
-    #[error("schema migration requires root-scoped SurrealDB credentials")]
-    MigrationRequiresRootCredentials,
     #[error("{field} must be greater than zero")]
     ZeroValue { field: &'static str },
     #[error("max WebSocket write buffer must be larger than the write buffer")]
     InvalidWriteBuffer,
 }
 
-#[derive(Debug, Error, Clone, Eq, PartialEq)]
-pub enum MigrationError {
-    #[error("migration catalog is empty")]
-    EmptyCatalog,
-    #[error("migration versions must be contiguous from 0; expected {expected}, found {actual}")]
-    NonContiguous { expected: u32, actual: u32 },
-    #[error("migration {version} has an empty name or SQL body")]
-    EmptyMigration { version: u32 },
-    #[error("database has unknown migration version {version}")]
-    DatabaseAhead { version: u32 },
-    #[error("migration history has a gap before version {version}")]
-    HistoryGap { version: u32 },
-    #[error("migration {version} differs from the compiled catalog")]
-    Drift { version: u32 },
-}
-
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error(
+        "database uses the mixed schema catalog; create a fresh installation with selected module lanes before starting this runtime"
+    )]
+    FreshInstallationRequired,
+
+    #[error(transparent)]
+    AuditTarget(#[from] veoveo_audit_contract::AuditTargetError),
     #[error("knowledge persistence rejected the operation: {0}")]
     Knowledge(&'static str),
     #[error("native changefeed LIVE connection exceeded 15 seconds")]
@@ -93,32 +57,14 @@ pub enum StoreError {
         "audit destination permanently rejected this delivery; configure a corrected destination before resuming export"
     )]
     AuditExportRejected,
-    #[error(transparent)]
-    DownstreamMigration(#[from] crate::DownstreamMigrationError),
-    #[error("downstream migration {version:04}_{name} statement {statement} failed: {source}")]
-    DownstreamMigrationExecution {
-        version: u32,
-        name: &'static str,
-        statement: usize,
-        source: Box<surrealdb::Error>,
-    },
     #[error("the active gateway control-plane pointer and revision do not agree")]
     InvalidGatewayControlRevision,
-    #[error("migration {version:04}_{name} statement {statement} failed: {source}")]
-    MigrationExecution {
-        version: u32,
-        statement: usize,
-        name: &'static str,
-        source: Box<surrealdb::Error>,
-    },
     #[error("artifact upload rejected: {0:?}")]
     ArtifactUpload(crate::ArtifactUploadRejection),
     #[error("artifact digest is already registered with different immutable content metadata")]
     ArtifactBlobIntegrityConflict,
     #[error(transparent)]
     Config(#[from] StoreConfigError),
-    #[error(transparent)]
-    Migration(#[from] MigrationError),
     #[error("SurrealDB operation failed: {0}")]
     Database(#[from] surrealdb::Error),
     #[error("{operation} requires root-scoped SurrealDB credentials")]
@@ -140,66 +86,11 @@ pub enum StoreError {
     },
     #[error("existing {entity} identity conflicts with canonical key {key}")]
     IdentityConflict { entity: &'static str, key: String },
-    #[error("invalid recording field {field}: {reason}")]
-    InvalidRecordingField {
-        field: &'static str,
-        reason: &'static str,
-    },
-    #[error("recording `{0}` was not found")]
-    RecordingNotFound(String),
-    #[error("recording `{recording_id}` cannot transition from {state} to {target}")]
-    RecordingStateConflict {
-        recording_id: String,
-        state: String,
-        target: &'static str,
-    },
-    #[error("recording dataset `{dataset_id}` conflicts with its durable identity")]
-    RecordingDatasetConflict { dataset_id: String },
-    #[error("recording layer `{layer_id}` conflicts with its durable identity")]
-    RecordingLayerConflict { layer_id: String },
-    #[error("recording read grant `{grant_id}` conflicts with its durable authority")]
-    RecordingReadGrantConflict { grant_id: String },
-    #[error("recording projection `{projection_id}` conflicts with its durable request")]
-    RecordingProjectionConflict { projection_id: String },
-    #[error("recording projection idempotency key conflicts with its authority or request")]
-    RecordingProjectionRequestConflict,
-    #[error("invalid recording ingest field {field}: {reason}")]
-    InvalidRecordingIngestField {
-        field: &'static str,
-        reason: &'static str,
-    },
-    #[error("recording ingest stream `{0}` was not found")]
-    RecordingIngestStreamNotFound(String),
-    #[error("recording ingest stream `{stream_id}` is {state}")]
-    RecordingIngestStreamStateConflict { stream_id: String, state: String },
-    #[error("recording ingest stream `{0}` exceeded its open-stream retention window")]
-    RecordingIngestStreamExpired(String),
-    #[error("recording ingest stream expected sequence {expected}, received {actual}")]
-    RecordingIngestSequenceGap { expected: u64, actual: u64 },
-    #[error("recording ingest sequence {sequence} conflicts with its durable digest")]
-    RecordingIngestDigestConflict { sequence: u64 },
-    #[error("recording ingest checkpoint changed concurrently")]
-    RecordingIngestCheckpointConflict,
-    #[error(
-        "recording Blueprint revision {revision} conflicts with its durable digest or identity"
-    )]
-    RecordingBlueprintRevisionConflict { revision: u64 },
-    #[error("recording Blueprint expected revision {expected}, received {actual}")]
-    RecordingBlueprintRevisionGap { expected: u64, actual: u64 },
-    #[error("recording ingest producer exceeded the {quota} quota")]
-    RecordingIngestQuotaExceeded { quota: RecordingIngestQuota },
     #[error("invalid domain usage field {field}: {reason}")]
     InvalidUsageField {
         field: &'static str,
         reason: &'static str,
     },
-    #[error("invalid map field {field}: {reason}")]
-    InvalidMapField {
-        field: &'static str,
-        reason: &'static str,
-    },
-    #[error("map {entity} `{key}` conflicts with the current durable record")]
-    MapRecordConflict { entity: &'static str, key: String },
     #[error("task `{0}` was not found")]
     TaskNotFound(String),
     #[error("task `{task_id}` does not belong to MCP server `{server}`")]

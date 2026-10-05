@@ -134,7 +134,7 @@ impl PlatformStore {
         }
         let mut response = self
             .db
-            .query(include_str!("export_range.surql"))
+            .query(include_str!("../queries/audit/export_range.surql"))
             .bind(("head_id", named_id("audit_partition_head", partition)))
             .bind(("anchor_id", named_id("audit_retention_anchor", partition)))
             .await?
@@ -168,7 +168,7 @@ impl PlatformStore {
     ) -> Result<AuditSealLease, StoreError> {
         let mut response = self
             .db
-            .query(include_str!("lease.surql"))
+            .query(include_str!("../queries/audit/lease.surql"))
             .bind(("owner", SurrealUuid::from(owner)))
             .await?;
         if let Some(error) = crate::primary_transaction_error(response.take_errors()) {
@@ -203,7 +203,7 @@ impl PlatformStore {
                 }
                 if let ChangefeedEntry::Upsert(value) = entry {
                     let row = Row::from_value(value).map_err(|_| StoreError::AuditIntegrity)?;
-                    batch_records.push((versionstamp, row.checked()?));
+                    batch_records.push((versionstamp, row.checked(self.audit_targets())?));
                 }
             }
             if batch_records.len() > 4096 {
@@ -229,7 +229,9 @@ impl PlatformStore {
     ) -> Result<Option<AuditCheckpoint>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT VALUE checkpoint FROM ONLY $id;")
+            .query(include_str!(
+                "../queries/audit/blocks/audit_partition_checkpoint.surql"
+            ))
             .bind(("id", named_id("audit_partition_head", partition)))
             .await?
             .check()?;
@@ -254,7 +256,7 @@ impl PlatformStore {
         }
         let mut response = self
             .db
-            .query(include_str!("seal.surql"))
+            .query(include_str!("../queries/audit/seal.surql"))
             .bind(("owner", SurrealUuid::from(lease.owner)))
             .bind(("generation", lease.generation))
             .bind(("expected_cursor", lease.cursor))
@@ -280,9 +282,14 @@ impl PlatformStore {
         if limit == 0 || limit > 100 {
             return Err(StoreError::AuditBatchLimit);
         }
-        let mut response = self.db.query("SELECT id, partition, sequence, block FROM audit_block:[$partition, 0]..=[$partition, 9223372036854775807] WHERE partition = $partition AND sequence > $after ORDER BY id ASC LIMIT $limit;")
-            .bind(("partition", partition.storage_key())).bind(("after", after.map_or(0, |n| n.get() as i64)))
-            .bind(("limit", u32::from(limit))).await?.check()?;
+        let mut response = self
+            .db
+            .query(include_str!("../queries/audit/blocks/audit_blocks.surql"))
+            .bind(("partition", partition.storage_key()))
+            .bind(("after", after.map_or(0, |n| n.get() as i64)))
+            .bind(("limit", u32::from(limit)))
+            .await?
+            .check()?;
         let rows: Vec<BlockRow> = response.take(0)?;
         rows.into_iter().map(BlockRow::checked).collect()
     }
@@ -305,9 +312,9 @@ impl PlatformStore {
             .collect::<Vec<_>>();
         let mut response = self
             .db
-            .query(
-                "SELECT id, partition, draft, recorded_at FROM $ids WHERE partition = $partition;",
-            )
+            .query(include_str!(
+                "../queries/audit/blocks/audit_block_records.surql"
+            ))
             .bind(("ids", ids))
             .bind(("partition", block.head.partition.storage_key()))
             .await?
@@ -316,7 +323,7 @@ impl PlatformStore {
         let mut rows = rows
             .into_iter()
             .map(|row| {
-                let record = row.checked()?;
+                let record = row.checked(self.audit_targets())?;
                 Ok((record.draft.id(), record))
             })
             .collect::<Result<std::collections::BTreeMap<_, _>, StoreError>>()?;
@@ -336,6 +343,9 @@ impl PlatformStore {
         query: &AuditQuery,
     ) -> Result<Vec<AuditRecord>, StoreError> {
         query.validate()?;
+        if let Some(target) = &query.target {
+            self.audit_targets().validate(target)?;
+        }
         if !scope.permits(&block.head.partition) || query.partition != block.head.partition {
             return Err(StoreError::AuditAccessDenied);
         }
@@ -350,7 +360,7 @@ impl PlatformStore {
             .collect::<Vec<_>>();
         let mut response = self
             .db
-            .query(include_str!("block_records.surql"))
+            .query(include_str!("../queries/audit/block_records.surql"))
             .bind(("ids", ids))
             .bind(("partition", query.partition.storage_key()))
             .bind((
@@ -383,7 +393,7 @@ impl PlatformStore {
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut records = rows
             .into_iter()
-            .map(Row::checked)
+            .map(|row| row.checked(self.audit_targets()))
             .collect::<Result<Vec<_>, _>>()?;
         records.sort_by_key(|record| order.get(&record.draft.id()).copied());
         Ok(records)
@@ -397,7 +407,7 @@ impl PlatformStore {
     ) -> Result<(), StoreError> {
         let mut response = self
             .db
-            .query(include_str!("retention.surql"))
+            .query(include_str!("../queries/audit/retention.surql"))
             .bind(("owner", SurrealUuid::from(lease.owner)))
             .bind(("generation", lease.generation))
             .bind(("id", block_id(&block.head.partition, block.head.sequence)))

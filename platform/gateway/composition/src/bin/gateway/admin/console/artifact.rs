@@ -65,10 +65,16 @@ async fn project(
         return Ok(None);
     }
     let access = ArtifactAccessContext::from_subject(subject, tenant_key.as_str())?;
-    let mut response = store.client().query(
-        "SELECT * FROM principal WHERE tenant = $tenant AND id = $owner; SELECT * FROM share_link WHERE tenant = $tenant AND artifact = $artifact LIMIT 200;"
-    ).bind(("tenant", tenant)).bind(("owner", aggregate.occurrence.owner.clone()))
-        .bind(("artifact", artifact_id.record_id())).await?.check()?;
+    let mut response = store
+        .client()
+        .query(include_str!(
+            "../../../../queries/bin/gateway/admin/console/artifact/project/statement_1.surql"
+        ))
+        .bind(("tenant", tenant))
+        .bind(("owner", aggregate.occurrence.owner.clone()))
+        .bind(("artifact", artifact_id.record_id()))
+        .await?
+        .check()?;
     let principals: Vec<PrincipalRecord> = response.take(0)?;
     let links: Vec<ShareLinkRecord> = response.take(1)?;
     let names = principals

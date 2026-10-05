@@ -1,0 +1,1 @@
+UPDATE ONLY $id SET valid_until = d'2100-01-01T00:00:00Z' RETURN NONE;

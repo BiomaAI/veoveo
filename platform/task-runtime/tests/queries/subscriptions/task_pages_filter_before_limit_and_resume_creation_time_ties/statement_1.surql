@@ -1,0 +1,1 @@
+UPDATE ONLY $id SET request.input = NONE;

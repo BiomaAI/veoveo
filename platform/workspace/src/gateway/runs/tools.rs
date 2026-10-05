@@ -1,5 +1,9 @@
 //! Model tools share the human operation journal; private results never enter a prompt.
 use super::{Caller, ResolvedAgent, RunState};
+use crate::persistence::{
+    WorkspaceChatId, WorkspaceOperationId, WorkspaceOperationIntent, WorkspaceRunFailure,
+    WorkspaceRunId,
+};
 use rig::tool::{DynamicTool, ToolExecutionError, ToolOutput};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -10,10 +14,6 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_mcp_gateway::GatewayCatalog;
-use veoveo_platform_store::{
-    WorkspaceChatId, WorkspaceOperationId, WorkspaceRunId,
-    workspace::{WorkspaceOperationIntent, WorkspaceRunFailure},
-};
 
 type ToolResult = Result<ToolOutput, ToolExecutionError>;
 

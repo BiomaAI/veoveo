@@ -1,0 +1,1 @@
+SELECT * FROM map_layer_publication WHERE tenant = $tenant AND work_context = $context AND layer_key IN (SELECT VALUE layer_key FROM map_feature_layer WHERE tenant = $tenant AND work_context = $context AND $labels CONTAINSALL data_labels) AND layer_key = $layer AND ($after = NONE OR publication_key > $after) ORDER BY publication_key ASC LIMIT $limit;

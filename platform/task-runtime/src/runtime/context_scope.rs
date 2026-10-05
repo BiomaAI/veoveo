@@ -12,10 +12,6 @@ pub(super) struct ContextScope {
 }
 
 impl ContextScope {
-    pub(super) const TASK_PREDICATE: &str = include_str!("../../queries/context_task.surql");
-
-    pub(super) const USAGE_PREDICATE: &str = include_str!("../../queries/context_usage.surql");
-
     pub(super) fn new(owner: &TaskOwner) -> Result<Self, TaskError> {
         if owner.authority.tenant.as_str() != owner.tenant_key() {
             return Err(TaskError::InvalidAuthority(

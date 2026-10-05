@@ -1,6 +1,8 @@
 //! Personal observation shares projected database hints and exact native Tasks.
 //! Reconnect reads current state; no observation path submits or resumes work.
 use super::*;
+use crate::persistence::WorkspacePersonalState;
+use crate::persistence::WorkspaceRepository;
 use axum::response::{
     Sse,
     sse::{Event, KeepAlive},
@@ -12,7 +14,7 @@ use rmcp::{
 };
 use std::{collections::BTreeMap, convert::Infallible};
 use tokio::sync::broadcast;
-use veoveo_platform_store::{RecordId, workspace::WorkspacePersonalState};
+use veoveo_platform_store::RecordId;
 
 const MAX_TASKS: usize = 32;
 
@@ -34,8 +36,9 @@ impl PersonalHub {
         let (wakes, _) = broadcast::channel(256);
         let publish = wakes.clone();
         scope.spawn(async move {
+        let repository = WorkspaceRepository::new(store);
             loop {
-                let source = tokio::select! { _ = stop.cancelled() => return, source = store.workspace_personal_wakes() => source };
+                let source = tokio::select! { _ = stop.cancelled() => return, source = repository.workspace_personal_wakes() => source };
                 if let Ok(mut source) = source {
                     let _ = publish.send(Hint::Reconcile);
                     loop {
@@ -71,7 +74,7 @@ pub(super) async fn events(
     let actor = state.authority(&caller.subject, &caller.profile).await?;
     let mut snapshot = state
         .workspace
-        .store
+        .repository
         .workspace_personal_state(&actor, caller.profile.as_str())
         .await
         .map_err(fault)?;
@@ -120,7 +123,7 @@ pub(super) async fn events(
             let Ok(authority) = state.authority(&caller.subject, &caller.profile).await else {
                 yield Ok(Event::default().event("expired").data("{}")); break;
             };
-            let Ok(Ok(current)) = tokio::time::timeout(Duration::from_secs(5), state.workspace.store.workspace_personal_state(&authority, caller.profile.as_str())).await else {
+            let Ok(Ok(current)) = tokio::time::timeout(Duration::from_secs(5), state.workspace.repository.workspace_personal_state(&authority, caller.profile.as_str())).await else {
                 yield Ok(Event::default().event("expired").data("{}")); break;
             };
             if tokio::time::Instant::now() >= deadline { break; }

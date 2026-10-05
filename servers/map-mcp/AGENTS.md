@@ -97,7 +97,7 @@ Map Explorer App.
 - `tests/metadata_contract.rs` covers typed metadata URIs, parent-bound cursor
   continuation, and scope wire/schema values. The library owns these types;
   `contract` feature builds independently with default features disabled.
-- `cargo test -p veoveo-platform-store --test map_authoring_reads` qualifies
+- `cargo test -p veoveo-map-mcp --test map_authoring_reads` qualifies
   tenant, Work Context, label, parent, archive, and keyset selection before page limits.
 - `npm --prefix servers/map-mcp/app test` qualifies page walking and refresh failure
   behavior. These Node tests provide behavioral evidence only.

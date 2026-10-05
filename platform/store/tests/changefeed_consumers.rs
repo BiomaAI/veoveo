@@ -11,10 +11,7 @@ use veoveo_platform_store::{
 };
 use veoveo_types::TaskId;
 
-const SCHEMA: &str = "
-    REMOVE TABLE task; DEFINE TABLE task SCHEMALESS CHANGEFEED 30d;
-    REMOVE TABLE artifact_grant; DEFINE TABLE artifact_grant SCHEMALESS CHANGEFEED 30d INCLUDE ORIGINAL;
-";
+const SCHEMA: &str = include_str!("queries/changefeed_consumers/statement.surql");
 
 #[tokio::test]
 async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
@@ -36,10 +33,7 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
         // Writes occur while the source is paused at its baseline yield.
         db.b.client()
             .query(
-                "BEGIN TRANSACTION;
-            CREATE ONLY $task SET content = 'never decoded by the identity reader';
-            CREATE ONLY $artifact_grant SET in = $artifact;
-            COMMIT TRANSACTION;",
+                include_str!("queries/changefeed_consumers/native_source_catches_baseline_races_restarts_and_delete_parents.surql"),
             )
             .bind(("task", task_record_id(task)))
             .bind(("artifact_grant", artifact_grant.clone()))
@@ -88,7 +82,7 @@ async fn native_source_catches_baseline_races_restarts_and_delete_parents() {
         .await;
         let mut deletion =
             db.b.client()
-                .query("BEGIN TRANSACTION; DELETE ONLY $a; COMMIT TRANSACTION;")
+                .query(include_str!("queries/changefeed_consumers/native_source_catches_baseline_races_restarts_and_delete_parents_2.surql"))
                 .bind(("a", artifact_grant))
                 .await
                 .unwrap();

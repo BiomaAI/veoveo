@@ -7,8 +7,6 @@
 #[cfg(feature = "runtime")]
 mod administration;
 #[cfg(feature = "runtime")]
-pub mod agent_management;
-#[cfg(feature = "runtime")]
 mod artifact_access_requests;
 #[cfg(feature = "runtime")]
 mod artifact_reads;
@@ -31,6 +29,8 @@ mod gateway_runtime;
 #[cfg(feature = "runtime")]
 mod governance;
 #[cfg(feature = "runtime")]
+pub use governance::WorkContextSnapshot;
+#[cfg(feature = "runtime")]
 mod identity;
 #[cfg(feature = "runtime")]
 mod ids;
@@ -39,27 +39,7 @@ mod json_value;
 #[cfg(feature = "runtime")]
 pub mod knowledge;
 #[cfg(feature = "runtime")]
-mod map;
-#[cfg(feature = "runtime")]
-mod map_authoring;
-#[cfg(feature = "runtime")]
-mod map_derivations;
-#[cfg(feature = "runtime")]
-mod map_presentations;
-#[cfg(feature = "runtime")]
-mod map_projection;
-#[cfg(feature = "runtime")]
-mod migrations;
-#[cfg(feature = "runtime")]
 mod models;
-#[cfg(feature = "runtime")]
-mod recording_blueprints;
-#[cfg(feature = "runtime")]
-mod recording_catalog;
-#[cfg(feature = "runtime")]
-mod recording_ingest;
-#[cfg(feature = "runtime")]
-mod recordings;
 #[cfg(feature = "runtime")]
 mod resource_changes;
 #[cfg(feature = "runtime")]
@@ -72,8 +52,6 @@ mod task_ids;
 mod task_result;
 #[cfg(feature = "runtime")]
 mod usage;
-#[cfg(feature = "runtime")]
-pub mod workspace;
 
 #[cfg(feature = "runtime")]
 pub use artifact_access_requests::{
@@ -100,7 +78,7 @@ pub use changefeed::{
 #[cfg(feature = "runtime")]
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
 #[cfg(feature = "runtime")]
-pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
+pub use error::{StoreConfigError, StoreError};
 #[cfg(feature = "runtime")]
 pub use gateway_runtime::{
     GatewayRefreshRedelivery, GatewayRefreshRetentionSummary, GatewayRefreshRotation,
@@ -117,58 +95,7 @@ pub use identity::{
 #[cfg(feature = "runtime")]
 pub use ids::*;
 #[cfg(feature = "runtime")]
-pub use map::{
-    MapAcquisitionDraft, MapAcquisitionUpdate, MapCatalogCompletion, MapMatrixIndexRecord,
-    MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft, MapRestrictionDraft,
-    MapRouteDependencyDraft, MapRouteDraft, MapRouteIndexRecord, MapRouteMatrixDraft,
-    MapSourceDraft,
-};
-#[cfg(feature = "runtime")]
-pub use map_authoring::{
-    MapAuthoringCompletion, MapAuthoringReadScope, MapFeatureCommitDraft, MapFeatureCommitResult,
-    MapFeatureLayerDraft, MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft,
-    MapFeatureSchemaDraft, MapLayerPublicationDraft, MapStyleRevisionDraft,
-    map_authoring_idempotency_key,
-};
-#[cfg(feature = "runtime")]
-pub use map_derivations::{
-    MapDerivationDraft, MapDerivationKind, MapDerivationRecord, MapDerivationScope,
-    MapDerivationSummary,
-};
-#[cfg(feature = "runtime")]
-pub use map_presentations::{
-    MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
-    MapLayerProductDraft,
-};
-#[cfg(feature = "runtime")]
-pub use map_projection::MapFeatureProjectionCommit;
-#[cfg(feature = "runtime")]
-pub use migrations::{
-    AppliedMigration, DownstreamMigration, DownstreamMigrationError, DownstreamSchemaStatus,
-    Migration, MigrationReport, SchemaStatus, migrations, schema_catalog_identity, schema_sql,
-    validate_catalog,
-};
-#[cfg(feature = "runtime")]
 pub use models::*;
-#[cfg(feature = "runtime")]
-pub use recording_blueprints::{
-    RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingBlueprintOutcome,
-};
-#[cfg(feature = "runtime")]
-pub use recording_catalog::{
-    RecordingAccessScope, RecordingCatalogCleanup, RecordingDatasetDraft, RecordingLayerDraft,
-    RecordingProjectionReceiptDraft, RecordingProjectionRequest, RecordingReadGrantDraft,
-    RecordingReadGrantRequest, capture_layer_name,
-};
-#[cfg(feature = "runtime")]
-pub use recording_ingest::{
-    RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestQuotaCheckpoint,
-    RecordingIngestStreamDraft,
-};
-#[cfg(feature = "runtime")]
-pub use recordings::{
-    RecordingCursor, RecordingDraft, RecordingLayerCounts, RecordingReadScope, RecordingSeal,
-};
 #[cfg(feature = "runtime")]
 pub use resource_changes::ResourceInvalidation;
 #[cfg(feature = "runtime")]

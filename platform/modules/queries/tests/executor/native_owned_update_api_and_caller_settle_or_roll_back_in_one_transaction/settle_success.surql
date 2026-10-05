@@ -1,0 +1,1 @@
+fn::kernel::store::update_v1(fixture_marker:base,'released'); DEFINE TABLE fixture_optional; CREATE fixture_optional:one SET value='settled';

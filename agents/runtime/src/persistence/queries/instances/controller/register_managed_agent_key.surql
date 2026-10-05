@@ -1,0 +1,1 @@
+IF !fn::managed_agent_claim($command.claim) { THROW 'agent_conflict'; }; LET $instance = SELECT * FROM ONLY $command.claim.instance; IF $instance.desired = 'archived' OR ($instance.public_key != NONE AND $instance.public_key != $command.key) { THROW 'agent_conflict'; }; UPDATE ONLY $instance.id SET public_key = $command.key; RETURN true;

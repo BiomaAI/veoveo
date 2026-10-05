@@ -25,7 +25,7 @@ async fn drain(changes: &mut AuthorityChanges, interest: &AuthorityInterest) {
 
 #[tokio::test]
 async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journals() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -47,7 +47,7 @@ async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journa
     // A journal-only deletion has no original payload and must still invalidate
     // its exact execution. The fixture owns this journal and never dispatches it.
     db.b.client()
-        .query("DELETE ONLY $record;")
+        .query(include_str!("queries/authority_changes/native_authority_changes_cover_grants_directory_policy_tasks_and_journals/statement_1.surql"))
         .bind((
             "record",
             RecordId::new(
@@ -69,7 +69,7 @@ async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journa
     };
     drain(&mut changes, &task_interest).await;
     db.b.client()
-        .query("UPDATE ONLY $task SET status = 'cancel_requested';")
+        .query(include_str!("queries/authority_changes/native_authority_changes_cover_grants_directory_policy_tasks_and_journals/statement_2.surql"))
         .bind((
             "task",
             veoveo_platform_store::task_record_id(operation.task_id()),
@@ -118,7 +118,7 @@ async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journa
     wake(&mut changes, &unrelated).await;
     drain(&mut changes, &unrelated).await;
     db.b.client()
-        .query("UPDATE principal SET enabled = false;")
+        .query(include_str!("queries/authority_changes/native_authority_changes_cover_grants_directory_policy_tasks_and_journals/statement_3.surql"))
         .await
         .unwrap()
         .check()
@@ -129,7 +129,7 @@ async fn native_authority_changes_cover_grants_directory_policy_tasks_and_journa
 
 #[tokio::test]
 async fn dropping_the_last_store_closes_its_native_source() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let store = ComputersStore::new(
         db.a.clone(),
         veoveo_computers::api::ProviderInstanceId::new(),

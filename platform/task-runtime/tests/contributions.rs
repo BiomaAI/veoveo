@@ -1,6 +1,4 @@
 //! Native atomicity of pure owner contributions, including independent recovery settlement.
-#[path = "../../../testing/fixtures/module_lanes.rs"]
-mod module_lanes;
 #[path = "../../../testing/fixtures/store.rs"]
 mod store;
 use chrono::{DateTime, Utc};
@@ -12,6 +10,7 @@ use std::{
     },
     time::Duration,
 };
+use store::module_lanes;
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_modules::*;
 use veoveo_platform_store::task_record_id;
@@ -164,7 +163,7 @@ fn runtime(db: &store::TestDb, worker: &str, calls: Arc<AtomicUsize>) -> TaskRun
 async fn rows(db: &store::TestDb, task: TaskId) -> Vec<surrealdb::types::Value> {
     let mut response =
         db.b.client()
-            .query("SELECT * FROM contribution_probe WHERE task = $task;")
+            .query(include_str!("queries/contributions/rows/statement_1.surql"))
             .bind(("task", task_record_id(task)))
             .await
             .unwrap()
@@ -175,7 +174,9 @@ async fn rows(db: &store::TestDb, task: TaskId) -> Vec<surrealdb::types::Value> 
 async fn count(db: &store::TestDb, table: &str) -> usize {
     let mut response =
         db.b.client()
-            .query("SELECT VALUE count() FROM type::table($table) GROUP ALL;")
+            .query(include_str!(
+                "queries/contributions/count/statement_1.surql"
+            ))
             .bind(("table", table.to_owned()))
             .await
             .unwrap()
@@ -282,7 +283,7 @@ async fn settlement_rolls_back_and_stale_or_expired_leases_cannot_write() {
             TaskStatus::Running
         );
         db.b.client()
-            .query("DELETE ONLY $row;")
+            .query(include_str!("queries/contributions/settlement_rolls_back_and_stale_or_expired_leases_cannot_write/statement_1.surql"))
             .bind(("row", RecordId::new("contribution_probe", id.to_string())))
             .await
             .unwrap()
@@ -323,7 +324,7 @@ async fn settlement_rolls_back_and_stale_or_expired_leases_cannot_write() {
         ));
         let current = runtime.get(id).await.unwrap().unwrap();
         db.b.client()
-            .query("UPDATE ONLY $task SET lease_expires_at = $expired;")
+            .query(include_str!("queries/contributions/settlement_rolls_back_and_stale_or_expired_leases_cannot_write/statement_2.surql"))
             .bind(("task", task_record_id(id)))
             .bind(("expired", Utc::now() - chrono::Duration::seconds(1)))
             .await
@@ -349,7 +350,7 @@ async fn settlement_rolls_back_and_stale_or_expired_leases_cannot_write() {
             TaskStatus::Failed
         );
         db.b.client()
-            .query("UPDATE ONLY $task SET lease_expires_at = $expired;")
+            .query(include_str!("queries/contributions/settlement_rolls_back_and_stale_or_expired_leases_cannot_write/statement_3.surql"))
             .bind(("task", task_record_id(missing_id)))
             .bind(("expired", Utc::now() - chrono::Duration::seconds(1)))
             .await
@@ -376,7 +377,7 @@ async fn recovery_and_cancellation_settle_rows_and_cascade_is_transactional() {
         let id = runtime.create(draft(1)).await.unwrap().snapshot.task_id;
         runtime.claim(id, Duration::from_secs(60)).await.unwrap();
         db.b.client()
-            .query("UPDATE ONLY $task SET lease_expires_at = $expired;")
+            .query(include_str!("queries/contributions/recovery_and_cancellation_settle_rows_and_cascade_is_transactional/statement_1.surql"))
             .bind(("task", task_record_id(id)))
             .bind(("expired", Utc::now() - chrono::Duration::seconds(1)))
             .await
@@ -396,14 +397,14 @@ async fn recovery_and_cancellation_settle_rows_and_cascade_is_transactional() {
         );
         assert_eq!(rows(&db, cancelled).await.len(), 1);
         db.b.client()
-            .query("BEGIN TRANSACTION; DELETE ONLY $task; CANCEL TRANSACTION;")
+            .query(include_str!("queries/contributions/recovery_and_cancellation_settle_rows_and_cascade_is_transactional/statement_2.surql"))
             .bind(("task", task_record_id(cancelled)))
             .await
             .unwrap();
         assert!(runtime.get(cancelled).await.unwrap().is_some());
         assert_eq!(rows(&db, cancelled).await.len(), 1);
         db.b.client()
-            .query("DELETE ONLY $task;")
+            .query(include_str!("queries/contributions/recovery_and_cancellation_settle_rows_and_cascade_is_transactional/statement_3.surql"))
             .bind(("task", task_record_id(cancelled)))
             .await
             .unwrap()

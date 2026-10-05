@@ -42,3 +42,6 @@ fn gateway_test_state(
             ),
         ))
 }
+
+#[cfg(feature = "persistence")]
+pub mod persistence;

@@ -1,5 +1,5 @@
 //! Public Task streams observe current authorized state, never historical payloads.
-use super::{OwnerTaskQuery, TaskUpdateStream, owner_reads::VISIBLE_TASK};
+use super::{OwnerTaskQuery, TaskUpdateStream, owner_query::OwnerSelection};
 use crate::types::{TaskError, TaskUpdate, TaskUpdateCursor, record_to_snapshot, validate_task_id};
 use std::collections::BTreeSet;
 use veoveo_platform_store::{TaskRecord, task_record_id};
@@ -90,10 +90,18 @@ impl OwnerTaskQuery {
             return Ok(vec![]);
         }
         let mut response = self
-            .bind(self.runtime.store.client().query(format!(
-                "SELECT * FROM $records WHERE {VISIBLE_TASK} {};",
-                self.selection_predicate()
-            )))?
+            .bind(self.runtime.store.client().query(match self.selection() {
+                OwnerSelection::Owner => include_str!("../../queries/owner/current_owner.surql"),
+                OwnerSelection::Operations => {
+                    include_str!("../../queries/owner/current_operations.surql")
+                }
+                OwnerSelection::Context => {
+                    include_str!("../../queries/owner/current_context.surql")
+                }
+                OwnerSelection::ContextOperations => {
+                    include_str!("../../queries/owner/current_context_operations.surql")
+                }
+            }))?
             .bind((
                 "records",
                 ids.iter().copied().map(task_record_id).collect::<Vec<_>>(),

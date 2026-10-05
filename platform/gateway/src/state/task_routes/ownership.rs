@@ -90,19 +90,9 @@ impl GatewayState {
         let mut response = self
             .platform
             .client()
-            .query(
-                "SELECT tenant, owner, work_context, profile, server, {
-                version: 1,
-                principal_key: request.owner.principal_key,
-                principal_kind: request.owner.principal_kind,
-                issuer: request.owner.issuer,
-                subject: request.owner.subject,
-                invocation_mode: request.owner.authority.provenance.mode,
-                initiator: request.owner.authority.provenance.initiator,
-                delegation_id: request.owner.authority.provenance.delegation_id,
-                data_labels: request.owner.data_labels
-             } AS ownership FROM ONLY $source;",
-            )
+            .query(include_str!(
+                "../../queries/state/task_routes/ownership/task_route_ownership/statement_1.surql"
+            ))
             .bind(("source", source.clone()))
             .await?
             .check()?;

@@ -98,6 +98,7 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 jsonschema.workspace = true
 tempfile = "3"

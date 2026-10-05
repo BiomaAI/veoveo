@@ -1,0 +1,1 @@
+SELECT VALUE count FROM fixture_daily;

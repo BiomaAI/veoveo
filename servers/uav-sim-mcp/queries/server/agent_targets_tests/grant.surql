@@ -1,0 +1,1 @@
+CREATE ONLY $id SET tenant=$tenant, work_context=$context, grant_id=$key, session_id=$simulation_session, vehicle_id='vehicle-one', principal_key=$principal, permissions=['inspect','plan','execute'], map_mobility_profile_uri=$profile, valid_from=time::now()-1h, created_by='https://identity.test#owner', created_at=time::now(), updated_at=time::now();

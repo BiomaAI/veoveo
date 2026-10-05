@@ -118,10 +118,8 @@ impl PlatformStore {
         for attempt in 0..8_u32 {
             let mut response = self
                 .db
-                .query(concat!(
-                    "BEGIN TRANSACTION;\n",
-                    include_str!("artifacts/register.surql"),
-                    "COMMIT TRANSACTION;"
+                .query(include_str!(
+                    "queries/artifacts/create_artifact_occurrence.surql"
                 ))
                 .bind(("blob", blob.id.clone()))
                 .bind(("storage_usage", crate::artifact_storage_usage_id(tenant_id)))
@@ -163,7 +161,7 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactAggregate>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $artifact;")
+            .query(include_str!("queries/artifacts/artifact_aggregate.surql"))
             .bind(("artifact", artifact_id.record_id()))
             .await?
             .check()?;
@@ -182,7 +180,9 @@ impl PlatformStore {
     ) -> Result<ArtifactAggregate, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $blob; SELECT * FROM ONLY $tenant; SELECT * FROM artifact_grant WHERE in = $artifact;")
+            .query(include_str!(
+                "queries/artifacts/artifact_aggregate_from_occurrence.surql"
+            ))
             .bind(("blob", occurrence.blob.clone()))
             .bind(("tenant", occurrence.tenant.clone()))
             .bind(("artifact", occurrence.id.clone()))
@@ -228,8 +228,11 @@ impl PlatformStore {
             created_at: Utc::now(),
         };
 
-        let mut response = self.db
-            .query("BEGIN TRANSACTION; DELETE $record RETURN NONE; RELATE ONLY $artifact->$record->$subject CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+        let mut response = self
+            .db
+            .query(include_str!(
+                "queries/artifacts/upsert_artifact_grant.surql"
+            ))
             .bind(("record", id))
             .bind(("artifact", draft.artifact_id.record_id()))
             .bind(("subject", content.out.clone()))
@@ -254,7 +257,9 @@ impl PlatformStore {
         );
 
         self.db
-            .query("BEGIN TRANSACTION; DELETE ONLY $record RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/artifacts/remove_artifact_grant.surql"
+            ))
             .bind(("record", id))
             .await?
             .check()?;
@@ -268,7 +273,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactOccurrenceRecord>, StoreError> {
         let mut response = self
             .db
-            .query("UPDATE ONLY $artifact SET release_state = $state, updated_at = time::now() RETURN AFTER;")
+            .query(include_str!(
+                "queries/artifacts/set_artifact_release_state.surql"
+            ))
             .bind(("artifact", artifact_id.record_id()))
             .bind(("state", state))
             .await?
@@ -311,7 +318,9 @@ impl PlatformStore {
         };
         let mut response = self
             .db
-            .query("CREATE ONLY $record CONTENT $content RETURN AFTER;")
+            .query(include_str!(
+                "queries/artifacts/create_artifact_write_capability.surql"
+            ))
             .bind(("record", draft.capability_id.record_id()))
             .bind(("content", record))
             .await?
@@ -396,9 +405,9 @@ impl PlatformStore {
 
         let result = self
             .db
-            .query(
-                "BEGIN TRANSACTION; LET $capability_rows = (UPDATE $capability SET used_artifact_count += 1, used_total_bytes += $byte_len WHERE token_hash = $token_hash AND task_id = $task_id AND labels CONTAINSALL $requested_labels AND revoked_at = NONE AND expires_at > $now AND used_artifact_count < max_artifact_count AND used_total_bytes + $byte_len <= max_total_bytes RETURN AFTER); LET $capability_row = array::first($capability_rows); IF $capability_row = NONE { THROW 'artifact write capability denied'; }; CREATE ONLY $redemption CONTENT { capability: $capability, tenant: $capability_row.tenant, task: $task, task_id: $task_id, idempotency_key: $idempotency_key, request_hash: $request_hash, byte_len: $byte_len, artifact: $artifact, state: 'reserved', reserved_at: $now, finalized_at: NONE } RETURN NONE; COMMIT TRANSACTION;",
-            )
+            .query(include_str!(
+                "queries/artifacts/reserve_artifact_write_capability.surql"
+            ))
             .bind(("capability", capability_id.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
             .bind(("task_id", task_id.to_owned()))
@@ -411,10 +420,12 @@ impl PlatformStore {
             .bind(("request_hash", request_hash.to_owned()))
             .bind(("artifact", proposed_artifact_id.record_id()))
             .await
-            .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
-                Some(error) => Err(error),
-                None => Ok(()),
-            });
+            .and_then(
+                |mut response| match primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(()),
+                },
+            );
         if let Err(error) = result {
             if let Some(reservation) = self
                 .artifact_write_reservation(capability_id, token_hash, redemption_id)
@@ -466,9 +477,10 @@ impl PlatformStore {
     ) -> Result<bool, StoreError> {
         let now = Utc::now();
 
-        self
-            .db
-            .query("BEGIN TRANSACTION; LET $updated_rows = (UPDATE $redemption SET state = 'finalized', finalized_at = $now WHERE state = 'reserved' AND artifact = $artifact RETURN AFTER); LET $updated = array::first($updated_rows); IF $updated != NONE { UPDATE ONLY $artifact SET task = $updated.task RETURN NONE; }; COMMIT TRANSACTION;")
+        self.db
+            .query(include_str!(
+                "queries/artifacts/finalize_artifact_write_capability.surql"
+            ))
             .bind(("redemption", redemption_id.record_id()))
             .bind(("artifact", artifact_id.record_id()))
             .bind(("now", now))
@@ -476,7 +488,9 @@ impl PlatformStore {
             .check()?;
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $redemption;")
+            .query(include_str!(
+                "queries/artifacts/finalize_artifact_write_capability_2.surql"
+            ))
             .bind(("redemption", redemption_id.record_id()))
             .await?
             .check()?;
@@ -493,7 +507,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactWriteReservation>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $redemption; SELECT * FROM ONLY $capability WHERE token_hash = $token_hash;")
+            .query(include_str!(
+                "queries/artifacts/artifact_write_reservation.surql"
+            ))
             .bind(("redemption", redemption_id.record_id()))
             .bind(("capability", capability_id.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
@@ -522,7 +538,9 @@ impl PlatformStore {
     ) -> Result<ArtifactWriteCapabilityRecord, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $capability WHERE token_hash = $token_hash;")
+            .query(include_str!(
+                "queries/artifacts/authenticate_artifact_write_capability.surql"
+            ))
             .bind(("capability", capability_id.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
             .await?
@@ -550,7 +568,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactWriteReservation>, StoreError> {
         let result = self
             .db
-            .query("BEGIN TRANSACTION; LET $current_rows = (SELECT * FROM $redemption WHERE state = 'reserved' AND request_hash = $expected_hash AND byte_len = $expected_bytes); LET $current = array::first($current_rows); IF $current = NONE { THROW 'artifact write reservation changed'; }; LET $occurrences = (SELECT * FROM $artifact); IF array::len($occurrences) > 0 { THROW 'artifact write occurrence already staged'; }; LET $capability_rows = (UPDATE $capability SET used_total_bytes = used_total_bytes - $expected_bytes + $byte_len WHERE token_hash = $token_hash AND task_id = $task_id AND labels CONTAINSALL $requested_labels AND revoked_at = NONE AND used_total_bytes - $expected_bytes + $byte_len <= max_total_bytes RETURN AFTER); LET $capability_row = array::first($capability_rows); IF $capability_row = NONE { THROW 'artifact write capability denied'; }; UPDATE ONLY $redemption SET request_hash = $request_hash, byte_len = $byte_len RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/artifacts/rebind_artifact_write_reservation.surql"
+            ))
             .bind(("redemption", reservation.redemption.id.clone()))
             .bind(("expected_hash", reservation.redemption.request_hash.clone()))
             .bind(("expected_bytes", reservation.redemption.byte_len))
@@ -562,10 +582,12 @@ impl PlatformStore {
             .bind(("request_hash", request_hash.to_owned()))
             .bind(("byte_len", byte_len))
             .await
-            .and_then(|mut response| match primary_transaction_error(response.take_errors()) {
-                Some(error) => Err(error),
-                None => Ok(()),
-            });
+            .and_then(
+                |mut response| match primary_transaction_error(response.take_errors()) {
+                    Some(error) => Err(error),
+                    None => Ok(()),
+                },
+            );
         if let Err(error) = result {
             let message = error.to_string();
             if message.contains("artifact write capability denied") {
@@ -613,7 +635,9 @@ impl PlatformStore {
 
         let mut response = self
             .db
-            .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/artifacts/create_artifact_share_link.surql"
+            ))
             .bind(("record", draft.link_id.record_id()))
             .bind(("content", record))
             .await?;
@@ -622,7 +646,9 @@ impl PlatformStore {
         }
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $record;")
+            .query(include_str!(
+                "queries/artifacts/create_artifact_share_link_2.surql"
+            ))
             .bind(("record", draft.link_id.record_id()))
             .await?
             .check()?;
@@ -640,7 +666,9 @@ impl PlatformStore {
     ) -> Result<bool, StoreError> {
         let mut response = self
             .db
-            .query("UPDATE ONLY $record SET revoked_at = time::now() WHERE artifact = $artifact AND revoked_at = NONE RETURN AFTER;")
+            .query(include_str!(
+                "queries/artifacts/revoke_artifact_share_link.surql"
+            ))
             .bind(("record", link_id.record_id()))
             .bind(("artifact", artifact_id.record_id()))
             .await?
@@ -654,7 +682,9 @@ impl PlatformStore {
     ) -> Result<Option<PublicShareRedemption>, StoreError> {
         let mut response = self
             .db
-            .query("UPDATE share_link SET download_count += 1 WHERE token_hash = $token_hash AND permission = 'read' AND revoked_at = NONE AND expires_at > time::now() AND (max_downloads = NONE OR download_count < max_downloads) AND artifact.release_state IN ['releasable', 'released'] AND (artifact.retention_expires_at = NONE OR artifact.retention_expires_at > time::now()) RETURN AFTER;")
+            .query(include_str!(
+                "queries/artifacts/redeem_public_share_link.surql"
+            ))
             .bind(("token_hash", token_hash.to_string()))
             .await?
             .check()?;

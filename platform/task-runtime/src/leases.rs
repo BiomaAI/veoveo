@@ -30,12 +30,19 @@ impl TaskRuntime {
                 "invalid observation release".into(),
             ));
         }
-        let mut response = self.platform_store().client().query(
-            "UPDATE ONLY $task SET lease_owner = NONE, lease_expires_at = NONE WHERE server = $server AND recovery_class = 'provider_wait' AND lease_owner = $worker AND lease_expires_at = $expiry AND lease_expires_at > time::now() AND status IN ['queued', 'running', 'waiting', 'cancel_requested'] RETURN AFTER;"
-        ).bind(("task", task_record_id(claimed.snapshot.task_id)))
-            .bind(("server", surrealdb::types::RecordId::new("mcp_server", self.server().to_owned())))
-            .bind(("worker", self.worker_id().to_owned())).bind(("expiry", claimed.lease_expires_at))
-            .await?.check()?;
+        let mut response = self
+            .platform_store()
+            .client()
+            .query(include_str!("../queries/leases/release_observation.surql"))
+            .bind(("task", task_record_id(claimed.snapshot.task_id)))
+            .bind((
+                "server",
+                surrealdb::types::RecordId::new("mcp_server", self.server().to_owned()),
+            ))
+            .bind(("worker", self.worker_id().to_owned()))
+            .bind(("expiry", claimed.lease_expires_at))
+            .await?
+            .check()?;
         let row: Option<TaskRecord> = response.take(0)?;
         if row.is_none() {
             return Err(TaskError::LeaseHeld(claimed.snapshot.task_id.to_string()));
@@ -120,9 +127,7 @@ impl TaskRuntime {
         let mut response = self
             .platform_store()
             .client()
-            .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $next, request = $request, lease_owner = $worker, lease_expires_at = $lease_expires, started_at = started_at ?? $now, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $worker) RETURN AFTER); RETURN $updated; COMMIT TRANSACTION;",
-            )
+            .query(include_str!("../queries/leases/claim_kind.surql"))
             .bind(("task", task))
             .bind(("next", status))
             .bind(("worker", self.worker_id().to_owned()))
@@ -167,9 +172,7 @@ impl TaskRuntime {
         let mut response = self
             .platform_store()
             .client()
-            .query(
-                "UPDATE ONLY $task SET lease_expires_at = $lease_expires WHERE lease_owner = $worker AND lease_expires_at > $now AND (status IN ['running', 'waiting', 'cancel_requested'] OR (status = 'queued' AND recovery_class = 'provider_wait')) RETURN AFTER;",
-            )
+            .query(include_str!("../queries/leases/renew_lease.surql"))
             .bind(("task", task_record_id(task_id)))
             .bind(("worker", self.worker_id().to_owned()))
             .bind(("lease_expires", lease_expires))

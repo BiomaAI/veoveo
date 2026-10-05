@@ -209,3 +209,10 @@ TimeseriesRowFilter stores its published predicate and combination fields throug
 ## Cursor Admission
 
 Usage continuation uses its owner base64url JSON codec with version and Task ID, without an added collection field. Parsing retains admitted aliases and the existing Task UUID profile. Published page fields are checked before the fixed-limit projection.
+
+## Native Query Fixture Placement
+
+Store-backed native fixture statements live in `tests/queries/`, grouped by the
+calling harness. Colocated fixtures include those files with their existing bindings
+and result slots. Complete static statements cover finite SQL grammar choices.
+Analytical DuckDB query inputs and engine adapters keep their separate SQL contract.

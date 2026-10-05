@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use chrono::{TimeDelta, Utc};
-use secrecy::SecretString;
 use uuid::Uuid;
 use veoveo_platform_store::{
     ArtifactAccessRequestDecisionDraft, ArtifactAccessRequestDraft, ArtifactAccessRequestId,
@@ -10,16 +9,9 @@ use veoveo_platform_store::{
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
     GatewayReplayKind, GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord,
-    InvocationMode, MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
-    MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
-    MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState,
-    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, RecordingDatasetDraft,
-    RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId, RecordingLayerKind,
-    RecordingLayerState, RecordingProjectionReceiptDraft, RecordingProjectionState,
-    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal, RecordingState, ShareLinkId,
-    StoreConfig, StoreCredentials, StoreError, WorkContextInitialGrantRecord,
-    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
-    gateway_replay_record_id, migrations,
+    InvocationMode, PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, ShareLinkId,
+    StoreError, WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
+    deterministic_work_context_id, gateway_replay_record_id,
 };
 use veoveo_types::TaskId;
 
@@ -29,12 +21,8 @@ mod audit_transactions;
 mod changefeed;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
-#[path = "surreal_integration/map_projection.rs"]
-mod map_projection;
 #[path = "surreal_integration/query_semantics.rs"]
 mod query_semantics;
-#[path = "surreal_integration/recording_ingest.rs"]
-mod recording_ingest;
 #[path = "surreal_integration/relationships.rs"]
 mod relationships;
 
@@ -90,222 +78,6 @@ fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord 
     }
 }
 
-#[tokio::test]
-async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            format!("map_authoring_test_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    let identity = store
-        .ensure_identity(
-            "tenant-map-authoring",
-            "map-author",
-            "https://veoveo.local/services",
-            "map-author",
-            PrincipalKind::Service,
-        )
-        .await
-        .unwrap();
-    let authority = artifact_authority(&identity);
-    let layer_key = format!("feature-layer-{}", Uuid::now_v7());
-    store
-        .create_map_feature_layer(MapFeatureLayerDraft {
-            identity: identity.clone(),
-            authority: authority.clone(),
-            layer_key: layer_key.clone(),
-            title: "Inspection areas".to_owned(),
-            description: None,
-            content_class: "boundaries".to_owned(),
-            schema: MapFeatureSchemaDraft {
-                schema_revision_key: format!("feature-schema-{}", Uuid::now_v7()),
-                schema_version: 1,
-                digest_sha256: "a".repeat(64),
-                schema_json: r#"{"type":"object"}"#.to_owned(),
-            },
-            style: None,
-            revision: 0,
-            archived_at: None,
-            canonical_json: r#"{"revision":0}"#.to_owned(),
-        })
-        .await
-        .unwrap();
-
-    let changeset_key = format!("changeset-{}", Uuid::now_v7());
-    let feature_key = format!("feature-{}", Uuid::now_v7());
-    let draft = MapFeatureCommitDraft {
-        identity: identity.clone(),
-        authority: authority.clone(),
-        layer_key: layer_key.clone(),
-        layer_canonical_json: r#"{"revision":1}"#.to_owned(),
-        expected_layer_revision: 0,
-        changeset_key: changeset_key.clone(),
-        idempotency_key: "first-inspection-area".to_owned(),
-        request_digest_sha256: "b".repeat(64),
-        changeset_canonical_json: r#"{"resulting_layer_revision":1}"#.to_owned(),
-        revisions: vec![MapFeatureRevisionDraft {
-            feature_key: feature_key.clone(),
-            feature_revision: 1,
-            layer_revision: 1,
-            schema_version: 1,
-            deleted: false,
-            geometry_type: "Point".to_owned(),
-            geometry_json: r#"{"type":"Point","coordinates":[-89.2,13.7]}"#.to_owned(),
-            bbox_west: -89.2,
-            bbox_south: 13.7,
-            bbox_east: -89.2,
-            bbox_north: 13.7,
-            valid_from: None,
-            valid_until: None,
-            semantic_type: "inspection_area".to_owned(),
-            title: Some("Area A".to_owned()),
-            canonical_json: r#"{"type":"Feature"}"#.to_owned(),
-            expected_feature_revision: None,
-        }],
-    };
-    let committed = store
-        .commit_map_feature_changes(draft.clone())
-        .await
-        .unwrap();
-    assert!(committed.changeset.commit_sequence > 0);
-    assert_eq!(committed.revisions.len(), 1);
-    map_projection::current_catalog_replays_commits(&store, committed.changeset.commit_sequence)
-        .await;
-    assert_eq!(
-        store
-            .count_map_feature_heads("tenant-map-authoring", "operations", &layer_key)
-            .await
-            .unwrap(),
-        1
-    );
-    let replay = store
-        .commit_map_feature_changes(draft.clone())
-        .await
-        .unwrap();
-    assert_eq!(replay.changeset, committed.changeset);
-    assert_eq!(replay.revisions, committed.revisions);
-
-    let publication_key = format!("publication-{}", Uuid::now_v7());
-    store
-        .create_map_layer_publication(MapLayerPublicationDraft {
-            identity: identity.clone(),
-            authority: authority.clone(),
-            publication_key: publication_key.clone(),
-            layer_key: layer_key.clone(),
-            layer_revision: 1,
-            schema_version: 1,
-            style_revision_key: None,
-            artifact_uris: Vec::new(),
-            canonical_json: serde_json::json!({
-                "publication_id": publication_key,
-                "layer_id": layer_key,
-                "layer_revision": 1
-            })
-            .to_string(),
-            published_at: Utc::now(),
-        })
-        .await
-        .unwrap();
-    let product_key = format!("product-{}", Uuid::now_v7());
-    let product = MapLayerProductDraft {
-        identity: identity.clone(),
-        authority: authority.clone(),
-        product_key: product_key.clone(),
-        publication_key: publication_key.clone(),
-        layer_key: layer_key.clone(),
-        layer_revision: 1,
-        format: "geojson_seq".to_owned(),
-        artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
-        mime_type: "application/geo+json-seq".to_owned(),
-        digest_sha256: "d".repeat(64),
-        size_bytes: 128,
-        feature_count: 1,
-        canonical_json: serde_json::json!({
-            "product_id": product_key,
-            "publication_id": publication_key
-        })
-        .to_string(),
-        created_by_key: identity.principal_key.clone(),
-        created_at: Utc::now(),
-    };
-    let created_product = store
-        .create_map_layer_product(product.clone())
-        .await
-        .unwrap();
-    let replayed_product = store.create_map_layer_product(product).await.unwrap();
-    assert_eq!(created_product, replayed_product);
-
-    let composition_key = format!("composition-{}", Uuid::now_v7());
-    let composition = store
-        .create_map_composition(MapCompositionDraft {
-            identity: identity.clone(),
-            authority: authority.clone(),
-            composition_key: composition_key.clone(),
-            title: "Inspection map".to_owned(),
-            revision: MapCompositionRevisionDraft {
-                composition_revision_key: format!("composition-revision-{}", Uuid::now_v7()),
-                revision: 1,
-                publication_keys: vec![publication_key.clone()],
-                canonical_json: serde_json::json!({"revision": 1}).to_string(),
-            },
-            canonical_json: serde_json::json!({"current_revision": 1}).to_string(),
-        })
-        .await
-        .unwrap();
-    assert_eq!(composition.current_revision, 1);
-    let updated = store
-        .update_map_composition(
-            MapCompositionUpdateDraft {
-                identity: identity.clone(),
-                authority: authority.clone(),
-                composition_key: composition_key.clone(),
-                title: "Inspection map".to_owned(),
-                revision: MapCompositionRevisionDraft {
-                    composition_revision_key: format!("composition-revision-{}", Uuid::now_v7()),
-                    revision: 2,
-                    publication_keys: vec![publication_key],
-                    canonical_json: serde_json::json!({"revision": 2}).to_string(),
-                },
-                canonical_json: serde_json::json!({"current_revision": 2}).to_string(),
-                archived_at: None,
-            },
-            1,
-        )
-        .await
-        .unwrap();
-    assert_eq!(updated.current_revision, 2);
-    assert!(
-        store
-            .map_composition_revision("tenant-map-authoring", "operations", &composition_key, 1)
-            .await
-            .unwrap()
-            .is_some()
-    );
-
-    let mut conflicting = draft;
-    conflicting.request_digest_sha256 = "c".repeat(64);
-    assert!(matches!(
-        store.commit_map_feature_changes(conflicting).await,
-        Err(StoreError::MapRecordConflict { .. })
-    ));
-}
-
 fn owner_grant(artifact_id: ArtifactId, identity: &PlatformIdentity) -> ArtifactGrantDraft {
     ArtifactGrantDraft {
         artifact_id,
@@ -320,336 +92,10 @@ fn owner_grant(artifact_id: ArtifactId, identity: &PlatformIdentity) -> Artifact
 }
 
 #[tokio::test]
-async fn map_release_activation_is_atomic_and_version_guarded() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            format!("map_activation_test_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    let identity = store
-        .ensure_identity(
-            "tenant-map",
-            "map-admin",
-            "https://veoveo.local/services",
-            "map-admin",
-            PrincipalKind::Service,
-        )
-        .await
-        .unwrap();
-    let dataset_key = format!("dataset-{}", Uuid::now_v7());
-    let source_key = format!("source-{}", Uuid::now_v7());
-    let create_release = |release_key: String| MapReleaseDraft {
-        identity: identity.clone(),
-        release_key,
-        dataset_key: dataset_key.clone(),
-        source_key: source_key.clone(),
-        state: MapReleaseState::Staged,
-        version_label: format!("sha256:{}", "a".repeat(64)),
-        source_digest_sha256: "a".repeat(64),
-        valid_from: Utc::now(),
-        valid_until: None,
-        canonical_json: serde_json::json!({ "state": "staged" }).to_string(),
-    };
-
-    let first_key = format!("release-{}", Uuid::now_v7());
-    store
-        .create_map_release(create_release(first_key.clone()))
-        .await
-        .unwrap();
-    let first = store
-        .activate_map_release(
-            &identity,
-            &dataset_key,
-            &first_key,
-            None,
-            1,
-            serde_json::json!({ "state": "active" }).to_string(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(first.state, MapReleaseState::Active);
-    assert_eq!(first.record_version, 2);
-    assert_eq!(
-        store
-            .active_map_release(identity.tenant_id, &dataset_key)
-            .await
-            .unwrap()
-            .unwrap()
-            .record_version,
-        1
-    );
-
-    let second_key = format!("release-{}", Uuid::now_v7());
-    store
-        .create_map_release(create_release(second_key.clone()))
-        .await
-        .unwrap();
-    let conflict = store
-        .activate_map_release(
-            &identity,
-            &dataset_key,
-            &second_key,
-            Some(1),
-            2,
-            serde_json::json!({ "state": "active" }).to_string(),
-        )
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(conflict, StoreError::MapRecordConflict { .. }),
-        "unexpected activation error: {conflict:?}"
-    );
-    let second = store
-        .map_release(identity.tenant_id, &second_key)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(second.state, MapReleaseState::Staged);
-    assert_eq!(second.record_version, 1);
-    let pointer = store
-        .active_map_release(identity.tenant_id, &dataset_key)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(pointer.release_key, first_key);
-    assert_eq!(pointer.record_version, 1);
-}
-
-/// Run explicitly with:
-/// `VEOVEO_SURREAL_INTEGRATION=1 VEOVEO_SURREAL_URL=ws://127.0.0.1:8000 cargo test -p veoveo-platform-store --test surreal_integration`
-#[tokio::test]
-async fn removes_obsolete_mirror_state_during_forward_migration() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            format!("mirror_cut_test_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-
-    for migration in migrations().iter().take(36) {
-        let statement = format!(
-            "BEGIN TRANSACTION;\n{}\nCREATE platform_schema_migration:{} CONTENT {{ version: {}, name: $migration_name, checksum: $migration_checksum, applied_at: time::now() }};\nCOMMIT TRANSACTION;",
-            migration.sql, migration.version, migration.version
-        );
-        store
-            .client()
-            .query(statement)
-            .bind(("migration_name", migration.name))
-            .bind(("migration_checksum", migration.checksum()))
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
-    }
-    store
-        .client()
-        .query(
-            r#"
-            CREATE simulation_view_state:legacy CONTENT {
-                id: "legacy",
-                tenant_key: "tenant",
-                owner_key: "owner",
-                work_context_key: "operations",
-                policy_revision: "r1",
-                session_id: "session",
-                epoch_id: "epoch",
-                desired_revision: 6,
-                realized_revision: 5,
-                authorization_revision: 1,
-                revoked: false,
-                authorization_expires_at: NONE,
-                desired_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                desired_digest_schema: "veoveo.ai/simulation-view-desired-digest/v2",
-                snapshot: {},
-                reconciliation: {},
-                created_at: time::now(),
-                updated_at: time::now()
-            };
-            "#,
-        )
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-
-    let report = store.migrate().await.unwrap();
-    assert_eq!(
-        report.applied_versions,
-        migrations()
-            .iter()
-            .skip(36)
-            .map(|migration| migration.version)
-            .collect::<Vec<_>>()
-    );
-    assert!(report.status.is_current(), "{:?}", report.status);
-
-    let mut response = store.client().query("INFO FOR DB;").await.unwrap();
-    let info: surrealdb::types::Value = response.take(0).unwrap();
-    assert!(
-        !format!("{info:?}").contains("simulation_view_state"),
-        "obsolete mirror table survived migration 36: {info:?}"
-    );
-    assert!(store.migrate().await.unwrap().applied_versions.is_empty());
-}
-
-/// Run explicitly with:
-/// `VEOVEO_SURREAL_INTEGRATION=1 VEOVEO_SURREAL_URL=ws://127.0.0.1:8000 cargo test -p veoveo-platform-store --test surreal_integration`
-#[tokio::test]
-async fn applies_schema_to_surrealdb_3_3() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let database = format!("platform_test_{}", Uuid::now_v7().simple());
-    let config = StoreConfig::builder(
-        &endpoint,
-        "veoveo_integration",
-        database.clone(),
-        StoreCredentials::root(username, SecretString::from(password)),
-    )
-    .migrate_on_connect(true)
-    .build()
-    .unwrap();
-
-    let store = PlatformStore::connect(config).await.unwrap();
-    let mut original_session = store
-        .client()
-        .query("RETURN session::id();")
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    let original_session: surrealdb::types::Value = original_session.take(0).unwrap();
-    let cloned_store = store.clone();
-    let mut cloned_session = cloned_store
-        .client()
-        .query("RETURN session::id();")
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    let cloned_session: surrealdb::types::Value = cloned_session.take(0).unwrap();
-    assert_eq!(
-        cloned_session, original_session,
-        "PlatformStore clones must share one authenticated SurrealDB session"
-    );
-
-    let status = store.schema_status().await.unwrap();
-    assert!(status.is_current(), "{status:?}");
-    let second_pass = store.migrate().await.unwrap();
-    assert!(second_pass.applied_versions.is_empty());
-
-    let mut response = store.client().query("INFO FOR DB;").await.unwrap();
-    let info: surrealdb::types::Value = response.take(0).unwrap();
-    let rendered = format!("{info:?}");
-    for table in [
-        "task",
-        "artifact_occurrence",
-        "recording",
-        "time_authority_release",
-        "time_temporal_event",
-        "changefeed_checkpoint",
-    ] {
-        assert!(rendered.contains(table), "missing {table} in INFO FOR DB");
-    }
-
-    let consumer =
-        veoveo_platform_store::ChangefeedConsumerId::new("integration-projection").unwrap();
-    let head = store.changefeed_head().await.unwrap();
-    assert!(head.versionstamp() > 0);
-    store.checkpoint_changes(&consumer, head).await.unwrap();
-    store
-        .checkpoint_changes(&consumer, ChangefeedCursor::initial())
-        .await
-        .unwrap();
-    assert_eq!(store.changefeed_checkpoint(&consumer).await.unwrap(), head);
-
-    let changes = store
-        .replay_changes(ChangefeedCursor::initial(), 100)
-        .await
-        .unwrap();
-    assert!(!changes.is_empty());
-
-    let runtime_password = SecretString::from("runtime-integration-password");
-    store
-        .replace_database_editor("veoveo_runtime", &runtime_password)
-        .await
-        .unwrap();
-    let runtime = PlatformStore::connect(
-        StoreConfig::builder(
-            endpoint,
-            "veoveo_integration",
-            database,
-            StoreCredentials::database("veoveo_runtime", runtime_password),
-        )
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    runtime.healthcheck().await.unwrap();
-    assert!(matches!(
-        runtime.migrate().await,
-        Err(StoreError::RootCredentialsRequired { .. })
-    ));
-}
-
-#[tokio::test]
 async fn gateway_replay_claim_is_atomic_across_store_instances() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let database = format!("gateway_replay_test_{}", Uuid::now_v7().simple());
-    let config = StoreConfig::builder(
-        &endpoint,
-        "veoveo_integration",
-        database,
-        StoreCredentials::root(username, SecretString::from(password)),
-    )
-    .migrate_on_connect(true)
-    .build()
-    .unwrap();
-    let first = PlatformStore::connect(config.clone()).await.unwrap();
-    let second = PlatformStore::connect(config).await.unwrap();
+    let db = fixture::TestDb::new().await;
+    let first = db.a.clone();
+    let second = db.b.clone();
     let now = Utc::now();
     let record = GatewayReplayRecord {
         id: gateway_replay_record_id(
@@ -676,29 +122,8 @@ async fn gateway_replay_claim_is_atomic_across_store_instances() {
 
 #[tokio::test]
 async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let database = format!("artifact_test_{}", Uuid::now_v7().simple());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            database,
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-
+    let db = fixture::TestDb::new().await;
+    let store = db.a.clone();
     let identity = store
         .ensure_identity(
             "tenant-a",
@@ -819,7 +244,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     }));
     let committed: Vec<veoveo_platform_store::RecordId> = store
         .client()
-        .query("SELECT VALUE id FROM artifact_occurrence;")
+        .query(include_str!("queries/surreal_integration/artifact_plane_counters_and_occurrence_dedup_are_durable.surql"))
         .await
         .unwrap()
         .check()
@@ -1063,7 +488,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     assert_eq!(rebound.redemption.byte_len, 6);
     let mut response = store
         .client()
-        .query("SELECT * FROM ONLY $capability;")
+        .query(include_str!("queries/surreal_integration/artifact_plane_counters_and_occurrence_dedup_are_durable_2.surql"))
         .bind(("capability", rebind_capability_id.record_id()))
         .await
         .unwrap()
@@ -1151,387 +576,6 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     );
 }
 
-#[tokio::test]
-async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
-    let db = fixture::TestDb::new().await;
-    tokio::time::timeout(
-        std::time::Duration::from_secs(90),
-        qualify_recording_catalog(&db.a, &db.b),
-    )
-    .await
-    .expect("Recording catalog qualification exceeded 90 seconds");
-    let changes = db
-        .committed(veoveo_platform_store::ObservationTable::new(
-            veoveo_modules::TableName::new("recording").unwrap(),
-            veoveo_platform_store::ObservationReplay::Changefeed(
-                veoveo_platform_store::ChangefeedRetention::from_days(30).unwrap(),
-            ),
-        ))
-        .await;
-    assert!(changes.iter().any(|row| row["state"] == "sealed"));
-}
-
-async fn qualify_recording_catalog(store: &PlatformStore, reader: &PlatformStore) {
-    let identity = store
-        .ensure_identity(
-            "tenant-recording",
-            "recording-hub",
-            "https://veoveo.local/services",
-            "recording-hub",
-            PrincipalKind::Service,
-        )
-        .await
-        .unwrap();
-    let dataset = store
-        .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
-            identity.clone(),
-            "world",
-        ))
-        .await
-        .unwrap();
-    let dataset_id = veoveo_platform_store::RecordingDatasetId::from_uuid(record_uuid(&dataset.id));
-    let retried_dataset = store
-        .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
-            identity.clone(),
-            "world",
-        ))
-        .await
-        .unwrap();
-    assert_eq!(dataset.id, retried_dataset.id);
-
-    let recording = store
-        .create_recording(RecordingDraft {
-            identity: identity.clone(),
-            authority: artifact_authority(&identity),
-            dataset_id,
-            application_id: "sensor-suite".into(),
-            recording_key: "run-42".into(),
-            classification: "restricted".into(),
-            labels: vec!["operations".into(), "restricted".into()],
-            metadata: BTreeMap::new(),
-            started_at: Utc::now(),
-        })
-        .await
-        .unwrap();
-    let recording_id = RecordingId::from_uuid(record_uuid(&recording.id));
-    let first = store
-        .open_recording_layer(
-            RecordingLayerDraft::capture(
-                identity.clone(),
-                recording_id,
-                0,
-                "world/2026-07-09/run-42.rrd".into(),
-                Some(Utc::now()),
-            )
-            .unwrap(),
-        )
-        .await
-        .unwrap();
-    let second = store
-        .open_recording_layer(
-            RecordingLayerDraft::capture(
-                identity.clone(),
-                recording_id,
-                1,
-                "world/2026-07-09/run-42.r1.rrd".into(),
-                Some(Utc::now()),
-            )
-            .unwrap(),
-        )
-        .await
-        .unwrap();
-    let first_id = RecordingLayerId::from_uuid(record_uuid(&first.id));
-    let second_id = RecordingLayerId::from_uuid(record_uuid(&second.id));
-    assert_eq!(
-        store
-            .stage_recording_layer(
-                &identity,
-                first_id,
-                128,
-                10,
-                &"c".repeat(64),
-                Some("0.38.1"),
-                Some(&"a".repeat(64)),
-                Some(Utc::now())
-            )
-            .await
-            .unwrap()
-            .state,
-        RecordingLayerState::Staged
-    );
-    store
-        .stage_recording_layer(
-            &identity,
-            second_id,
-            128,
-            20,
-            &"d".repeat(64),
-            Some("0.38.1"),
-            Some(&"b".repeat(64)),
-            Some(Utc::now()),
-        )
-        .await
-        .unwrap();
-
-    let first_artifact = ArtifactId::new();
-    let second_artifact = ArtifactId::new();
-    let manifest_artifact = ArtifactId::new();
-    for (artifact_id, hash, filename) in [
-        (first_artifact, "c".repeat(64), "run-42.rrd"),
-        (second_artifact, "d".repeat(64), "run-42.r1.rrd"),
-        (manifest_artifact, "e".repeat(64), "run-42.recording.json"),
-    ] {
-        store
-            .create_artifact_occurrence(ArtifactOccurrenceDraft {
-                artifact_id,
-                identity: identity.clone(),
-                authority: artifact_authority(&identity),
-                owner: identity.principal_id.record_id(),
-                initial_grants: vec![owner_grant(artifact_id, &identity)],
-                sha256: hash,
-                byte_len: 128,
-                object_key: format!("recording-test/{artifact_id}"),
-                media_type: "application/octet-stream".into(),
-                filename: Some(filename.into()),
-                classification: "restricted".into(),
-                labels: vec!["operations".into(), "restricted".into()],
-                metadata: BTreeMap::new(),
-                retention_expires_at: None,
-            })
-            .await
-            .unwrap();
-    }
-    store
-        .commit_recording_layer(&identity, first_id, first_artifact)
-        .await
-        .unwrap();
-    store
-        .commit_recording_layer(&identity, second_id, second_artifact)
-        .await
-        .unwrap();
-    assert!(matches!(
-        store
-            .commit_recording_layer(&identity, second_id, first_artifact)
-            .await,
-        Err(StoreError::RecordingLayerConflict { .. })
-    ));
-    let dataset_after_capture = store
-        .recording_dataset(identity.tenant_id, dataset_id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(dataset_after_capture.revision, 2);
-
-    let capture_ended_at = Utc::now();
-    let ready = store
-        .finish_recording(&identity, recording_id, capture_ended_at)
-        .await
-        .unwrap();
-    assert_eq!(ready.state, RecordingState::Ready);
-    assert_eq!(ready.ended_at, Some(capture_ended_at));
-    assert_eq!(
-        store
-            .begin_recording_seal(&identity, recording_id, None)
-            .await
-            .unwrap()
-            .state,
-        RecordingState::Sealing
-    );
-
-    let properties = store
-        .open_recording_layer(RecordingLayerDraft {
-            identity: identity.clone(),
-            recording_id,
-            layer_name: "properties".into(),
-            kind: RecordingLayerKind::Properties,
-            ordinal: None,
-            staging_path: Some("world/2026-07-09/run-42.properties.rrd".into()),
-            start_time: None,
-        })
-        .await
-        .unwrap();
-    let properties_id = RecordingLayerId::from_uuid(record_uuid(&properties.id));
-    store
-        .stage_recording_layer(
-            &identity,
-            properties_id,
-            128,
-            1,
-            &"f".repeat(64),
-            Some("0.38.1"),
-            Some(&"9".repeat(64)),
-            None,
-        )
-        .await
-        .unwrap();
-    let properties_artifact = ArtifactId::new();
-    store
-        .create_artifact_occurrence(ArtifactOccurrenceDraft {
-            artifact_id: properties_artifact,
-            identity: identity.clone(),
-            authority: artifact_authority(&identity),
-            owner: identity.principal_id.record_id(),
-            initial_grants: vec![owner_grant(properties_artifact, &identity)],
-            sha256: "f".repeat(64),
-            byte_len: 128,
-            object_key: format!("recording-test/{properties_artifact}"),
-            media_type: "application/octet-stream".into(),
-            filename: Some("run-42.properties.rrd".into()),
-            classification: "restricted".into(),
-            labels: vec!["operations".into(), "restricted".into()],
-            metadata: BTreeMap::new(),
-            retention_expires_at: None,
-        })
-        .await
-        .unwrap();
-    store
-        .commit_recording_layer(&identity, properties_id, properties_artifact)
-        .await
-        .unwrap();
-    store
-        .stage_recording_manifest(&identity, recording_id, manifest_artifact)
-        .await
-        .unwrap();
-    let sealed = store
-        .complete_recording_seal(RecordingSeal {
-            identity: identity.clone(),
-            recording_id,
-            task_id: None,
-            manifest_artifact_id: manifest_artifact,
-            sealed_at: Utc::now(),
-        })
-        .await
-        .unwrap();
-    assert_eq!(sealed.state, RecordingState::Sealed);
-    assert_eq!(sealed.ended_at, Some(capture_ended_at));
-    assert!(sealed.sealed_at.is_some());
-    assert_eq!(
-        sealed.manifest_artifact,
-        Some(manifest_artifact.record_id())
-    );
-    let layers = store
-        .recording_layers(identity.tenant_id, recording_id, 10)
-        .await
-        .unwrap();
-    assert!(layers.iter().all(|layer| {
-        layer.state == RecordingLayerState::Committed && layer.artifact.is_some()
-    }));
-    assert!(layers.iter().all(|layer| layer.staging_path.is_none()));
-
-    let scope = veoveo_platform_store::RecordingAccessScope {
-        tenant_id: identity.tenant_id,
-        actor_id: identity.principal_id,
-        work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations").unwrap(),
-        policy_revision: veoveo_types::PolicyVersion::parse("r1").unwrap(),
-        data_labels: ["operations", "restricted"]
-            .map(|label| veoveo_types::DataLabelId::parse(label).unwrap())
-            .into_iter()
-            .collect(),
-    };
-    let grant_expires_at = Utc::now() + TimeDelta::minutes(5);
-    let grant_request = veoveo_platform_store::RecordingReadGrantRequest::new(
-        dataset_id,
-        RecordingReadGrantClass::AppProjection,
-        vec![recording_id, recording_id],
-        "3",
-    )
-    .unwrap();
-    let grant = store
-        .create_recording_read_grant(RecordingReadGrantDraft {
-            scope: scope.clone(),
-            request: grant_request.clone(),
-            expires_at: grant_expires_at,
-        })
-        .await
-        .unwrap();
-    assert_eq!(grant.recordings, vec![recording_id.record_id()]);
-    let grant_id = veoveo_platform_store::RecordingReadGrantId::from_uuid(record_uuid(&grant.id));
-    assert_eq!(
-        Some(grant),
-        reader
-            .reusable_recording_read_grant(&scope, &grant_request, grant_id)
-            .await
-            .unwrap()
-    );
-    let projection_draft = RecordingProjectionReceiptDraft {
-        scope: scope.clone(),
-        request: veoveo_platform_store::RecordingProjectionRequest::new(
-            dataset_id,
-            recording_id,
-            "projection-1",
-            veoveo_types::Sha256Digest::from_hex("1".repeat(64)).unwrap(),
-            veoveo_types::Sha256Digest::from_hex("2".repeat(64)).unwrap(),
-        )
-        .unwrap(),
-        grant_id,
-        expires_at: Utc::now() + TimeDelta::minutes(1),
-    };
-    let projection = store
-        .reserve_recording_projection(projection_draft.clone())
-        .await
-        .unwrap();
-    let retried_projection = store
-        .reserve_recording_projection(projection_draft)
-        .await
-        .unwrap();
-    assert_eq!(projection.id, retried_projection.id);
-    let projection_id =
-        veoveo_platform_store::RecordingProjectionReceiptId::from_uuid(record_uuid(&projection.id));
-    assert_eq!(
-        store
-            .begin_recording_projection(&scope, recording_id, projection_id)
-            .await
-            .unwrap()
-            .state,
-        RecordingProjectionState::Materializing
-    );
-    assert_eq!(
-        store
-            .complete_recording_projection(
-                &scope,
-                recording_id,
-                projection_id,
-                512,
-                &veoveo_types::Sha256Digest::from_hex("3".repeat(64)).unwrap()
-            )
-            .await
-            .unwrap()
-            .state,
-        RecordingProjectionState::Ready
-    );
-    let cleanup = store
-        .cleanup_expired_recording_catalog_authority(grant_expires_at + TimeDelta::seconds(1))
-        .await
-        .unwrap();
-    assert_eq!(cleanup.projection_receipts, 1);
-    assert_eq!(cleanup.read_grants, 1);
-    let other = store
-        .ensure_identity(
-            "other-tenant",
-            "reader",
-            "https://idp.example.com",
-            "reader",
-            PrincipalKind::User,
-        )
-        .await
-        .unwrap();
-    assert!(
-        store
-            .recording(other.tenant_id, recording_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
-}
-
-fn record_uuid(record: &veoveo_platform_store::RecordId) -> Uuid {
-    match &record.key {
-        RecordIdKey::Uuid(value) => Uuid::parse_str(&value.to_string()).unwrap(),
-        RecordIdKey::String(value) => Uuid::parse_str(value).unwrap(),
-        other => panic!("expected UUID record key, got {other:?}"),
-    }
-}
-
 /// Pins the SurrealDB changefeed contract the console stream depends on:
 /// the oracle versionstamp layout (`unix_millis << 16`), `INCLUDE ORIGINAL`
 /// entry shapes, the delete shape (record id + original row), gap-free
@@ -1542,34 +586,17 @@ fn record_uuid(record: &veoveo_platform_store::RecordId) -> Uuid {
 /// `VEOVEO_SURREAL_INTEGRATION=1 cargo test -p veoveo-platform-store --test surreal_integration`
 #[tokio::test]
 async fn changefeed_replay_contract_is_pinned() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            format!("changefeed_test_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
+    let db = fixture::TestDb::new().await;
+    let store = db.a.clone();
 
     let db_now = |store: &PlatformStore| {
         let store = store.clone();
         async move {
             let mut response = store
                 .client()
-                .query("RETURN time::now();")
+                .query(include_str!(
+                    "queries/surreal_integration/changefeed_replay_contract_is_pinned.surql"
+                ))
                 .await
                 .unwrap()
                 .check()
@@ -1609,7 +636,9 @@ async fn changefeed_replay_contract_is_pinned() {
         .unwrap();
     store
         .client()
-        .query("UPDATE $principal SET display_name = 'Changefeed Probe';")
+        .query(include_str!(
+            "queries/surreal_integration/changefeed_replay_contract_is_pinned_2.surql"
+        ))
         .bind(("principal", first.principal_id.record_id()))
         .await
         .unwrap()
@@ -1617,7 +646,9 @@ async fn changefeed_replay_contract_is_pinned() {
         .unwrap();
     store
         .client()
-        .query("DELETE $principal;")
+        .query(include_str!(
+            "queries/surreal_integration/changefeed_replay_contract_is_pinned_3.surql"
+        ))
         .bind(("principal", second.principal_id.record_id()))
         .await
         .unwrap()

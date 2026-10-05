@@ -73,6 +73,7 @@ veoveo-policy = { path = "../policy", optional = true }
 veoveo-task-runtime = { path = "../task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["contract"] }
 veoveo-recording-contract.workspace = true
 veoveo-gateway-catalog.workspace = true

@@ -1,4 +1,4 @@
 BEGIN TRANSACTION;
 CREATE ONLY $task CONTENT $content RETURN NONE;
-/* creation contribution */
+
 COMMIT TRANSACTION;

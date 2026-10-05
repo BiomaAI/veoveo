@@ -1,0 +1,2 @@
+CREATE ONLY $job CONTENT $record
+RETURN NONE;

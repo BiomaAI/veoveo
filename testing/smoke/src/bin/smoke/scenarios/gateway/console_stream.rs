@@ -1,14 +1,15 @@
 use std::collections::BTreeMap;
+use veoveo_recording_store::RecordingRepository;
 
 use chrono::Utc;
 use futures::StreamExt;
 use secrecy::SecretString;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord, InvocationMode,
-    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, RecordingDatasetDraft,
-    RecordingDatasetId, RecordingDraft, StoreConfig, StoreCredentials,
+    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, StoreConfig, StoreCredentials,
     WorkContextInitialGrantRecord, WorkContextMembershipLevel,
 };
+use veoveo_recording_store::{RecordingDatasetDraft, RecordingDatasetId, RecordingDraft};
 
 use super::*;
 
@@ -147,7 +148,7 @@ pub(crate) async fn gateway_console_stream(
             PrincipalKind::Service,
         )
         .await?;
-    let dataset = store
+    let dataset = RecordingRepository::new(store.clone())
         .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
             identity.clone(),
             "smoke",
@@ -159,7 +160,7 @@ pub(crate) async fn gateway_console_stream(
         other => bail!("console stream dataset key is not a UUID: {other:?}"),
     };
     let first_key = format!("console-stream-{}", uuid::Uuid::now_v7().simple());
-    store
+    RecordingRepository::new(store.clone())
         .create_recording(RecordingDraft {
             identity: identity.clone(),
             authority: recording_authority(&identity),
@@ -182,7 +183,7 @@ pub(crate) async fn gateway_console_stream(
     // 4. A mutation made while disconnected must replay on reconnect with
     //    Last-Event-ID.
     let second_key = format!("console-stream-{}", uuid::Uuid::now_v7().simple());
-    store
+    RecordingRepository::new(store.clone())
         .create_recording(RecordingDraft {
             identity: identity.clone(),
             authority: recording_authority(&identity),

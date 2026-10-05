@@ -1,4 +1,4 @@
-use super::{OwnerTaskQuery, owner_reads::VISIBLE_TASK};
+use super::{OwnerTaskQuery, owner_query::OwnerSelection};
 use crate::types::{TaskError, TaskPage, TaskPageCursor, record_to_snapshot};
 use veoveo_platform_store::TaskRecord;
 use veoveo_platform_store::task_record_id;
@@ -15,14 +15,36 @@ impl OwnerTaskQuery {
         if !(1..=1000).contains(&limit) {
             return Err(TaskError::InvalidPageQuery);
         }
-        let position = if after.is_some() {
-            "AND (created_at > $after_created_at OR (created_at = $after_created_at AND id > $after_task))"
-        } else {
-            ""
-        };
-        let mut query = self.bind(self.runtime.store.client().query(format!(
-            "SELECT * FROM task WHERE {VISIBLE_TASK} {} {position} ORDER BY created_at ASC, id ASC LIMIT $limit;", self.selection_predicate()
-        )))?.bind(("limit", limit + 1));
+        let mut query =
+            self.bind(self.runtime.store.client().query(
+                match (self.selection(), after.is_some()) {
+                    (OwnerSelection::Owner, false) => {
+                        include_str!("../../queries/owner/page_owner.surql")
+                    }
+                    (OwnerSelection::Owner, true) => {
+                        include_str!("../../queries/owner/page_owner_after.surql")
+                    }
+                    (OwnerSelection::Operations, false) => {
+                        include_str!("../../queries/owner/page_operations.surql")
+                    }
+                    (OwnerSelection::Operations, true) => {
+                        include_str!("../../queries/owner/page_operations_after.surql")
+                    }
+                    (OwnerSelection::Context, false) => {
+                        include_str!("../../queries/owner/page_context.surql")
+                    }
+                    (OwnerSelection::Context, true) => {
+                        include_str!("../../queries/owner/page_context_after.surql")
+                    }
+                    (OwnerSelection::ContextOperations, false) => {
+                        include_str!("../../queries/owner/page_context_operations.surql")
+                    }
+                    (OwnerSelection::ContextOperations, true) => {
+                        include_str!("../../queries/owner/page_context_operations_after.surql")
+                    }
+                },
+            ))?
+            .bind(("limit", limit + 1));
         if let Some(after) = after {
             query = query
                 .bind(("after_created_at", after.created_at))

@@ -64,7 +64,7 @@ async fn artifact_read_delegation_survives_service_recreation_and_enforces_nativ
         platform::ArtifactReadCapabilityId::from_uuid(cap.capability_id.as_uuid()).record_id();
     let mut response = store
         .client()
-        .query("SELECT * FROM ONLY $record;")
+        .query(include_str!("../../../../tests/queries/service/tests/read_capability/native/artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state.surql"))
         .bind(("record", record.clone()))
         .await
         .unwrap()
@@ -80,7 +80,7 @@ async fn artifact_read_delegation_survives_service_recreation_and_enforces_nativ
     assert_ne!(persisted.token_hash, cap.secret.expose_secret());
     store
         .client()
-        .query("UPDATE $record SET expires_at = $past;")
+        .query(include_str!("../../../../tests/queries/service/tests/read_capability/native/artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state_2.surql"))
         .bind(("record", record))
         .bind(("past", Utc::now() - TimeDelta::seconds(1)))
         .await
@@ -114,7 +114,7 @@ async fn artifact_read_delegation_survives_service_recreation_and_enforces_nativ
     read(&two, &cap, first).await.unwrap();
     store
         .client()
-        .query("UPDATE $record SET updated_at = $changed;")
+        .query(include_str!("../../../../tests/queries/service/tests/read_capability/native/artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state_3.surql"))
         .bind(("record", context_id.clone()))
         .bind(("changed", Utc::now() + TimeDelta::seconds(1)))
         .await
@@ -126,7 +126,7 @@ async fn artifact_read_delegation_survives_service_recreation_and_enforces_nativ
         .expect("metadata-only context update invalidated delegation");
     store
         .client()
-        .query("UPDATE $record SET memberships = [];")
+        .query(include_str!("../../../../tests/queries/service/tests/read_capability/native/artifact_read_delegation_survives_service_recreation_and_enforces_native_atomic_state_4.surql"))
         .bind(("record", context_id))
         .await
         .unwrap()

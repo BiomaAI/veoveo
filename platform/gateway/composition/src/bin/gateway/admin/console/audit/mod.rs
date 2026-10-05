@@ -14,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::Utc;
-use model::{Parameters, ViewParameters};
+use model::{AuditParameters, AuditViewParameters, ViewParameters};
 use std::time::Duration;
 use veoveo_mcp_contract::{GatewayProfileId, audit::*};
 use veoveo_mcp_gateway::AuthenticatedSubject;
@@ -214,9 +214,15 @@ pub(crate) async fn records(
     State(state): State<AdminState>,
     Path(profile): Path<GatewayProfileId>,
     Extension(subject): Extension<AuthenticatedSubject>,
-    Query(parameters): Query<ViewParameters<AuditQuery>>,
+    Query(parameters): Query<AuditViewParameters>,
 ) -> Response {
-    let query = parameters.query.0;
+    let query = match model::decode_query(
+        &parameters.query,
+        state.control_store.platform_store().audit_targets(),
+    ) {
+        Ok(query) => query,
+        Err(error) => return (StatusCode::BAD_REQUEST, error).into_response(),
+    };
     if query.validate().is_err() {
         return StatusCode::BAD_REQUEST.into_response();
     }

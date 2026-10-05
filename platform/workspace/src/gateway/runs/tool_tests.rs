@@ -1,5 +1,7 @@
 //! Actual Rig -> native MCP -> durable Task integration using explicit local providers.
 use super::*;
+use crate::persistence::WorkspaceOperationPhase;
+use crate::persistence::WorkspaceRepository;
 use axum::response::{Sse, sse::Event};
 use axum::{
     body::{Body, to_bytes},
@@ -12,7 +14,6 @@ use std::{
 };
 use tokio::sync::Notify;
 use tower::ServiceExt;
-use veoveo_platform_store::workspace::WorkspaceOperationPhase;
 
 #[derive(Clone, Default)]
 struct Provider {
@@ -70,7 +71,17 @@ fn chunk(model: &str, delta: Value, finish: Value) -> Event {
 #[tokio::test]
 async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch() {
     tokio::time::timeout(Duration::from_secs(35), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                crate::test_store::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("workspace").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         super::super::tests::setup(&db.a).await;
         let mut subject = super::super::tests::subject("Alice");
         subject.access_token.session_family = None;
@@ -122,9 +133,7 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
         });
         let agents = tests::registry(&db.a, &catalog, &operations, &stop, &definitions).await;
         let state = RunState {
-            workspace: WorkspaceState {
-                store: db.a.clone(),
-            },
+            workspace: WorkspaceState::new(db.a.clone()),
             gateway,
             catalog,
             agents,
@@ -139,24 +148,26 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
         };
         let actor = authority::admit(&state.workspace, &subject).await.unwrap();
         let chat = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&actor, chat, "Model Tasks")
+        WorkspaceRepository::new(db.a.clone())
+            .create_workspace_chat(&actor, chat, "Model Tasks")
             .await
             .unwrap();
         let trigger = WorkspaceMessageId::new();
-        db.a.send_workspace_turn(
-            &actor,
-            chat,
-            veoveo_platform_store::workspace::WorkspaceTurnRequest {
-                id: trigger,
-                text: ("Use the fixture capability").to_owned(),
-                reply_to: None,
-                attachments: vec![],
-                addressed_agents: vec![],
-                deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
-            },
-        )
-        .await
-        .unwrap();
+        WorkspaceRepository::new(db.a.clone())
+            .send_workspace_turn(
+                &actor,
+                chat,
+                crate::persistence::WorkspaceTurnRequest {
+                    id: trigger,
+                    text: ("Use the fixture capability").to_owned(),
+                    reply_to: None,
+                    attachments: vec![],
+                    addressed_agents: vec![],
+                    deadline: chrono::Utc::now() + chrono::TimeDelta::seconds(120),
+                },
+            )
+            .await
+            .unwrap();
         let app = routes(state).layer(Extension(subject));
         for name in ["duplicate", "cancel"] {
             let (status, agent) = tests::request(
@@ -173,7 +184,10 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
             let id = Uuid::parse_str(run["id"].as_str().unwrap()).unwrap();
             let mut observed_tool_activity = false;
             loop {
-                let runs = db.b.workspace_runs(&actor, chat).await.unwrap();
+                let runs = WorkspaceRepository::new(db.b.clone())
+                    .workspace_runs(&actor, chat)
+                    .await
+                    .unwrap();
                 let current = runs
                     .iter()
                     .find(|r| r.id == WorkspaceRunId::from_uuid(id).record_id())
@@ -197,8 +211,7 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
                     break;
                 }
                 if name == "duplicate"
-                    && current.feedback.phase
-                        == veoveo_platform_store::workspace::WorkspaceRunPhase::CallingTools
+                    && current.feedback.phase == crate::persistence::WorkspaceRunPhase::CallingTools
                 {
                     assert!(current.text.is_empty());
                     observed_tool_activity = true;
@@ -236,10 +249,10 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
             1,
             "repeated model call and cancelled run create no second Task"
         );
-        let operations =
-            db.b.workspace_operations(&actor, Some(chat), None)
-                .await
-                .unwrap();
+        let operations = WorkspaceRepository::new(db.b.clone())
+            .workspace_operations(&actor, Some(chat), None)
+            .await
+            .unwrap();
         assert_eq!(operations.len(), 1);
         assert_eq!(operations[0].phase, WorkspaceOperationPhase::Task);
         assert!(operations[0].run.is_some());
@@ -264,7 +277,10 @@ async fn model_tools_reuse_one_private_task_and_cancelled_runs_cannot_dispatch()
             attribution.id.0,
             super::super::projection::uuid(&operations[0].agent.as_ref().unwrap().id).unwrap()
         );
-        let completed = db.b.workspace_runs(&actor, chat).await.unwrap();
+        let completed = WorkspaceRepository::new(db.b.clone())
+            .workspace_runs(&actor, chat)
+            .await
+            .unwrap();
         assert!(
             completed
                 .iter()

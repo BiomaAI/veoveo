@@ -41,10 +41,30 @@ struct Measurement {
 
 async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurement {
     let schema = match profile {
-        Profile::NoFeed => "ALTER TABLE computer_execution DROP CHANGEFEED;",
+        Profile::NoFeed => include_str!("queries/journal_cost/no_feed.surql"),
         Profile::NativeFeed => "",
     };
-    let db = support::TestDb::with_backend_and_schema(StoreBackend::RocksDb, schema).await;
+    let db = support::TestDb::with_composition(
+        StoreBackend::RocksDb,
+        vec![
+            veoveo_computers::schema::module_setup(
+                support::store::module_lanes::execution("computers").unwrap(),
+            )
+            .unwrap(),
+        ],
+        veoveo_gateway_catalog::audit_target_registry().unwrap(),
+    )
+    .await;
+    if !schema.is_empty() {
+        db.admin()
+            .await
+            .client()
+            .query(schema)
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    }
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = store
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -80,17 +100,18 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
         "computer_execution",
         surrealdb::types::Uuid::from(operation.execution_id().as_uuid()),
     );
-    let ciphertext_bytes: Option<u64> = db
-        .a
-        .client()
-        .query("RETURN string::len((SELECT VALUE payload.sealed.ciphertext FROM ONLY $record));")
-        .bind(("record", record.clone()))
-        .await
-        .unwrap()
-        .check()
-        .unwrap()
-        .take(0)
-        .unwrap();
+    let ciphertext_bytes: Option<u64> =
+        db.a.client()
+            .query(include_str!(
+                "queries/journal_cost/measure/statement_1.surql"
+            ))
+            .bind(("record", record.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap()
+            .take(0)
+            .unwrap();
     let ciphertext_bytes = usize::try_from(ciphertext_bytes.unwrap()).unwrap();
     assert!(
         ciphertext_bytes > stdin_bytes,
@@ -107,7 +128,9 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
     for _ in 0..UPDATES {
         let operation = Instant::now();
         db.a.client()
-            .query("UPDATE ONLY $record SET updated_at = time::now() RETURN NONE;")
+            .query(include_str!(
+                "queries/journal_cost/measure/statement_2.surql"
+            ))
             .bind(("record", record.clone()))
             .await
             .unwrap()

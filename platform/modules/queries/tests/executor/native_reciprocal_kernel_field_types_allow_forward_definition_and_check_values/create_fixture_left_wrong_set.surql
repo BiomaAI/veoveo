@@ -1,0 +1,1 @@
+CREATE fixture_left:wrong SET link = fixture_left:one;

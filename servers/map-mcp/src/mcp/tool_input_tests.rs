@@ -16,7 +16,11 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let extension = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION")
             .expect("hosted Map protocol test requires the qualified DuckDB Spatial extension");
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let root = tempfile::tempdir().unwrap();
         let analytics =
             crate::analytics::MapAnalytics::open(crate::analytics::MapAnalyticsConfig {
@@ -202,7 +206,7 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
             }
         }
         assert!(state.tasks.list().await.unwrap().is_empty());
-        let profiles: Vec<veoveo_platform_store::MapMobilityProfileRecord> =
+        let profiles: Vec<crate::persistence::MapMobilityProfileRecord> =
             db.a.client().select("map_mobility_profile").await.unwrap();
         assert!(profiles.is_empty());
         assert!(state.valhalla_process.exited().await.unwrap());

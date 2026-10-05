@@ -11,7 +11,7 @@ runtime = ["dep:veoveo-agent-runtime", "dep:veoveo-gateway-contract", "contract"
 server = ["runtime", "dep:veoveo-gateway-catalog"]
 
 [dependencies]
-veoveo-agent-runtime = { workspace = true, default-features = false, features = ["schema"], optional = true }
+veoveo-agent-runtime = { workspace = true, default-features = false, features = ["persistence"], optional = true }
 veoveo-gateway-catalog = { workspace = true, optional = true }
 veoveo-gateway-contract = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["form", "json", "rustls-no-provider"], optional = true }
@@ -43,6 +43,7 @@ tokio = { workspace = true, features = ["time"], optional = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-gateway-catalog.workspace = true
 axum.workspace = true
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["knowledge"] }

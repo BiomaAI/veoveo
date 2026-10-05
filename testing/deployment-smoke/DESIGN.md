@@ -194,10 +194,11 @@ preparation/lane/publication Jobs. It checks fresh generation 1, unchanged objec
 UIDs and persisted publication replay, generation 2 account rotation with stale
 preparation/migration/publication rejection, preserved disabled Time history and
 later Media enablement in generation 3. Current-publication replay after stale Jobs
-checks the persisted revision, hash and counts. The initial owner lanes are empty;
-these checks establish initialized headers rather than fabricate migration bodies.
+checks the persisted revision, hash and counts. Selected lanes install their complete
+current schemas; these checks exercise real owner bodies and migration histories.
 The same chart starts a gateway and lifecycle manager. The fixture uses privileged
-Store authoring APIs to create, publish and provision one managed agent. Setup
+Agent repository APIs over the shared Store connection to create, publish and provision
+one managed agent. Setup
 reads and verifies the Work Context created by production control-plane publication;
 it does not create or overwrite installation policy. A native database test runs
 production publication before the complete fixture authoring/provision sequence. This setup

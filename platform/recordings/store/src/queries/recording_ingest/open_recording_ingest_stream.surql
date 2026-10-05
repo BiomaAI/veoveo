@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $open_streams = (SELECT VALUE id FROM recording_ingest_stream WHERE tenant = $tenant AND producer_id = $producer_id AND state = 'open'); IF array::len($open_streams) >= $maximum_concurrent_streams { THROW 'recording_ingest_concurrent_stream_quota'; }; CREATE ONLY $stream CONTENT $content RETURN NONE; COMMIT TRANSACTION;

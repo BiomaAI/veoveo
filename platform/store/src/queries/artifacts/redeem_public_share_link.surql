@@ -1,0 +1,1 @@
+UPDATE share_link SET download_count += 1 WHERE token_hash = $token_hash AND permission = 'read' AND revoked_at = NONE AND expires_at > time::now() AND (max_downloads = NONE OR download_count < max_downloads) AND artifact.release_state IN ['releasable', 'released'] AND (artifact.retention_expires_at = NONE OR artifact.retention_expires_at > time::now()) RETURN AFTER;

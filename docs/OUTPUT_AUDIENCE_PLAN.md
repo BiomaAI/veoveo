@@ -84,7 +84,7 @@ An installation override needs a concrete requirement and its own decision.
 - Knowledge search accepts an audience. `admission.rs` builds one candidate predicate
   per member, and SQL admits a candidate only when every predicate passes, before
   ranking and limits. Invitation acceptance caps a chat at 256 members
-  (`platform/store/src/workspace/queries/decide_invitation.surql`), which limits the
+  (`platform/workspace/src/persistence/queries/decide_invitation.surql`), which limits the
   predicate count.
 - Gateway resource reads evaluate the returned observation's descriptor against the
   audience.
@@ -125,7 +125,7 @@ can all read it.
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | `ai.veoveo/result-access` field and its default |
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | descriptor types imported from the shared contract |
 | [`platform/store/src/knowledge/DESIGN.md`](../platform/store/src/knowledge/DESIGN.md) | audience candidate admission |
-| [`platform/store/src/workspace/runs/DESIGN.md`](../platform/store/src/workspace/runs/DESIGN.md) | recorded audience, publication check and reply requirements |
+| [`platform/workspace/src/persistence/runs/DESIGN.md`](../platform/workspace/src/persistence/runs/DESIGN.md) | recorded audience, publication check and reply requirements |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | results in chat and replies hidden from later members |
 | [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) | result descriptors |
 

@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; UPDATE $a SET progress = 0.25; UPDATE $principal SET updated_at = time::now(); UPDATE $b SET progress = 0.5; COMMIT TRANSACTION;

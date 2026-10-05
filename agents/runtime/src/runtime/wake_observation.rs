@@ -56,11 +56,15 @@ impl AgentRuntime {
         {
             return Ok(None);
         }
-        let mut response = self.store.client().query(
-            "RETURN { now: time::now(),
-                pending: array::first(SELECT VALUE available_at FROM wake WHERE agent = $agent AND state = 'pending' ORDER BY available_at ASC LIMIT 1),
-                claimed: array::first(SELECT VALUE claim_expires_at FROM wake WHERE agent = $agent AND state = 'claimed' AND claim_expires_at != NONE ORDER BY claim_expires_at ASC LIMIT 1) };"
-        ).bind(("agent", self.agent_id.record_id())).await?.check()?;
+        let mut response = self
+            .store
+            .client()
+            .query(include_str!(
+                "../queries/runtime/wake_observation/next_wake_delay.surql"
+            ))
+            .bind(("agent", self.agent_id.record_id()))
+            .await?
+            .check()?;
         let row: DueWakes =
             response
                 .take::<Option<DueWakes>>(0)?

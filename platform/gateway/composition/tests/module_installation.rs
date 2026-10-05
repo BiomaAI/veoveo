@@ -111,12 +111,12 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         let repeated: serde_json::Value = serde_json::from_str(&success(process(&publish,&runtime).await)).unwrap();
         assert_eq!(original["revision_id"], first["revision_id"]);
         assert_eq!(first["revision_id"], repeated["revision_id"]); assert_eq!(repeated["status"], "unchanged");
-        let mut result = db.query("SELECT VALUE draft.actor.principal FROM audit_record; SELECT VALUE applied_by FROM gateway_control_revision;").await.unwrap().check().unwrap();
+        let mut result = db.query(include_str!("queries/module_installation/process_preparation_lanes_publication_and_stale_generation_fail_closed/statement_1.surql")).await.unwrap().check().unwrap();
         let actors: Vec<String> = result.take(0).unwrap(); let applied: Vec<String> = result.take(1).unwrap();
         assert_eq!(actors, vec!["runtime"]); assert_eq!(applied, vec!["declared-operator"]);
         #[derive(Clone, surrealdb::types::SurrealValue)]
         struct Marker { id: surrealdb::types::RecordId, generation: String, identity: String, complete: bool }
-        let mut marker_response = db.query("SELECT * FROM ONLY platform_module_installation:current;").await.unwrap();
+        let mut marker_response = db.query(include_str!("queries/module_installation/process_preparation_lanes_publication_and_stale_generation_fail_closed/statement_2.surql")).await.unwrap();
         let marker: Marker = marker_response.take::<Option<Marker>>(0).unwrap().unwrap();
         let old_key = veoveo_modules::PreparationKey::new(marker.generation.parse().unwrap(), marker.identity.clone()).unwrap();
         let control_store = veoveo_mcp_gateway::GatewayControlStore::connect(veoveo_platform_store::StoreConfig::builder(&endpoint, "module_cli", "fresh_install", veoveo_platform_store::StoreCredentials::database("runtime", "runtime-secret")).build().unwrap(), veoveo_mcp_gateway::GatewayCatalogAdmission::unbound().bind(veoveo_gateway_catalog::registry().unwrap()).unwrap()).await.unwrap();
@@ -124,11 +124,11 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         let context = veoveo_mcp_contract::audit::AuditContext { actor: veoveo_mcp_contract::audit::AuditActor { principal: veoveo_types::PrincipalId::parse("runtime").unwrap(), kind: veoveo_mcp_contract::audit::AuditPrincipalKind::Service, tenant:None,oauth_client:None,session_family:None,delegating_principal:None,managed_agent:None }, authority:Default::default(), request:veoveo_mcp_contract::audit::AuditRequest::background() };
         // Exercise the publication write method directly. CLI readiness is bypassed
         // here deliberately: the transaction must reject absent proof itself.
-        db.query("DELETE ONLY platform_module_installation:current;").await.unwrap().check().unwrap();
+        db.query(include_str!("queries/module_installation/process_preparation_lanes_publication_and_stale_generation_fail_closed/statement_3.surql")).await.unwrap().check().unwrap();
         assert!(control_store.record_installation_revision(&attempted, &context, &old_key).await.is_err());
         assert!(control_store.load_installation_revision(&old_key).await.is_err());
         assert_eq!(control_store.revision_count().await.unwrap(), 1);
-        db.query("UPSERT $record CONTENT $content;").bind(("record",marker.id.clone())).bind(("content",marker)).await.unwrap().check().unwrap();
+        db.query(include_str!("queries/module_installation/process_preparation_lanes_publication_and_stale_generation_fail_closed/statement_4.surql")).bind(("record",marker.id.clone())).bind(("content",marker)).await.unwrap().check().unwrap();
         // A newer preparation can have identical empty lane histories. Its generation
         // still fences publication by a delayed client carrying the previous plan.
         std::fs::write(&selection, r#"{"format":"veoveo.ai/module-selection/v1","enabled":["time"],"generation":"2","credentialRevision":"fixture-v2"}"#).unwrap();
@@ -140,5 +140,37 @@ async fn process_preparation_lanes_publication_and_stale_generation_fail_closed(
         assert!(control_store.load_installation_revision(&old_key).await.is_err());
         assert_eq!(control_store.revision_count().await.unwrap(), 1);
         assert!(!process(&publish,&runtime).await.status.success(), "stale publisher must not reuse old lane readiness");
+        // Each old catalog marker is sufficient for refusal. These are empty marker
+        // tables, not a historical migration or a backfill fixture.
+        for (database, marker) in [
+            ("mixed_platform", "platform_schema_migration"),
+            ("mixed_downstream", "platform_downstream_migration"),
+        ] {
+            db.query(include_str!("queries/module_installation/define_database.surql")).bind(("database", database.to_owned())).await.unwrap().check().unwrap();
+            db.use_db(database).await.unwrap();
+            db.query(include_str!("queries/module_installation/define_marker.surql")).bind(("marker", marker.to_owned())).await.unwrap().check().unwrap();
+            let mut mixed = root.clone();
+            for (name, value) in &mut mixed {
+                if *name == "VEOVEO_SURREAL_DATABASE" { *value = database.into(); }
+            }
+            let mut response = db.query(include_str!("queries/module_installation/marker_state.surql")).bind(("marker", marker.to_owned())).await.unwrap().check().unwrap();
+            let before: Vec<surrealdb::types::Value> = (0..3).map(|index| response.take(index).unwrap()).collect();
+            for command in [
+                vec!["module-status", "--wait-seconds", "60"],
+                vec!["module-migrate", "--module", "time", "--wait-seconds", "60"],
+            ] {
+                let output = tokio::time::timeout(Duration::from_secs(10), process(&command, &mixed)).await
+                    .expect("mixed catalog refusal must not wait for the 60-second readiness interval");
+                assert!(!output.status.success(), "mixed catalog {marker} admitted {command:?}");
+                let diagnostic = String::from_utf8_lossy(&output.stderr);
+                assert!(diagnostic.contains("database uses the mixed schema catalog")
+                    && diagnostic.contains("create a fresh installation with selected module lanes"),
+                    "missing actionable marker refusal for {command:?}: {diagnostic}");
+                assert!(!diagnostic.contains("did not become ready"), "marker refusal was replaced by readiness timeout: {diagnostic}");
+                let mut response = db.query(include_str!("queries/module_installation/marker_state.surql")).bind(("marker", marker.to_owned())).await.unwrap().check().unwrap();
+                let after: Vec<surrealdb::types::Value> = (0..3).map(|index| response.take(index).unwrap()).collect();
+                assert_eq!(before, after, "marker refusal changed schema or records for {command:?}");
+            }
+        }
     }).await.expect("gateway installation lifecycle exceeded 300 seconds");
 }

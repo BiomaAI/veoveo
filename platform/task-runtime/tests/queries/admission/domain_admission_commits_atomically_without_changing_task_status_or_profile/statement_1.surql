@@ -1,0 +1,1 @@
+DEFINE TABLE admission_probe SCHEMALESS;

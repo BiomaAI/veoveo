@@ -1,0 +1,1 @@
+LIVE SELECT * FROM agent;

@@ -1,7 +1,7 @@
 use super::super::projection::uuid;
 use crate::contract as wire;
+use crate::persistence as stored;
 use axum::http::StatusCode;
-use veoveo_platform_store::workspace as stored;
 
 pub(super) fn agent(value: stored::WorkspaceAgent) -> Result<wire::ChatAgent, StatusCode> {
     Ok(wire::ChatAgent {

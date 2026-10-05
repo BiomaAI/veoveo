@@ -83,7 +83,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 }
             }));
             db.b.client()
-                .query("UPDATE ONLY $id SET result = $result;")
+                .query(include_str!("../../../queries/bin/server/index_tests/native_completion_filters_before_limits_and_deduplicates_artifacts.surql"))
                 .bind(("id", task_record_id(task.task_id)))
                 .bind(("result", result))
                 .await
@@ -160,20 +160,18 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
                 task.task_id
             );
         }
-        for mutation in [
-            "request.owner.data_labels = ['restricted']",
-            "request.owner.principal_key = 'inconsistent'",
-            "request.owner.profile = 'inconsistent'",
-            "request.owner.tenant_key = 'inconsistent'",
-            "owner = principal:other",
-            "profile = profile:other",
-            "tenant = tenant:other",
-        ] {
+        for (mutation, statement) in [
+("request.owner.data_labels = ['restricted']", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_1.surql")),
+("request.owner.principal_key = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_2.surql")),
+("request.owner.profile = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_3.surql")),
+("request.owner.tenant_key = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_4.surql")),
+("owner = principal:other", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_5.surql")),
+("profile = profile:other", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_6.surql")),
+("tenant = tenant:other", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_7.surql"))
+] {
             let task = writer.create(draft()).await.unwrap().snapshot;
             db.b.client()
-                .query(format!(
-                    "UPDATE ONLY $task SET {mutation}, request.input = NONE RETURN NONE;"
-                ))
+                .query(statement)
                 .bind(("task", task_record_id(task.task_id)))
                 .await
                 .unwrap()

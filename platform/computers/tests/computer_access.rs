@@ -17,7 +17,7 @@ async fn grant(
 
 #[tokio::test]
 async fn read_and_action_grants_compose_without_exposing_owner_management() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     let read = grant(
         &store,
@@ -91,7 +91,7 @@ async fn read_and_action_grants_compose_without_exposing_owner_management() {
 
 #[tokio::test]
 async fn a_mutation_grant_without_read_cannot_discover_private_computer_state() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     grant(&store, &owner, computer, &[AutomationPermission::Stop]).await;
     let control = store.control_authority(&agent).await.unwrap();
@@ -140,7 +140,7 @@ async fn a_mutation_grant_without_read_cannot_discover_private_computer_state() 
 
 #[tokio::test]
 async fn owned_and_granted_computers_share_bounded_ordered_pages_without_duplicates() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, first) = support::automation::setup(&db).await;
     grant(&store, &owner, first, &[AutomationPermission::Read]).await;
     grant(&store, &owner, first, &[AutomationPermission::Read]).await;
@@ -203,7 +203,7 @@ async fn owned_and_granted_computers_share_bounded_ordered_pages_without_duplica
 
 #[tokio::test]
 async fn disabled_owner_and_insufficient_retained_clearance_remove_granted_reads() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     grant(&store, &owner, computer, &[AutomationPermission::Read]).await;
     let control = store.control_authority(&agent).await.unwrap();
@@ -214,7 +214,7 @@ async fn disabled_owner_and_insufficient_retained_clearance_remove_granted_reads
     .unwrap()
     .record_id();
     db.a.client()
-        .query("UPDATE ONLY $principal SET enabled = false;")
+        .query(include_str!("queries/computer_access/disabled_owner_and_insufficient_retained_clearance_remove_granted_reads/statement_1.surql"))
         .bind(("principal", principal.clone()))
         .await
         .unwrap()
@@ -234,7 +234,7 @@ async fn disabled_owner_and_insufficient_retained_clearance_remove_granted_reads
             .computers
             .is_empty()
     );
-    db.a.client().query("UPDATE ONLY $principal SET enabled = true; UPDATE computer SET owner_context.data_labels = ['pii'];").bind(("principal", principal)).await.unwrap().check().unwrap();
+    db.a.client().query(include_str!("queries/computer_access/disabled_owner_and_insufficient_retained_clearance_remove_granted_reads/statement_2.surql")).bind(("principal", principal)).await.unwrap().check().unwrap();
     assert!(
         store
             .read_computer_access(&agent, &control, computer)

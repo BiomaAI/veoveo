@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; FOR $i IN 0..1001 { CREATE type::record('gateway_replay_id', rand::uuid::v7()) SET kind = 'client_assertion', authorization_server = 'fixture', client_id = $batch, jwt_id = type::string($i), seen_at = time::now(), expires_at = time::now() + 1h RETURN NONE; }; COMMIT TRANSACTION;

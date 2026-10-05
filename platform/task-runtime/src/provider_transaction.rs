@@ -55,16 +55,10 @@ impl TaskRuntime {
                 "invalid provider journal lease receipt".into(),
             ));
         }
-        let sql = format!(
-            "BEGIN TRANSACTION; \
-             LET $_provider_guard = (UPDATE ONLY $_provider_task SET lease_expires_at = lease_expires_at \
-             WHERE server = $_provider_server AND recovery_class = 'provider_wait' \
-             AND lease_owner = $_provider_worker AND lease_expires_at = $_provider_expiry \
-             AND lease_expires_at > time::now() \
-             AND status IN ['queued', 'running', 'waiting', 'cancel_requested'] \
-             AND ($_provider_dispatch = false OR status != 'cancel_requested') RETURN AFTER); \
-             IF $_provider_guard = NONE {{ THROW 'provider_lease_lost'; }}; \
-             {body}\nCOMMIT TRANSACTION;"
+        let sql = include_str!("../queries/provider/journal_transaction.surql").replacen(
+            "/* domain body */",
+            body,
+            1,
         );
         let mut query = self
             .platform_store()

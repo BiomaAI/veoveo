@@ -12,17 +12,6 @@ use veoveo_platform_store::{
 };
 use veoveo_types::{DataLabelId, PrincipalId, TaskId, TenantId};
 
-const VISIBLE: &str = "id = $operation AND operation_key = $operation_key
-    AND tenant = $tenant AND owner = $owner
-    AND authority.profile = $profile AND (authority.tenant_key ?? NONE) = $tenant_key
-    AND labels ALLINSIDE $clearance
-    AND (task = NONE OR (task.server = mcp_server:frames
-        AND task.tenant = $tenant AND task.owner = $owner AND task.profile = $profile
-        AND task.request.owner.principal_key = $principal_key
-        AND task.request.owner.profile = $profile_key
-        AND (task.request.owner.tenant_key ?? NONE) = $tenant_key
-        AND task.request.owner.data_labels ALLINSIDE $clearance))";
-
 /// Operation reads and writes require the same principal, tenant, profile and clearance.
 /// World sharing has its separate `FrameScope` policy.
 #[derive(Clone, Debug)]
@@ -140,7 +129,7 @@ impl FramesState {
             .bind(
                 self.store
                     .client()
-                    .query(include_str!("operations/record.surql")),
+                    .query(include_str!("queries/operations/record.surql")),
             )?
             .bind(("operation", operation))
             .bind(("task", task.map(task_record_id)))
@@ -186,9 +175,11 @@ impl FramesState {
             return Ok(None);
         };
         let mut response = scope
-            .bind(self.store.client().query(format!(
-                "SELECT * FROM coordinate_operation WHERE {VISIBLE} LIMIT 1;"
-            )))?
+            .bind(
+                self.store
+                    .client()
+                    .query(include_str!("queries/read_operation.surql")),
+            )?
             .bind(("operation", operation))
             .bind(("operation_key", uri.operation_id().to_string()))
             .await?

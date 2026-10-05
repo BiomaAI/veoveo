@@ -35,11 +35,11 @@ fn owner(tenant: &str, context: &str, name: &str, profile: &str, labels: &[&str]
     }
 }
 
-async fn update(runtime: &TaskRuntime, id: TaskId, fields: &str) {
+async fn update(runtime: &TaskRuntime, id: TaskId, sql: &str) {
     runtime
         .platform_store()
         .client()
-        .query(format!("UPDATE ONLY $task SET {fields} RETURN NONE;"))
+        .query(sql)
         .bind(("task", veoveo_platform_store::task_record_id(id)))
         .await
         .unwrap()
@@ -50,51 +50,50 @@ async fn update(runtime: &TaskRuntime, id: TaskId, fields: &str) {
 #[tokio::test]
 async fn travel_reads_exclude_inconsistent_authority_and_unfinished_results_in_sql() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let runtime = TaskRuntime::new(db.a.clone(), "map", "writer");
         let reads = TravelModelReads::new(&db.b);
         let caller = owner("tenant", "context", "owner", "profile", &[]);
         for (number, mutation) in [
-            "tenant = tenant:other",
-            "owner = principal:other",
-            "profile = profile:other",
-            "work_context = work_context:other",
-            "server = mcp_server:other",
-            "request.owner.principal_key = 'other'",
-            "request.owner.profile = 'other'",
-            "request.owner.tenant_key = NONE",
-            "request.owner.data_labels = ['secret']",
-            "authority.context_key = 'other'",
-            "request.owner.authority.work_context = 'other'",
-            "request.owner.authority.tenant = 'other'",
-            "request.input.kind = 'route'",
-            "request.input.request.identity.actor.id = 'other'",
-            "request.input.request.identity.actor.tenant = NONE",
-            "request.input.request.identity.actor.data_labels = ['secret']",
-            "request.input.request.identity.profile = 'other'",
-            "request.input.request.identity.authority.work_context = 'other'",
-            "request.input.request.identity.authority.tenant = 'other'",
-            "result.payload.structuredContent.created_by = 'other'",
-            "result.payload.structuredContent.work_context = 'other'",
-            "request.input.request.travel_model_id = 'other'",
-            "task_type = 'route'",
-            "status = 'queued'",
-            "status = 'failed'",
-            "status = 'cancelled'",
-            "result.payload.isError = true",
-            "result.payload.isError = 'false'",
+            include_str!("../queries/travel_models/tests/mutation_01.surql"),
+            include_str!("../queries/travel_models/tests/mutation_02.surql"),
+            include_str!("../queries/travel_models/tests/mutation_03.surql"),
+            include_str!("../queries/travel_models/tests/mutation_04.surql"),
+            include_str!("../queries/travel_models/tests/mutation_05.surql"),
+            include_str!("../queries/travel_models/tests/mutation_06.surql"),
+            include_str!("../queries/travel_models/tests/mutation_07.surql"),
+            include_str!("../queries/travel_models/tests/mutation_08.surql"),
+            include_str!("../queries/travel_models/tests/mutation_09.surql"),
+            include_str!("../queries/travel_models/tests/mutation_10.surql"),
+            include_str!("../queries/travel_models/tests/mutation_11.surql"),
+            include_str!("../queries/travel_models/tests/mutation_12.surql"),
+            include_str!("../queries/travel_models/tests/mutation_13.surql"),
+            include_str!("../queries/travel_models/tests/mutation_14.surql"),
+            include_str!("../queries/travel_models/tests/mutation_15.surql"),
+            include_str!("../queries/travel_models/tests/mutation_16.surql"),
+            include_str!("../queries/travel_models/tests/mutation_17.surql"),
+            include_str!("../queries/travel_models/tests/mutation_18.surql"),
+            include_str!("../queries/travel_models/tests/mutation_19.surql"),
+            include_str!("../queries/travel_models/tests/mutation_20.surql"),
+            include_str!("../queries/travel_models/tests/mutation_21.surql"),
+            include_str!("../queries/travel_models/tests/mutation_22.surql"),
+            include_str!("../queries/travel_models/tests/mutation_23.surql"),
+            include_str!("../queries/travel_models/tests/mutation_24.surql"),
+            include_str!("../queries/travel_models/tests/mutation_25.surql"),
+            include_str!("../queries/travel_models/tests/mutation_26.surql"),
+            include_str!("../queries/travel_models/tests/mutation_27.surql"),
+            include_str!("../queries/travel_models/tests/mutation_28.surql"),
         ]
         .into_iter()
         .enumerate()
         {
             let model: TravelModelId = key(number as u32).parse().unwrap();
             let id = task(&runtime, caller.clone(), Some(model.as_str())).await;
-            update(
-                &runtime,
-                id,
-                &format!("{mutation}, result.payload.structuredContent.created_at = 'malformed'"),
-            )
-            .await;
+            update(&runtime, id, mutation).await;
             assert!(
                 reads.get(&caller, &model).await.unwrap().is_none(),
                 "selected {mutation}"
@@ -121,19 +120,37 @@ async fn travel_reads_exclude_inconsistent_authority_and_unfinished_results_in_s
 #[tokio::test]
 async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let runtime = TaskRuntime::new(db.a.clone(), "map", "writer");
         let reads = TravelModelReads::new(&db.b);
         let explicit = owner("installation", "context", "owner", "profile", &[]);
         let mut implicit = explicit.clone();
         implicit.tenant_key = None;
-        for (number, (allowed, denied)) in [(&explicit, &implicit), (&implicit, &explicit)].into_iter().enumerate() {
+        for (number, (allowed, denied)) in [(&explicit, &implicit), (&implicit, &explicit)]
+            .into_iter()
+            .enumerate()
+        {
             let model: TravelModelId = key(number as u32).parse().unwrap();
             let id = task(&runtime, allowed.clone(), Some(model.as_str())).await;
             assert!(reads.get(allowed, &model).await.unwrap().is_some());
             assert!(reads.get(denied, &model).await.unwrap().is_none());
-            assert!(reads.complete(denied, model.as_str()).await.unwrap().is_empty());
-            update(&runtime, id, "request.owner.data_labels = ['secret']").await;
+            assert!(
+                reads
+                    .complete(denied, model.as_str())
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+            update(
+                &runtime,
+                id,
+                include_str!("../queries/travel_models/tests/mutation_29.surql"),
+            )
+            .await;
             assert!(reads.get(allowed, &model).await.unwrap().is_none());
             let mut cleared = allowed.clone();
             cleared.data_labels.insert("secret".into());
@@ -143,15 +160,41 @@ async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked()
         }
         let model: TravelModelId = key(30).parse().unwrap();
         let id = task(&runtime, explicit.clone(), Some(model.as_str())).await;
-        update(&runtime, id, "result.payload.structuredContent.travel_model_uri = 'map://travel-model/travel-model-0195dabe-7777-7abc-8def-ffffffffffff'").await;
+        update(
+            &runtime,
+            id,
+            include_str!("../queries/travel_models/tests/mutation_30.surql"),
+        )
+        .await;
         assert!(reads.get(&explicit, &model).await.is_err());
-        update(&runtime, id, &format!("result.payload.structuredContent.travel_model_uri = 'map://travel-model/{}', result.payload.structuredContent.manifest_uri = 'artifact://0195dabe-7777-7abc-8def-ffffffffffff'", model)).await;
+        runtime
+            .platform_store()
+            .client()
+            .query(include_str!(
+                "../queries/travel_models/tests/mutation_31.surql"
+            ))
+            .bind(("task", veoveo_platform_store::task_record_id(id)))
+            .bind((
+                "model_uri",
+                crate::contract::MapTravelModelUri::new(model.clone()).to_string(),
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         assert!(reads.get(&explicit, &model).await.is_err());
-        update(&runtime, id, "request.input.request.travel_model_id = 'malformed', result.payload.structuredContent.travel_model_id = 'malformed'").await;
+        update(
+            &runtime,
+            id,
+            include_str!("../queries/travel_models/tests/mutation_32.surql"),
+        )
+        .await;
         assert!(reads.complete(&explicit, "malformed").await.is_err());
         assert!(reads.complete(&explicit, "\n").await.is_err());
         assert!(reads.complete(&explicit, &"x".repeat(513)).await.is_err());
-    }).await.expect("travel-model retained-data qualification exceeded 90 seconds");
+    })
+    .await
+    .expect("travel-model retained-data qualification exceeded 90 seconds");
 }
 async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> TaskId {
     let id = TaskId::new();
@@ -212,7 +255,9 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
         runtime
             .platform_store()
             .client()
-            .query("UPDATE ONLY $task SET status = 'succeeded', result = $result;")
+            .query(include_str!(
+                "../queries/travel_models/tests/task/statement_1.surql"
+            ))
             .bind(("task", veoveo_platform_store::task_record_id(id)))
             .bind(("result", result))
             .await
@@ -233,7 +278,11 @@ async fn travel_completion_filters_task_ownership_and_search_before_its_limit() 
         .expect("travel completion exceeded 120 seconds");
 }
 async fn qualify() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+            .unwrap(),
+    ])
+    .await;
     let runtime = TaskRuntime::new(db.a.clone(), "map", "completion-test");
     let reads = TravelModelReads::new(&db.b);
     let reader = owner("map-completion", "operations", "author", "profile-a", &[]);
@@ -262,7 +311,7 @@ async fn qualify() {
         update(
             &runtime,
             denied,
-            "result.payload.structuredContent.created_at = 'malformed'",
+            include_str!("../queries/travel_models/tests/mutation_33.surql"),
         )
         .await;
     }
@@ -300,7 +349,7 @@ async fn qualify() {
     update(
         &runtime,
         expected[124].0,
-        "request.owner.data_labels = ['secret']",
+        include_str!("../queries/travel_models/tests/mutation_34.surql"),
     )
     .await;
     assert_eq!(
@@ -323,7 +372,12 @@ async fn qualify() {
             .len(),
         25
     );
-    update(&runtime, expected[124].0, "request.owner.data_labels = []").await;
+    update(
+        &runtime,
+        expected[124].0,
+        include_str!("../queries/travel_models/tests/mutation_35.surql"),
+    )
+    .await;
     task(&runtime, reader.clone(), Some(&key(0))).await;
     assert_eq!(
         reads

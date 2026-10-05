@@ -8,7 +8,7 @@ use veoveo_task_runtime::TaskRuntime;
 
 #[tokio::test]
 async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_lease() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -69,7 +69,7 @@ async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_leas
     // The active worker already holds the authenticated request. Refresh compares
     // immutable metadata without downloading or decrypting file ciphertext.
     db.a.client()
-        .query("DELETE computer_file_transfer_payload;")
+        .query(include_str!("queries/file_continuation/live_authority_is_short_and_rechecks_policy_under_the_current_task_lease/statement_1.surql"))
         .await
         .unwrap()
         .check()
@@ -92,7 +92,7 @@ async fn live_authority_is_short_and_rechecks_policy_under_the_current_task_leas
 #[tokio::test]
 async fn revocation_and_native_run_replacement_interrupt_continuation_without_another_dispatch() {
     for scenario in ["revoke", "run", "lease", "journal"] {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (a, _, owner, agent, computer) = setup(&db).await;
         let grant = a
             .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -114,7 +114,7 @@ async fn revocation_and_native_run_replacement_interrupt_continuation_without_an
             }
             "run" => {
                 db.a.client()
-                    .query("UPDATE $computer SET process_id='replacement-run';")
+                    .query(include_str!("queries/file_continuation/revocation_and_native_run_replacement_interrupt_continuation_without_another_dispatch/statement_1.surql"))
                     .bind(("computer", computer_record(computer)))
                     .await
                     .unwrap()
@@ -130,7 +130,7 @@ async fn revocation_and_native_run_replacement_interrupt_continuation_without_an
             "journal" => {
                 db.a.client()
                     .query(
-                        "UPDATE computer_file_transfer SET binding.process_id='substituted-binding';",
+                        include_str!("queries/file_continuation/revocation_and_native_run_replacement_interrupt_continuation_without_another_dispatch/statement_2.surql"),
                     )
                     .await
                     .unwrap()
@@ -155,7 +155,7 @@ async fn revocation_and_native_run_replacement_interrupt_continuation_without_an
             )),
             _ => assert!(continuation.is_err()),
         }
-        let mut response = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+        let mut response = db.a.client().query(include_str!("queries/file_continuation/revocation_and_native_run_replacement_interrupt_continuation_without_another_dispatch/statement_3.surql")).await.unwrap().check().unwrap();
         let events: Vec<surrealdb::types::Value> = response.take(0).unwrap();
         let slots: Vec<surrealdb::types::Value> = response.take(1).unwrap();
         assert_eq!(events.len(), 1);

@@ -1,0 +1,1 @@
+UPSERT ONLY $record CONTENT $content RETURN NONE;

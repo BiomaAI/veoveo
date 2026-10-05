@@ -1,0 +1,1 @@
+CREATE fixture_marker:cancelled SET value = 'cancelled'; SLEEP 2s;

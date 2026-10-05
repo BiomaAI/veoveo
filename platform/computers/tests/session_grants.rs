@@ -21,7 +21,7 @@ fn grant_record(id: Uuid) -> RecordId {
 
 #[tokio::test]
 async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_access() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let identity = browser(&db, "alice").await;
     let actor = ComputerActor::from_verified(&identity).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
@@ -74,7 +74,7 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
     assert!(!inventory.grants[0].current_session);
     let mut stored =
         db.b.client()
-            .query("SELECT VALUE ticket_hash FROM ONLY $grant;")
+            .query(include_str!("queries/session_grants/ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_access/statement_1.surql"))
             .bind(("grant", grant_record(handle.grant_id().as_uuid())))
             .await
             .unwrap()
@@ -140,7 +140,7 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
 
 #[tokio::test]
 async fn grant_admission_is_bounded_and_stale_policy_cannot_reopen_it() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor = ComputerActor::from_verified(&browser(&db, "alice").await).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
     let results = futures::future::join_all((0..6).map(|i| {
@@ -176,7 +176,7 @@ async fn grant_admission_is_bounded_and_stale_policy_cannot_reopen_it() {
 
 #[tokio::test]
 async fn accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_and_run() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let identity = browser(&db, "alice").await;
     let actor = ComputerActor::from_verified(&identity).unwrap();
     let (a, b, computer) = ready(&db, &actor).await;
@@ -218,7 +218,7 @@ async fn accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_
             .unwrap(),
     );
     db.b.client()
-        .query("UPDATE ONLY $family SET revoked_at = time::now();")
+        .query(include_str!("queries/session_grants/accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_and_run/statement_1.surql"))
         .bind(("family", family))
         .await
         .unwrap()
@@ -229,7 +229,7 @@ async fn accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_
     let ticket = a.issue_browser_grant(&fresh, computer).await.unwrap();
     let next = b.redeem_browser_grant(&fresh, &ticket.token).await.unwrap();
     db.b.client()
-        .query("UPDATE ONLY $computer SET process_id = 'replacement-process';")
+        .query(include_str!("queries/session_grants/accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_and_run/statement_2.surql"))
         .bind((
             "computer",
             RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid())),

@@ -11,9 +11,6 @@ use veoveo_platform_store::OpenObject;
 
 // Checking the linked parent in the same query prevents deleted, cross-tenant,
 // or mismatched world records from authorizing a revision through its copied key.
-pub(super) const VISIBLE_REVISION: &str = "tenant = $tenant AND world_key = $world_key
-    AND world.tenant = $tenant AND world.world_key = $world_key
-    AND owner = world.owner AND $clearance CONTAINSALL world.labels";
 
 impl FramesState {
     pub async fn worlds_page(
@@ -24,11 +21,18 @@ impl FramesState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM frame_world WHERE tenant = $tenant AND $clearance CONTAINSALL labels AND ($after = NONE OR world_key > $after) ORDER BY world_key ASC LIMIT $limit;")
+            .query(include_str!("queries/world_page.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("after", after.map(|cursor| cursor.after().to_string())))
             .bind(("limit", FRAME_WORLD_PAGE_SIZE + 1))
-            .bind(("clearance", scope.data_labels.iter().map(ToString::to_string).collect::<Vec<_>>()))
+            .bind((
+                "clearance",
+                scope
+                    .data_labels
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
             .await?
             .check()?;
         let mut worlds: Vec<FrameWorldRecord> = response.take(0)?;
@@ -56,10 +60,17 @@ impl FramesState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM frame_world WHERE tenant = $tenant AND world_key = $world_key AND $clearance CONTAINSALL labels LIMIT 1;")
+            .query(include_str!("queries/read_world.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", world_id.to_string()))
-            .bind(("clearance", scope.data_labels.iter().map(ToString::to_string).collect::<Vec<_>>()))
+            .bind((
+                "clearance",
+                scope
+                    .data_labels
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
             .await?
             .check()?;
         let worlds: Vec<FrameWorldRecord> = response.take(0)?;
@@ -74,11 +85,18 @@ impl FramesState {
         let mut response = self
             .store
             .client()
-            .query(format!("SELECT * FROM frame_world_revision WHERE {VISIBLE_REVISION} AND revision_key = $revision_key LIMIT 1;"))
+            .query(include_str!("queries/read_revision.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", revision_uri.world_id().to_string()))
             .bind(("revision_key", revision_uri.revision_id().to_string()))
-            .bind(("clearance", scope.data_labels.iter().map(ToString::to_string).collect::<Vec<_>>()))
+            .bind((
+                "clearance",
+                scope
+                    .data_labels
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
             .await?
             .check()?;
         let revisions: Vec<FrameWorldRevisionRecord> = response.take(0)?;
@@ -93,11 +111,7 @@ impl FramesState {
         let mut response = self
             .store
             .client()
-            .query(format!(
-                "SELECT * FROM frame_world_revision WHERE {VISIBLE_REVISION}
-                AND id = world.head_revision AND revision_key = world.head_revision_key
-                AND revision = world.revision LIMIT 1;"
-            ))
+            .query(include_str!("queries/read_head_revision.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", world_id.to_string()))
             .bind((
@@ -125,11 +139,7 @@ impl FramesState {
         let mut response = self
             .store
             .client()
-            .query(format!(
-                "SELECT VALUE definition.frames[WHERE frame_id = $frame_key]
-                FROM frame_world_revision WHERE {VISIBLE_REVISION}
-                AND revision_key = $revision_key LIMIT 1;"
-            ))
+            .query(include_str!("queries/read_frame.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", revision_uri.world_id().to_string()))
             .bind(("revision_key", revision_uri.revision_id().to_string()))

@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-gateway-catalog.workspace = true
 veoveo-agent-runtime = { workspace = true, features = ["contract"] }
 veoveo-workspace = { workspace = true, features = ["app-contract"] }
 veoveo-simulation-contract.workspace = true

@@ -9,8 +9,8 @@ use rig::{
         DeferredExecutionPolicy, DeferredToolResolver, DeferredToolResolverRegistry, ToolContext,
     },
 };
+use veoveo_agent_runtime::persistence::{AgentEpisodeId, AgentEpisodeState, WakeId};
 use veoveo_agent_runtime::{AgentRuntime, EpisodeCompletion, EpisodeHandle};
-use veoveo_platform_store::{AgentEpisodeId, AgentEpisodeState, WakeId};
 use veoveo_task_runtime::TASK_RETENTION_PIN_META_KEY;
 
 use crate::{
@@ -448,15 +448,22 @@ mod tests {
         sync::atomic::{AtomicUsize, Ordering},
         time::Duration,
     };
+    use veoveo_agent_runtime::persistence::AgentState;
     use veoveo_agent_runtime::{AgentInstanceId, AgentRuntimeError, AgentSpec};
     use veoveo_platform_store::{
-        AgentState, ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode,
-        OpenObject, WorkContextMembershipLevel,
+        ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, OpenObject,
+        WorkContextMembershipLevel,
     };
 
     #[tokio::test]
     async fn failed_episode_persistence_never_enters_dispatch_continuation() {
-        let database = database::TestDb::new().await;
+        let database = database::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                database::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         tokio::time::timeout(Duration::from_secs(30), async {
             let spec = || AgentSpec {
                 tenant_key: "episode-admission".into(),

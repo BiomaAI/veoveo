@@ -8,7 +8,7 @@ use veoveo_types::TaskId;
 
 use super::{
     MAX_TRANSACTION_ATTEMPTS, OwnerTaskQuery, TaskRuntime, is_retryable_transaction_failure,
-    owner_reads, task_input_record, transaction_retry_backoff, validate_input_key,
+    owner_query, task_input_record, transaction_retry_backoff, validate_input_key,
 };
 use crate::{TaskError, TaskInputSubmission};
 
@@ -50,18 +50,21 @@ impl TaskRuntime {
                 to: TaskStatus::Running,
             });
         }
-        // Both fragments are owned by the runtime. Caller values enter as bindings.
-        let admission = selection
-            .map(|query| {
-                format!(
-                    "AND {} {}",
-                    owner_reads::VISIBLE_TASK,
-                    query.selection_predicate()
-                )
-            })
-            .unwrap_or_default();
-        let sql =
-            include_str!("input_responses.surql").replace("/* caller selection */", &admission);
+        let sql = match selection.map(OwnerTaskQuery::selection) {
+            None => include_str!("../../queries/input_responses/trusted.surql"),
+            Some(owner_query::OwnerSelection::Owner) => {
+                include_str!("../../queries/input_responses/owner.surql")
+            }
+            Some(owner_query::OwnerSelection::Operations) => {
+                include_str!("../../queries/input_responses/operations.surql")
+            }
+            Some(owner_query::OwnerSelection::Context) => {
+                include_str!("../../queries/input_responses/context.surql")
+            }
+            Some(owner_query::OwnerSelection::ContextOperations) => {
+                include_str!("../../queries/input_responses/context_operations.surql")
+            }
+        };
         let mut submission = TaskInputSubmission::default();
         for (key, response_value) in responses {
             validate_input_key(&key)?;
@@ -70,7 +73,7 @@ impl TaskRuntime {
                 let query = self
                     .store
                     .client()
-                    .query(sql.clone())
+                    .query(sql)
                     .bind(("input", task_input_record(task, &key)))
                     .bind(("key", key.clone()))
                     .bind(("response", OpenObject::new(response_value.clone())))

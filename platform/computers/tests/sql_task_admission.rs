@@ -17,7 +17,9 @@ fn record(table: &str, id: Uuid) -> RecordId {
 }
 async fn corrupt_authority(db: &support::TestDb, row: RecordId) {
     db.a.client()
-        .query("UPDATE ONLY $row SET authority.request_context.access_token.expires_at = 42;")
+        .query(include_str!(
+            "queries/sql_task_admission/corrupt_authority/statement_1.surql"
+        ))
         .bind(("row", row))
         .await
         .unwrap()
@@ -59,7 +61,7 @@ fn mismatched_claims(
 #[tokio::test]
 async fn operation_policy_and_participant_checks_precede_private_state_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         let mut input = support::automation::input(computer);
         input.permissions = [AutomationPermission::Stop].into();
@@ -73,7 +75,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         let tasks = veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "computers", "sql-worker");
         let claim = tasks.claim_observation(operation.task_id(), Duration::from_secs(30)).await.unwrap();
         store.operation_for_claim(&claim).await.unwrap();
-        db.a.client().query("UPDATE ONLY $row SET execution_authority.request_context.access_token.expires_at = 42;")
+        db.a.client().query(include_str!("queries/sql_task_admission/operation_policy_and_participant_checks_precede_private_state_decoding/statement_1.surql"))
             .bind(("row", record("computer_operation", operation.operation_id.as_uuid()))).await.unwrap().check().unwrap();
         for denied in mismatched_claims(&claim) {
             assert!(matches!(store.operation_for_claim(&denied).await, Err(ComputerError::StateConflict)));
@@ -94,7 +96,7 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
 #[tokio::test]
 async fn command_metadata_requires_current_execute_or_owner_read_before_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         let grant = store
             .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -162,7 +164,7 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
             Err(ComputerError::Forbidden)
         ));
         db.a.client()
-            .query("UPDATE ONLY $row SET binding.required_output_labels = ['private'];")
+            .query(include_str!("queries/sql_task_admission/command_metadata_requires_current_execute_or_owner_read_before_decoding/statement_1.surql"))
             .bind(("row", record("computer_execution", id.as_uuid())))
             .await
             .unwrap()
@@ -182,7 +184,7 @@ async fn command_metadata_requires_current_execute_or_owner_read_before_decoding
 #[tokio::test]
 async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, computer) = file_support::setup(&db).await;
         let grant = store
             .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -249,7 +251,7 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
             Err(ComputerError::Forbidden)
         ));
         db.a.client()
-            .query("UPDATE ONLY $row SET binding.required_labels = ['private'];")
+            .query(include_str!("queries/sql_task_admission/file_metadata_requires_current_execute_or_owner_read_before_decoding/statement_1.surql"))
             .bind(("row", record("computer_file_transfer", id.as_uuid())))
             .await
             .unwrap()
@@ -269,7 +271,7 @@ async fn file_metadata_requires_current_execute_or_owner_read_before_decoding() 
 #[tokio::test]
 async fn browser_grants_filter_ticket_parent_provider_and_connection_before_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let actor =
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
         let (store, _, computer) = support::interactive::ready(&db, &actor).await;
@@ -309,7 +311,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
             Err(ComputerError::NotFound)
         ));
         db.a.client()
-            .query("UPDATE ONLY $row SET provider_instance_id = $provider;")
+            .query(include_str!("queries/sql_task_admission/browser_grants_filter_ticket_parent_provider_and_connection_before_decoding/statement_1.surql"))
             .bind(("row", record("computer_session_grant", id.as_uuid())))
             .bind(("provider", Uuid::now_v7()))
             .await
@@ -331,7 +333,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
         )
         .await;
         db.a.client()
-            .query("UPDATE ONLY $row SET connection_id = $connection;")
+            .query(include_str!("queries/sql_task_admission/browser_grants_filter_ticket_parent_provider_and_connection_before_decoding/statement_2.surql"))
             .bind((
                 "row",
                 record("computer_session_grant", handle.grant_id().as_uuid()),
@@ -357,7 +359,7 @@ async fn browser_grants_filter_ticket_parent_provider_and_connection_before_deco
 #[tokio::test]
 async fn cli_grants_filter_credentials_parent_provider_and_connection_before_decoding() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let actor =
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
         let (store, _, computer) = support::interactive::ready(&db, &actor).await;
@@ -411,7 +413,7 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
         ));
         db.a.client()
             .query(
-                "UPDATE computer_cli_connection SET grant_id = $foreign WHERE grant_id = $grant;",
+                include_str!("queries/sql_task_admission/cli_grants_filter_credentials_parent_provider_and_connection_before_decoding/statement_1.surql"),
             )
             .bind(("grant", grant.grant_id.as_uuid()))
             .bind(("foreign", Uuid::now_v7()))
@@ -424,7 +426,7 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             Err(ComputerError::Forbidden)
         ));
         db.a.client()
-            .query("UPDATE ONLY $row SET provider_instance_id = $provider;")
+            .query(include_str!("queries/sql_task_admission/cli_grants_filter_credentials_parent_provider_and_connection_before_decoding/statement_2.surql"))
             .bind((
                 "row",
                 record("computer_cli_grant", grant.grant_id.as_uuid()),
@@ -449,7 +451,7 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
 #[tokio::test]
 async fn cli_pairing_matches_parent_and_session_before_decoding_callback() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let actor =
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
         let (store, _, computer) = support::interactive::ready(&db, &actor).await;
@@ -470,7 +472,7 @@ async fn cli_pairing_matches_parent_and_session_before_decoding_callback() {
         // Relax this disposable fixture's range assertion to exercise admission
         // before Rust decoding. The production schema enforces valid ports too.
         db.a.client()
-            .query("DEFINE FIELD OVERWRITE callback_port ON computer_cli_pairing TYPE int; UPDATE ONLY $row SET callback_port = 999999;")
+            .query(include_str!("queries/sql_task_admission/cli_pairing_matches_parent_and_session_before_decoding_callback/statement_1.surql"))
             .bind(("row", record("computer_cli_pairing", pairing.pairing_id.as_uuid())))
             .await
             .unwrap()

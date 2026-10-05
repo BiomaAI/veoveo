@@ -1,0 +1,1 @@
+REMOVE TABLE platform_schema_migration;

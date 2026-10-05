@@ -1,0 +1,1 @@
+UPDATE $principal SET display_name = 'Dataset operator', enabled = false, claims_hash = 'current-policy';

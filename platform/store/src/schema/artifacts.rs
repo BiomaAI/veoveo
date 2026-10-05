@@ -5,6 +5,8 @@ use veoveo_modules::{
     ModuleName, ModuleSetup, OwnershipClaim, TableName, TablePrefix,
 };
 
+pub const CURRENT_SCHEMA: &str = include_str!("artifacts/migrations/0000_current.surql");
+
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
 pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, DeclarationError> {
     ModuleSetup::builder(ModuleName::new("artifacts")?, ModuleLayer::Kernel)
@@ -14,7 +16,11 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Function(FunctionName::new("fn::artifact_upload_profile_digest")?),
             OwnershipClaim::Function(FunctionName::new("fn::artifact_upload_authority_matches")?),
         ])
-        .lane(MigrationLane::empty())
+        .lane(MigrationLane::new(vec![veoveo_modules::Migration::new(
+            veoveo_modules::MigrationVersion::new(0),
+            veoveo_modules::MigrationName::new("current")?,
+            CURRENT_SCHEMA,
+        )?])?)
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new(
             "gateway",

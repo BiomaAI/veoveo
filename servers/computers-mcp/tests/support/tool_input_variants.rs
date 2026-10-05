@@ -4,7 +4,7 @@ use super::*;
 #[tokio::test]
 async fn file_transfer_branches_reject_before_domain_effects() {
     tokio::time::timeout(Duration::from_secs(180), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         app_support::identities(&db).await;
         let signing = Signing::new();
         let (app, _health) = app_support::application(&db, false).await;

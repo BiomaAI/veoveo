@@ -1,0 +1,1 @@
+SELECT VALUE candidate FROM (SELECT matrix_key AS candidate FROM map_route_matrix WHERE tenant = $tenant AND owner = $owner AND canonical_json != NONE AND string::lowercase(matrix_key) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT 101);

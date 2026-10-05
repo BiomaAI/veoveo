@@ -14,9 +14,19 @@ async fn control(store: &PlatformStore, digest: &Sha256Digest) {
         tenant: None,
         control_plane: serde_json::from_value(serde_json::json!({})).unwrap(),
     };
-    store.client().query("BEGIN TRANSACTION; CREATE ONLY $revision CONTENT $content; UPSERT gateway_control_active:current SET revision=$revision, revision_id=$id, updated_at=time::now(); COMMIT TRANSACTION;")
-        .bind(("revision", RecordId::new("gateway_control_revision", id.clone())))
-        .bind(("content", content)).bind(("id", id)).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!("../queries/knowledge/catalog/control.surql"))
+        .bind((
+            "revision",
+            RecordId::new("gateway_control_revision", id.clone()),
+        ))
+        .bind(("content", content))
+        .bind(("id", id))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 }
 
 #[tokio::test]

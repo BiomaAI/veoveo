@@ -35,7 +35,7 @@ async fn install(db: &support::TestDb) {
 #[tokio::test]
 async fn lifecycle_and_maintenance_keep_the_actual_client_actor() {
     for maintenance in [false, true] {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, replica, console, _, computer) = support::automation::setup(&db).await;
         install(&db).await;
         let workspace = support::clients::workspace(&db, "alice").await;
@@ -105,7 +105,7 @@ async fn lifecycle_and_maintenance_keep_the_actual_client_actor() {
 
 #[tokio::test]
 async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, console, _, computer) = support::automation::setup(&db).await;
     install(&db).await;
     let workspace = support::clients::workspace(&db, "alice").await;
@@ -145,7 +145,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
     );
     let mut read =
         db.a.client()
-            .query("SELECT VALUE payload.sealed FROM ONLY $record;")
+            .query(include_str!("queries/cross_client_effects/file_task_recovery_preserves_ciphertext_and_original_actor/statement_1.surql"))
             .bind(("record", record.clone()))
             .await
             .unwrap()
@@ -169,7 +169,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
     );
     let mut read =
         db.b.client()
-            .query("SELECT VALUE payload.sealed FROM ONLY $record;")
+            .query(include_str!("queries/cross_client_effects/file_task_recovery_preserves_ciphertext_and_original_actor/statement_2.surql"))
             .bind(("record", record))
             .await
             .unwrap()
@@ -199,7 +199,7 @@ async fn file_task_recovery_preserves_ciphertext_and_original_actor() {
 
 #[tokio::test]
 async fn automation_grant_parent_and_task_recovery_span_owner_clients() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, console, agent, computer) = support::automation::setup(&db).await;
     install(&db).await;
     let workspace = support::clients::workspace(&db, "alice").await;
@@ -287,7 +287,7 @@ async fn automation_grant_parent_and_task_recovery_span_owner_clients() {
 
 #[tokio::test]
 async fn cli_pairing_keeps_its_profile_and_can_be_revoked_from_another_client() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, replica, console, _, computer) = support::automation::setup(&db).await;
     install(&db).await;
     let workspace = support::clients::workspace(&db, "alice").await;

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AuditRecordSummary {
     pub id: AuditRecordId,
@@ -37,7 +37,7 @@ impl From<AuditRecord> for AuditRecordSummary {
         }
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuditSummaryPage {
     pub records: Vec<AuditRecordSummary>,
@@ -55,7 +55,7 @@ pub struct AuditViewSession {
 
 /// JSON Lines readers accept an export only after its matching completion footer.
 /// A record's source checkpoint is fixed before the first line is emitted.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AuditExportLine {
     Header {
@@ -83,6 +83,10 @@ struct AuditReaderApi {
     daily_page: AuditDailyPage,
     view: AuditViewSession,
 }
-pub fn reader_schema() -> schemars::Schema {
+pub fn reader_schema(registry: &AuditTargetRegistry) -> Result<schemars::Schema, AuditTargetError> {
+    registry.compose_schema(base_reader_schema())
+}
+
+pub(crate) fn base_reader_schema() -> schemars::Schema {
     schemars::schema_for!(AuditReaderApi)
 }

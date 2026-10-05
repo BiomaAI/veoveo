@@ -1,0 +1,1 @@
+SELECT VALUE candidate FROM (SELECT composition_key AS candidate FROM map_composition WHERE tenant = $tenant AND work_context = $context AND $labels CONTAINSALL authority.data_labels AND ($parent = NONE OR composition_key = $parent) AND string::lowercase(composition_key) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT 101);

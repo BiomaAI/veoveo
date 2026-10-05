@@ -83,6 +83,7 @@ impl ComputersStore {
                     .into_value(),
                 ),
                 crate::audit::binding(
+                    self.platform.audit_targets(),
                     actor.accepted(),
                     before.computer_id,
                     crate::audit::Transition::accepted(

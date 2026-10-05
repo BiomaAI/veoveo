@@ -88,7 +88,7 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
             };
             // A denied row must never be decoded as a full Task just to test authority.
             db.a.client()
-                .query("UPDATE ONLY $task SET request.input = NONE RETURN NONE;")
+                .query(include_str!("queries/usage/usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits/statement_1.surql"))
                 .bind(("task", task_record_id(id)))
                 .await
                 .unwrap()
@@ -169,7 +169,7 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
 
         let last = *expected.last().unwrap();
         db.a.client()
-            .query("UPDATE ONLY $task SET request.owner.data_labels += 'secret' RETURN NONE;")
+            .query(include_str!("queries/usage/usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits/statement_2.surql"))
             .bind(("task", task_record_id(last)))
             .await
             .unwrap()
@@ -294,7 +294,7 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         );
 
         db.a.client()
-            .query("CREATE ONLY usage_policy_probe:owner CONTENT $owner RETURN NONE;")
+            .query(include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_1.surql"))
             .bind(("owner", serde_json::to_value(&named_tenant).unwrap()))
             .await
             .unwrap()
@@ -303,44 +303,44 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         for (number, query) in [
             (
                 20,
-                "UPDATE ONLY $task SET request.owner = usage_policy_probe:owner RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_2.surql"),
             ),
             (
                 21,
-                "UPDATE ONLY $task SET request.owner.data_labels = NONE RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_3.surql"),
             ),
             (
                 22,
-                "UPDATE ONLY $task SET request.owner.data_labels = 'mission' RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_4.surql"),
             ),
             (
                 23,
-                "UPDATE ONLY $task SET request.owner.data_labels = [NONE] RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_5.surql"),
             ),
-            (10, "DELETE $task RETURN NONE;"),
+            (10, include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_6.surql")),
             (
                 11,
-                "UPDATE ONLY $task SET request.owner.principal_key = 'wrong-owner' RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_7.surql"),
             ),
             (
                 12,
-                "UPDATE ONLY $task SET request.owner.profile = 'wrong-profile' RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_8.surql"),
             ),
             (
                 13,
-                "UPDATE domain_usage SET server = mcp_server:other WHERE task = $task RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_9.surql"),
             ),
             (
                 14,
-                "UPDATE domain_usage SET tenant = tenant:wrong WHERE task = $task RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_10.surql"),
             ),
             (
                 15,
-                "UPDATE ONLY $task SET server = mcp_server:other RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_11.surql"),
             ),
             (
                 16,
-                "UPDATE ONLY $task SET tenant = tenant:wrong RETURN NONE;",
+                include_str!("queries/usage/usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases/statement_12.surql"),
             ),
         ] {
             let id = create(&writer, &named_tenant, number, 1).await;
@@ -388,7 +388,7 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
         foreign.authority.work_context = veoveo_types::WorkContextId::parse("other-context").unwrap();
         for number in 1..=105 {
             let id = create(&writer, &foreign, number, 1).await;
-            db.a.client().query("UPDATE ONLY $task SET request.input = NONE RETURN NONE;")
+            db.a.client().query(include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_1.surql"))
                 .bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
         }
         let mut expected = Vec::new();
@@ -419,19 +419,19 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
         assert!(matches!(reader.task_visible(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));
 
         db.a.client()
-            .query("CREATE ONLY usage_policy_probe:authority CONTENT $authority RETURN NONE;")
+            .query(include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_2.surql"))
             .bind(("authority", serde_json::to_value(&caller.authority).unwrap()))
             .await.unwrap().check().unwrap();
         for (number, query) in [
-            (505, "UPDATE ONLY $task SET request.owner.authority = usage_policy_probe:authority RETURN NONE;"),
-            (506, "UPDATE ONLY $task SET request.owner.data_labels = NONE RETURN NONE;"),
-            (507, "UPDATE ONLY $task SET request.owner.data_labels = 'mission' RETURN NONE;"),
-            (508, "UPDATE ONLY $task SET request.owner.data_labels = ['mission', NONE] RETURN NONE;"),
-            (500, "UPDATE ONLY $task SET work_context = work_context:wrong RETURN NONE;"),
-            (501, "UPDATE ONLY $task SET authority.context_key = 'wrong' RETURN NONE;"),
-            (502, "UPDATE ONLY $task SET request.owner.authority.work_context = 'wrong' RETURN NONE;"),
-            (503, "UPDATE ONLY $task SET request.owner.authority.tenant = 'wrong' RETURN NONE;"),
-            (504, "UPDATE ONLY $task SET request.owner.authority = NONE RETURN NONE;"),
+            (505, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_3.surql")),
+            (506, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_4.surql")),
+            (507, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_5.surql")),
+            (508, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_6.surql")),
+            (500, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_7.surql")),
+            (501, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_8.surql")),
+            (502, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_9.surql")),
+            (503, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_10.surql")),
+            (504, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_11.surql")),
         ] {
             let id = create(&writer, &caller, number, 1).await;
             db.a.client().query(query).bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
@@ -441,7 +441,7 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
         assert_eq!(reader.usage_page(WorkContext(&caller), first.next_task_id, 100).await.unwrap().task_ids, expected[100..]);
         // Previously returned positions and URIs must re-evaluate the current context.
         let last = expected[100];
-        db.a.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'other-context' RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_12.surql"))
             .bind(("task", task_record_id(last))).await.unwrap().check().unwrap();
         assert!(reader.usage_page(WorkContext(&caller), first.next_task_id, 100).await.unwrap().task_ids.is_empty());
         assert!(reader.usage(WorkContext(&caller), last).await.unwrap().is_empty());

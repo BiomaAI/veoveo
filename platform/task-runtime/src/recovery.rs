@@ -137,10 +137,11 @@ impl TaskRuntime {
         let query = self
             .platform_store()
             .client()
-            .query(
+            .query(if contribution_sql.is_empty() {
                 include_str!("../queries/recovery_transition.surql")
-                    .replace("/* settlement contribution */", contribution_sql),
-            )
+            } else {
+                include_str!("../queries/recovery_transition_contribution.surql")
+            })
             .bind(("task", task_record_id(task.task_id)))
             .bind(("status", status))
             .bind(("request", envelope.into_open_object()?))

@@ -1,6 +1,6 @@
 //! Observe actual tool bodies, never model proposals or private tool data.
+use crate::persistence::{WorkspaceRunFeedback, WorkspaceRunPhase};
 use std::sync::{Arc, Mutex};
-use veoveo_platform_store::workspace::{WorkspaceRunFeedback, WorkspaceRunPhase};
 
 #[derive(Default)]
 struct State {

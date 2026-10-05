@@ -1,3 +1,4 @@
+use crate::persistence::MapRepository;
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::Cursor,
@@ -169,7 +170,7 @@ impl AuthoringService {
             .await?;
         self.reconcile_projection().await?;
         let style = if let Some(style_id) = &publication.style_revision_id {
-            self.store()
+            MapRepository::new(self.store().clone())
                 .map_style_revision_by_key(
                     &scope.identity.tenant_key,
                     identity.authority.work_context.as_str(),

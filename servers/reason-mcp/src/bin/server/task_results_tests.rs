@@ -282,7 +282,7 @@ async fn unrelated_malformed_operation_is_excluded_before_task_and_resource_deco
         let reader = TaskRuntime::new(db.b.clone(), "reason", "reader");
         let id = TaskId::new();
         create(&writer, owner(), id).await;
-        db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("../../../queries/bin/server/task_results_tests/unrelated_malformed_operation_is_excluded_before_task_and_resource_decode.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(id))).await.unwrap().check().unwrap();
         assert!(reader.for_owner(&owner()).get(id).await.is_err());
         let error = get_task(&reader, &owner(), GetTaskParams::new(id.to_string())).await.unwrap_err();

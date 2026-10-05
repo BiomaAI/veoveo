@@ -14,7 +14,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
-use veoveo_platform_store::RecordingProjectionReceiptId;
+use veoveo_recording_store::RecordingProjectionReceiptId;
 use veoveo_types::Sha256Digest;
 
 pub(super) const MAX_METADATA_BYTES: u64 = 512 * 1024;

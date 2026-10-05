@@ -76,7 +76,7 @@ async fn usage_reader_pages_visible_tasks_and_rechecks_authority_on_every_read()
         // Denied Tasks sort before all visible Tasks and must not consume page slots.
         for number in 1..=105 {
             let id = create(&writer, &denied, number).await;
-            db.a.client().query("UPDATE ONLY $task SET request.input = NONE RETURN NONE;")
+            db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_tasks_and_rechecks_authority_on_every_read.surql"))
                 .bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
         }
         create(&foreign, &caller, 106).await;
@@ -99,7 +99,7 @@ async fn usage_reader_pages_visible_tasks_and_rechecks_authority_on_every_read()
         assert!(usage.task(&denied, uri).await.unwrap().is_empty());
 
         // Neither a saved cursor nor a previously returned URI retains authority.
-        db.a.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['mission', 'secret'] RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_tasks_and_rechecks_authority_on_every_read_2.surql"))
             .bind(("task", task_record_id(uri.task_id()))).await.unwrap().check().unwrap();
         assert!(usage.page(&caller, position.cursor()).await.unwrap().items().is_empty());
         assert!(usage.task(&caller, uri).await.unwrap().is_empty());
@@ -107,7 +107,7 @@ async fn usage_reader_pages_visible_tasks_and_rechecks_authority_on_every_read()
         assert_eq!(usage.task(&cleared, uri).await.unwrap().len(), 1);
 
         // The usage row's parent/tenant must agree; a valid owner alone is insufficient.
-        db.a.client().query("UPDATE domain_usage SET tenant = tenant:wrong WHERE task = $task RETURN NONE;")
+        db.a.client().query(include_str!("queries/usage/usage_reader_pages_visible_tasks_and_rechecks_authority_on_every_read_3.surql"))
             .bind(("task", task_record_id(uri.task_id()))).await.unwrap().check().unwrap();
         assert!(usage.task(&cleared, uri).await.unwrap().is_empty());
         assert!(usage.page(&cleared, position.cursor()).await.unwrap().items().is_empty());

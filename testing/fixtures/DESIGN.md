@@ -10,11 +10,12 @@
 | Rust test harness | Source module reused by owning integration tests; no separate smoke process or assertion framework |
 
 `store.rs` owns one disposable database and two independent database-editor clients.
-It generates ephemeral credentials, applies the platform catalog as fixture admin,
+It generates ephemeral credentials, applies current kernel and explicitly selected
+owner lanes as fixture admin,
 and transfers cleanup ownership only after setup succeeds. Dropping the fixture force-removes
 its named container, including the container's writable layer. `new` selects memory;
 `with_backend(StoreBackend::RocksDb)` selects an owned `/tmp` database with a 64 MiB
-block cache and two 16 MiB write buffers. Both profiles use the same image, migrations
+block cache and two 16 MiB write buffers. Both profiles use the same image, owner-lane installer
 and database-editor clients. RocksDB qualification uses the installation's storage
 engine without creating a host volume. The fixture owns no data that needs a graceful flush;
 this avoids waiting for server shutdown while the fixture still holds client sockets. Computers admission and shared Task recovery use the same setup,

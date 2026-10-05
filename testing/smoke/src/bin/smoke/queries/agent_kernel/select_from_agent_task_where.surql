@@ -1,0 +1,1 @@
+SELECT * FROM agent_task WHERE tool_name = $tool;

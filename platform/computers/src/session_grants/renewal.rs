@@ -27,10 +27,7 @@ impl ComputersStore {
         let started = Instant::now();
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider
-                 AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now()
-                 AND family.revoked_at = NONE AND family.expires_at > time::now();
-                 SELECT * FROM ONLY $policy; RETURN time::now();",
+                include_str!("../../queries/session_grants/renewal/renew_browser.surql"),
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
                     ("connection", handle.connection_id.as_uuid().into_value()),
@@ -172,6 +169,7 @@ impl ComputersStore {
                         actor.admission_expires_at().into_value(),
                     ),
                     crate::audit::binding(
+                        self.platform.audit_targets(),
                         actor.accepted(),
                         row.computer_id()?,
                         crate::audit::Transition::accepted(
@@ -190,12 +188,18 @@ impl ComputersStore {
     /// Transport cleanup uses only the exact successfully redeemed connection.
     pub async fn close_browser_grant(&self, handle: &SessionGrantHandle) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            let mut read = self.query("SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider;", vec![
-                ("grant", super::record(handle.grant_id).into_value()),
-                ("connection", handle.connection_id.as_uuid().into_value()),
-                ("provider", self.provider_instance_id.as_uuid().into_value()),
-            ]).await?;
-            let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let mut read = self
+                .query(
+                    include_str!("../../queries/session_grants/renewal/close_browser_grant.surql"),
+                    vec![
+                        ("grant", super::record(handle.grant_id).into_value()),
+                        ("connection", handle.connection_id.as_uuid().into_value()),
+                        ("provider", self.provider_instance_id.as_uuid().into_value()),
+                    ],
+                )
+                .await?;
+            let row: Option<model::Record> =
+                read.take(0).map_err(|_| ComputerError::Unavailable)?;
             let row = row.ok_or(ComputerError::Forbidden)?;
             if row.connection_id != Some(handle.connection_id.as_uuid()) {
                 return Err(ComputerError::Forbidden);
@@ -206,13 +210,23 @@ impl ComputersStore {
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
                     ("owner_key", row.owner_key.clone().into_value()),
-                    ("connection", Some(handle.connection_id.as_uuid()).into_value()),
+                    (
+                        "connection",
+                        Some(handle.connection_id.as_uuid()).into_value(),
+                    ),
                     (
                         "admission_expires_at",
                         Option::<DateTime<Utc>>::None.into_value(),
                     ),
-                    crate::audit::binding(&accepted, row.computer_id()?, crate::audit::Transition::accepted(veoveo_audit_contract::ComputerActivity::Close, veoveo_audit_contract::ComputerAuditStage::Closed))?,
-
+                    crate::audit::binding(
+                        self.platform.audit_targets(),
+                        &accepted,
+                        row.computer_id()?,
+                        crate::audit::Transition::accepted(
+                            veoveo_audit_contract::ComputerActivity::Close,
+                            veoveo_audit_contract::ComputerAuditStage::Closed,
+                        ),
+                    )?,
                 ],
             )
             .await?;

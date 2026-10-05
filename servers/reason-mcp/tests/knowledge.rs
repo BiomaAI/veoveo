@@ -141,7 +141,7 @@ async fn finding(
     let result = TaskResultRecord::new(json!({"structuredContent":output, "isError":false}));
     store
         .client()
-        .query("UPDATE ONLY $task SET status = 'succeeded', result = $result RETURN NONE;")
+        .query(include_str!("queries/knowledge/finding.surql"))
         .bind(("task", task_record_id(id.task_id())))
         .bind(("result", result))
         .await
@@ -169,11 +169,11 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
             let (id, artifact) = finding(&db.a, &tasks, author).await;
             // Malformed output behind newer denied candidates must never decode.
             let mutation = match index % 4 {
-                0 => "UPDATE $artifact SET classification = 'restricted' RETURN NONE;",
-                2 => "UPDATE $artifact SET retention_expires_at = time::now() - 1s RETURN NONE;",
-                _ => "RETURN NONE;",
+                0 => include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination.surql"),
+                2 => include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_2.surql"),
+                _ => include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_3.surql"),
             };
-            db.b.client().query(format!("{mutation} UPDATE $task SET result.payload.structuredContent.model_uri = 17 RETURN NONE;"))
+            db.b.client().query(mutation)
                 .bind(("task",task_record_id(id.task_id())))
                 .bind(("artifact",veoveo_platform_store::ArtifactId::from_uuid(artifact.as_uuid()).record_id()))
                 .await.unwrap().check().unwrap();
@@ -181,13 +181,13 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
         }
         // Wrong source provenance, unsuccessful Tasks and expired Tasks are also excluded.
         for mutation in [
-            "UPDATE $artifact SET metadata.provenance.analysis_id = 'wrong-parent' RETURN NONE;",
-            "UPDATE $artifact SET metadata.provenance.kind = 'reason_annotation_layer' RETURN NONE;",
-            "UPDATE $task SET status = 'failed' RETURN NONE;",
-            "UPDATE $task SET retention_expires_at = time::now() - 1s RETURN NONE;",
+            include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_4.surql"),
+            include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_5.surql"),
+            include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_6.surql"),
+            include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_7.surql"),
         ] {
             let (id, artifact) = finding(&db.a, &tasks, owner("alice", "findings")).await;
-            db.b.client().query(format!("{mutation} UPDATE $task SET result.payload.structuredContent.model_uri = 17 RETURN NONE;"))
+            db.b.client().query(mutation)
                 .bind(("task",task_record_id(id.task_id())))
                 .bind(("artifact",veoveo_platform_store::ArtifactId::from_uuid(artifact.as_uuid()).record_id()))
                 .await.unwrap().check().unwrap();
@@ -237,17 +237,17 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
 
         assert!(!observe::snapshot(&db.a, &private_reader, Some(id)).await.unwrap().present);
         let deadline = chrono::Utc::now() + chrono::TimeDelta::hours(1);
-        db.b.client().query("UPDATE $task SET retention_expires_at = $deadline RETURN NONE;")
+        db.b.client().query(include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_8.surql"))
             .bind(("task", task_record_id(id.task_id()))).bind(("deadline", deadline)).await.unwrap().check().unwrap();
         assert_eq!(observe::snapshot(&db.a, &reader, Some(id)).await.unwrap().deadline, Some(deadline));
         let hidden_before = observe::snapshot(&db.a, &private_reader, None).await.unwrap();
-        db.b.client().query("UPDATE $task SET updated_at = time::now() RETURN NONE;")
+        db.b.client().query(include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_9.surql"))
             .bind(("task", task_record_id(id.task_id()))).await.unwrap().check().unwrap();
         assert_eq!(hidden_before.fingerprint, observe::snapshot(&db.a, &private_reader, None).await.unwrap().fingerprint);
         drop(changes);
 
         // Visible corruption is an error, never silently post-filtered from a page.
-        db.b.client().query("UPDATE $task SET result.payload.structuredContent.model_uri = 17 RETURN NONE;")
+        db.b.client().query(include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_10.surql"))
             .bind(("task",task_record_id(id.task_id()))).await.unwrap().check().unwrap();
         assert!(readable_findings(&db.a, &reader, FindingSelection::Member(id)).await.is_err());
     }).await.expect("Reason findings SQL qualification exceeded 240 seconds");

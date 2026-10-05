@@ -1,167 +1,169 @@
-# Platform Audit Writer
+# Audit Record Contract
 
 ## Standards And Protocols
 
 | Boundary | Profile |
 |---|---|
-| `veoveo.ai/audit-record/v1` | Checked records from the lightweight audit contract |
-| SurrealDB 3.3.0 | Store-owned atomic batches and caller-owned domain transactions |
-| RFC 8785 | Canonical JSON bytes for hashing, with `serde_json_canonicalizer` 0.3.2 |
-| RFC 9162 section 2.1 | SHA-256 Merkle leaves and interior nodes |
-| `veoveo.ai/audit-indexing-members/v1` | Internal SHA-256 chain over admitted member URI/revision pairs |
-| RFC 8032 | Ed25519 signing through `ed25519-dalek` 3.0.0 |
-| OCSF 1.9.0 and S3 Object Lock | [Destination export](src/export/DESIGN.md), JSON Lines and optional compliance-mode retention |
-| W3C Trace Context and OTLP/HTTP | Request correlation and policy, audit and upstream histograms |
+| RFC 9562 | Canonical UUIDv7 record and HTTP request identities |
+| W3C Trace Context | Nonzero lowercase 32-hex trace IDs and 16-hex span IDs |
+| RFC 9162, RFC 8785 and RFC 8032 | Typed block heads, decimal-string versionstamps, Merkle roots and Ed25519 signatures |
+| RFC 3339 and JSON | Typed timestamps, tagged closed enums and checked deserialization |
+| `veoveo.ai/audit-record/v1` | One reviewed record shape across platform producers and readers |
+| `ai.veoveo/knowledge-source` | Reviewed observation fields from the protocol-independent extension contract |
 
-Request callers share a process-local writer. Its queue holds at most 1,024 records;
-a sender waits at most one second for capacity. After receiving the first record, the
-writer yields to ready tasks and drains up to 64 queued records into one Store transaction.
-It adds no timer delay. Records arriving during that commit form the next group.
-Each caller waits for that transaction's result. Cancelling one caller cannot cancel
-other records in its group. The writer owns its worker handle. Closing all senders drains
-the queue, and an explicit shutdown closes both receivers even while caller clones exist.
-Gateway, Artifact, Speech and UAV hosts stop HTTP admission and then wait up to 30 seconds
-for the writer. A worker failure closes admission; a missed drain deadline returns an
-error and reports that records may be uncommitted. Repeated shutdown calls return the
-same result.
+This library owns the protocol-independent audit vocabulary. It depends on foundational
+names and lightweight Artifact identities. Computers supplies its Audit target codec
+through the installation registry. Store and MCP both depend
+on this crate. The writer depends on Store; separating this contract avoids a Cargo
+cycle and prevents persistence from importing the MCP runtime.
 
-Domain callers bind checked `AuditTransactionWrite` values and call Store's
-`fn::append_audit` inside the branch that changes their state. This path opens no
-independent transaction. Its maximum is 4,096 records per domain transaction.
-Store compares an existing record's complete typed
-draft before accepting a repeated identity; a mismatched retry fails the transaction.
+The draft builder derives the partition from the authenticated actor. Accepted outcomes
+require the accepted reason. Serialization and input admission share these checks.
+Details expose only reviewed enums, identifiers, digests, counters and timestamps.
+`tests/detail_schema.rs` walks the generated detail schema and rejects free text,
+open maps and unreviewed string wrappers. It also recognizes the reviewed, inlined
+SHA-256 pattern. These identifier allowlists belong to this contract and must be
+reviewed when a detail gains a new identifier type.
+Numeric counters must fit the exact I-JSON integer range before a draft can be stored.
+Tool, discovery and Task details must match the corresponding typed target. A platform
+Task uses its UUID record link; an external Task uses its opaque gateway route and
+server identity. These identities have separate variants.
+Knowledge read details bind the member and collection owner to their resource target.
+Successful reads require an observation whose conditional status matches the outcome.
+Denied or failed reads cannot claim a returned revision. `KnowledgeReadObservation`
+copies source identity, revision, digest, times, attribution and access fields. Its
+external identity excludes navigation URLs because they can carry signed query
+credentials. The closed audit schema rejects those URLs on input as well.
+The access descriptor includes the source's closed read policy and its optional
+`GatewayProfileId` restriction. That identifier is an installation profile route token
+validated by the foundational type; it carries no credential or free-form description.
+`IndexingRead` admits only collection-matching resource reads by a tenant service
+client. Denials cannot enter an aggregate. `IndexingWindow` requires a matching server
+target, five-minute UTC bounds, positive reads and consistent outcome counters. Its
+occurrence time equals the window end. Constructor and decode checks share these rules.
+Store owns conversion to compound record IDs and native record links. A partition key
+distinguishes the installation partition from a tenant literally named `installation`.
 
-Upload publication constructs its audit draft from the completion request context
-stored on the upload and calls the append function inside the guarded publication
-branch. Source review selected this call over a `DEFINE EVENT` on artifact occurrences:
-the event would need an additional link to upload request context and would also run
-for occurrence insertions owned by other producers. The shared append call keeps
-attribution construction in Rust and uses the same transaction as the receipt and
-grants. Publication rollback and idempotent retry require native qualification.
+The reader's policy owner supplies an `AuditReadScope`. Store checks it before query
+execution and includes its admitted partition in SQL before decoding or limiting rows.
+Cursors carry their partition and ordering and cannot move a reader to another tenant. Daily counts
+use UTC day bounds and a keyset of day, class and outcome; readers can traverse every
+page without silently truncating at a fixed total.
 
-The [record contract](contract/DESIGN.md) sits below Store and protocol adapters.
-Separating it from this writer prevents a dependency cycle. MCP exposes the same
-canonical types, and imports no server vocabulary into its generic scope machinery.
+The audit domain owns `AuditScope::Read`. Protocol cores carry its `ScopeName` without
+defining the domain vocabulary. Gateway readers check that scope on the current actor.
+The actor's tenant selects its tenant partition; the `administrator` and `auditor`
+roles also admit installation records.
 
-Completion records use a separate 1,024-record queue because their effects have already
-happened. The worker keeps record identities stable across failed commits and retries
-with delays from 100 ms to five seconds. A caller waits for queue capacity and receives
-its original tool result. Speech stops and joins dictation session workers before
-draining audit. UAV stops expiry workers and closes retained live-view sessions first.
-Their terminal records therefore enter the queue before the writer closes it.
+`AuditRecordSummary` keeps typed targets and activities through browser delivery.
+`reader_schema(registry)` composes this projection, page queries, daily counts and view receipts
+for the existing client generator. A view receipt refers to a committed access record;
+it grants no authority. Each read verifies the current actor, profile, selected
+partition and receipt lifetime. JSON Lines exports contain a header, records and a
+completion footer. Readers require that footer before accepting a complete download.
+
+`AuditContext` carries verified actor, request correlation and invocation authority into
+a domain operation. The MCP adapter derives it from `GatewayRequestContext` only after
+validating the source-principal, actor and invocation relationship. Domain services keep
+that attribution for background expiry and terminal records. Dictation summaries expose
+an end reason, accepted chunk count and audio duration; they cannot carry transcript text.
+
+Implementation and qualification are in progress under the
+[audit acceptance](../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
+
+Destination IDs wrap configuration hashes separately from content digests. Export
+intents bind both content and signed-block hashes. Closed rejection codes carry no
+provider response text and survive replica changes.
+
+## Activity Vocabularies
+
+Activity enums use the foundation's `Vocabulary` derive. Their snake_case spellings,
+variant order and Serde unit-enum profile form part of the frozen audit format.
+Owner-local tests compare every activity enum's JSON and schema with its previous
+declaration and check nonhuman unit-variant ordinals. The derive introduces no audit
+variants or authorization decisions.
+
+## Identity Declaration Mechanics
+
+Audit identities use `Id` with Audit-owned canonical RFC UUIDv7 and lowercase nonzero hexadecimal admission. Their owner schema functions preserve each UUID pattern, trace/span length and nonzero constraint. Serde uses checked String conversion for these IDs; the independent Activity enum wire profile does not change.
+
+## Integrity Counter Admission
+
+`AuditBlockSequence` admits 1 through i64::MAX; `AuditVersionstamp` also admits zero.
+Their owner validator and decimal parser require the canonical unsigned spelling.
+Serde converts through String in both human-readable and binary formats. JSON and
+JCS therefore preserve versionstamps that exceed exact IEEE-754 integer precision.
+The nominal counter types keep copied getters and their existing schema profiles.
+
+## Owner Target Admission
+
+`AuditTargetRegistry` binds each owner discriminator to its typed decoder, closed
+JSON Schema and checked lookup reference. `AuditTargetRegistration<T>` constructs
+and retrieves the registered owner type. The immutable registry shares its identity
+through clones; a target from another registry cannot enter an append or query.
+Target equality compares admitted JSON. Serialization emits the owner object directly,
+and excludes registry identity, cached payloads and lookup references.
+
+`AuditDecoder` admits target-bearing drafts, records, queries, summaries, pages and
+export lines with an explicit registry. Its JSON parser rejects duplicate object
+fields before creating a JSON value. Private input models carry unadmitted values;
+the decoder then applies target admission and the draft's existing relationship
+checks. Attribution-only `AuditContext` has no registry state.
+
+Owner registration rejects unknown, repeated and core-colliding discriminators.
+Schema composition rejects duplicate definition names and joins owner branches into
+the target's closed union. An installation keeps supported read codecs registered
+when it disables an owner's workload. Missing codecs produce a configuration error
+when reading existing records. Registering a codec installs no runtime or database
+schema.
+
+Store extracts unadmitted driver values privately and decodes them with its configured
+registry. Every returned row, including pagination's extra row, validates its record
+identity, partition and lookup reference. Queries validate target registry identity
+before executing SQL and match the entire `draft.target` object. Transaction writes
+receive the same registry and append alongside the caller's domain write.
+
+## Audit Target Codec
+
+`ComputerAuditTarget` owns the frozen `{"kind":"computer","computer":"..."}`
+Audit target object. Its `ComputerId` remains typed until the owner projects the
+`computer` table and UUID lookup key. `register_audit_target` binds decoder, closed
+schema and projection together in the installation's Audit registry. The codec
+requires no Computers runtime or schema lane and supports reading historical Computer
+records when the workload is disabled. Audit and Store import no Computer identities.
+
+## Target Registry Composition
+
+Store supplies the Audit writer and all readers with one immutable target registry.
+Owner codecs are independent of enabled workloads. The installation composition keeps
+the Computer read codec available when it disables the Computers workload. Audit's
+normal dependency graph includes no Computers contract or runtime. Store performs
+contextual admission before sealing, LIVE delivery, export or indexing recovery and
+checks each stored target reference against its owner projection. Domain transaction
+append keeps the same registry and commits audit rows atomically with domain changes.
 
 ## Indexing Read Windows
 
-The gateway supplies `IndexingRead` only after admitting a registered indexing client
-and validating its collection. Denials keep their individual audit records. Successful
-reads and admitted source failures enter the required queue. Store commits their
-window counters and retry receipts before the gateway releases the response. A required
-group has a 15-second commit deadline; ordinary records and indexing updates share its
-transaction.
+The writer commits each admitted indexing read to an accumulator and retry receipt
+before acknowledging delivery. Store groups reads by the admitted actor, authority
+and collection into database-clock five-minute windows. A receipt binds the draft ID
+to the collection and draft fingerprint; replay with a different fingerprint fails.
+New reads must have occurred within the preceding hour and at most one minute ahead
+of database time. Receipts survive for one day, so pruning cannot admit an expired retry.
 
-The database clock assigns reads to UTC intervals of five minutes. Each window groups
-one collection, actor and complete authorization context, so a client, Work Context or
-policy change creates a separate attribution group. Its final record carries a generated
-background request identity instead of claiming that the first read represents every
-request. The summary outcome reports successful aggregation; `reads`, `not_modified`
-and `failed` describe the source outcomes. Successful full reads equal
-`reads - not_modified - failed`. Enumeration and contract reads count even when they
-carry no source observation.
+Each observed resource URI and revision contributes a SHA-256 member digest to the
+window's ordered digest chain under `veoveo.ai/audit-indexing-members/v1`. Counters
+record total, not-modified and failed reads. Open accumulators survive process loss.
+The writer checks elapsed windows every five seconds, and any replica may finalize
+up to 32 at a time. Finalization compares the persisted read count, appends the
+immutable aggregate and deletes its accumulator in one transaction. A competing
+update requires another pass. The worker stops Audit admission if finalization or
+receipt cleanup fails.
 
-Store keeps open windows outside the immutable audit table. A worker selects up to 32
-elapsed windows through an expiry index every five seconds and drains full batches.
-It constructs checked summaries in Rust, then compares the read count and atomically
-appends each summary and removes its accumulator. Transactions resolve competing
-replicas. The ordinary sealer signs those records. Startup recovers elapsed windows;
-shutdown preserves open windows for the next writer. Finalization has a 30-second
-batch deadline. A failure closes writer admission and fails gateway readiness.
+## Persistence And Native Queries
 
-The member digest uses SHA-256 with domain `veoveo.ai/audit-indexing-members/v1`.
-Its initial value hashes the domain bytes. Each successful observed read hashes the
-compact JSON array `[memberUri, revision]`, then updates the chain with the UTF-8
-bytes of `domain + ":" + previousHex + memberHex`. The two hex fields have fixed length
-64. Database serialization determines order, and conditional reads contribute again.
-Unobserved enumeration reads and failed reads change counters only. This commits the
-sequence without storing member bodies or retaining per-read audit records.
-
-A retry receipt binds the draft identity to a SHA-256 fingerprint of its collection and
-complete typed draft. Reusing an identity with different fields aborts the transaction.
-Receipts live for one day. New first commits must have an occurrence time within the
-previous hour, with at most one minute of future clock skew; removing an expired receipt
-therefore cannot admit an old read again. Cleanup wakes every five seconds and deletes batches of at most 1,024 receipts.
-It stops starting batches after two seconds and gives each commit a 15-second deadline. Pending accumulators have no expiry and survive
-receipt cleanup. The writer stops admission if cleanup cannot commit.
-
-## Deployment
-
-An installation applies the Store schema before starting these writers. The indexing
-summary contract requires a coordinated gateway drain: stop indexing workers, drain all
-gateway replicas, update gateway and audit readers together, then restart indexing.
-Console's generated reader types and native audit CLI ship with the matching contract.
-Mixed gateway versions are outside this upgrade profile. Retain committed accumulator
-and receipt tables through process replacement; removing them can lose acknowledged
-reads or admit duplicate retries. The schema change adds staging tables and converts no
-existing audit records.
-
-## Integrity And Readers
-
-The sealer owns a 30-second database lease, renewed every ten seconds. Every block
-transaction checks its owner, generation, expiry and previous cursor. A new replica
-continues from that cursor. Native LIVE notifications open a one-second batching
-window. The worker then drains consecutive feed pages without another timer delay,
-yielding between pages for shutdown, export and lease renewal. Initial recovery reaches
-the end of the feed before reporting active readiness. Idle timers renew the lease
-without scanning records.
-The worker refuses a recovery cursor left unprocessed for six days, before the
-seven-day change-feed window can disappear silently.
-
-`service.rs` owns replica election and recovery. A replica with a valid competing lease
-reports standby; it retries election every two seconds. Transport recovery backs off
-from one to ten seconds. Integrity errors and expired recovery windows stop the worker
-and fail readiness. An active or standby observation expires after 20 seconds, which
-also catches a worker panic. Idle renewal refreshes recovery time only while LIVE is
-connected and its cursor is caught up.
-
-One seal page holds at most 4,096 audit records and advances only across complete
-database commits. A shutdown drains every pending page, then releases the lease.
-Gateway first drains its request writer and gives the sealer a further 30 seconds.
-Dropping an undrained service aborts its task and reports the incomplete shutdown.
-
-SurrealDB 3.3.0 applies the change-feed limit before its table filter. The trusted sealer
-therefore advances through database change-feed pages and selects audit mutations. User
-readers use partition-specific SQL and LIVE queries. The sealer's global feed is never
-an audit-reader API. Blocks list record identities in commit order; their sequence and
-versionstamp values serialize as decimal strings to preserve every bit through JCS.
-A record-to-block table rejects sealing the same identity twice.
-
-Verification hashes the complete typed record, including its database timestamp, using
-RFC 8785. RFC 9162 leaf and node prefixes prevent the two node kinds from colliding.
-Ed25519 signs a domain-separated canonical block head. Verification checks the selected
-partition, sequence continuity, the previous hash, membership order and signatures. It
-compares record timestamps with their signed database commit versionstamps, decoded
-through Store's qualified single-node oracle layout. It reports differences beyond
-the caller's clock-skew allowance; delayed sealing does not imply a clock error. An external tail
-checkpoint detects rollback of both the database blocks and its current-head pointer;
-a database-only verification cannot establish that external fact.
-
-Retention admission holds the sealer lease, advances through whole blocks in order,
-and preserves the last removed signed head. When export is configured, an unexported
-block cannot be deleted. The CLI's filtered export fixes the sealed tail before reading
-and applies content filters in SQL. Each block read checks that its records still exist;
-concurrent retention fails the export instead of silently omitting records.
-
-The hosted retention pass admits at most 128 blocks in two seconds once per minute.
-SQL selects each partition's next removable block before applying its page limit.
-Download deduplication guards older than one day are removed in 128-row batches;
-their audit records follow ordinary block retention. The hosted pass binds all configured
-destination identities, and SQL admits only blocks acknowledged by every destination.
-
-The gateway requires `VEOVEO_AUDIT_SIGNING_KEY_B64`, a dedicated 32-byte Ed25519 seed.
-Its decoder and the key-generation command clear temporary seed buffers. The command
-creates a new mode-0600 file and prints only the public key and its SHA-256 key ID.
-The Helm installation supplies a separate Secret; the assertion signer owns a different
-key. Keep public keys for all blocks that remain in the verification range.
-
-The [export worker](src/export/DESIGN.md) owns S3/OTLP delivery and persisted receipts.
-Qualification, remaining producer/reader cuts and installed measurements are tracked in the
-[consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md#unified-audit-log).
+Store owns Audit persistence statements. Audit native fixture statements live in
+`tests/queries/` with their existing target-registry and transaction bindings.
+The fresh Audit lane creates `audit_sealer:active` with generation and replay cursor
+zero, a fresh owner UUID and initial lease/replay timestamps. Recorded lane replay
+preserves this state; the selected-lane native matrix qualifies that behavior.

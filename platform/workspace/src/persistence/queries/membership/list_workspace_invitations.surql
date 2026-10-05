@@ -1,0 +1,1 @@
+RETURN SELECT * FROM workspace_invitation WHERE invitee = $authority.principal              AND state = 'pending' AND expires_at > time::now()              AND chat.tenant = $authority.tenant AND chat.work_context = $authority.work_context              ORDER BY created_at DESC LIMIT 100;

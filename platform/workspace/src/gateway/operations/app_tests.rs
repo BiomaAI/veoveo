@@ -1,5 +1,6 @@
 //! Real native App calls share the durable journal; no production fixture routes.
 use super::*;
+use crate::persistence::WorkspaceRepository;
 
 async fn app_detail(app: &Router, id: Uuid) -> Value {
     loop {
@@ -22,14 +23,14 @@ async fn app_detail(app: &Router, id: Uuid) -> Value {
 #[tokio::test]
 async fn app_tasks_recover_with_exact_origin_and_native_input_without_replay() {
     tokio::time::timeout(Duration::from_secs(45), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![veoveo_agent_runtime::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap()).unwrap(), crate::schema::module_setup(crate::test_store::module_lanes::execution("workspace").unwrap()).unwrap()]).await;
         super::super::super::tests::setup(&db.a).await;
         let subject = alice();
         let fixture = super::super::test_domain::Fixture::start(db.a.clone(), &subject).await;
         let state = new_state(db.a.clone(), fixture.port);
         let authority = state.authority(&subject, &GatewayProfileId::parse("operator").unwrap()).await.unwrap();
         let chat = WorkspaceChatId::new();
-        db.a.create_workspace_chat(&authority, chat, "Native App Tasks").await.unwrap();
+        WorkspaceRepository::new(db.a.clone()).create_workspace_chat(&authority, chat, "Native App Tasks").await.unwrap();
         let app = new_app(state);
         let id = Uuid::now_v7();
         let path = format!("/chats/{}/app-operations", chat.as_uuid());

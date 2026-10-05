@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $copy = (SELECT * OMIT id FROM ONLY $source); CREATE ONLY type::record('map_feature_changeset', ['map-recovery', 'sequence-probe', $key]) CONTENT object::extend($copy, {changeset_key: $key, idempotency_key: $key, commit_sequence: $sequence}); COMMIT TRANSACTION;

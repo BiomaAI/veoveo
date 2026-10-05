@@ -11,22 +11,32 @@
 | Veoveo audit record v1 | Closed Computer activities and journal stages, verified request attribution and transactional append through the shared Store function |
 | XChaCha20-Poly1305 and HMAC-SHA-256 | Private command, output-capability and maintenance-checkpoint envelope v1; installation-owned keys, random 192-bit nonces, distinct derived encryption and fingerprint keys and authenticated purposes; no public wire extension |
 | Veoveo file-transfer envelope v1 | Separate private purposes for bounded file intent and Artifact capability; binds exact owner, actor, optional grant, provider, retained instance, process, template, direction and inherited labels |
-| Veoveo file-transfer journal | Migrations 0073–0075; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker and public admission live in `servers/computers-mcp` |
-| Shared Tasks | Queued command references carry only Computer/execution IDs; migrations 0061–0067 add private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
+| Veoveo file-transfer journal | Current owner schema; private request, one-shot dispatch, bounded original-run containment and exact result settlement under a shared `computer.file_transfer` Task lease; native worker and public admission live in `servers/computers-mcp` |
+| Shared Tasks | Queued command references carry only Computer/execution IDs; the owner schema defines private command admission, one-shot dispatch, containment, protected output access, known-result settlement and bounded preparation. Current observation leases guard domain journal transactions; native dispatch and Task result projection belong to `servers/computers-mcp` |
 | Veoveo internal `request_context` | Required verified source principal and token metadata for new operation admission; accepted execution evidence contains no bearer secret |
-| Veoveo retained instance identity | Migration 0068 stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
-| Veoveo private retained maintenance | Migrations 0069–0071; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal, explicit resumption receipts and protected checkpoint; private provider worker and public service projection share this journal |
-| Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private storage profile introduced by migration 0058 |
-| Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private additive migration 0060 |
-| Veoveo named lifecycle authority | Migration 0076 separates the accepted actor from retained ownership and records the selected grant; coordinated Computers reader/worker drain required |
-| Veoveo resource ownership across clients | Migration 0082 indexes tenant, principal and Work Context over retained records; immutable creation keys and encrypted envelope v1 remain unchanged; coordinated Computers reader/worker drain required before cross-client admission |
-| Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; additive migration 0059; public adapter qualified in the Bioma installation |
+| Veoveo retained instance identity | The owner schema stores an optional replacement UUID on Computers and lifecycle operations; absence identifies the original instance, whose ID equals the Computer UUID |
+| Veoveo private retained maintenance | Current owner schema; immutable source/target, shared `provider_wait` Task, exclusive Computer fence, bounded step journal, explicit resumption receipts and protected checkpoint; private provider worker and public service projection share this journal |
+| Veoveo `computer_attach` and session-grant ledger | Resource-scoped interactive authority, one-use browser tickets and bounded renewal; private tables in the Computers owner lane |
+| Veoveo automation grant v1 | Named principal and OAuth-client binding, explicit read/execute/start/stop permissions, bounded lifetime and execution limits; private tables in the Computers owner lane |
+| Veoveo named lifecycle authority | The owner schema separates the accepted actor from retained ownership and records the selected grant; coordinated Computers reader/worker drain required |
+| Veoveo resource ownership across clients | The owner schema indexes tenant, principal and Work Context over retained records; immutable creation keys and encrypted envelope v1 remain unchanged; coordinated Computers reader/worker drain required before cross-client admission |
+| Veoveo CLI grant v1; OpenShell `0.0.116` pairing profile | Private named-grant and connection ledger, eight-character confirmation code and fixed IPv4 loopback callback shape; private tables in the Computers owner lane; public adapter qualified in the Bioma installation |
 
-The domain owns retained Computer identity. Provider transport belongs to
+The [current owner schema](src/schema/migrations/0000_current.surql) defines the
+private grant, journal and retained-resource tables described below. The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP project these commands
 through the Computers worker service. No provider dependency enters the gateway.
 [Qualification Limits](#qualification-limits) records the installed acceptance scope
 and remaining release gates.
+
+## Persistence Queries
+
+Complete production statements live in `queries/`, grouped by source responsibility.
+Colocated and integration native fixtures use `tests/queries/` for their statements.
+Rust callers bind runtime values and select complete files for finite grammar choices.
+Task admission, provider journals and recovery use the explicit domain-body extension
+points described by the [Task runtime](../task-runtime/DESIGN.md); Computers owns its
+inserted SQL and preserves the shared Task and observation-lease guards.
 
 ## Gateway Transport Adapter
 
@@ -182,14 +192,12 @@ file/command Tasks, maintenance and the shared access limit. The collection quer
 native `EXPLAIN` selects `computer_resource_owner`. Installed acceptance must use a
 retained Computer and verify its existing file.
 
-Migration 0082 adds only an index. Existing records need no conversion. Older readers
-reject grants whose accepted profile differs from the creation profile, and older
-workers reject lifecycle records with that same distinction. Drain all old Computers
-service replicas before starting the updated readers/workers; the private compute
-host and retained homes remain running. Apply the index before admission. This is a
-coordinated cut, with no mixed-version service support. Rollback to older readers
-requires ending cross-client access grants and settling affected operations first;
-never repair incompatibility by rewriting actors, ownership keys or ciphertext.
+The current owner schema supplies `computer_resource_owner` for cross-client
+selection. Readers and workers preserve the distinction between accepted profile
+and retained creation profile. Install the current schema and compatible Computers
+readers/workers before admission; mixed-version service operation is unsupported.
+A rollback must end cross-client access grants and settle affected operations before
+withdrawing those readers. Keep retained homes, ownership keys and ciphertext intact.
 
 Create reserves one immutable Computer, template fingerprint and provider instance.
 The request UUID is scoped to the owner/context; its canonical fingerprint detects
@@ -261,10 +269,10 @@ and its read capability before native dispatch.
 The execution slot blocks another command, Start or template maintenance. Owner Stop
 remains available to interrupt work. Stop admission preserves the file slot, which
 the file worker may release only after definitive completion or confirmed containment.
-Migration 0073 widens the slot's record target to the two explicit work tables. Existing
-command workers continue to select only their table; lifecycle readers see the same
-slot. File admission requires the compatible worker and facades to be deployed
-together. Migration 0074 adds private dispatch, continuation and settlement.
+The execution slot accepts the two explicit command and file work tables. Command
+workers select only command rows; lifecycle readers share the same slot. File admission
+requires compatible workers and facades deployed together. The owner schema stores
+private dispatch, continuation and settlement receipts.
 Only the original dispatch receipt can accept a verified native file result. A worker
 that loses that receipt may contain the saved run, but cannot repeat the transfer.
 Current action policy and named-grant limits remain mandatory after admission;
@@ -335,7 +343,7 @@ profile and a retention pin. Concurrent link attempts use the shared Task idempo
 boundary. Actor identity, Work Context and policy provenance remain in the journal;
 command text and provider credentials never enter its audit event.
 
-Migration 0056 makes verified execution authority part of every new operation.
+Every admitted operation carries verified execution authority.
 `ComputerActor` can only be constructed from a verified Computers identity with
 request context. Admission checks the assertion and source-token expiration; the
 transaction rechecks its deadline before accepting intent. The journal retains
@@ -348,10 +356,10 @@ while the worker completes or reconciles accepted work. Dispatch reads current a
 policy through the shared evaluator. Browser grants have separate current grant and
 family checks, described below, enforced by the service's browser and CLI transports.
 
-No supported installed Computers records precede this migration. Pre-profile
-candidate journals with missing context cannot admit new work or infer authority;
-they require explicit operator handling with their existing resource fence intact.
-The deployed profile must update all readers and writers before admitting Computers.
+Journals missing verified context cannot admit work or infer authority. Unresolved
+records require explicit operator handling with their resource fence intact. The
+fresh selected-lane profile supplies no decoder or conversion for earlier private
+journal shapes; every reader and writer must support the current schema before admission.
 
 The dispatch worker repairs pending Task links and projects a terminal Task after
 domain settlement. The retained allocator owns physical home fencing.
@@ -422,11 +430,10 @@ accepted terminal input may extend it. Activity cannot extend absolute lifetime 
 an expired grant. Tightened current limits further restrict an existing grant. Transport
 cleanup revokes only its exact consumed connection and changes no Computer lifecycle state.
 
-Migration 0058 adds private schema-full tables and leaves existing Computer and operation
-rows intact. Install every policy reader that recognizes `computer_attach` before activating
-a revision using it. An older service cannot resume these grants. Rollback drains attachment
-admission and closes existing access through the bounded leases before replacing readers;
-retain the ledger for revocation and expiry. Grant rollback never removes a retained home.
+The Computers lane defines private schemafull attachment tables. Every policy reader
+must recognize `computer_attach` before activating a revision using it. Rollback drains
+attachment admission and closes access through its bounded leases before replacing
+readers. Keep the ledger for revocation and expiry; grant rollback removes no retained home.
 
 Six real-store cases use independent clients and synthetic Ready rows. They prove private
 redemption, one-use races, quota contention, stale installer rejection, passive idle behavior,
@@ -482,15 +489,12 @@ Current read authority permits an owner to revoke a grant, including after losin
 contributor membership. Revocation ends every attached connection under its bounded
 lease while leaving Computer execution and retained storage unchanged.
 
-Migration 0059 adds private schema-full tables without rewriting browser grants or
-retained Computers. Apply it before the updated admission query runs. Deploy all
-Computers workers that count the shared browser/CLI quota before enabling public CLI
-pairing. Rolling overlap is safe while CLI admission remains disabled. The older
-runtime clients use database-scoped connections without schema migration, so additive
-tables do not change their reads. An older migration binary rejects a database ahead
-of its catalog; rollback must retain the qualified migration runner. Drain CLI admission
-and let existing connection leases close before rolling back a CLI-capable worker.
+The Computers lane defines private schemafull CLI grant and connection tables.
+Workers enforce the shared browser/CLI quota before public CLI pairing is enabled.
+Runtime clients use database-scoped connections and apply no schema. Drain CLI
+admission and let connection leases close before withdrawing a CLI-capable worker.
 Keep the grant ledger for expiry and revocation; rollback removes no retained files.
+The fresh owner-lane profile supplies no mixed-catalog or old-format compatibility.
 
 The isolated real-store tests exercise one-use confirmation, cross-replica grant and
 connection limits, shared browser quota, code replay and rate limits, owner reduction,
@@ -555,12 +559,10 @@ only to look up the already-authorized Task. The bounded metadata read excludes 
 ciphertext and output capabilities; the resulting authority expires even during a slow
 Task response. This adds no stored format or independent authority cache.
 
-Migration 0060 adds private tables without rewriting Computers or transport grants.
-Apply it before enabling the automation surface. Existing runtime connections do not
-run migrations; additive tables do not require unrelated service rebuilds. Retain the
-qualified migration runner on rollback, disable automation admission and resolve its
-active work before withdrawing workers that understand it. Keep retained files and
-revocation records intact.
+The Computers lane defines the automation grant tables. Runtime connections apply
+no schema. Enable automation only after the schema and compatible workers are installed.
+Rollback disables automation admission and resolves active work before withdrawing
+those workers. Keep retained files and revocation records intact.
 
 Native tests use separate clients of an isolated pinned store. They cover competing
 issuance and revocation, request conflicts, quota and policy reductions, exact client
@@ -573,7 +575,7 @@ protocol integration must retain that strict deserialization. These checks do no
 ## Retained Maintenance Admission
 
 `queue_maintenance` reserves one replacement UUID under current `update_template`
-policy and contributor authority. Migration 0069 stores its original source binding,
+policy and contributor authority. The maintenance journal stores its original source binding,
 installation-selected target, request identity and accepted actor without provider
 payloads. The transaction acquires the existing Computer operation fence and writes
 the audit event. Concurrent exact retries find the same replacement and repair the
@@ -624,14 +626,12 @@ discarding an unresolved effect. The domain permits only the owning principal un
 installation-selected recovery policy; installation administration does not create
 cross-owner read or recovery access.
 
-Migration 0071 adds each step's observation-window start and private resumption receipts.
-Drain older Computers readers and workers before applying it: their closed step decoder
-cannot read the new field. The backfill copies original dispatch time and preserves
-deadlines, charged reads and dispatch evidence. Keep this schema and compatible workers
-during template rollback. The isolated migration test reconstructs a pre-0071 step and
-proves exact preservation after the migration. The service and Console now expose
-this command. Native maintenance and installed recovery evidence retain their own
-scope in the worker design and Computers plan.
+Each maintenance step persists its observation-window start and private resumption
+receipts alongside deadlines, charged reads and dispatch evidence. The service and
+Console expose explicit resumption; it preserves the existing recovery budget.
+Keep compatible readers and workers during template rollback. Native maintenance
+and installed recovery qualification have their own scope in the worker design
+and active contract plan; no historical step conversion is part of the fresh lane.
 
 Capture settlement creates its encrypted checkpoint in the same transaction as the
 step receipt. The worker must reopen and validate that checkpoint before retirement.
@@ -766,13 +766,12 @@ only Computer/execution IDs and a retention pin. Neither its request nor the aud
 event contains command bodies, ciphertext or input fingerprints. The private ledger
 holds the authenticated envelope until its execution lifecycle permits disposal.
 
-Migration 0061 introduces queued admission. Migration 0062 adds the guarded dispatch
-transition and evidence. The native command worker composes dispatch, output
-Artifacts and settlement behind the public service projection. Apply the migration
-before updating lifecycle admission,
-and upgrade all workers that can Start before enabling command admission. Rollback
-must drain and settle execution slots before an older lifecycle worker returns;
-removing a slot without termination evidence is forbidden.
+The command journal defines queued admission and a guarded dispatch transition
+with retained evidence. The native worker composes dispatch, output Artifacts and
+settlement behind the public service projection. Compatible Start/lifecycle workers
+must enforce execution slots before command admission is enabled. Rollback drains
+and settles those slots before withdrawing compatible workers; removing a slot
+without termination evidence is forbidden.
 
 Native cases cover competing retries, changed input, distinct-request contention,
 private Task reconstruction, stale authority, policy reductions, principal disablement,
@@ -821,7 +820,7 @@ Cancellation, grant loss and a changed native run end foreground I/O. Policy cha
 can shorten runtime and output limits; later increases cannot restore a limit that
 the active worker already narrowed.
 
-Migration 0066 bounds queued preparation to five minutes. Both dispatch and expiry
+Queued preparation is limited to five minutes. Both dispatch and expiry
 refusal use the database clock. An expired queued command releases its exclusive
 slot as undispatched; the same reason cannot settle a dispatched command. A worker
 that lacks the qualified template or output receipt exposes preparation state until
@@ -830,7 +829,7 @@ slot release and retained fencing after dispatch.
 
 ## Command Interruption And Containment
 
-Migration 0063 adds interruption intent, a single Stop dispatch receipt, bounded
+The command journal stores interruption intent, a single Stop dispatch receipt, bounded
 termination observations and terminal Task delivery. Cancellation while Queued
 releases the command slot only when the shared Task records cancellation and no
 dispatch escaped. A current authority refusal or changed run can also abort queued
@@ -915,13 +914,11 @@ and label clearance before reading sealed payloads. These observation reads
 preserve accepted authority across token expiry; dispatch and journal commits enforce
 current policy and the Task lease independently.
 
-Migration 0076 backfills retained ownership from existing owner-only operation rows.
-Drain Computers readers and lifecycle workers before applying it, then start the
-new fleet before admitting named lifecycle work. Older writers cannot create the
-required ownership field. Rollback requires disabling new lifecycle admission and
-settling every named operation under the new worker; an old worker must never
-observe a queued agent operation. Retain the migration and historical rows during
-application rollback. This private transition has no old-writer support window.
+Lifecycle journals record retained ownership separately from the accepted actor
+and named grant. Readers and writers require those fields before admitting named
+lifecycle work. Rollback disables lifecycle admission and settles every named
+operation under compatible workers. Retain unresolved rows and resource fences;
+the fresh owner-lane profile provides no old-writer or backfill support.
 
 The public Create request resolves its first reservation before selecting a new
 installation default. The original template and provider remain attached to that
@@ -984,7 +981,7 @@ different requests passing a preceding read before one overwrote the other's fen
 Quota increments, policy changes, dispatch, read budgets and settlement follow the same
 conditional-update rule. Aborted transactions preserve their previous rows and counters.
 
-Migration 0054 adds the journal budget and outcome fields and backfills the read count.
+The journal persists observation budgets, charged read counts and outcome fields.
 The isolated database tests cover dispatch contention, lost local dispatch receipts,
 cross-replica observation, cancellation before dispatch, exhausted time/count budgets,
 source epoch rejection and domain-before-Task settlement. These tests do not establish
@@ -992,7 +989,7 @@ actual provider dispatch, production home fencing or installed recovery acceptan
 
 ## Worker Delivery And Undispatched Outcomes
 
-Migration 0055 records a known undispatched refusal and a Task projection marker.
+The journal records known undispatched refusals and Task projection markers.
 Cancellation before dispatch or current action denial restores the previous Computer
 phase under the shared lease and queued journal predicate. Capacity stays retained.
 Any escaped dispatch ticket permanently excludes this path, including lost replies.
@@ -1007,8 +1004,7 @@ boundaries; public facades use owner-scoped reads.
 
 ## Protected Command Output Access
 
-Migration 0064 adds one optional encrypted output-capability envelope to the private
-command record. The trusted service obtains a real Artifact capability with the
+The private command record holds one optional encrypted output-capability envelope. The trusted service obtains a real Artifact capability with the
 forwarded caller identity. Its request reserves two occurrences for stdout and stderr,
 uses the admitted total-byte limit and requires the immutable inherited-label floor.
 The Artifact service remains responsible for output ownership and clearance. A domain
@@ -1029,11 +1025,10 @@ the receipt nor its capability ID. These checks add no provider call. A failed
 preparation leaves queued work without dispatch authority; service retries and the
 worker's bounded preparation failure still need integration.
 
-This is a coordinated cut of the unreleased private command profile: its binding now
-requires output labels and its authenticated data includes the envelope purpose. No
-command records have been admitted on the installed service. Upgrade the migration
-runner and all command readers before admitting public commands. There is no decoder
-for the earlier unreleased envelope shape.
+The current private command binding requires output labels, and its authenticated
+data includes the envelope purpose. Install the current owner schema and compatible
+command readers before public admission. No decoder supports earlier private envelope
+shapes. Installed public command acceptance is a separate qualification gate.
 
 Isolated-store tests cover missing preparation, replica races, delayed issuance replies,
 insufficient lifetime, queued renewal and corruption. Pure tests cover purpose
@@ -1058,8 +1053,8 @@ compares the dispatch, provider run and exclusive slot, then records Completed, 
 result and its audit event while releasing the command slot. The trusted worker owns
 verification of actual Artifact receipts; domain fixture IDs do not qualify publication.
 
-Migration 0065 adds this terminal state and its metadata result. The Computer's phase
-and any independent owner Stop remain unchanged. Nonzero exit is a known result and
+Completed records retain their metadata result. The Computer's phase and any
+independent owner Stop remain unchanged. Nonzero exit is a known result and
 maps to a completed shared Task containing a tool error. A late cancellation remains
 in Task history. Once containment is admitted, a stale exit receipt cannot win result
 settlement. Lease loss, replacement run, invalid output or unknown native exit retains
@@ -1075,12 +1070,12 @@ All command readers must understand Completed before public command admission. N
 worker execution, real Artifact publication and the public end-to-end journey remain
 integration gates.
 
-Migration 0067 adds the canonical execution result address to completed journals and
-their successful shared Task projection. The migration transaction checks that the
-Task identifies Computers execution and that its structured result and error bit agree
-with the journal. An inconsistency aborts the whole migration. Exact result reads use
-current command Task authority, with distinct actual actor and direct owner oversight.
-The migration requires drained old command readers/writers and no downgrade decoder.
+Completed journals and their successful shared Task projection carry the canonical
+execution result address. Delivery checks the Computers execution identity, structured
+result and error bit against the journal before acknowledging projection. Exact result
+reads use current command Task authority, with distinct actual actor and direct owner
+oversight. Compatible command readers/writers are required; the fresh lane provides
+no downgrade decoder or historical result conversion.
 
 Automation inventory includes current management hints and the checked installation
 ceilings. One fresh management authority snapshot supplies the hints; issuance and
@@ -1146,11 +1141,13 @@ vocabulary, serialization and schema libraries. Domain contracts, Store and runt
 services require their own features. The declaration claims `computer_*` and the explicit `computer` table.
 It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its `installation-prepare` command runs the mixed Store catalog, which owns production
-migration execution. `module-migrate` executes the declared lane after preparation;
-installed image and Job qualification is tracked in the active contract plan. Owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The version-zero lane installs `src/schema/migrations/0000_current.surql`.
+The composition root supplies its checked execution image and command.
+`installation-prepare` establishes runtime credentials, and `module-migrate`
+executes the selected lane after its prerequisites. Installed image and Job
+qualification is tracked separately in the active contract plan. Computers owns
+its persistence statements and driver records over the shared Store connection.
 
-Its declaration does not certify the current Audit-to-Computers record reference.
+Computers registers its Audit target codec independently of workload selection.
+Audit stores an opaque lookup reference and validates it with that registry;
+the kernel schema does not depend on the optional Computers table.

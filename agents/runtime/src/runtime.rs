@@ -11,16 +11,18 @@ use std::sync::{
 };
 use std::time::Duration;
 
+use crate::persistence::{
+    AgentEpisodeId, AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentInputRequestId,
+    AgentInputRequestRecord, AgentInputRequestState, AgentRecord, AgentState, AgentTaskId,
+    AgentTaskRecord, AgentTaskWatchState, WakeId, WakeKind, WakeRecord, WakeState,
+};
 use chrono::{DateTime, TimeDelta, Utc};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::{
-    AgentEpisodeId, AgentEpisodeRecord, AgentEpisodeState, AgentId, AgentInputRequestId,
-    AgentInputRequestRecord, AgentInputRequestState, AgentRecord, AgentState, AgentTaskId,
-    AgentTaskRecord, AgentTaskWatchState, InvocationAuthorityRecord, OpenObject, PlatformIdentity,
-    PlatformStore, PlatformTable, PrincipalKind, StoreAuthLevel, WakeId, WakeKind, WakeRecord,
-    WakeState, deterministic_work_context_id,
+    InvocationAuthorityRecord, OpenObject, PlatformIdentity, PlatformStore, PlatformTable,
+    PrincipalKind, StoreAuthLevel, deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -123,17 +125,6 @@ struct InputRequestContent {
     revision: i64,
 }
 
-const ACK_WAKES_WITHOUT_EPISODE_QUERY: &str = r#"
-BEGIN TRANSACTION;
-LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now);
-IF $lease = NONE { THROW 'agent lease lost'; };
-LET $claimed_wakes = (SELECT VALUE id FROM wake WHERE id IN $wakes AND agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence);
-IF array::len($claimed_wakes) != array::len($wakes) { THROW 'wake claim lost'; };
-UPDATE wake SET state = 'acked', acked_at = $now, acked_by_episode = NONE, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, updated_at = $now, revision += 1 WHERE id IN $claimed_wakes RETURN NONE;
-UPDATE ONLY $agent SET state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN NONE;
-COMMIT TRANSACTION;
-"#;
-
 /// One replica's handle to a registered autonomous agent.
 #[derive(Clone)]
 pub struct AgentRuntime {
@@ -176,7 +167,7 @@ impl AgentRuntime {
 
                 store
                     .client()
-                    .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $agent SET manifest = $manifest, revision += 1, updated_at = $now WHERE revision = $revision AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated = NONE { THROW 'agent manifest update conflict'; }; COMMIT TRANSACTION;")
+                    .query(include_str!("queries/runtime/update_manifest.surql"))
                     .bind(("agent", record.id.clone()))
                     .bind(("manifest", spec.manifest.clone()))
                     .bind(("revision", record.revision))
@@ -230,7 +221,7 @@ impl AgentRuntime {
 
         let created = store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $agent CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/register.surql"))
             .bind(("agent", agent_id.record_id()))
             .bind(("content", content))
             .await
@@ -297,7 +288,7 @@ impl AgentRuntime {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $leased = (UPDATE ONLY $agent SET lease_owner = $owner, lease_expires_at = $expires, heartbeat_at = $now, managed_ready = NONE, fence = $fence, revision += 1, updated_at = $now WHERE revision = $revision AND state != 'disabled' AND (lease_owner = NONE OR lease_expires_at = NONE OR lease_expires_at <= $now OR lease_owner = $owner) RETURN AFTER); IF $leased = NONE { THROW 'agent lease conflict'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/acquire_lease.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", owner))
             .bind(("expires", expires_at))
@@ -318,9 +309,10 @@ impl AgentRuntime {
         let fence = self.fence()?;
         let now = Utc::now();
         let expires_at = deadline(now, duration)?;
-        let mut response = self.store
+        let mut response = self
+            .store
             .client()
-            .query("UPDATE ONLY $agent SET lease_expires_at = $expires, heartbeat_at = $now, revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now RETURN AFTER;")
+            .query(include_str!("queries/runtime/renew_lease.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -342,7 +334,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $released = (UPDATE ONLY $agent SET lease_owner = NONE, lease_expires_at = NONE, heartbeat_at = $now, state = 'idle', revision += 1, updated_at = $now WHERE lease_owner = $owner AND fence = $fence RETURN AFTER); IF $released = NONE { THROW 'agent lease lost'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/release_lease.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -371,7 +363,9 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query(ACK_WAKES_WITHOUT_EPISODE_QUERY)
+            .query(include_str!(
+                "queries/runtime/ack_wakes_without_episode.surql"
+            ))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -389,7 +383,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $wake CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/enqueue_wake.surql"))
             .bind(("wake", wake.wake_id.record_id()))
             .bind(("content", content))
             .await?
@@ -414,7 +408,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM wake WHERE agent = $agent AND state = 'pending' AND available_at <= $now ORDER BY available_at ASC, created_at ASC, id ASC LIMIT $limit;")
+            .query(include_str!("queries/runtime/claim_wakes.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("now", now))
             .bind(("limit", i64::from(limit)))
@@ -436,7 +430,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $wake SET state = 'coalesced', coalesced_into = $winner, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, acked_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN AFTER); IF $updated = NONE { THROW 'wake claim lost'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/coalesce_wake.surql"))
             .bind(("wake", wake.record_id()))
             .bind(("winner", winner.record_id()))
             .bind(("agent", self.agent_id.record_id()))
@@ -459,7 +453,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $wake SET state = 'pending', available_at = $available, claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'claimed' AND claimed_by = $owner AND claim_fence = $fence RETURN AFTER); IF $updated = NONE { THROW 'wake claim lost'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/retry_wake.surql"))
             .bind(("wake", wake.record_id()))
             .bind(("available", available_at))
             .bind(("error", error.to_owned()))
@@ -516,7 +510,7 @@ impl AgentRuntime {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $agent_task CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/record_task.surql"))
             .bind(("agent_task", agent_task_id.record_id()))
             .bind(("content", content))
             .await;
@@ -557,7 +551,9 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("UPDATE ONLY agent_task SET descriptor = $descriptor, descriptor_complete = true, updated_at = $now, revision += 1 WHERE agent = $agent AND task_id = $task_id AND state IN ['pending', 'watching'] RETURN AFTER;")
+            .query(include_str!(
+                "queries/runtime/complete_task_descriptor.surql"
+            ))
             .bind(("descriptor", descriptor))
             .bind(("now", now))
             .bind(("agent", self.agent_id.record_id()))
@@ -590,7 +586,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_task WHERE agent = $agent AND state = 'pending' AND next_retry_at <= $now ORDER BY next_retry_at ASC, created_at ASC LIMIT $limit;")
+            .query(include_str!("queries/runtime/claim_tasks.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("now", now))
             .bind(("limit", i64::from(limit)))
@@ -624,7 +620,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("UPDATE ONLY $task SET lease_expires_at = $expiry, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $owner AND lease_expires_at > $now RETURN AFTER;")
+            .query(include_str!("queries/runtime/renew_task_claim.surql"))
             .bind(("task", agent_task_id.record_id()))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", task_lease_owner(self.instance_id, fence)))
@@ -650,7 +646,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET state = 'pending', attempt_count += 1, next_retry_at = $retry, lease_owner = NONE, lease_expires_at = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $owner RETURN AFTER); IF $updated = NONE { THROW 'agent task lease lost'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/retry_task.surql"))
             .bind(("task", task.agent_task_id.record_id()))
             .bind(("retry", next_retry_at))
             .bind(("error", error.to_owned()))
@@ -697,7 +693,9 @@ impl AgentRuntime {
         };
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $settled = (UPDATE ONLY $agent_task SET state = $state, result = $result, result_is_error = $is_error, consumed_by_episode = $episode, retention_pin_active = false, lease_owner = NONE, lease_expires_at = NONE, resolved_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state IN ['pending', 'watching'] RETURN AFTER); IF $settled = NONE { THROW 'agent task settlement conflict'; }; COMMIT TRANSACTION;")
+            .query(include_str!(
+                "queries/runtime/resolve_task_in_episode.surql"
+            ))
             .bind(("agent_task", existing.id))
             .bind(("state", state))
             .bind(("result", result))
@@ -714,7 +712,9 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_task WHERE agent = $agent AND state IN ['resolved', 'failed', 'cancelled'] AND consumed_by_episode = NONE AND result != NONE ORDER BY resolved_at ASC;")
+            .query(include_str!(
+                "queries/runtime/unconsumed_task_results.surql"
+            ))
             .bind(("agent", self.agent_id.record_id()))
             .await?
             .check()?;
@@ -748,7 +748,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT count() AS count FROM agent_task WHERE agent = $agent AND state IN ['pending', 'watching'] GROUP ALL;")
+            .query(include_str!("queries/runtime/pending_task_count.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .await?
             .check()?;
@@ -792,7 +792,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $input_request CONTENT $content RETURN NONE; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/create_input_request.surql"))
             .bind(("input_request", draft.input_request_id.record_id()))
             .bind(("content", content))
             .bind(("wake", wake.wake_id.record_id()))
@@ -835,7 +835,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $answered = (UPDATE ONLY $input_request SET state = $state, answer = $answer, answered_by = $answered_by, answered_at = $now, revision += 1 WHERE state = 'pending' AND revision = $revision RETURN AFTER); IF $answered = NONE { THROW 'input_request answer conflict'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/answer_input_request.surql"))
             .bind(("input_request", input_request_id.record_id()))
             .bind(("state", answer.state))
             .bind(("answer", answer.answer))
@@ -853,7 +853,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_input_request WHERE agent = $agent AND state = 'pending' ORDER BY requested_at ASC;")
+            .query(include_str!("queries/runtime/pending_input_requests.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .await?
             .check()?;
@@ -900,7 +900,7 @@ impl AgentRuntime {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $instance AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $settled = (UPDATE ONLY $agent_task SET state = $state, result = $result, result_is_error = $is_error, result_wake = $wake, lease_owner = NONE, lease_expires_at = NONE, resolved_at = $now, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $task_owner RETURN AFTER); IF $settled = NONE { THROW 'agent task lease lost'; }; CREATE ONLY $wake CONTENT $wake_content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/settle_task.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("instance", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -930,7 +930,7 @@ impl AgentRuntime {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $claimed = (UPDATE ONLY $wake SET state = 'claimed', claimed_by = $owner, claimed_at = $now, claim_expires_at = $expiry, claim_fence = $fence, attempts += 1, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'pending' AND available_at <= $now AND revision = $revision RETURN AFTER); IF $claimed = NONE { THROW 'wake claim conflict'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/claim_wake.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("owner", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -960,7 +960,7 @@ impl AgentRuntime {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $lease = (SELECT * FROM ONLY $agent WHERE lease_owner = $instance AND fence = $fence AND lease_expires_at > $now); IF $lease = NONE { THROW 'agent lease lost'; }; LET $claimed = (UPDATE ONLY $task SET state = 'watching', lease_owner = $task_owner, lease_expires_at = $expiry, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'pending' AND next_retry_at <= $now AND revision = $revision RETURN AFTER); IF $claimed = NONE { THROW 'agent task claim conflict'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/runtime/claim_task.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("instance", self.instance_id.to_string()))
             .bind(("fence", fence))
@@ -982,7 +982,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_episode WHERE agent = $agent AND state = 'running';")
+            .query(include_str!("queries/runtime/running_episodes.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .await?
             .check()?;
@@ -992,7 +992,7 @@ impl AgentRuntime {
 
             self.store
                 .client()
-                .query("BEGIN TRANSACTION; UPDATE ONLY $episode SET state = 'crashed', error = 'scheduler lease was recovered', finished_at = $now, revision += 1 WHERE state = 'running' RETURN NONE; COMMIT TRANSACTION;")
+                .query(include_str!("queries/runtime/recover_episode.surql"))
                 .bind(("episode", episode_id.record_id()))
                 .bind(("now", now))
                 .await?
@@ -1010,7 +1010,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM wake WHERE agent = $agent AND state = 'claimed' AND (claim_expires_at = NONE OR claim_expires_at <= $now);")
+            .query(include_str!("queries/runtime/expired_wakes.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("now", now))
             .await?
@@ -1021,7 +1021,7 @@ impl AgentRuntime {
 
             self.store
                 .client()
-                .query("BEGIN TRANSACTION; UPDATE ONLY $wake SET state = 'pending', claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, available_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'claimed' AND revision = $revision RETURN NONE; COMMIT TRANSACTION;")
+                .query(include_str!("queries/runtime/recover_wake.surql"))
                 .bind(("wake", record.id))
                 .bind(("now", now))
                 .bind(("revision", record.revision))
@@ -1037,7 +1037,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_task WHERE agent = $agent AND state = 'watching' AND (lease_expires_at = NONE OR lease_expires_at <= $now);")
+            .query(include_str!("queries/runtime/expired_tasks.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("now", now))
             .await?
@@ -1048,7 +1048,7 @@ impl AgentRuntime {
 
             self.store
                 .client()
-                .query("BEGIN TRANSACTION; UPDATE ONLY $task SET state = 'pending', lease_owner = NONE, lease_expires_at = NONE, next_retry_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'watching' AND revision = $revision RETURN NONE; COMMIT TRANSACTION;")
+                .query(include_str!("queries/runtime/recover_task.surql"))
                 .bind(("task", record.id))
                 .bind(("now", now))
                 .bind(("revision", record.revision))
@@ -1152,7 +1152,7 @@ impl AgentRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM agent_task WHERE agent = $agent AND task_id = $task_id LIMIT 1;")
+            .query(include_str!("queries/runtime/task_by_task_id.surql"))
             .bind(("agent", self.agent_id.record_id()))
             .bind(("task_id", task_id.to_string()))
             .await?
@@ -1177,7 +1177,7 @@ where
 {
     let mut response = store
         .client()
-        .query("SELECT * FROM ONLY $record;")
+        .query(include_str!("queries/runtime/select_only.surql"))
         .bind(("record", record))
         .await?
         .check()?;
@@ -1193,7 +1193,7 @@ async fn find_agent(
 ) -> Result<Option<AgentRecord>> {
     let mut response = store
         .client()
-        .query("SELECT * FROM agent WHERE tenant = $tenant AND agent_key = $agent_key LIMIT 1;")
+        .query(include_str!("queries/runtime/find_agent.surql"))
         .bind(("tenant", tenant))
         .bind(("agent_key", agent_key.to_owned()))
         .await?

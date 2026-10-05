@@ -19,6 +19,8 @@ use super::{
     operations::{Caller, OperationState},
 };
 use crate::contract as wire;
+use crate::persistence::WorkspaceRunState;
+use crate::persistence::{WorkspaceAgentId, WorkspaceChatId, WorkspaceMessageId, WorkspaceRunId};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, State},
@@ -34,10 +36,7 @@ use uuid::Uuid;
 use veoveo_agent_runtime::gateway::http::{AgentManagementState, execution::ResolvedAgent};
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
-use veoveo_platform_store::{
-    PlatformStore, WorkspaceAgentId, WorkspaceChatId, WorkspaceMessageId, WorkspaceRunId,
-    workspace::WorkspaceRunState,
-};
+use veoveo_platform_store::PlatformStore;
 
 #[derive(Clone)]
 struct RunState {
@@ -67,7 +66,7 @@ pub(crate) fn router(
         .timeout(Duration::from_secs(905))
         .build()?;
     Ok(routes(RunState {
-        workspace: WorkspaceState { store },
+        workspace: WorkspaceState::new(store),
         gateway,
         catalog,
         agents,
@@ -153,7 +152,7 @@ async fn add(
         .await?;
     let added = state
         .workspace
-        .store
+        .repository
         .add_workspace_agent(
             &authority,
             WorkspaceChatId::from_uuid(chat),
@@ -172,7 +171,7 @@ async fn remove(
     let authority = authority::admit(&state.workspace, &subject).await?;
     let removed = state
         .workspace
-        .store
+        .repository
         .remove_workspace_agent(
             &authority,
             WorkspaceChatId::from_uuid(chat),
@@ -191,13 +190,13 @@ async fn activity(
     let chat = WorkspaceChatId::from_uuid(chat);
     let runs = state
         .workspace
-        .store
+        .repository
         .workspace_runs(&authority, chat)
         .await
         .map_err(fault)?;
     let agents = state
         .workspace
-        .store
+        .repository
         .workspace_agents(&authority, chat)
         .await
         .map_err(fault)?;
@@ -233,7 +232,7 @@ async fn start(
     let agent = WorkspaceAgentId::from_uuid(request.agent.0);
     let agents = state
         .workspace
-        .store
+        .repository
         .workspace_agents(&authority, chat)
         .await
         .map_err(fault)?;
@@ -265,7 +264,7 @@ async fn start(
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let run = state
         .workspace
-        .store
+        .repository
         .start_workspace_run(
             &authority,
             chat,
@@ -290,7 +289,7 @@ async fn cancel(
     let authority = authority::admit(&state.workspace, &subject).await?;
     let result = state
         .workspace
-        .store
+        .repository
         .cancel_workspace_run(
             &authority,
             WorkspaceChatId::from_uuid(chat),

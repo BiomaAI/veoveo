@@ -1,0 +1,1 @@
+SELECT * FROM recording_ingest_stream WHERE tenant = $tenant AND producer_id = $producer_id AND application_id = $application_id AND recording_key != $recording_key AND recording IN (SELECT VALUE id FROM recording WHERE tenant = $tenant AND application_id = $application_id AND state = 'live') ORDER BY opened_at ASC LIMIT $limit;

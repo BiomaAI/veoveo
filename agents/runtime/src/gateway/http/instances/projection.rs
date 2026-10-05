@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::contract::authoring as wire;
+use crate::persistence::instances::*;
 use surrealdb::types::{RecordId, SurrealValue, ToSql};
-use veoveo_platform_store::agent_management::instances::*;
 
 use super::super::{AgentManagementState, Fault, authority::Admission, projection as common};
 
@@ -71,9 +71,18 @@ pub(super) async fn instances(
             std::iter::once(v.requested_revision.clone()).chain(v.active_revision.clone())
         })
         .collect();
-    let mut response = state.store().client().query(
-        "SELECT id, key FROM agent_definition WHERE id IN $definitions LIMIT 200; SELECT id, digest, content.execution.template AS template FROM agent_definition_revision WHERE id IN $revisions LIMIT 400;"
-    ).bind(("definitions", definitions)).bind(("revisions", revisions)).await.map_err(|_| Fault::unavailable())?.check().map_err(|_| Fault::unavailable())?;
+    let mut response = state
+        .store()
+        .client()
+        .query(include_str!(
+            "../../../queries/gateway/http/instances/projection/instances/statement_1.surql"
+        ))
+        .bind(("definitions", definitions))
+        .bind(("revisions", revisions))
+        .await
+        .map_err(|_| Fault::unavailable())?
+        .check()
+        .map_err(|_| Fault::unavailable())?;
     let definitions: Vec<DefinitionIdentity> =
         response.take(0).map_err(|_| Fault::unavailable())?;
     let revisions: Vec<RevisionIdentity> = response.take(1).map_err(|_| Fault::unavailable())?;

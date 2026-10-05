@@ -10,9 +10,9 @@ use rsa::{
     traits::PublicKeyParts,
 };
 use std::collections::BTreeMap;
-use veoveo_platform_store::{
-    PlatformStore,
-    agent_management::instances::{ManagedAgentClaim, ManagedAgentInstance, ManagedAgentPublicKey},
+use veoveo_agent_runtime::persistence::AgentRepository;
+use veoveo_agent_runtime::persistence::{
+    instances::ManagedAgentClaim, instances::ManagedAgentInstance, instances::ManagedAgentPublicKey,
 };
 
 use crate::{
@@ -26,7 +26,7 @@ const KEY_ID: &str = "kid";
 
 pub async fn ensure_credentials(
     kube: &Kubernetes,
-    store: &PlatformStore,
+    store: &AgentRepository,
     claim: &ManagedAgentClaim,
     instance: &ManagedAgentInstance,
 ) -> Result<()> {

@@ -7,12 +7,14 @@
 | RFC 9562 | Canonical UUIDv7 record and HTTP request identities |
 | W3C Trace Context | Nonzero lowercase 32-hex trace IDs and 16-hex span IDs |
 | RFC 9162, RFC 8785 and RFC 8032 | Typed block heads, decimal-string versionstamps, Merkle roots and Ed25519 signatures |
+| JSON Schema draft 2020-12 | Composed closed target union, local definitions, scalar constraints and arrays; owner registration rejects open schemas, unresolved or nonlocal references and undeclared schema mechanics |
 | RFC 3339 and JSON | Typed timestamps, tagged closed enums and checked deserialization |
 | `veoveo.ai/audit-record/v1` | One reviewed record shape across platform producers and readers |
 | `ai.veoveo/knowledge-source` | Reviewed observation fields from the protocol-independent extension contract |
 
 This library owns the protocol-independent audit vocabulary. It depends on foundational
-names and the lightweight Artifact and Computers identities. Store and MCP both depend
+names and lightweight Artifact identities. Computers supplies its Audit target codec
+through the installation registry. Store and MCP both depend
 on this crate. The writer depends on Store; separating this contract avoids a Cargo
 cycle and prevents persistence from importing the MCP runtime.
 
@@ -55,7 +57,7 @@ The actor's tenant selects its tenant partition; the `administrator` and `audito
 roles also admit installation records.
 
 `AuditRecordSummary` keeps typed targets and activities through browser delivery.
-`reader_schema` exports this projection, page queries, daily counts and view receipts
+`reader_schema(registry)` composes this projection, page queries, daily counts and view receipts
 for the existing client generator. A view receipt refers to a committed access record;
 it grants no authority. Each read verifies the current actor, profile, selected
 partition and receipt lifetime. JSON Lines exports contain a header, records and a
@@ -93,3 +95,31 @@ Their owner validator and decimal parser require the canonical unsigned spelling
 Serde converts through String in both human-readable and binary formats. JSON and
 JCS therefore preserve versionstamps that exceed exact IEEE-754 integer precision.
 The nominal counter types keep copied getters and their existing schema profiles.
+
+## Owner Target Admission
+
+`AuditTargetRegistry` binds each owner discriminator to its typed decoder, closed
+JSON Schema and checked lookup reference. `AuditTargetRegistration<T>` constructs
+and retrieves the registered owner type. The immutable registry shares its identity
+through clones; a target from another registry cannot enter an append or query.
+Target equality compares admitted JSON. Serialization emits the owner object directly,
+and excludes registry identity, cached payloads and lookup references.
+
+`AuditDecoder` admits target-bearing drafts, records, queries, summaries, pages and
+export lines with an explicit registry. Its JSON parser rejects duplicate object
+fields before creating a JSON value. Private input models carry unadmitted values;
+the decoder then applies target admission and the draft's existing relationship
+checks. Attribution-only `AuditContext` has no registry state.
+
+Owner registration rejects unknown, repeated and core-colliding discriminators.
+Schema composition rejects duplicate definition names and joins owner branches into
+the target's closed union. An installation keeps supported read codecs registered
+when it disables an owner's workload. Missing codecs produce a configuration error
+when reading existing records. Registering a codec installs no runtime or database
+schema.
+
+Store extracts unadmitted driver values privately and decodes them with its configured
+registry. Every returned row, including pagination's extra row, validates its record
+identity, partition and lookup reference. Queries validate target registry identity
+before executing SQL and match the entire `draft.target` object. Transaction writes
+receive the same registry and append alongside the caller's domain write.

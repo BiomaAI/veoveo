@@ -1,3 +1,4 @@
+use veoveo_agent_runtime::persistence::AgentRepository;
 mod config;
 mod credentials;
 mod kubernetes;
@@ -49,7 +50,7 @@ async fn main() -> Result<()> {
     .await?;
     let kube = Kubernetes::in_cluster(config.namespace.clone())?;
     let manager = Manager {
-        store: store.clone(),
+        agents: AgentRepository::new(store.clone()),
         kube: kube.clone(),
         config,
     };
@@ -82,7 +83,7 @@ async fn main() -> Result<()> {
             _ = &mut intents => anyhow::bail!("manager intent observer ended"),
         };
         let due = match manager
-            .store
+            .agents
             .next_managed_agent_delay(&manager.config.namespace)
             .await
         {
@@ -121,7 +122,7 @@ async fn reconcile_inventory(manager: &Manager) -> bool {
     let mut retry = false;
     loop {
         let operations = match manager
-            .store
+            .agents
             .pending_managed_agent_operations(&manager.config.namespace, 200, true, after)
             .await
         {

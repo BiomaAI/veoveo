@@ -175,7 +175,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         gateway_ip,
     })
     .await;
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let mut control = support::automation::control();
     for name in ["update_template", "resume_update"] {
         let tool = LocalToolName::parse(name).unwrap();
@@ -452,7 +452,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
     );
     let usage: Vec<i64> =
         db.a.client()
-            .query("SELECT VALUE retained FROM computer_usage;")
+            .query(include_str!("queries/native_maintenance/installation_templates_upgrade_recover_and_rollback_retained_home.surql"))
             .await
             .unwrap()
             .check()

@@ -254,7 +254,7 @@ async fn listener_precedes_reads_and_changes_during_build_settle_before_activati
                 );
                 let mut before =
                     db.b.client()
-                        .query("SELECT VALUE expires_at FROM knowledge_coordinator;")
+                        .query(include_str!("queries/coordination/listener_precedes_reads_and_changes_during_build_settle_before_activation.surql"))
                         .await
                         .unwrap()
                         .check()
@@ -264,7 +264,7 @@ async fn listener_precedes_reads_and_changes_during_build_settle_before_activati
                 tokio::time::sleep(Duration::from_secs(11)).await;
                 let mut after =
                     db.b.client()
-                        .query("SELECT VALUE expires_at FROM knowledge_coordinator;")
+                        .query(include_str!("queries/coordination/listener_precedes_reads_and_changes_during_build_settle_before_activation_2.surql"))
                         .await
                         .unwrap()
                         .check()
@@ -413,7 +413,7 @@ async fn source_loss_hides_results_and_restart_reuses_vectors_without_inferring_
                 assert_eq!(results[0].uri, uri("a"));
                 let mut response =
                     db.b.client()
-                        .query("SELECT VALUE deleted FROM knowledge_member WHERE uri = $uri;")
+                        .query(include_str!("queries/coordination/source_loss_hides_results_and_restart_reuses_vectors_without_inferring_deletion.surql"))
                         .bind(("uri", uri("b").to_string()))
                         .await
                         .unwrap()

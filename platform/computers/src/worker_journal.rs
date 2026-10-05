@@ -81,6 +81,7 @@ impl ComputersStore {
             ("provider", self.provider_instance_id.as_uuid().into_value()),
         ]);
         bindings.push(crate::audit::binding(
+            self.platform.audit_targets(),
             &operation.execution_authority,
             operation.computer_id,
             event.transition(operation),

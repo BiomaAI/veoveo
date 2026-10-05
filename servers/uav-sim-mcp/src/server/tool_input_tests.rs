@@ -17,7 +17,10 @@ use veoveo_mcp_contract::hosting::{
 async fn unknown_tool_arguments_complete_before_simulation_access() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = test_support::fixture::TestDb::new().await;
+        let db = crate::server::test_support::database(
+            crate::server::test_support::fixture::StoreBackend::Memory,
+        )
+        .await;
         let simulation = super::service::fake_state().unwrap();
         let adapter = Arc::new(Mutex::new(FakeAdapter::new(simulation.clone())));
         let state = test_support::state(

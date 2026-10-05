@@ -5,6 +5,8 @@ use veoveo_modules::{
     ModuleName, ModuleSetup, OwnershipClaim, TablePrefix,
 };
 
+pub const CURRENT_SCHEMA: &str = include_str!("audit/migrations/0000_current.surql");
+
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
 pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, DeclarationError> {
     ModuleSetup::builder(ModuleName::new("audit")?, ModuleLayer::Kernel)
@@ -13,7 +15,11 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Function(FunctionName::new("fn::append_audit")?),
             OwnershipClaim::Function(FunctionName::new("fn::append_audit_indexing")?),
         ])
-        .lane(MigrationLane::empty())
+        .lane(MigrationLane::new(vec![veoveo_modules::Migration::new(
+            veoveo_modules::MigrationVersion::new(0),
+            veoveo_modules::MigrationName::new("current")?,
+            CURRENT_SCHEMA,
+        )?])?)
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new("tasks")?)])
         .build()

@@ -1,0 +1,1 @@
+SELECT * FROM computer_file_transfer; SELECT * FROM computer_file_transfer_payload; SELECT * FROM computer_file_transfer_request; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_file_transfer';

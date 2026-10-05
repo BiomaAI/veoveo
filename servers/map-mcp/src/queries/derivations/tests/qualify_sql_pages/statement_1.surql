@@ -1,0 +1,1 @@
+SELECT derivation_key, created_by, created_at FROM map_derivation WHERE tenant = $tenant AND work_context = $context AND kind = 'raster' AND derivation_key > $after ORDER BY derivation_key ASC LIMIT 101 EXPLAIN;

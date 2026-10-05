@@ -56,7 +56,7 @@ pub async fn readable_findings(
         .bind(
             store
                 .client()
-                .query(sql(include_str!("knowledge/read.surql"))),
+                .query(include_str!("../queries/knowledge/read.surql")),
         )
         .bind(("reason_server", RecordId::new("mcp_server", "reason")))
         .bind((
@@ -106,13 +106,4 @@ pub async fn readable_findings(
             })
         })
         .collect()
-}
-
-fn sql(template: &str) -> String {
-    template
-        .replace(
-            "{{FINDING_ADMISSION}}",
-            include_str!("knowledge/admitted.surql"),
-        )
-        .replace("{{ADMISSION}}", ArtifactReadScope::ADMISSION)
 }

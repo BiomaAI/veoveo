@@ -48,7 +48,11 @@ async fn fixture() -> (
     MediaState,
     MediaState,
 ) {
-    let db = store::TestDb::new().await;
+    let db = store::TestDb::with_modules(vec![
+        veoveo_media_mcp::schema::module_setup(store::module_lanes::execution("media").unwrap())
+            .unwrap(),
+    ])
+    .await;
     let first = TaskRuntime::new(db.a.clone(), "media", "media-replica-a");
     let second = TaskRuntime::new(db.b.clone(), "media", "media-replica-b");
     let first_state = MediaState::new(db.a.clone());

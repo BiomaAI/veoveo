@@ -6,14 +6,15 @@ use veoveo_types::{AccessSubject, ResourceAddress};
 #[tokio::test]
 async fn observations_use_stored_authority_and_versioned_members() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db = fixture::TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let catalog = TimeCatalog::new(db.b.clone());
         let owner = scope(&db.a, "time-knowledge", "creator").await;
         let mut peer = scope(&db.a, "time-knowledge", "reader").await;
         peer.work_context = "reader-context".parse().unwrap();
         let foreign = scope(&db.a, "foreign", "creator").await;
         let calendar = OperationalCalendar {
-            calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000010").unwrap(),
+            calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000010")
+                .unwrap(),
             version: TimeVersion::FIRST,
             name: "Calendar".into(),
             zone_id: "UTC".into(),
@@ -51,11 +52,13 @@ async fn observations_use_stored_authority_and_versioned_members() {
         oversized.version = TimeVersion::new(2).unwrap();
         oversized.excluded_dates = vec!["2026-10-01".into(); 6_000];
         assert!(catalog.create_calendar(&owner, oversized).await.is_err());
-        assert!(catalog
-            .calendar(&owner, &calendar.calendar_id, TimeVersion::new(2).unwrap())
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            catalog
+                .calendar(&owner, &calendar.calendar_id, TimeVersion::new(2).unwrap())
+                .await
+                .unwrap()
+                .is_none()
+        );
         assert!(
             catalog
                 .observed_calendar(&foreign, &calendar.calendar_id, calendar.version)
@@ -188,7 +191,7 @@ async fn observations_use_stored_authority_and_versioned_members() {
 
         // Authorization happens in SQL even when the denied row cannot decode.
         db.a.client()
-            .query("UPDATE $record SET provenance = {tenant_key: 'malformed', owner_key: 'malformed', work_context: 'malformed'};")
+            .query(include_str!("../../tests/queries/corrupt_provenance.surql"))
             .bind((
                 "record",
                 surrealdb::types::RecordId::new("time_temporal_event", event.event_id.to_string()),

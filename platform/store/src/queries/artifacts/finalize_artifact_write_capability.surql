@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $updated_rows = (UPDATE $redemption SET state = 'finalized', finalized_at = $now WHERE state = 'reserved' AND artifact = $artifact RETURN AFTER); LET $updated = array::first($updated_rows); IF $updated != NONE { UPDATE ONLY $artifact SET task = $updated.task RETURN NONE; }; COMMIT TRANSACTION;

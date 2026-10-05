@@ -8,6 +8,7 @@ use veoveo_mcp_contract::WorkContextDefinition;
 use veoveo_platform_store::audit::AuditTransactionWrite;
 
 pub(super) fn changes(
+    registry: &veoveo_audit_contract::AuditTargetRegistry,
     before: &[WorkContextDefinition],
     after: &[WorkContextDefinition],
     context: &AuditContext,
@@ -52,5 +53,5 @@ pub(super) fn changes(
             )?);
         }
     }
-    Ok(AuditTransactionWrite::batch(records)?)
+    Ok(AuditTransactionWrite::batch(registry, records)?)
 }

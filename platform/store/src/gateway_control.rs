@@ -17,7 +17,7 @@ impl PlatformStore {
     ) -> Result<Option<GatewayControlRevisionRecord>, StoreError> {
         let mut response = self
             .client()
-            .query(include_str!("gateway_control/active.surql"))
+            .query(include_str!("queries/gateway_control/active.surql"))
             .await?
             .check()?;
         let selected: Option<Selection> = response.take(2)?;

@@ -22,7 +22,7 @@ async fn operation_names_survive_storage_and_reject_unvalidated_admission() {
         );
         let mut rows =
             db.b.client()
-                .query("SELECT task_type FROM task WHERE id = $task;")
+                .query(include_str!("../queries/support/task_type_cases/operation_names_survive_storage_and_reject_unvalidated_admission/statement_1.surql"))
                 .bind(("task", task_record_id(task.task_id)))
                 .await
                 .unwrap()
@@ -51,7 +51,7 @@ async fn operation_names_survive_storage_and_reject_unvalidated_admission() {
         assert_eq!(changes[0]["task_type"], "checked-operation");
 
         db.b.client()
-            .query("UPDATE ONLY $task SET task_type = 'invalid operation' RETURN NONE;")
+            .query(include_str!("../queries/support/task_type_cases/operation_names_survive_storage_and_reject_unvalidated_admission/statement_2.surql"))
             .bind(("task", task_record_id(task.task_id)))
             .await
             .unwrap()

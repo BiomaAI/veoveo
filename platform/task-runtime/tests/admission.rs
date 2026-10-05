@@ -35,7 +35,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
     tokio::time::timeout(Duration::from_secs(90), async {
         let runtime = TaskRuntime::new(db.a.clone(), "admission-test", "worker");
         db.a.client()
-            .query("DEFINE TABLE admission_probe SCHEMALESS;")
+            .query(include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -61,7 +61,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
                 }
                 3 => {
                     db.b.client()
-                        .query("UPDATE ONLY $task SET request.input.revision = 1;")
+                        .query(include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_2.surql"))
                         .bind(("task", task_record_id(task.task_id)))
                         .await
                         .unwrap()
@@ -70,7 +70,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
                 }
                 4 => {
                     db.b.client()
-                        .query("UPDATE ONLY $task SET request.owner.principal_key = 'different';")
+                        .query(include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_3.surql"))
                         .bind(("task", task_record_id(task.task_id)))
                         .await
                         .unwrap()
@@ -83,7 +83,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
                 runtime
                     .commit_admission(
                         &task,
-                        "CREATE ONLY $probe CONTENT {accepted: true} RETURN NONE;",
+                        include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_4.surql"),
                         vec![(
                             "probe",
                             RecordId::new("admission_probe", id.to_string()).into_value()
@@ -96,7 +96,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
         }
         let mut response =
             db.b.client()
-                .query("SELECT VALUE id FROM admission_probe;")
+                .query(include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_5.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -107,7 +107,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
             runtime
                 .commit_admission(
                     &task,
-                    "RETURN NONE;",
+                    include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_6.surql"),
                     vec![("_admission_task", task_record_id(task.task_id).into_value())]
                 )
                 .await
@@ -116,7 +116,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
         let foreign = TaskRuntime::new(db.b.clone(), "different-server", "worker");
         assert!(
             foreign
-                .commit_admission(&task, "RETURN NONE;", vec![])
+                .commit_admission(&task, include_str!("queries/admission/queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins/statement_7.surql"), vec![])
                 .await
                 .is_err()
         );
@@ -131,7 +131,7 @@ async fn domain_admission_commits_atomically_without_changing_task_status_or_pro
     tokio::time::timeout(Duration::from_secs(90), async {
         let runtime = TaskRuntime::new(db.a.clone(), "admission-test", "worker");
         db.a.client()
-            .query("DEFINE TABLE admission_probe SCHEMALESS;")
+            .query(include_str!("queries/admission/domain_admission_commits_atomically_without_changing_task_status_or_profile/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -149,7 +149,7 @@ async fn domain_admission_commits_atomically_without_changing_task_status_or_pro
             runtime
                 .commit_admission(
                     &task,
-                    "CREATE ONLY $probe CONTENT {task: $task, committed: true} RETURN NONE;",
+                    include_str!("queries/admission/domain_admission_commits_atomically_without_changing_task_status_or_profile/statement_2.surql"),
                     vec![
                         ("probe", probe.clone().into_value()),
                         ("task", task_record_id(task.task_id).into_value()),
@@ -162,7 +162,7 @@ async fn domain_admission_commits_atomically_without_changing_task_status_or_pro
                 runtime
                     .commit_admission(
                         &task,
-                        "DELETE ONLY $probe; THROW 'native domain rollback';",
+                        include_str!("queries/admission/domain_admission_commits_atomically_without_changing_task_status_or_profile/statement_3.surql"),
                         vec![("probe", probe.clone().into_value()),]
                     )
                     .await
@@ -170,7 +170,7 @@ async fn domain_admission_commits_atomically_without_changing_task_status_or_pro
             );
             let mut response =
                 db.b.client()
-                    .query("SELECT VALUE committed FROM ONLY $probe;")
+                    .query(include_str!("queries/admission/domain_admission_commits_atomically_without_changing_task_status_or_profile/statement_4.surql"))
                     .bind(("probe", probe))
                     .await
                     .unwrap()

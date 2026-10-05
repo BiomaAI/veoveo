@@ -1,0 +1,1 @@
+DELETE $task RETURN NONE;

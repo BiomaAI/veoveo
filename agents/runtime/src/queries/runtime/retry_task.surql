@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET state = 'pending', attempt_count += 1, next_retry_at = $retry, lease_owner = NONE, lease_expires_at = NONE, last_error = $error, updated_at = $now, revision += 1 WHERE agent = $agent AND state = 'watching' AND lease_owner = $owner RETURN AFTER); IF $updated = NONE { THROW 'agent task lease lost'; }; COMMIT TRANSACTION;

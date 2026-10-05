@@ -1,0 +1,1 @@
+DEFINE DATABASE IF NOT EXISTS $database;

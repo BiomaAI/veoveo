@@ -1,7 +1,8 @@
 //! Managed generations share the existing scheduler lease and episode ownership.
 use super::*;
 use crate::ManagedRuntimeBinding;
-use veoveo_platform_store::agent_management::instances::ManagedKernelReady;
+use crate::persistence::AgentRepository;
+use crate::persistence::instances::ManagedKernelReady;
 
 impl AgentRuntime {
     pub fn lease_fence(&self) -> Result<i64> {
@@ -12,7 +13,7 @@ impl AgentRuntime {
     /// native feed recovers missed changes; lease expiry arms the only timer.
     pub async fn wait_for_managed_dispatch_revocation(
         &self,
-        binding: &veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding,
+        binding: &crate::persistence::instances::ManagedEpisodeBinding,
     ) -> Result<()> {
         let cursor = self.store.changefeed_cursor_now().await?;
         let mut changes = self.store.observe_changes(
@@ -37,8 +38,7 @@ impl AgentRuntime {
                 .await?
                 .lease_expires_at
                 .ok_or(AgentRuntimeError::LeaseLost)?;
-            if !self
-                .store
+            if !AgentRepository::new(self.store.clone())
                 .managed_agent_kernel_dispatch(
                     binding.instance.clone(),
                     binding.generation,
@@ -66,9 +66,16 @@ impl AgentRuntime {
         let Some(binding) = &self.managed else {
             return Ok(crate::ManagedSchedulerMode::Running);
         };
-        let mut response = self.store.client().query(
-            "LET $instance = SELECT * FROM ONLY $id; RETURN IF !fn::managed_agent_enabled($id) OR $instance.active_generation != $generation { 'retire' } ELSE IF $instance.desired = 'paused' { 'paused' } ELSE IF $instance.generation != $generation { 'retire' } ELSE { 'running' };"
-        ).bind(("id", binding.instance.clone())).bind(("generation", binding.generation)).await?.check()?;
+        let mut response = self
+            .store
+            .client()
+            .query(include_str!(
+                "../queries/runtime/managed/managed_scheduler_mode.surql"
+            ))
+            .bind(("id", binding.instance.clone()))
+            .bind(("generation", binding.generation))
+            .await?
+            .check()?;
         let mode: Option<crate::ManagedSchedulerMode> = response.take(1)?;
         mode.ok_or(AgentRuntimeError::InvalidField {
             field: "managed scheduler mode",
@@ -99,12 +106,25 @@ impl AgentRuntime {
             })?;
         let fence = self.fence()?;
 
-        self.store.client().query(
-            "BEGIN TRANSACTION; LET $managed = SELECT * FROM ONLY $instance; IF !fn::managed_agent_enabled($instance) OR $managed.tenant != $agent.tenant OR $managed.key != $agent.agent_key OR $managed.active_generation != $generation { THROW 'managed generation is unavailable'; }; LET $ready = UPDATE ONLY $agent SET managed_ready = $ready, revision += 1, updated_at = time::now() WHERE lease_owner = $owner AND fence = $fence AND lease_expires_at > time::now() RETURN AFTER; IF $ready = NONE { THROW 'agent lease lost'; }; COMMIT TRANSACTION;"
-        ).bind(("instance", binding.instance.clone())).bind(("generation", binding.generation))
-            .bind(("agent", self.agent_id.record_id())).bind(("owner", self.instance_id.to_string())).bind(("fence", fence))
-            .bind(("ready", ManagedKernelReady { generation: binding.generation, pod_uid }))
-            .await?.check()?;
+        self.store
+            .client()
+            .query(include_str!(
+                "../queries/runtime/managed/managed_ready.surql"
+            ))
+            .bind(("instance", binding.instance.clone()))
+            .bind(("generation", binding.generation))
+            .bind(("agent", self.agent_id.record_id()))
+            .bind(("owner", self.instance_id.to_string()))
+            .bind(("fence", fence))
+            .bind((
+                "ready",
+                ManagedKernelReady {
+                    generation: binding.generation,
+                    pod_uid,
+                },
+            ))
+            .await?
+            .check()?;
         Ok(())
     }
 }

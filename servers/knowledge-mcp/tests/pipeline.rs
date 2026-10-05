@@ -47,7 +47,8 @@ async fn source_to_hybrid_search_with_sql_policy_metadata_and_invalidation() {
 
         // A denied row that cannot be decoded proves SQL admits before decoding.
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-        db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}} WHERE admission.labels CONTAINS 'secret';")).await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("queries/pipeline/source_to_hybrid_search_with_sql_policy_metadata_and_invalidation.surql"))
+            .bind(("table", table.clone())).await.unwrap().check().unwrap();
         let mut reader = caller(&registrations);
         let request = SearchRequest::new(EmbeddingText::new("facility").unwrap(), BTreeSet::new(), BTreeSet::new(), 3).unwrap();
         let search = SearchService { store: &db.b, embeddings: &embedding };
@@ -210,7 +211,8 @@ async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() 
             .build(&registration.tenant, std::slice::from_ref(&registration), &spec).await.unwrap();
         db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-        db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}} WHERE string::contains(uri, 'aaa-denied') OR string::ends_with(uri, 'x-end-end');"))
+        db.a.client().query(include_str!("queries/pipeline/profile_uri_selection_precedes_both_rankings_and_denied_row_decoding.surql"))
+            .bind(("table", table.clone()))
             .await.unwrap().check().unwrap();
         let mut reader = caller(std::slice::from_ref(&registration));
         reader.collections.get_mut(registration.descriptor.collection()).unwrap().selectors = vec![ResourceSelector::Template {

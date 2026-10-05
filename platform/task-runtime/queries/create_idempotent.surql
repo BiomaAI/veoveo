@@ -1,5 +1,5 @@
 BEGIN TRANSACTION;
 CREATE ONLY $idempotency CONTENT $link RETURN NONE;
 CREATE ONLY $task CONTENT $content RETURN NONE;
-/* creation contribution */
+
 COMMIT TRANSACTION;

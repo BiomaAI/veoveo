@@ -1,7 +1,8 @@
 use crate::contract as wire;
+use crate::persistence as stored;
 use axum::http::StatusCode;
 use uuid::Uuid;
-use veoveo_platform_store::{RecordId, RecordIdKey, workspace as stored};
+use veoveo_platform_store::{RecordId, RecordIdKey};
 
 pub(super) fn uuid(record: &RecordId) -> Result<Uuid, StatusCode> {
     match &record.key {
@@ -121,7 +122,7 @@ pub(super) fn participation_request(value: wire::Participation) -> stored::Works
         agents: value
             .agents
             .into_iter()
-            .map(|id| veoveo_platform_store::WorkspaceAgentId::from_uuid(id.0).record_id())
+            .map(|id| crate::persistence::WorkspaceAgentId::from_uuid(id.0).record_id())
             .collect(),
     }
 }

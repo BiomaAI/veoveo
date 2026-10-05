@@ -63,7 +63,7 @@ pub struct AuditAuthority {
     pub scopes: BTreeSet<ScopeName>,
     pub data_labels: BTreeSet<DataLabelId>,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AuditTarget {
     PlatformResource {
@@ -75,8 +75,65 @@ pub enum AuditTarget {
     Artifact {
         artifact: veoveo_artifact_contract::ArtifactId,
     },
-    Computer {
-        computer: veoveo_computers_contract::ComputerId,
+    Task {
+        task: TaskId,
+    },
+    TaskRoute {
+        server: ServerSlug,
+        route: veoveo_types::CanonicalTaskId,
+    },
+    Principal {
+        tenant: TenantId,
+        principal: PrincipalId,
+    },
+    WorkContext {
+        tenant: TenantId,
+        context: WorkContextId,
+    },
+    Tool {
+        server: ServerSlug,
+        tool: LocalToolName,
+    },
+    Resource {
+        server: ServerSlug,
+        uri: ResourceUri,
+    },
+    ResourceTemplate {
+        server: ServerSlug,
+        uri: ResourceTemplateUri,
+    },
+    Prompt {
+        server: ServerSlug,
+        prompt: PromptName,
+    },
+    Discovery {
+        server: Option<ServerSlug>,
+        collection: DiscoveryKind,
+    },
+    Profile {
+        profile: GatewayProfileId,
+    },
+    Client {
+        client: OAuthClientId,
+    },
+    AuditLog {
+        partition: AuditPartition,
+    },
+    Installation,
+    #[serde(untagged)]
+    Extension(crate::AdmittedAuditTarget),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum CoreAuditTarget {
+    PlatformResource {
+        uri: ResourceUri,
+    },
+    Server {
+        server: ServerSlug,
+    },
+    Artifact {
+        artifact: veoveo_artifact_contract::ArtifactId,
     },
     Task {
         task: TaskId,
@@ -163,24 +220,24 @@ pub enum AuditSchema {
 }
 
 /// Immutable constructor-checked action. The database supplies recorded_at.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "AuditDraftWire", into = "AuditDraftWire")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(into = "AuditDraftWire")]
 pub struct AuditDraft(AuditDraftWire);
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct AuditDraftWire {
-    id: AuditRecordId,
-    schema: AuditSchema,
-    partition: AuditPartition,
-    actor: Option<AuditActor>,
-    authority: AuditAuthority,
-    target: AuditTarget,
-    detail: AuditDetail,
-    outcome: AuditOutcome,
-    reason: AuditReason,
-    request: AuditRequest,
-    occurred_at: DateTime<Utc>,
-    latency_ms: Option<u64>,
+pub(crate) struct AuditDraftWire {
+    pub(crate) id: AuditRecordId,
+    pub(crate) schema: AuditSchema,
+    pub(crate) partition: AuditPartition,
+    pub(crate) actor: Option<AuditActor>,
+    pub(crate) authority: AuditAuthority,
+    pub(crate) target: AuditTarget,
+    pub(crate) detail: AuditDetail,
+    pub(crate) outcome: AuditOutcome,
+    pub(crate) reason: AuditReason,
+    pub(crate) request: AuditRequest,
+    pub(crate) occurred_at: DateTime<Utc>,
+    pub(crate) latency_ms: Option<u64>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum AuditValidationError {
@@ -440,7 +497,7 @@ impl AuditDraftBuilder {
         self.0.try_into()
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuditRecord {
     pub draft: AuditDraft,
@@ -458,5 +515,45 @@ impl AuditRequest {
             span_id: AuditSpanId::parse(span).expect("UUID span"),
             source_ip: None,
         }
+    }
+}
+
+impl From<CoreAuditTarget> for AuditTarget {
+    fn from(value: CoreAuditTarget) -> Self {
+        match value {
+            CoreAuditTarget::PlatformResource { uri } => Self::PlatformResource { uri },
+            CoreAuditTarget::Server { server } => Self::Server { server },
+            CoreAuditTarget::Artifact { artifact } => Self::Artifact { artifact },
+            CoreAuditTarget::Task { task } => Self::Task { task },
+            CoreAuditTarget::TaskRoute { server, route } => Self::TaskRoute { server, route },
+            CoreAuditTarget::Principal { tenant, principal } => {
+                Self::Principal { tenant, principal }
+            }
+            CoreAuditTarget::WorkContext { tenant, context } => {
+                Self::WorkContext { tenant, context }
+            }
+            CoreAuditTarget::Tool { server, tool } => Self::Tool { server, tool },
+            CoreAuditTarget::Resource { server, uri } => Self::Resource { server, uri },
+            CoreAuditTarget::ResourceTemplate { server, uri } => {
+                Self::ResourceTemplate { server, uri }
+            }
+            CoreAuditTarget::Prompt { server, prompt } => Self::Prompt { server, prompt },
+            CoreAuditTarget::Discovery { server, collection } => {
+                Self::Discovery { server, collection }
+            }
+            CoreAuditTarget::Profile { profile } => Self::Profile { profile },
+            CoreAuditTarget::Client { client } => Self::Client { client },
+            CoreAuditTarget::AuditLog { partition } => Self::AuditLog { partition },
+            CoreAuditTarget::Installation => Self::Installation,
+        }
+    }
+}
+
+impl JsonSchema for AuditTarget {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AuditTarget".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        CoreAuditTarget::json_schema(generator)
     }
 }

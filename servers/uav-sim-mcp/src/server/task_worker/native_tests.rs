@@ -14,7 +14,7 @@ use crate::{
     server::{
         catalog_tests::{grant, mission_request},
         control_authority::ControlAuthorityError,
-        test_support::{self, fixture::TestDb},
+        test_support::{self},
     },
 };
 
@@ -337,7 +337,10 @@ impl Drop for MissionCase {
 #[tokio::test]
 async fn native_cancellation_keeps_vehicle_fenced_after_provider_continues() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         let mut case = MissionCase::start(&db.a, Reply::Completed, Duration::from_secs(60)).await;
         case.state.tasks.cancel(case.task_id).await.unwrap();
@@ -376,7 +379,10 @@ async fn native_cancellation_keeps_vehicle_fenced_after_provider_continues() {
 #[tokio::test]
 async fn native_unconfirmed_responses_and_timeout_preserve_vehicle_authority() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(90), async {
         for reply in [
             Reply::WrongMission,
@@ -414,7 +420,10 @@ async fn native_unconfirmed_responses_and_timeout_preserve_vehicle_authority() {
 #[tokio::test]
 async fn native_completion_releases_vehicle_even_when_recording_projection_fails() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         for reply in [
             Reply::Completed,
@@ -458,10 +467,13 @@ async fn native_completion_releases_vehicle_even_when_recording_projection_fails
 #[tokio::test]
 async fn native_task_lease_loss_cannot_release_vehicle_authority() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         let mut case = MissionCase::start(&db.a, Reply::Completed, Duration::from_secs(60)).await;
-        db.b.client().query("UPDATE ONLY $task SET lease_owner = 'replacement', lease_expires_at = time::now() - 1s;")
+        db.b.client().query(include_str!("../../../queries/server/task_worker/native_tests/native_task_lease_loss_cannot_release_vehicle_authority.surql"))
             .bind(("task", veoveo_platform_store::task_record_id(case.task_id))).await.unwrap().check().unwrap();
         let task = case.wait().await;
         assert_eq!(task.status, TaskStatus::Running, "stale worker cannot settle the Task");
@@ -476,7 +488,10 @@ async fn native_task_lease_loss_cannot_release_vehicle_authority() {
 #[tokio::test]
 async fn native_cancellation_after_physical_completion_preserves_settlement() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         for publication_race in [false, true] {
             let mut case =
@@ -538,10 +553,13 @@ async fn native_cancellation_after_physical_completion_preserves_settlement() {
 #[tokio::test]
 async fn native_failed_completion_transaction_keeps_the_vehicle_fenced() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         let mut case = MissionCase::start(&db.a, Reply::Completed, Duration::from_secs(10)).await;
-        db.b.client().query("DEFINE EVENT reject_settlement ON TABLE uav_vehicle_mission_plan WHEN $after.state = 'completed' THEN { THROW 'native settlement failure'; };")
+        db.b.client().query(include_str!("../../../queries/server/task_worker/native_tests/native_failed_completion_transaction_keeps_the_vehicle_fenced.surql"))
             .await.unwrap().check().unwrap();
         case.http.state.release.notify_one();
         assert_eq!(case.wait().await.error.unwrap().code, "mission_authority_finalization_failed");
@@ -553,7 +571,10 @@ async fn native_failed_completion_transaction_keeps_the_vehicle_fenced() {
 #[tokio::test]
 async fn native_queued_mission_recovery_does_not_decode_or_replay_a_simulator_command() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         let http = HttpFixture::new(Reply::Completed).await;
         let adapter = Arc::new(Adapter::Http(Box::new(
@@ -685,7 +706,10 @@ async fn admit(
 #[tokio::test]
 async fn native_restart_releases_only_the_domain_pin_for_a_never_admitted_task() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(65), async {
         let http = HttpFixture::new(Reply::Completed).await;
         let adapter = Arc::new(Adapter::Http(Box::new(

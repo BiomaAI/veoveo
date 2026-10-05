@@ -57,7 +57,7 @@ impl From<RecordingReadSourceKind> for RecordingSourceIdentityKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_platform_store::{RecordingDatasetId, RecordingId, RecordingLayerId};
+    use veoveo_recording_store::{RecordingDatasetId, RecordingId, RecordingLayerId};
 
     fn reader_snapshot() -> (RecordingReadSnapshot, RecordingSourceSnapshot) {
         let expected: RecordingSourceSnapshot =

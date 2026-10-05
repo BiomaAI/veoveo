@@ -23,7 +23,7 @@ pub async fn snapshot(
         .bind(
             store
                 .client()
-                .query(super::sql(include_str!("observe.surql"))),
+                .query(include_str!("../../queries/knowledge/observe.surql")),
         )
         .bind(("reason_server", RecordId::new("mcp_server", "reason")))
         .bind((

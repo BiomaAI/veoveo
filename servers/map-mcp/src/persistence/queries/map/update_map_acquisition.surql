@@ -1,0 +1,1 @@
+UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged_release_key, canonical_json: $canonical_json, record_version: $next_version, updated_at: time::now() } WHERE tenant = $tenant AND owner = $owner AND record_version = $expected RETURN AFTER;

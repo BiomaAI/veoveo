@@ -1,0 +1,1 @@
+SELECT * FROM fixture_optional;

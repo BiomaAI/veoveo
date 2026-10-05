@@ -1,0 +1,1 @@
+CREATE ONLY $payload CONTENT $original RETURN NONE;

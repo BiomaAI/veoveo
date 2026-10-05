@@ -97,7 +97,7 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
             );
             let mut response =
                 db.b.client()
-                    .query("SELECT VALUE result FROM ONLY $task;")
+                    .query(include_str!("../queries/support/result_shape_cases/result_shapes_survive_store_reads_events_and_authorized_reconnects/statement_1.surql"))
                     .bind(("task", task_record_id(task.task_id)))
                     .await
                     .unwrap()
@@ -115,7 +115,7 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
 }
 
 #[tokio::test]
-async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks() {
+async fn current_schema_rejects_incomplete_result_envelopes_without_mutating_tasks() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let (db, runtime) = runtime("writer").await;
         let task = runtime
@@ -130,7 +130,7 @@ async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks(
         ] {
             assert!(
                 db.b.client()
-                    .query("UPDATE ONLY $task SET result = $result;")
+                    .query(include_str!("../queries/support/result_shape_cases/current_schema_rejects_incomplete_result_envelopes_without_mutating_tasks/statement_1.surql"))
                     .bind(("task", task_record_id(task.task_id)))
                     .bind(("result", invalid))
                     .await
@@ -143,33 +143,6 @@ async fn schema_rejects_incomplete_envelopes_and_format_installation_over_tasks(
                 None
             );
         }
-        let migration = include_str!("../../../store/migrations/0098_task_result_envelope.surql");
-        let error =
-            db.b.client()
-                .query(format!(
-                    "BEGIN TRANSACTION; {migration} COMMIT TRANSACTION;"
-                ))
-                .await
-                .unwrap()
-                .check()
-                .unwrap_err();
-        assert!(error.to_string().contains("task_result_reset_required"));
-        assert!(runtime.get(task.task_id).await.unwrap().is_some());
-        db.b.client()
-            .query("DELETE ONLY $task;")
-            .bind(("task", task_record_id(task.task_id)))
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
-        db.b.client()
-            .query(format!(
-                "BEGIN TRANSACTION; {migration} COMMIT TRANSACTION;"
-            ))
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
     })
     .await
     .expect("Task result schema qualification exceeded 60 seconds");

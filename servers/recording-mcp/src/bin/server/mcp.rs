@@ -21,7 +21,6 @@ use veoveo_mcp_contract::{
     },
     server_contract::McpServerSetup,
 };
-use veoveo_platform_store::RecordingId;
 use veoveo_recording_mcp::{
     contract::{
         CreateRecordingProjectionRequest, RecordingProjectionHandle, RecordingResource,
@@ -30,6 +29,8 @@ use veoveo_recording_mcp::{
     mcp_setup::{RecordingContract, SERVER_SETUP},
     uris,
 };
+use veoveo_recording_store::RecordingId;
+use veoveo_recording_store::RecordingRepository;
 
 const EXPLORER_TOOLS: &[&str] = &["create_recording_projection", "seal_recording"];
 
@@ -198,6 +199,7 @@ impl DomainServer for RecordingMcp {
         let mut values = self
             .state
             .recordings
+            .recording_repository()
             .complete_recording_ids(&identity, &request.argument.value)
             .await
             .map_err(resources::query_error)?;

@@ -1,0 +1,1 @@
+UPDATE $principal SET enabled = false;

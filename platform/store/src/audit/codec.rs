@@ -3,10 +3,24 @@ use crate::{RecordId, StoreError};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{Error, Kind, SurrealValue, Value};
-use veoveo_audit_contract::{AuditDraft, AuditRecord};
+use veoveo_audit_contract::{AuditDecodeError, AuditDraft, AuditRecord, AuditTargetRegistry};
 
 #[derive(Debug, Clone)]
-pub(super) struct Document(pub AuditDraft);
+pub(super) struct Document(pub serde_json::Value);
+impl Document {
+    pub fn encode(draft: AuditDraft) -> Self {
+        Self(serde_json::to_value(draft).expect("typed audit draft"))
+    }
+    pub fn checked(self, registry: &AuditTargetRegistry) -> Result<AuditDraft, StoreError> {
+        registry
+            .decoder()
+            .from_value(self.0)
+            .map_err(|error| match error {
+                AuditDecodeError::Target(error) => StoreError::AuditTarget(error),
+                _ => StoreError::AuditIntegrity,
+            })
+    }
+}
 impl SurrealValue for Document {
     fn kind_of() -> Kind {
         Kind::Object
@@ -18,9 +32,7 @@ impl SurrealValue for Document {
     }
     fn from_value(value: Value) -> Result<Self, Error> {
         let json = crate::json_value::from_surreal(value)?;
-        serde_json::from_value(json)
-            .map(Self)
-            .map_err(|_| Error::internal("invalid typed audit document".into()))
+        Ok(Self(json))
     }
 }
 #[derive(Debug, Clone, SurrealValue)]
@@ -28,17 +40,20 @@ pub(super) struct Row {
     pub id: RecordId,
     pub partition: String,
     pub draft: Document,
+    pub target_ref: Option<RecordId>,
     pub recorded_at: DateTime<Utc>,
 }
 impl Row {
-    pub fn checked(self) -> Result<AuditRecord, StoreError> {
-        if self.id != super::record_id(self.draft.0.partition(), self.draft.0.id())
-            || self.partition != self.draft.0.partition().storage_key()
+    pub fn checked(self, registry: &AuditTargetRegistry) -> Result<AuditRecord, StoreError> {
+        let draft = self.draft.checked(registry)?;
+        if self.id != super::record_id(draft.partition(), draft.id())
+            || self.partition != draft.partition().storage_key()
+            || self.target_ref != super::target_reference(draft.target())?
         {
             return Err(StoreError::AuditIntegrity);
         }
         Ok(AuditRecord {
-            draft: self.draft.0,
+            draft,
             recorded_at: self.recorded_at,
         })
     }

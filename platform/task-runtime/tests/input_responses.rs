@@ -107,7 +107,9 @@ fn update(task: TaskId) -> rmcp::model::UpdateTaskParams {
 async fn input(store: &PlatformStore, task: TaskId) -> TaskInputRecord {
     let mut response = store
         .client()
-        .query("SELECT * FROM task_input WHERE task = $task;")
+        .query(include_str!(
+            "queries/input_responses/input/statement_1.surql"
+        ))
         .bind(("task", task_record_id(task)))
         .await
         .unwrap()
@@ -124,33 +126,29 @@ async fn public_answers_roll_back_when_authority_or_status_changes_during_the_wr
         let db = fixture::TestDb::new().await;
         let runtime = TaskRuntime::new(db.a.clone(), SERVER, "worker");
         let query = query(&runtime);
-        for assignment in [
-            "server = mcp_server:other",
-            "tenant = tenant:other",
-            "owner = principal:other",
-            "profile = profile:other",
-            "request.owner.principal_key = 'other'",
-            "request.owner.profile = 'other'",
-            "request.owner.tenant_key = 'other'",
-            "request.owner.data_labels = ['secret']",
-            "work_context = work_context:other",
-            "authority.context_key = 'other'",
-            "request.owner.authority.work_context = 'other'",
-            "request.owner.authority.tenant = 'other'",
-            "task_type = 'other-operation'",
-            "status = 'cancel_requested'",
-            "status = 'succeeded'",
-        ] {
+        for (assignment, sql) in [
+("server case 1", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_01.surql")),
+("tenant case 2", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_02.surql")),
+("owner case 3", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_03.surql")),
+("profile case 4", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_04.surql")),
+("request.owner.principal_key case 5", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_05.surql")),
+("request.owner.profile case 6", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_06.surql")),
+("request.owner.tenant_key case 7", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_07.surql")),
+("request.owner.data_labels case 8", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_08.surql")),
+("work_context case 9", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_09.surql")),
+("authority.context_key case 10", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_10.surql")),
+("request.owner.authority.work_context case 11", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_11.surql")),
+("request.owner.authority.tenant case 12", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_12.surql")),
+("task_type case 13", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_13.surql")),
+("status case 14", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_14.surql")),
+("status case 15", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_15.surql"))
+] {
             let task = waiting(&runtime).await;
             let before_input = input(&db.b, task.task_id).await;
             // The event interleaves a change after the input write and before the
             // parent guard, without scheduling assumptions or production hooks.
             db.b.client()
-                .query(format!(
-                    "DEFINE EVENT OVERWRITE input_interleave ON task_input
-                WHEN $event = 'UPDATE' AND $before.response = NONE AND $after.response != NONE
-                THEN (UPDATE ONLY $after.task SET {assignment} RETURN NONE);"
-                ))
+                .query(sql)
                 .await
                 .unwrap()
                 .check()
@@ -173,7 +171,7 @@ async fn public_answers_roll_back_when_authority_or_status_changes_during_the_wr
                 "{assignment}"
             );
             db.b.client()
-                .query("REMOVE EVENT input_interleave ON task_input;")
+                .query(include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/statement_1.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -200,17 +198,15 @@ async fn denied_malformed_tasks_are_rejected_before_decode_and_input_mutation() 
         let db = fixture::TestDb::new().await;
         let runtime = TaskRuntime::new(db.a.clone(), SERVER, "worker");
         let query = query(&runtime);
-        for assignment in [
-            "request.owner.data_labels = ['secret']",
-            "task_type = 'other-operation'",
-            "authority.context_key = 'other'",
-        ] {
+        for (_assignment, sql) in [
+("request.owner.data_labels case 1", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_01.surql")),
+("task_type case 2", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_02.surql")),
+("authority.context_key case 3", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_03.surql"))
+] {
             let task = waiting(&runtime).await;
             let before_input = input(&db.b, task.task_id).await;
             db.b.client()
-                .query(format!(
-                    "UPDATE ONLY $task SET {assignment}, request.input = NONE RETURN NONE;"
-                ))
+                .query(sql)
                 .bind(("task", task_record_id(task.task_id)))
                 .await
                 .unwrap()
@@ -323,12 +319,15 @@ async fn input_keys_and_parent_links_must_match_before_an_answer_is_written() {
         let db = fixture::TestDb::new().await;
         let runtime = TaskRuntime::new(db.a.clone(), SERVER, "worker");
         let query = query(&runtime);
-        for assignment in ["request_key = 'different-key'", "task = $foreign"] {
+        for (_assignment, sql) in [
+("request_key case 1", include_str!("queries/input_responses/input_keys_and_parent_links_must_match_before_an_answer_is_written/mutation_01.surql")),
+("task case 2", include_str!("queries/input_responses/input_keys_and_parent_links_must_match_before_an_answer_is_written/mutation_02.surql"))
+] {
             let task = waiting(&runtime).await;
             let original = input(&db.b, task.task_id).await;
             let mut response =
                 db.b.client()
-                    .query(format!("UPDATE ONLY $input SET {assignment} RETURN AFTER;"))
+                    .query(sql)
                     .bind(("input", original.id.clone()))
                     .bind(("foreign", task_record_id(TaskId::new())))
                     .await

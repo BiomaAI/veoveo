@@ -36,7 +36,7 @@ async fn indexing_acknowledgements_survive_restart_and_windows_are_sealed() {
         writer.record_indexing(read.clone()).await.unwrap();
         let mut result =
             db.b.client()
-                .query("SELECT VALUE reads FROM audit_indexing_window;")
+                .query(include_str!("queries/indexing/indexing_acknowledgements_survive_restart_and_windows_are_sealed.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -53,14 +53,7 @@ async fn indexing_acknowledgements_survive_restart_and_windows_are_sealed() {
         ));
         db.b.client()
             .query(
-                "BEGIN TRANSACTION;
-            LET $windows = SELECT * FROM audit_indexing_window;
-            FOR $window IN $windows {
-                DELETE ONLY $window.id;
-                CREATE ONLY $window.id CONTENT object::extend($window, {
-                    start: $window.start - 5m, end: $window.end - 5m
-                });
-            }; COMMIT TRANSACTION;",
+                include_str!("queries/indexing/indexing_acknowledgements_survive_restart_and_windows_are_sealed_2.surql"),
             )
             .await
             .unwrap()

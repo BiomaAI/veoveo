@@ -52,6 +52,18 @@ that terminal result or replay the request. Accepted domain operations retain
 their own cancellation contracts. Task results consumed by the stopped episode
 release their existing retention pins in the same transaction.
 
+## Execution Queries
+
+Runtime execution statements live in `src/queries/runtime`, with episode, managed
+readiness and wake-observation queries beside their respective query families.
+Operator-control statements live in `src/queries/control`. Rust embeds complete
+statements with `include_str!` and binds record identities, content, fences and
+timestamps as parameters. Each transaction stays in one query file; its caller
+owns response decoding and statement result slots.
+Gateway projections and colocated fixtures embed their statements from the matching
+families under `src/queries/`. Native integration fixtures use `tests/queries/`.
+Fixture mutations select complete statements and keep their values bound.
+
 ## Readiness And Recovery
 
 The kernel records readiness only after connecting and installing its tools.
@@ -91,14 +103,19 @@ Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `agent_*`, `managed_agent_*`, and explicit `agent`, `managed_agent`, `wake`; seven existing Agent catalog, admission and result-consumption functions.
 It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The version-zero lane installs the complete current Agent schema from
+`src/schema/migrations/0000_current.surql`. The composition root supplies its checked
+execution image and command. Gateway composition prepares the selected installation
+and executes this lane through `module-migrate`; serving requires current lane proof.
+The declaration itself does not certify an installed migration Job or image.
 
-The current Store `agent_management/import.surql` transaction reads Workspace runs, updates Workspace participants and chats, and creates Workspace events. The declared target omits a Workspace dependency. Participant import belongs in the Workspace owning API, composed with Agent catalog operations while preserving writer exclusion, transaction checks, rollback and audit. The current `fn::agent_consume_results` also updates kernel Task retention state; its explicit function claim does not approve foreign mutations.
+Workspace owns retained chat-participant conversion in its private
+`persistence/agent_import` implementation. Agent scheduling SQL mutates Agent-owned
+rows. `fn::agent_consume_results` reads the explicit Gateway retention-route leaf
+and calls the Tasks retention-release leaf for a present canonical Task. The caller's
+result-consumption transaction includes that release, preserving rollback and pin
+checks. Its version-zero migration declares the introducing Identity, Gateway and
+Tasks API minima.
 
 ## Persistence Observation
 

@@ -3,15 +3,16 @@ use std::fmt;
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::persistence::{
+    AgentEpisodeId, AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskId,
+    WakeId, WakeKind,
+};
 use chrono::{DateTime, Utc};
 use surrealdb::types as surrealdb_types;
 use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use uuid::Uuid;
 use veoveo_mcp_contract::CanonicalTaskId;
-use veoveo_platform_store::{
-    AgentEpisodeId, AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskId,
-    InvocationAuthorityRecord, OpenObject, WakeId, WakeKind,
-};
+use veoveo_platform_store::{InvocationAuthorityRecord, OpenObject};
 use veoveo_task_runtime::TaskRetentionPin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -99,7 +100,7 @@ pub struct EpisodeHandle {
     pub episode_id: AgentEpisodeId,
     pub sequence: i64,
     pub retention_pin: TaskRetentionPin,
-    pub managed: Option<veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding>,
+    pub managed: Option<crate::persistence::instances::ManagedEpisodeBinding>,
 }
 
 #[derive(Clone, Debug)]

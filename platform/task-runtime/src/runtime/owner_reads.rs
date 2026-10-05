@@ -1,5 +1,7 @@
 //! Current Task owner policy, applied before records cross the database boundary.
-use super::{OwnerTaskQuery, TaskRuntime, owner_record, tenant_record};
+use super::{
+    OwnerTaskQuery, TaskRuntime, owner_query::OwnerSelection, owner_record, tenant_record,
+};
 use crate::types::{TaskError, TaskOwner, TaskSnapshot, record_to_snapshot, validate_task_id};
 use std::collections::BTreeSet;
 use surrealdb::{
@@ -8,8 +10,6 @@ use surrealdb::{
 };
 use veoveo_platform_store::{PlatformTable, RecordId, TaskRecord, task_record_id};
 use veoveo_types::TaskId;
-
-pub(super) const VISIBLE_TASK: &str = include_str!("../../queries/owner_visible.surql");
 
 pub(super) struct OwnerScope {
     server: RecordId,
@@ -70,10 +70,17 @@ impl OwnerTaskQuery {
             .await
     }
 
-    fn batch_sql(&self) -> String {
-        include_str!("../../queries/owner_batch.surql")
-            .replace("/* owner selection */", &format!("AND {VISIBLE_TASK}"))
-            .replace("/* caller selection */", &self.selection_predicate())
+    fn batch_sql(&self) -> &'static str {
+        match self.selection() {
+            OwnerSelection::Owner => include_str!("../../queries/owner/batch_owner.surql"),
+            OwnerSelection::Operations => {
+                include_str!("../../queries/owner/batch_operations.surql")
+            }
+            OwnerSelection::Context => include_str!("../../queries/owner/batch_context.surql"),
+            OwnerSelection::ContextOperations => {
+                include_str!("../../queries/owner/batch_context_operations.surql")
+            }
+        }
     }
 
     async fn read_batch<C: Connection>(
@@ -111,10 +118,16 @@ impl OwnerTaskQuery {
     pub async fn get(&self, task: TaskId) -> Result<Option<TaskSnapshot>, TaskError> {
         let task = validate_task_id(task)?;
         let mut response = self
-            .bind(self.runtime.store.client().query(format!(
-                "SELECT * FROM task WHERE id = $task AND {VISIBLE_TASK} {} LIMIT 1;",
-                self.selection_predicate()
-            )))?
+            .bind(self.runtime.store.client().query(match self.selection() {
+                OwnerSelection::Owner => include_str!("../../queries/owner/get_owner.surql"),
+                OwnerSelection::Operations => {
+                    include_str!("../../queries/owner/get_operations.surql")
+                }
+                OwnerSelection::Context => include_str!("../../queries/owner/get_context.surql"),
+                OwnerSelection::ContextOperations => {
+                    include_str!("../../queries/owner/get_context_operations.surql")
+                }
+            }))?
             .bind(("task", task_record_id(task)))
             .await?
             .check()?;

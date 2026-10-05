@@ -8,11 +8,11 @@ use veoveo_task_runtime::TaskRuntime;
 
 #[tokio::test]
 async fn replacement_command_identity_survives_replicas_and_blocks_a_changed_instance() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let instance = Uuid::now_v7();
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/commands/replacement_command_identity_survives_replicas_and_blocks_a_changed_instance/statement_1.surql"))
         .bind(("computer", computer_record(computer)))
         .bind(("instance", instance))
         .await
@@ -33,7 +33,7 @@ async fn replacement_command_identity_survives_replicas_and_blocks_a_changed_ins
         instance
     );
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/commands/replacement_command_identity_survives_replicas_and_blocks_a_changed_instance/statement_2.surql"))
         .bind(("computer", computer_record(computer)))
         .bind(("instance", Uuid::now_v7()))
         .await
@@ -42,7 +42,7 @@ async fn replacement_command_identity_survives_replicas_and_blocks_a_changed_ins
         .unwrap();
     assert!(b.begin_command_dispatch(&claim, &keys()).await.is_err());
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/commands/replacement_command_identity_survives_replicas_and_blocks_a_changed_instance/statement_3.surql"))
         .bind(("computer", computer_record(computer)))
         .bind(("instance", instance))
         .await
@@ -55,7 +55,7 @@ async fn replacement_command_identity_survives_replicas_and_blocks_a_changed_ins
 #[tokio::test]
 async fn one_dispatch_survives_competing_workers_and_lost_ticket_without_replay() {
     use veoveo_computers::commands::CommandStage;
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -95,7 +95,7 @@ async fn one_dispatch_survives_competing_workers_and_lost_ticket_without_replay(
         b.command_for_claim(&successor).await.unwrap().stage(),
         CommandStage::Dispatched
     );
-    let mut response = db.a.client().query("SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched'; SELECT * FROM computer_execution_slot;").await.unwrap().check().unwrap();
+    let mut response = db.a.client().query(include_str!("queries/commands/one_dispatch_survives_competing_workers_and_lost_ticket_without_replay/statement_1.surql")).await.unwrap().check().unwrap();
     let events: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     assert_eq!(events.len(), 1);
     let text = serde_json::to_string(&events[0]).unwrap();
@@ -114,13 +114,13 @@ async fn one_dispatch_survives_competing_workers_and_lost_ticket_without_replay(
 
 #[tokio::test]
 async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     for scenario in ["cancel", "revoke", "run", "lease", "account", "corrupt"] {
         // Independent provider IDs and owners are provided by separate database fixtures.
         let db = if scenario == "cancel" {
             &db
         } else {
-            &support::TestDb::new().await
+            &support::database().await
         };
         let (a, _, owner, agent, computer) = support::automation::setup(db).await;
         let grant = a
@@ -148,7 +148,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
             }
             "run" => {
                 db.a.client()
-                    .query("UPDATE $computer SET process_id='different-native-run';")
+                    .query(include_str!("queries/commands/cancellation_revocation_and_changed_run_prevent_command_dispatch/statement_1.surql"))
                     .bind(("computer", computer_record(computer)))
                     .await
                     .unwrap()
@@ -169,7 +169,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
                 .unwrap()
                 .record_id();
                 db.a.client()
-                    .query("UPDATE $principal SET enabled=false;")
+                    .query(include_str!("queries/commands/cancellation_revocation_and_changed_run_prevent_command_dispatch/statement_2.surql"))
                     .bind(("principal", principal))
                     .await
                     .unwrap()
@@ -179,11 +179,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
             "corrupt" => {
                 db.a.client()
                     .query(
-                        "BEGIN; LET $saved = (SELECT * FROM computer_execution_payload)[0];
-                    DELETE $saved.id;
-                    CREATE $saved.id CONTENT { journal: $saved.journal,
-                        sealed: object::extend($saved.sealed, {ciphertext: 'invalid-ciphertext'}) };
-                    COMMIT;",
+                        include_str!("queries/commands/cancellation_revocation_and_changed_run_prevent_command_dispatch/statement_3.surql"),
                     )
                     .await
                     .unwrap()
@@ -196,7 +192,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
             a.begin_command_dispatch(&claim, &keys()).await.is_err(),
             "{scenario}"
         );
-        let mut response = db.a.client().query("SELECT VALUE stage FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'dispatched';").await.unwrap().check().unwrap();
+        let mut response = db.a.client().query(include_str!("queries/commands/cancellation_revocation_and_changed_run_prevent_command_dispatch/statement_4.surql")).await.unwrap().check().unwrap();
         let stages: Vec<String> = response.take(0).unwrap();
         assert_eq!(stages, ["queued"], "{scenario}");
         let slots: Vec<surrealdb::types::Value> = response.take(1).unwrap();
@@ -208,7 +204,7 @@ async fn cancellation_revocation_and_changed_run_prevent_command_dispatch() {
 
 #[tokio::test]
 async fn accepted_command_uses_current_grant_limits_after_admission_family_revocation() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, _, computer) = support::automation::setup(&db).await;
     let identity = support::browser::identity(&db, "bob").await;
     let bob = ComputerActor::from_verified(&identity).unwrap();
@@ -226,7 +222,7 @@ async fn accepted_command_uses_current_grant_limits_after_admission_family_revoc
         .as_ref()
         .unwrap();
     db.a.client()
-        .query("UPDATE $family SET revoked_at=time::now();")
+        .query(include_str!("queries/commands/accepted_command_uses_current_grant_limits_after_admission_family_revocation/statement_1.surql"))
         .bind((
             "family",
             veoveo_platform_store::gateway_refresh_family_record_id(
@@ -269,7 +265,7 @@ async fn accepted_command_uses_current_grant_limits_after_admission_family_revoc
 
 #[tokio::test]
 async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -311,7 +307,7 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
         serde_json::json!({"computerId":computer,"executionId":left.execution_id()})
     );
     assert_eq!(task.owner, *agent.owner());
-    let mut rows = db.a.client().query("SELECT * FROM computer_execution; SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'queued'; SELECT * FROM computer_execution_payload;").await.unwrap().check().unwrap();
+    let mut rows = db.a.client().query(include_str!("queries/commands/racing_command_retry_has_one_private_slot_event_and_recoverable_task/statement_1.surql")).await.unwrap().check().unwrap();
     for i in 0..4 {
         let rows: Vec<surrealdb::types::Value> = rows.take(i).unwrap();
         assert_eq!(rows.len(), 1);
@@ -355,7 +351,7 @@ async fn racing_command_retry_has_one_private_slot_event_and_recoverable_task() 
 
 #[tokio::test]
 async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principal_disable() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
     let keyring = keys();
     let payload = payload("private", 30);
@@ -419,7 +415,7 @@ async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principa
     .unwrap()
     .record_id();
     db.a.client()
-        .query("UPDATE $principal SET enabled=false;")
+        .query(include_str!("queries/commands/stale_authority_cannot_queue_after_revocation_policy_change_or_principal_disable/statement_1.surql"))
         .bind(("principal", principal))
         .await
         .unwrap()
@@ -438,7 +434,7 @@ async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principa
     ));
     let mut response =
         db.a.client()
-            .query("SELECT * FROM computer_execution_slot;")
+            .query(include_str!("queries/commands/stale_authority_cannot_queue_after_revocation_policy_change_or_principal_disable/statement_2.surql"))
             .await
             .unwrap()
             .check()
@@ -449,7 +445,7 @@ async fn stale_authority_cannot_queue_after_revocation_policy_change_or_principa
 
 #[tokio::test]
 async fn command_authority_is_permission_specific_and_retained_slots_prevent_restart() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -509,7 +505,7 @@ async fn command_authority_is_permission_specific_and_retained_slots_prevent_res
     // Simulate an authoritative Stop in this isolated store; the pending command
     // remains protected until its own settlement releases the execution slot.
     db.a.client()
-        .query("UPDATE $computer SET phase='stopped';")
+        .query(include_str!("queries/commands/command_authority_is_permission_specific_and_retained_slots_prevent_restart/statement_1.surql"))
         .bind(("computer", computer_record(computer)))
         .await
         .unwrap()

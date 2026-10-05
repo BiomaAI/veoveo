@@ -1,0 +1,1 @@
+LET $instance = SELECT * FROM ONLY $id; RETURN IF !fn::managed_agent_enabled($id) OR $instance.active_generation != $generation { 'retire' } ELSE IF $instance.desired = 'paused' { 'paused' } ELSE IF $instance.generation != $generation { 'retire' } ELSE { 'running' };

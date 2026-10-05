@@ -50,7 +50,7 @@ async fn ready(
 
 #[tokio::test]
 async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, actor, computer_id) = ready(&db).await;
     let before = a.get(actor.owner(), computer_id).await.unwrap();
     let request_id = veoveo_computers::api::RequestId::new();
@@ -119,7 +119,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
         .await,
         Err(ComputerError::OperationBusy)
     ));
-    let mut reply = db.a.client().query("SELECT VALUE retained FROM computer_usage; SELECT VALUE target_ref FROM audit_record WHERE activity = 'computer_maintain' AND draft.detail.stage = 'queued'; SELECT VALUE operation_id FROM computer_maintenance;")
+    let mut reply = db.a.client().query(include_str!("queries/maintenance/replicas_share_one_replacement_task_fence_and_retained_capacity/statement_1.surql"))
         .await.unwrap().check().unwrap();
     let retained: Vec<i64> = reply.take(0).unwrap();
     assert_eq!(retained, vec![1, 1, 1]);
@@ -137,7 +137,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     // Simulate lost Task linking on this isolated store. Repair keeps the exact
     // original maintenance and target rather than allocating another instance.
     db.a.client()
-        .query("BEGIN TRANSACTION; DELETE task_idempotency WHERE task = $task; DELETE $task; COMMIT TRANSACTION;")
+        .query(include_str!("queries/maintenance/replicas_share_one_replacement_task_fence_and_retained_capacity/statement_2.surql"))
         .bind(("task", task_record_id(expected.task_id())))
         .await
         .unwrap().check().unwrap();
@@ -157,7 +157,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     );
     // Corrupt private persisted metadata is rejected without releasing the fence.
     db.a.client()
-        .query("UPDATE ONLY $operation SET target_template_fingerprint = $invalid;")
+        .query(include_str!("queries/maintenance/replicas_share_one_replacement_task_fence_and_retained_capacity/statement_3.surql"))
         .bind((
             "operation",
             RecordId::new(
@@ -185,7 +185,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
 
 #[tokio::test]
 async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effect() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     support::policy::install(&db.a, control()).await;
     let a = ComputersStore::new(
         db.a.clone(),
@@ -255,7 +255,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
     ));
     // Isolated failure injection advances the already consumed operation budget.
     db.a.client()
-        .query("UPDATE ONLY $operation SET observation_deadline = time::now() - 1s;")
+        .query(include_str!("queries/maintenance/failed_initial_create_is_fenced_without_reclassifying_its_unknown_effect/statement_1.surql"))
         .bind((
             "operation",
             RecordId::new(
@@ -323,7 +323,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
 
 #[tokio::test]
 async fn maintenance_requires_current_named_policy_private_owner_and_no_execution_slot() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, _, actor, computer_id) = ready(&db).await;
     let target = target();
     let bob = owner("bob");
@@ -371,7 +371,7 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
     support::policy::install(&db.a, control()).await;
     // A registered command slot cannot be silently taken over by template work.
     db.a.client()
-        .query("CREATE $slot CONTENT { computer_id: $computer, execution: $execution };")
+        .query(include_str!("queries/maintenance/maintenance_requires_current_named_policy_private_owner_and_no_execution_slot/statement_1.surql"))
         .bind((
             "slot",
             RecordId::new(
@@ -409,13 +409,13 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
 
 #[tokio::test]
 async fn browser_admits_maintenance_for_an_existing_replacement() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let actor =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let (a, _, id) = support::interactive::ready(&db, &actor).await;
     support::policy::install(&db.a, control()).await;
     db.a.client()
-        .query("UPDATE ONLY $computer SET replacement_instance_id = $replacement;")
+        .query(include_str!("queries/maintenance/browser_admits_maintenance_for_an_existing_replacement/statement_1.surql"))
         .bind((
             "computer",
             RecordId::new("computer", StoreUuid::from(id.as_uuid())),

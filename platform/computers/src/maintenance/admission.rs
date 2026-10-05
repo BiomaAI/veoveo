@@ -100,7 +100,7 @@ impl ComputersStore {
     ) -> Result<Option<MaintenanceOperation>> {
         let mut reply = self
             .query(
-                "SELECT VALUE operation_id FROM ONLY $request;",
+                include_str!("../../queries/maintenance/admission/maintenance_for_request.surql"),
                 vec![(
                     "request",
                     request_record(caller, computer, request)?.into_value(),
@@ -138,7 +138,7 @@ impl ComputersStore {
         }
         let mut reply = self
             .query(
-                "SELECT VALUE id FROM ONLY $slot;",
+                include_str!("../../queries/maintenance/admission/maintenance_available.surql"),
                 vec![("slot", crate::commands::slot(id).into_value())],
             )
             .await?;
@@ -332,6 +332,7 @@ impl ComputersStore {
                 ("maintenance", record(id).into_value()),
                 ("content", content.into_value()),
                 crate::audit::binding(
+                    self.platform.audit_targets(),
                     actor.accepted(),
                     computer_id,
                     crate::audit::Transition::accepted(

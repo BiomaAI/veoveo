@@ -1,0 +1,1 @@
+UPDATE ONLY $id SET valid_from = d'2000-01-01T00:00:00Z' RETURN NONE;

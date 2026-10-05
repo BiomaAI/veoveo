@@ -1,0 +1,1 @@
+CREATE example CONTENT {};

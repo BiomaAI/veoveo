@@ -70,3 +70,6 @@ pub mod schema;
 pub mod observation;
 #[cfg(feature = "schema")]
 pub use observation::MapObservationTable;
+
+#[cfg(feature = "persistence")]
+pub mod persistence;

@@ -6,7 +6,7 @@ use veoveo_types::{DataLabelId, WorkContextId};
 
 #[tokio::test]
 async fn retained_collection_uses_current_profile_policy_and_indexed_owner_identity() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let original =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let (store, replica, computer_id) = support::interactive::ready(&db, &original).await;
@@ -90,6 +90,32 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
     let plan: surrealdb::types::Value = plan.take(0).unwrap();
     let plan = format!("{plan:?}");
     assert!(plan.contains("computer_resource_owner"), "{plan}");
+    for invalid in [
+        include_str!("queries/resource_ownership/remove_authority.surql"),
+        include_str!("queries/resource_ownership/record_authority.surql"),
+    ] {
+        let result =
+            db.a.client()
+                .query(invalid)
+                .bind((
+                    "computer",
+                    surrealdb::types::RecordId::new(
+                        "computer",
+                        surrealdb::types::Uuid::from(computer_id.as_uuid()),
+                    ),
+                ))
+                .await
+                .unwrap()
+                .check();
+        assert!(
+            result.is_err(),
+            "Computer authority must be a required object"
+        );
+        assert_eq!(
+            store.get(original.owner(), computer_id).await.unwrap(),
+            before
+        );
+    }
     // Only the current Workspace policy is removed; the Console remains authorized.
     let mut denied = control;
     for policy in &mut denied.policies {
@@ -128,7 +154,7 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
         .data_labels
         .insert(DataLabelId::parse("cui").unwrap());
     db.a.client()
-        .query("UPDATE ONLY $computer SET owner_context = $owner;")
+        .query(include_str!("queries/resource_ownership/retained_collection_uses_current_profile_policy_and_indexed_owner_identity/statement_1.surql"))
         .bind((
             "computer",
             veoveo_platform_store::RecordId::new(
@@ -152,7 +178,7 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
 
 #[tokio::test]
 async fn browser_profiles_share_capacity_and_revocation_without_sharing_sessions() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let original =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let (store, replica, computer) = support::interactive::ready(&db, &original).await;

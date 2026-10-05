@@ -38,7 +38,7 @@ impl PlatformStore {
     ) -> Result<bool, StoreError> {
         let mut result = self
             .client()
-            .query(include_str!("identity_enabled.surql"))
+            .query(include_str!("queries/identity_enabled.surql"))
             .bind((
                 "principal",
                 deterministic_principal_id(identity.tenant.as_str(), identity.principal.as_str())?
@@ -202,7 +202,7 @@ impl PlatformStore {
         let now = Utc::now();
         let mut existing = self
             .db
-            .query("SELECT * FROM ONLY $enterprise; SELECT * FROM ONLY $tenant; SELECT * FROM ONLY $principal;")
+            .query(include_str!("queries/identity/ensure_identity_once.surql"))
             .bind(("enterprise", enterprise_id.record_id()))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("principal", principal_id.record_id()))
@@ -268,7 +268,7 @@ impl PlatformStore {
             updated_at: now,
         };
         self.db
-            .query(include_str!("identity/ensure.surql"))
+            .query(include_str!("queries/identity/ensure.surql"))
             .bind(("enterprise", enterprise_id.record_id()))
             .bind(("enterprise_content", enterprise))
             .bind(("tenant", tenant_id.record_id()))
@@ -324,7 +324,7 @@ impl PlatformStore {
             updated_at: now,
         };
         self.db
-            .query("UPSERT ONLY $record CONTENT $content RETURN NONE;")
+            .query(include_str!("queries/identity/ensure_group.surql"))
             .bind(("record", id.record_id()))
             .bind(("content", content))
             .await?

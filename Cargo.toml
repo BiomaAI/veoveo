@@ -37,6 +37,7 @@ members = [
     "platform/http",
     "platform/policy",
     "platform/recordings/contract",
+    "platform/recordings/store",
     "platform/recordings/forwarder",
     "platform/recordings/protocol",
     "platform/recordings/hub",
@@ -232,6 +233,7 @@ veoveo-simulation-contract = { path = "platform/runtimes/simulation/contract" }
 veoveo-image-build-control = { path = "tools/image-build/control" }
 veoveo-platform-store = { path = "platform/store" }
 veoveo-frames-contract = { path = "platform/frames/contract" }
+veoveo-recording-store = { path = "platform/recordings/store" }
 veoveo-recording-contract = { path = "platform/recordings/contract" }
 veoveo-recording-protocol = { path = "platform/recordings/protocol" }
 veoveo-rrd = { path = "platform/recordings/rrd" }

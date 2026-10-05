@@ -42,13 +42,13 @@ impl PlatformStore {
         let _mutation = lease.mutation().await;
         lease.check_tenant(&registration.tenant)?;
         let sql = if invalidate {
-            include_str!("invalidate.surql")
+            include_str!("../queries/knowledge/invalidate.surql")
         } else {
-            "BEGIN TRANSACTION; __LEASE__ RETURN (SELECT VALUE epoch FROM ONLY $sync WHERE coordinator = $coordinator AND owner_epoch = $owner_epoch AND collection.revision = $approval AND collection.approved = true AND generation.state IN ['building', 'active']); COMMIT TRANSACTION;"
+            include_str!("../queries/knowledge/collections/collection_sync.surql")
         };
         let collection = registration.descriptor.collection();
         let mut response = lease
-            .bind(self.client().query(fenced(sql)))
+            .bind(self.client().query(sql))
             .bind(("tenant", registration.tenant.to_string()))
             .bind(("generation", generation_record(generation)))
             .bind((
@@ -80,7 +80,10 @@ impl PlatformStore {
         let collection = registration.descriptor.collection();
         ticket
             .lease
-            .bind(self.client().query(fenced(include_str!("coverage.surql"))))
+            .bind(
+                self.client()
+                    .query(include_str!("../queries/knowledge/coverage.surql")),
+            )
             .bind(("sync", sync_record(ticket.generation, collection)))
             .bind(("source_epoch", ticket.epoch))
             .bind(("tenant", registration.tenant.to_string()))

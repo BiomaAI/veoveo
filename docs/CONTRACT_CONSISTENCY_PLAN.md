@@ -42,9 +42,24 @@ Computers owns its change decoder. Native delivery, replay, stopped-reader recov
 listener cleanup and schema retention checks pass. Independent schema consumers and
 the affected runtime graphs pass qualification. Migration admission now follows exact
 function versions and preserves stored read-only callers across definition changes.
-Its native schema, transaction and recovery checks pass. Production repository and
-schema-lane extraction is in progress; complete production admission and the moved
-owners' suites remain open.
+Its native schema, transaction and recovery checks pass. Production schema admission
+and fresh lane execution pass for the kernel, each extracted repository's selection
+and the complete selected catalog, including unchanged replay, disabled-owner absence
+and reconnect. The owner-registered Audit target path passes native
+checks for reconnect, filtered reads, LIVE delivery, transaction rollback and sealed
+export while preserving record bytes and hashes. Agents, Workspace, Map and Recording
+persistence has moved into its owners. The combined test build passes, and every
+previously failing aggregate test passes in its owning-suite or focused rerun. The
+Agent event-stream failure did not recur individually or in its full gateway suite;
+its diagnostic now captures the unexpected stream outcome. Real installation commands
+pass fresh preparation, selected lanes, publication and stale-generation refusal.
+Time, Frames, Media and Agent execution query extraction passes syntax and
+statement-equivalence checks. The affected consumer builds, strict lint across
+28 packages, 13 isolated dependency profiles and the normal Store runtime build pass.
+Generated Audit readers and Console TypeScript pass their checks. Python Task query
+assets, packaged-wheel loading and the fresh kernel-lane fixture pass native and
+consumer checks. This qualifies the composed persistence batch for a source checkpoint;
+runtime kernel access, query-layout gaps and installed acceptance keep Phase 3 open.
 Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
@@ -1046,6 +1061,32 @@ Phase 3 moves module code to its owner and puts every SurrealQL statement in a f
 | SQL admission | Tenant, owner, context, labels, parent and operation selection remain in SQL before decoding, ranking and limits; kernel functions preserve the same policy |
 | Suites | Store, task-runtime, gateway, computers and every moved module's suite against real SurrealDB |
 
+The layout gate applies to complete statements. Owners may compose fixed statements
+from their query files through the SDK into one transactional request, including
+optional writes selected by typed inputs. Preserve bindings, result positions,
+rollback and policy checks. A transaction does not need one duplicated file for
+every statement combination. Predicate, identifier and token interpolation still
+requires replacement or an explicitly qualified grammar exception. Parser tests may
+deliberately transform file-owned fixtures to exercise rejection; that test behavior
+grants no runtime SQL construction API.
+
+Runtime ownership includes foreign-record dereferences as well as explicit table
+queries. Frames operation writes and reads still duplicate Task admission; both
+must use the existing Task selection export while preserving their owner-only
+access profile. Workspace needs Identity-owned metadata and search exports for
+people, invitation admission and run context. Workspace keeps chat policy and
+selected-member limits, and invitation admission stays inside its transaction.
+
+UAV and Reason need distinct caller and maintenance profiles. UAV preserves its
+indexed mission-plan and execution lookup, while Tasks owns terminal settlement
+and retention selection. Reason findings follow Artifact read access across Task
+owners; an owner-scoped Task reader would change that policy. Complete these reads
+with the planned owner lookup tables from Phase 4 where they require the same
+writers and queries. Kernel exports own Task and Artifact admission; Reason keeps
+result interpretation and provenance checks. Apply the combined policy before page
+limits, and preserve observation digests, expiry deadlines and rollback. These
+owner chains qualify together before closing either phase's affected gates.
+
 Computers owns its changefeed decoder in `platform/computers`. Store consumes checked
 owner observation declarations and enumerates kernel tables only. Native checks cover
 checkpoint replay, malformed-row rejection, actual schema retention and listener
@@ -1100,6 +1141,14 @@ can use its indexed mission plans and execution links to select Task record IDs
 directly. Preserve current authority and parent checks before ordering or limits,
 and qualify the native query plan without a Task table scan before retiring
 `task_uav_plan`. This prerequisite does not complete Phase 4's payload-column work.
+
+Computers declares `computer.owner_context.authority` as a required FLEXIBLE object
+before defining the existing ownership index. The writer's `TaskOwner` already
+requires this `InvocationAuthority`; declaring the intermediate path lets schema
+admission prove the index without weakening its checks. This narrow Phase 4
+prerequisite preserves the payload's existing child fields. Qualify a real Computer
+write, indexed ownership lookup and rejection of absent or record-valued authority.
+The full nested authority declarations remain Phase 4 work.
 
 Audit's Computer target also crosses this dependency cut. Computers must own its
 typed target codec and lookup-reference projection. Composition binds that codec to
@@ -1168,9 +1217,21 @@ the Rust type that writes them. `option<…>` appears only where the Rust field 
 | Gateway sessions | `gateway_refresh_family.principal` |
 | Managed agents | `managed_agent.{identity, resources, public_key}`; the UNIQUE indexes on `identity.client_id`, `resources.workload`, `resources.credential_secret` and `resources.volume_claim` then always apply |
 
-The task owner moves out of the FLEXIBLE `task.request` into a declared `task.owner`
-field, and the roughly 118 `request.owner.*` references read `owner.*`. The Python SDK
-task runtime writes the same field.
+The `TaskOwner` snapshot moves out of the FLEXIBLE `task.request` into a declared
+`task.owner_context` object. Keep `task.owner` as the existing `record<principal>`
+link and preserve its indexes. Update every `request.owner.*` query to use
+`owner_context.*`; the Python SDK task runtime writes the same shape.
+
+Store owns the driver record for this snapshot, and Task Runtime converts its public
+`TaskOwner` into that record. Preserve the snapshot's invocation authority and check
+its agreement with `task.authority` and the indexed identity fields before admitting
+a task. Reconstructing the snapshot from those columns would erase that consistency
+check. Declare the request envelope's `input`, `status_message`, `ttl_ms` and
+`poll_interval_ms` fields; only `input` holds an opaque domain or provider value.
+Transactions that compare the expected request must also compare the expected
+`owner_context`, preserving rejection when ownership or authority has changed.
+Rust and Python snapshot decoding must enforce the same identity, Work Context and
+invocation-authority consistency checks.
 
 ### Opaque Payloads And Declared Lookups
 
@@ -1217,8 +1278,9 @@ plans. Each owner lists every `.bind` and classifies the bound type.
 ### Migration And Gates
 
 Fresh bootstrap tests write through current producers and read every affected table
-through current consumers. Define `task.owner` and the lookup columns in owner lanes,
-then update every Rust and Python writer, query, index and typed driver record.
+through current consumers. Define `task.owner_context`, the closed request envelope
+and the lookup columns in owner lanes, then update every Rust and Python writer,
+query, index and typed driver record.
 Current-format restart and transactional rollback tests remain required.
 
 Review the Computers missing-value predicates with their policy owner in this phase.
@@ -1233,7 +1295,7 @@ record why a rejected candidate needs owner-managed lifecycle instead.
 | Gate | Pass condition |
 |---|---|
 | Suites | Store, task-runtime, computers, gateway and module suites against real SurrealDB |
-| Negative write tests | Each declared field rejects an undeclared key and a missing required key |
+| Negative write tests | Direct database writes reject undeclared keys and missing required keys in each closed object; valid typed producers and opaque provider inputs still work |
 | UNIQUE tests | Managed-agent duplicates fail |
 | Path audit | No SurrealQL path reads inside a FLEXIBLE field or decodes JSON text |
 | Bind audit | Every controlled `.bind` value uses an owner driver record or typed scalar/collection; opaque provider payloads remain explicitly classified |

@@ -1,36 +1,15 @@
 # Map MCP Design
 
-This document is the canonical design and operational contract for the
-`map-mcp` crate.
+`map-mcp` owns Veoveo's Earth geography and logistics-routing contract. Source
+administration and feature authoring share its typed MCP tools, resources and
+permission-aware Map Explorer App.
 
-`map-mcp` is Veoveo's Earth geography and logistics-routing domain. Agents use
-one strongly typed MCP surface to find places, inspect facilities and borders,
-work with coordinates, apply transport restrictions, calculate routes, build
-matrices, publish cuOpt-ready travel models, inspect reachable areas, and
-author governed feature layers. Source administration runs through the same
-MCP surface: scoped tools for mutations, `map://` resources for reads, and one
-permission-aware MCP App that renders immutable compositions
-(see `mcp/apps-extension/DESIGN.md`).
+Consumers use Map tools and `map://` resources through the gateway, or declare
+typed App dependencies. Storage, private HTTP routes and renderer internals are
+not integration surfaces. Installation profiles, policy, scopes, tenant, labels
+and Work Context authorize every consumer.
 
-Map MCP is also a reusable capability for other MCP servers. Consumers use the
-canonical `map://` resources and Map tools through the gateway, or declare a
-typed App dependency when their own App needs Map data. They do not connect to
-Map storage, private HTTP routes, or renderer internals. The installation's
-profile, policy, scopes, tenant, labels, and Work Context remain authoritative
-for every consumer.
-
-## Status
-
-Implemented in this workspace.
-
-The implementation includes the Map domain contract, SurrealDB records,
-tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
-governed network planner, source acquisition, release activation, MCP discovery
-surfaces, administrative MCP tools, the Map Explorer MCP App, gateway
-proxying, Helm, offline image registration, governed spatial and raster
-derivations, and the immutable travel-model handoff to Optimization MCP.
-
-The canonical service identity is:
+## Service Identity
 
 ```text
 crate       veoveo-map-mcp
@@ -42,8 +21,7 @@ workspace   ui://map/workspace.html
 health      /map/healthz
 ```
 
-Gateway-mounted tools use names such as `map__route`. Resource identities keep
-the `map://` scheme.
+Gateway tools use names such as `map__route`; resources keep `map://`.
 
 ## Standards And Protocols
 
@@ -147,18 +125,17 @@ activation signal. Their source records contain validity dates, but do not recor
 modification timestamp; observations leave that timestamp absent. Other observations use
 stored modification times. Reads authorize before evaluating conditional validators.
 
-Native tests cover source observations, paging, active-release selection and denied
-malformed records. Installed knowledge conformance and mutation/restart qualification
-are tracked in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
+Native tests cover observations, paging, active-release selection and denied malformed
+records. The [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md) tracks installed
+knowledge conformance and mutation/restart qualification.
 
-`tests/gateway_source_conformance.rs` supplies Map fixtures to the shared MCP checker.
-It changes layer and feature titles, publishes two disposable layers across a restart,
-and activates then rolls back a release in a separate non-routing dataset. The checker
-verifies member and root notifications for updates, collection notifications for
-creation, and committed state after a Map Deployment restart. Created publications
-must appear in enumeration and support full and conditional reads. Search qualification uses an
-authenticated reader without dataset-read authority. Cleanup restores the original
-release pointer and archives the owned layers. Fixture admission, credential files
+`tests/gateway_source_conformance.rs` changes layer and feature titles, publishes two
+disposable layers across a Map Deployment restart, and activates then rolls back a
+release in a separate non-routing dataset. The shared checker verifies update
+notifications for members and roots, creation notifications for collections, committed
+state after restart, and publication enumeration, full reads and conditional reads.
+Search tests use an authenticated reader without dataset-read authority. Cleanup
+restores the release pointer and archives owned layers. Fixture admission, credentials
 and commands follow [the installed harness contract](../../testing/installed/DESIGN.md).
 
 ### Public Types And Authorization
@@ -314,6 +291,15 @@ and RRD import these through Map's contract feature. Frames owns its distinct WG
 position payload with explicit degree and height fields; Map's geographic position
 payload keeps its existing longitude, latitude, and optional height representation.
 
+## Query Files
+
+Map stores SurrealQL in `src/persistence/queries/` and `src/queries/`; native fixture
+statements live in `tests/queries/` or their colocated source query family. Catalog
+pages, travel-model reads and authored knowledge reads select complete static files
+for each supported selection. Rust binds identities, clearance, cursor positions and
+limits, and decodes the existing statement results. DuckDB analytical SQL follows the
+separate spatial execution profile described below.
+
 ## Persistence
 
 SurrealDB is the canonical operational catalog. It stores:
@@ -344,22 +330,20 @@ from its pinned local path. Map selects the shared runtime's closed
 `GeoJsonLongitudeLatitude` axis policy before configuration is locked. Startup and
 health read `current_setting('geometry_always_xy')` and require `true`.
 
-Selective geometry reads use the existing DuckDB Spatial R-tree indexes on
-boundaries, immutable source features, authored revisions, and authored heads.
-Map admits only schema 11 and eagerly binds and verifies all four indexes before
-serving requests. DuckDB 1.5.6 and its matching Spatial extension replay committed
-current-format WAL after an unclean shutdown. The process-exit regression checks
-mixed geometries, index contents, spatial selection, uncommitted rollback and a
-second reopen after recovery. Historical schema markers fail with an explicit
-projection-rebuild error; startup does not convert or delete them. Operators drain
-Map before changing its engine, preserve a snapshot of the database and WAL together,
-and restore that pair with its matching image if rollback is required.
-The query shape first obtains geometry-only candidates from the indexed base
-table. Tenant, Work Context, release, layer, revision, and exact spatial
-predicates remain on the authoritative outer query. This separation prevents
-non-spatial selectivity estimates from hiding the R-tree from DuckDB's planner.
-Dateline-crossing boxes use two candidate branches joined by `UNION`, because
-an `OR` between spatial predicates does not produce two R-tree scans.
+Map admits only analytical schema 11 and eagerly binds and verifies DuckDB Spatial
+R-tree indexes on boundaries, immutable source features, authored revisions and
+authored heads before serving. DuckDB 1.5.6 with matching Spatial replays committed current-format WAL after
+unclean shutdown. Process-exit tests cover mixed geometries, index contents, spatial
+selection, uncommitted rollback and a second recovery reopen. Historical markers
+produce an explicit projection-rebuild error; startup neither converts nor deletes
+them. Engine upgrades require a Map drain and a snapshot of database and WAL together.
+Rollback restores that pair with its matching image.
+
+Spatial queries obtain geometry-only candidates from the indexed base table, then
+apply tenant, Work Context, release, layer, revision and exact spatial predicates in
+the outer query. This preserves R-tree planning despite non-spatial selectivity
+estimates. Dateline boxes use two branches joined by `UNION`; spatial `OR` predicates
+do not produce two R-tree scans.
 
 `src/authoring/query/performance.rs` is the executable performance contract for
 feature-layer viewport reads. It loads 10,000, 100,000, and 1,000,000 indexed
@@ -373,21 +357,16 @@ fixture loading must sustain 5,000 rows per second and the million-feature
 database must remain below 2 GiB. These generous regression ceilings are local
 acceptance budgets, not service latency claims.
 
-Release-product projection is attempt scoped. Each preparation receives a
-private UUIDv7 attempt and writes complete source features in transactions of
-at most 256 features or 32 MiB of canonical source-feature data. Stable logical
-ids remain unchanged across releases. Stored rows add the tenant, immutable
-release, attempt, and contiguous ordinal needed to keep simultaneous releases
-and interrupted retries distinct.
+Release preparation uses a private UUIDv7 attempt. Transactions write at most 256
+complete source features or 32 MiB of canonical feature data. Stable logical IDs span
+releases; rows also carry tenant, immutable release, attempt and contiguous ordinal.
 
-The completion ledger is the visibility boundary. Its final transaction checks
-the row count, distinct ordinal count, ordinal range, and logical-id uniqueness
-for every high-volume release table. It also checks the raster count. Only the
-winning attempt becomes readable or activatable. An interrupted attempt may
-remain on disk, but its rows cannot enter tools, resources, routing, or spatial
-queries. A release retains at most eight attempts before preparation stops with
-an instruction to rebuild this derived projection. The supported deployment
-uses one Map replica and one release writer.
+The completion-ledger transaction checks row count, distinct ordinals, ordinal range
+and logical-ID uniqueness for each high-volume table, plus raster count. Only its
+winning attempt becomes readable or activatable. Interrupted rows may persist but
+cannot enter tools, resources, routing or spatial queries. Eight retained attempts
+per release stop further preparation with a projection-rebuild diagnostic. Deployment
+supports one Map replica and one release writer.
 
 Source tags stay in the immutable feature JSON. Equality predicates match only
 JSON strings, while existence predicates include a present JSON null. JSON
@@ -395,11 +374,10 @@ Pointer escaping protects tag keys containing `/` or `~`. This avoids the
 write amplification of an exploded tag table without weakening release and
 attempt isolation.
 
-Schema version 9 is a hard cut. Map refuses to open an older analytical schema
-or managed tables without a valid marker. During upgrade, preserve SurrealDB,
-the artifact plane, and retained release products, then rebuild only the local
-DuckDB projection and replay the retained products before activation. No source
-reacquisition or compatibility migration is part of this contract.
+Unmarked managed tables also fail analytical-schema admission. Projection rebuilds
+preserve SurrealDB, artifacts and retained release products, then replay those products
+before activation. The upgrade requires neither source reacquisition nor a
+compatibility migration.
 
 The artifact plane stores immutable raw source bytes, normalized products,
 routing builds, quality reports, and large task outputs. Cross-server artifact
@@ -640,7 +618,7 @@ scoped. Travel models are filtered by principal, gateway profile, tenant,
 labels, and Work Context from their durable task owner. Dataset, geography,
 profile, and restriction resources are tenant scoped. Authored layers,
 publications, products, and compositions are Work Context scoped and filtered
-by the caller's data labels. Store applies those predicates in SQL before returning
+by the caller's data labels. Map repository queries apply those predicates in SQL before returning
 layer and composition records. Publication and product queries select visible parent
 layers in SQL, including direct product reads. Raster derivation resources are confined to their
 creating Work Context, while the immutable source raster remains tenant
@@ -675,7 +653,7 @@ before publishing a refreshed collection, preserving its previous view on failur
 
 Route, matrix, and acquisition indexes return the same page envelope with up to
 100 items ordered by immutable domain ID. Their cursors bind the collection and
-are valid only at version 1. Store applies tenant and owner predicates before
+are valid only at version 1. Map repository queries apply tenant and owner predicates before
 keyset selection and limits, including for direct reads. Route and matrix items
 contain status or profile metadata and a `resource_uri` for the complete document;
 index queries omit route geometry and matrix cells. Matrix reads and completion
@@ -741,7 +719,7 @@ publication, and task-based bulk transfer without granting routing authority.
 Completion applies to resource-template arguments and returns only visible ids.
 The implementation completes source, dataset, release, location, facility,
 profile, restriction, route, matrix, travel-model, layer, publication, product,
-and composition identities from the caller's scope. Store and DuckDB apply scope,
+and composition identities from the caller's scope. Map SQL and DuckDB apply scope,
 search text, and deduplication before a 101-ID query limit. MCP returns the first
 100 IDs and `hasMore`; it omits `total` when more matches exist. Dataset, profile,
 layer, publication, and composition arguments supplied in completion context
@@ -979,43 +957,35 @@ release labels and digests.
 
 - Contract tests cover IDs, quantities, geometry, mobility taxonomy, sources,
   geodesics, graph costs, Valhalla limits, URIs, paging, stable feature IDs,
-  routing archives, travel-model bounds and activation;
-- DuckDB runtime tests cover controlled HTTPS source policy, closed Spatial axis
-  selection, effective-setting verification, and a pinned extension-backed meter
-  baseline;
-- Python tests cover typed contracts, a bounded GTFS acquisition with validator
-  execution, unsafe ZIP rejection, subprocess timeout, process-group
-  termination, and bounded diagnostics;
-- SurrealDB integration tests apply the schema to SurrealDB 3.3 and verify
-  atomic release activation under record versions;
-- Console TypeScript and production Vite builds validate the administrative
-  projection;
-- Map workspace contract tests verify one permission-aware App resource, the
-  validated same-origin light and dark basemap contract and CSP declaration, exact MCP bridge operations,
-  immutable publication and active-release queries, guided GeoPackage tasks,
-  subscription wiring, the embedded MapLibre pin, and fail-closed hardware
-  WebGL2 checks;
-- the Map browser smoke serves the exact generated App in the Console's
-  opaque-origin sandbox with the exact local MapLibre Style CSP. Headed Chrome
-  proves NVIDIA WebGL before bounded publication-pinned and active-release viewport
-  queries, light/dark switches preserving camera and overlays, synchronized
-  map/table selection, governed-data inspection with the map visible, and
-  screenshot capture;
-- the container build verifies the pinned Spatial extension and packages GDAL,
-  Osmium, Valhalla, and the Python application;
-- the Rust Map smoke launches that image with a real SurrealDB 3.3 catalog and
-  artifact service. It acquires and activates authority, OSM, and governed
-  network fixtures, rejects a bad source digest before staging, and exercises
-  named-location, facility, boundary, and corridor queries;
-- the same smoke invokes road and maritime routing through the MCP Task API. It
-  checks task creation and completion, executes a real Valhalla road route,
-  executes a governed graph route, validates persistence, applies restriction
-  risk, withdraws the restriction, and reads the invalidated dependent route;
-- the broader smoke and conformance suites validate gateway, control-plane,
-  offline, task, and MCP behavior.
-- the cross-server compatibility test serializes the Map travel-model artifact
-  and deserializes it directly as the Optimization contract without a
-  translation shim.
+  routing archives, travel-model bounds and activation.
+- DuckDB tests cover controlled HTTPS, closed Spatial axis selection, effective
+  settings and a pinned extension-backed meter baseline.
+- Python tests cover typed contracts, bounded GTFS acquisition and validation,
+  unsafe ZIP rejection, subprocess deadlines, process-group termination and
+  bounded diagnostics.
+- SurrealDB 3.3 tests install the schema and verify atomic, version-checked release
+  activation. Console TypeScript and production Vite builds check administrative
+  projection.
+- App contract tests cover one permission-aware App resource, same-origin light/dark
+  basemaps and CSP, MCP bridge operations, immutable-publication and active-release
+  queries, guided GeoPackage tasks, subscriptions, the MapLibre pin and hardware
+  WebGL2 rejection.
+- Browser smoke serves the generated App in Console's opaque-origin sandbox with
+  the local MapLibre Style CSP. Headed Chrome proves NVIDIA WebGL before testing
+  bounded publication-pinned and active-release viewport queries, light/dark changes
+  that preserve camera and overlays, synchronized map/table selection, data inspection
+  with the map visible, and screenshot capture.
+- Image builds verify pinned Spatial and package GDAL, Osmium, Valhalla and Python.
+  Rust Map smoke runs that image against real SurrealDB 3.3 and Artifact services.
+  It acquires and activates authority, OSM and governed-network fixtures, rejects
+  bad source digests before staging, and queries named locations, facilities,
+  boundaries and corridors.
+- The same smoke checks MCP Task creation and completion for real Valhalla road
+  and governed-graph maritime routes, persistence, restriction risk, withdrawal
+  and dependent-route invalidation.
+- Broader smoke and conformance suites cover gateway, control-plane, offline,
+  Task and MCP behavior. The cross-server test serializes Map travel models and
+  deserializes them directly into Optimization's contract without translation.
 
 The principal local commands are:
 
@@ -1070,21 +1040,25 @@ Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `map_*`.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The version-zero lane installs the current Map schema from
+`servers/map-mcp/src/schema/migrations/0000_current.surql`. The composition root supplies
+its checked execution image and command. Gateway composition prepares runtime
+credentials and executes selected owner lanes through `module-migrate`. The
+runtime opens the shared authenticated Store connection without applying schema.
+Installed image and Job qualification is tracked separately in the active contract plan.
 
-No optional-module requirement is inferred from a client-facing geographic or temporal integration. Current kernel query access still needs its owner APIs.
+The Map lane initializes `map_projection_state:authored_features` with
+`last_sequence = 0`. The changeset event advances this head on committed feature
+edits. Replaying an installed lane preserves the existing head and its sequence.
+
+Client-facing geographic or temporal integrations imply no optional-module dependency.
+Kernel queries require their owners' APIs.
 
 ## Persistence Observation
 
-`MapObservationTable` declares the owner's closed observation table names under the
-`schema` feature. Runtime consumers convert these declarations into checked
-`ObservationTable` descriptors and compose them with kernel tables. The descriptor
-admits an identifier; it does not certify installed schema or grant read authority.
-These owner tables declare 30-day changefeed retention matching the installed SQL.
-LIVE invalidation and changefeed recovery keep their existing reconciliation and
-checkpoint behavior. Public DTO contract features do not activate observation sources.
+The `schema` feature exposes closed `MapObservationTable` names. Runtime consumers
+compose their checked `ObservationTable` descriptors with kernel tables. Descriptor
+admission validates identifiers, not installed schema or read authority. Owner tables
+declare the installed SQL's 30-day changefeed retention. LIVE invalidation and
+changefeed recovery preserve reconciliation and checkpoint behavior. Public DTO
+contract features do not activate observation sources.

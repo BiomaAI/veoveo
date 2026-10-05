@@ -56,20 +56,18 @@ pub(super) async fn complete(
     domain: CompletionDomain,
     needle: &str,
 ) -> Result<CompletionInfo, McpError> {
-    // Only these repository-owned expressions enter SQL. User input is bound.
-    let fields: &[&str] = match domain {
-        CompletionDomain::Analyses => &["type::string(record::id(id))"],
+    let statements: &[&str] = match domain {
+        CompletionDomain::Analyses => &[include_str!(
+            "../../../queries/bin/server/index/completion_task.surql"
+        )],
         CompletionDomain::Artifacts => &[
-            "result.payload.structuredContent.results_artifact.artifact_id",
-            "result.payload.structuredContent.annotations_artifact.artifact_id",
-            "result.payload.structuredContent.source_clip_artifact.artifact_id",
+            include_str!("../../../queries/bin/server/index/completion_results.surql"),
+            include_str!("../../../queries/bin/server/index/completion_annotations.surql"),
+            include_str!("../../../queries/bin/server/index/completion_source_clip.surql"),
         ],
     };
     let mut values = BTreeSet::new();
-    for field in fields {
-        let statement = format!(
-            "SELECT VALUE candidate FROM (SELECT {field} AS candidate FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type = $task_type AND {field} CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);"
-        );
+    for &statement in statements {
         let mut response = tasks
             .platform_store()
             .client()

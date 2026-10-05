@@ -1,0 +1,1 @@
+SELECT VALUE candidate FROM (SELECT release_key AS candidate FROM map_dataset_release WHERE tenant = $tenant AND ($parent = NONE OR dataset_key = $parent) AND string::lowercase(release_key) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT 101);

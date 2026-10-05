@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from surrealdb import RecordID
 
+from .queries import query
 from .types import InvalidRecord, TaskUpdateCursor, parse_task_id
 
 if TYPE_CHECKING:
@@ -82,7 +83,9 @@ async def _page(store: SurrealStore, cursor: TaskUpdateCursor, limit: int) -> li
     # SHOW does not accept bound cursor/limit values. Both constructors admit
     # integers only; no caller text or table identifier enters this statement.
     rows = await store.query(
-        f"SHOW CHANGES FOR DATABASE SINCE {cursor.versionstamp} LIMIT {limit};"
+        query("changefeed/_page.surql")
+        .replace("__CURSOR__", str(cursor.versionstamp))
+        .replace("__LIMIT__", str(limit))
     )
     return [ChangefeedBatch.decode(row) for row in rows[0] or []]
 
@@ -100,7 +103,7 @@ async def replay_changes(store: SurrealStore, cursor: TaskUpdateCursor, limit: i
 
 
 async def cursor_now(store: SurrealStore) -> TaskUpdateCursor:
-    result = (await store.query("RETURN time::now();"))[0]
+    result = (await store.query(query("changefeed/cursor_now.surql")))[0]
     if not isinstance(result, datetime):
         raise InvalidRecord("native cursor requires database time")
     return TaskUpdateCursor(max(0, int(result.timestamp() * 1000) - 2_000) << 16)

@@ -8,7 +8,8 @@ publish = false
 default = []
 contract = ["dep:veoveo-gateway-contract", "dep:veoveo-artifact-contract", "dep:chrono", "dep:schemars", "dep:serde", "dep:serde_json", "dep:uuid", "dep:veoveo-types", "dep:veoveo-agent-runtime"]
 app-contract = ["contract", "dep:rmcp", "rmcp/schemars"]
-gateway = ["dep:veoveo-http", "app-contract", "veoveo-agent-runtime/gateway", "rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest-tls-no-provider", "dep:veoveo-gateway-contract", "dep:base64", "dep:veoveo-artifact-contract", "dep:jsonschema", "dep:anyhow", "dep:async-stream", "dep:axum", "dep:chrono", "dep:futures", "dep:hex", "dep:parking_lot", "dep:reqwest", "dep:rig", "dep:rmcp", "dep:secrecy", "dep:serde", "dep:serde_json", "dep:sha2", "dep:sse-stream", "dep:tokio", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url", "dep:uuid", "dep:veoveo-mcp-contract", "dep:veoveo-mcp-gateway", "dep:veoveo-platform-store", "dep:veoveo-types", "dep:veoveo-agent-runtime", "dep:veoveo-mcp-apps-extension"]
+persistence = ["dep:futures", "contract", "schema", "veoveo-agent-runtime/persistence", "dep:surrealdb", "dep:thiserror", "dep:tokio", "dep:sha2", "dep:hex", "dep:veoveo-platform-store"]
+gateway = ["persistence", "dep:veoveo-http", "app-contract", "veoveo-agent-runtime/gateway", "rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest-tls-no-provider", "dep:veoveo-gateway-contract", "dep:base64", "dep:veoveo-artifact-contract", "dep:jsonschema", "dep:anyhow", "dep:async-stream", "dep:axum", "dep:chrono", "dep:futures", "dep:hex", "dep:parking_lot", "dep:reqwest", "dep:rig", "dep:rmcp", "dep:secrecy", "dep:serde", "dep:serde_json", "dep:sha2", "dep:sse-stream", "dep:tokio", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url", "dep:uuid", "dep:veoveo-mcp-contract", "dep:veoveo-mcp-gateway", "dep:veoveo-platform-store", "dep:veoveo-types", "dep:veoveo-agent-runtime", "dep:veoveo-mcp-apps-extension"]
 schema = ["dep:veoveo-modules"]
 
 [dependencies]
@@ -47,11 +48,23 @@ veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false
 veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
+thiserror = { workspace = true, optional = true }
+
 [dev-dependencies]
+veoveo-audit-contract.workspace = true
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-recording-contract.workspace = true
 veoveo-computers-contract.workspace = true
 veoveo-gateway-contract.workspace = true
 rustls.workspace = true
 tower.workspace = true
 veoveo-task-runtime = { path = "../task-runtime" }
-surrealdb = { version = "=3.3.0", default-features = false }
+
+[[test]]
+name = "workspace"
+required-features = ["persistence"]
+
+[[test]]
+name = "agent_catalog_integration"
+required-features = ["persistence"]

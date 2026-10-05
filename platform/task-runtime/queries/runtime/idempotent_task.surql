@@ -1,0 +1,1 @@
+SELECT VALUE task FROM ONLY $id;

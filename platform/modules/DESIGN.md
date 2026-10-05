@@ -93,9 +93,9 @@ validate the table claim and every key expression.
 
 Every supported expression-bearing child is visited, including defaults, assertions,
 permissions, comments, nested objects, event/function bodies and cast types. Unproven
-record dereferences, graph traversal and dynamic targets fail admission. This subset
-does not admit the entire production schema; later ownership work must qualify additional
-constructs or rewrite their owners before production lanes replace the current bootstrap.
+record dereferences, graph traversal and dynamic targets fail admission. The selected production owner lanes use this supported profile. Additional
+SurrealQL constructs require complete child inspection and owner/effect qualification
+before the runner admits them.
 Admission errors identify the module, filename and construct or object without printing
 SQL bodies or bound values.
 
@@ -162,8 +162,9 @@ image's commands through `module-installation-verify`. Its isolated namespace co
 fresh preparation, lane completion, runtime-authenticated publication, credential
 rotation and stale-generation rejection. It applies selected chart resources directly;
 full Helm rollback, hosted workload startup and managed-agent recovery require their
-own installed checks. Production schemas and histories use the mixed Store catalog
-until ownership moves into the declared lanes.
+own installed checks. Current kernel and optional schemas live in their owning lanes.
+Source and native qualification do not establish installed image or Job qualification;
+that acceptance is tracked in the active contract plan.
 
 ## Generated Composition Plans
 
@@ -182,13 +183,14 @@ compiled declarations before effects; selected module names remain open validate
 ## Preparation Generation
 
 `PreparationKey` and `InstallationGeneration` are dependency-free checked types.
-The composition hashes its complete plan, compiled mixed-schema identity and runtime
-account name into a preparation identity. The generation is an installation-owned
+The composition hashes its complete plan and runtime account name under
+`veoveo.ai/installation-preparation/v1` into a preparation identity. The plan binds
+the compiled owner bodies and execution declarations. The generation is an installation-owned
 positive integer, independent of chart release metadata. A changed preparation identity
 requires a higher generation; the same generation with conflicting identity fails.
 
 Prepared execution initializes the reserved infrastructure, then claims the generation
-before mixed-schema work. A delayed older preparer cannot rotate the newer account.
+before runtime-account provisioning and owner-lane execution. A delayed older preparer cannot rotate the newer account.
 Completion rotates a validated database editor and writes the completion marker in one
 owned native transaction. Already completed keys do not repeat rotation. The API accepts
 only credentials for this fixed operation and has no arbitrary-SQL execution hook.

@@ -34,7 +34,10 @@ fn request(tool: &str) -> CallToolRequestParams {
 #[tokio::test]
 async fn call_paths_require_the_tool_scope_before_persistence_or_execution() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = test_support::fixture::TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(90), async {
         let mut simulation = fake_state().unwrap();
         simulation.session_id = crate::contract::SessionId::parse("native-session").unwrap();

@@ -20,11 +20,11 @@ impl PlatformStore {
         // escaping is also valid SurrealQL strand escaping.
         let password_literal = serde_json::to_string(password.expose_secret())
             .expect("serializing a string cannot fail");
-        let statement = format!(
-            "DEFINE USER OVERWRITE `{username}` ON DATABASE PASSWORD {password_literal} ROLES EDITOR;"
-        );
+        let statement = include_str!("queries/administration/replace_database_editor.surql")
+            .replace("__PASSWORD__", &password_literal);
         self.db
             .query(statement)
+            .bind(("username", username.to_owned()))
             .await
             .map_err(|_| StoreError::AdministrationFailed {
                 operation: "database runtime user rotation",
@@ -38,7 +38,10 @@ impl PlatformStore {
 
     /// Verify that the selected namespace/database accepts queries.
     pub async fn healthcheck(&self) -> Result<(), StoreError> {
-        self.db.query("RETURN true;").await?.check()?;
+        self.db
+            .query(include_str!("queries/administration/healthcheck.surql"))
+            .await?
+            .check()?;
         Ok(())
     }
 }

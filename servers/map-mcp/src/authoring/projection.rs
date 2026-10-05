@@ -1,10 +1,12 @@
+use crate::persistence::MapRepository;
 use std::{collections::BTreeSet, sync::Arc};
 
+use crate::persistence::{MapFeatureProjectionCommit, MapFeatureRevisionRecord};
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use duckdb::{Transaction, params};
 use tokio::sync::Mutex;
-use veoveo_platform_store::{MapFeatureProjectionCommit, MapFeatureRevisionRecord, PlatformStore};
+use veoveo_platform_store::PlatformStore;
 
 use crate::{
     analytics::MapAnalytics,
@@ -87,15 +89,16 @@ impl AuthoringProjection {
         }
         // The Map head commits atomically with each changeset. Its serialization
         // prevents later commits appearing below this captured recovery boundary.
-        let through = self.store.latest_map_feature_commit_sequence().await?;
+        let through = MapRepository::new(self.store.clone())
+            .latest_map_feature_commit_sequence()
+            .await?;
         if let Some(minimum) = minimum.filter(|minimum| *minimum > through) {
             bail!(
                 "authored map projection cannot reach required sequence {minimum} beyond committed sequence {through}"
             );
         }
         while sequence < through {
-            let commits = self
-                .store
+            let commits = MapRepository::new(self.store.clone())
                 .read_map_feature_commits(sequence, through, PAGE_SIZE)
                 .await?;
 
@@ -123,8 +126,7 @@ impl AuthoringProjection {
         &self,
         commit: &MapFeatureProjectionCommit,
     ) -> Result<Vec<ProjectedRevision>> {
-        let records = self
-            .store
+        let records = MapRepository::new(self.store.clone())
             .list_map_feature_revisions_for_changeset(
                 &commit.tenant_key,
                 &commit.work_context_key,

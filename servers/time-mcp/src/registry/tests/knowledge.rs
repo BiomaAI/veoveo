@@ -5,7 +5,7 @@ use veoveo_mcp_knowledge_extension::ReadPolicy;
 #[tokio::test]
 async fn authority_observations_and_pages_preserve_stored_tenant_provenance() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let catalog = TimeCatalog::new(db.b.clone());
         let owner = scope(&db.a, "authority-knowledge").await;

@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, watch};
 use veoveo_agent_runtime::AgentRuntime;
 use veoveo_agent_runtime::contract::authoring::ManagedDispatch;
-use veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding;
+use veoveo_agent_runtime::persistence::instances::ManagedEpisodeBinding;
 
 use crate::{
     manifest::AgentManifest,
@@ -490,7 +490,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use rmcp::model::ResourceUpdatedNotificationParam;
-    use veoveo_platform_store::WakeKind;
+    use veoveo_agent_runtime::persistence::WakeKind;
 
     use super::{resource_update_wake, token_is_stale};
 

@@ -96,14 +96,7 @@ impl PlatformStore {
 
                 self.db
                     .query(
-                        "BEGIN TRANSACTION; \
-                         LET $current = (SELECT * FROM ONLY $request); \
-                         IF $current.revision != $revision { THROW 'artifact_access_request_revision_conflict'; }; \
-                         UPDATE ONLY $request SET requested_level = $requested_level, \
-                           justification = $justification, state = 'pending', decided_by = NONE, \
-                           decided_by_key = NONE, decision_note = NONE, decided_at = NONE, created_at = $now, \
-                           updated_at = $now, revision += 1 RETURN NONE; \
-                         COMMIT TRANSACTION;",
+                        include_str!("queries/artifact_access_requests/create_or_reopen_artifact_access_request.surql"),
                     )
                     .bind(("request", existing.id.clone()))
                     .bind(("revision", existing.revision))
@@ -146,9 +139,7 @@ impl PlatformStore {
             let created = self
                 .db
                 .query(
-                    "BEGIN TRANSACTION; \
-                     CREATE ONLY $request CONTENT $content RETURN NONE; \
-                     COMMIT TRANSACTION;",
+                    include_str!("queries/artifact_access_requests/create_or_reopen_artifact_access_request_2.surql"),
                 )
                 .bind(("request", draft.request_id.record_id()))
                 .bind(("content", content))
@@ -176,7 +167,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactAccessRequestRecord>, StoreError> {
         let mut response = self
             .db
-            .query("SELECT * FROM ONLY $request WHERE tenant = $tenant;")
+            .query(include_str!(
+                "queries/artifact_access_requests/artifact_access_request.surql"
+            ))
             .bind(("request", request_id.record_id()))
             .bind(("tenant", tenant_id.record_id()))
             .await?
@@ -200,23 +193,36 @@ impl PlatformStore {
                 reason: "must select one requester or Work Context",
             });
         }
-        let scope = if query.requester_id.is_some() {
-            "requester = $scope"
-        } else {
-            "work_context = $scope"
+        let statement = match (
+            query.requester_id.is_some(),
+            query.state.is_some(),
+            query.cursor.is_some(),
+        ) {
+            (true, false, false) => {
+                include_str!("queries/artifact_access_requests/list_requester.surql")
+            }
+            (true, false, true) => {
+                include_str!("queries/artifact_access_requests/list_requester_cursor.surql")
+            }
+            (true, true, false) => {
+                include_str!("queries/artifact_access_requests/list_requester_state.surql")
+            }
+            (true, true, true) => {
+                include_str!("queries/artifact_access_requests/list_requester_state_cursor.surql")
+            }
+            (false, false, false) => {
+                include_str!("queries/artifact_access_requests/list_context.surql")
+            }
+            (false, false, true) => {
+                include_str!("queries/artifact_access_requests/list_context_cursor.surql")
+            }
+            (false, true, false) => {
+                include_str!("queries/artifact_access_requests/list_context_state.surql")
+            }
+            (false, true, true) => {
+                include_str!("queries/artifact_access_requests/list_context_state_cursor.surql")
+            }
         };
-        let state = query
-            .state
-            .map(|_| " AND state = $state")
-            .unwrap_or_default();
-        let cursor = query
-            .cursor
-            .map(|_| " AND id < $cursor")
-            .unwrap_or_default();
-        let statement = format!(
-            "SELECT * FROM artifact_access_request WHERE tenant = $tenant AND {scope}{state}{cursor} \
-             ORDER BY id DESC LIMIT $limit;"
-        );
         let scope_record = query
             .requester_id
             .map(PrincipalId::record_id)
@@ -284,32 +290,17 @@ impl PlatformStore {
             };
 
             self.db
-                .query(
-                    "BEGIN TRANSACTION; \
-                     LET $current = (SELECT * FROM ONLY $request); \
-                     IF $current.revision != $revision OR $current.state != 'pending' { THROW 'artifact_access_request_state_conflict'; }; \
-                     DELETE $grant_id RETURN NONE; \
-                     RELATE ONLY $artifact->$grant_id->$requester CONTENT $grant RETURN NONE; \
-                     UPDATE ONLY $request SET state = $state, decided_by = $decided_by, \
-                       decided_by_key = $decided_by_key, \
-                       decision_note = $note, decided_at = $now, updated_at = $now, revision += 1 RETURN NONE; \
-                     \
-                     COMMIT TRANSACTION;",
-                )
+                .query(include_str!(
+                    "queries/artifact_access_requests/decide_artifact_access_request.surql"
+                ))
                 .bind(("grant_id", grant_id))
                 .bind(("artifact", existing.artifact.clone()))
                 .bind(("requester", existing.requester.clone()))
                 .bind(("grant", grant))
         } else {
-            self.db.query(
-                "BEGIN TRANSACTION; \
-                 LET $current = (SELECT * FROM ONLY $request); \
-                 IF $current.revision != $revision OR $current.state != 'pending' { THROW 'artifact_access_request_state_conflict'; }; \
-                 UPDATE ONLY $request SET state = $state, decided_by = $decided_by, \
-                   decided_by_key = $decided_by_key, \
-                   decision_note = $note, decided_at = $now, updated_at = $now, revision += 1 RETURN NONE; \
-                 COMMIT TRANSACTION;",
-            )
+            self.db.query(include_str!(
+                "queries/artifact_access_requests/decide_artifact_access_request_2.surql"
+            ))
         };
         query = query
             .bind(("request", draft.request_id.record_id()))
@@ -335,10 +326,9 @@ impl PlatformStore {
     ) -> Result<Option<ArtifactAccessRequestRecord>, StoreError> {
         let mut response = self
             .db
-            .query(
-                "SELECT * FROM artifact_access_request \
-                 WHERE tenant = $tenant AND artifact = $artifact AND requester = $requester LIMIT 1;",
-            )
+            .query(include_str!(
+                "queries/artifact_access_requests/artifact_access_request_for_subject.surql"
+            ))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("artifact", artifact_id.record_id()))
             .bind(("requester", requester_id.record_id()))

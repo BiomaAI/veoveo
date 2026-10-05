@@ -15,7 +15,7 @@ impl ArtifactReadScope {
     /// Artifact-owned SQL predicate for the `artifact_occurrence` row in scope.
     /// Use inside that table's WHERE clause, before projection and pagination.
     /// Bind its parameters with `bind`; consumers must not copy the policy.
-    pub const ADMISSION: &'static str = include_str!("read_admission.surql");
+    pub const ADMISSION: &'static str = include_str!("../queries/artifacts/read_admission.surql");
 
     pub fn new(
         identity: &PlatformIdentity,
@@ -94,10 +94,8 @@ impl PlatformStore {
     ) -> Result<Vec<ArtifactAggregate>, StoreError> {
         let mut response = scope
             .bind(
-                self.db.query(
-                    include_str!("read_page.surql")
-                        .replace("{{ADMISSION}}", ArtifactReadScope::ADMISSION),
-                ),
+                self.db
+                    .query(include_str!("../queries/artifacts/read_page.surql")),
             )
             .bind(("artifact", artifact.map(|id| id.record_id())))
             .bind(("cursor", cursor.map(|id| id.record_id())))

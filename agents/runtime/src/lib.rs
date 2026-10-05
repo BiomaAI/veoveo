@@ -86,3 +86,6 @@ fn fixture_claims() -> (
 pub mod observation;
 #[cfg(feature = "schema")]
 pub use observation::AgentObservationTable;
+
+#[cfg(feature = "persistence")]
+pub mod persistence;

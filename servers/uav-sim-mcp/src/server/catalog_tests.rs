@@ -21,8 +21,6 @@ use veoveo_platform_store::PlatformStore;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRuntime};
 use veoveo_types::TaskId;
 
-use crate::server::test_support::fixture;
-
 pub(super) fn grant(identity: &GatewayInternalIdentity, key: &str) -> GrantVehicleControlRequest {
     GrantVehicleControlRequest {
         grant_id: ControlGrantId::parse(key).unwrap(),
@@ -157,7 +155,10 @@ async fn admitted_task(
 #[tokio::test]
 async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = fixture::TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Duration::from_secs(120), async {
         let writer = VehicleControlAuthority::new(db.a.clone());
         let reader = VehicleControlAuthority::new(db.b.clone());
@@ -535,12 +536,28 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             .unwrap();
 
         assert!(
-            explain.contains("task_uav_plan"),
-            "mission lookup did not use its plan index: {explain}"
+            explain.summary.contains("uav_execution_plan"),
+            "mission lookup did not use its execution plan index: {}",
+            explain.summary
         );
         assert!(
-            explain.contains("uav_mission_plan_mission"),
-            "mission lookup did not use its mission index: {explain}"
+            explain.summary.contains("uav_mission_plan_mission"),
+            "mission lookup did not use its mission index: {}",
+            explain.summary
+        );
+        assert!(
+            !explain.tasks.any(|node| node.operator.ends_with("Scan")),
+            "Task lookup scanned a table: {}",
+            explain.summary
+        );
+        assert!(
+            explain.tasks.any(|node| {
+                node.operator == "SourceExpr"
+                    && node.attributes.get("expr")
+                        == Some(&format!("[task:u'{}']", snapshots[102].task_id))
+            }),
+            "Task lookup has no direct record iteration: {}",
+            explain.summary
         );
         let hub = Arc::new(SubscriptionHub::new());
         let mut contents = hub.listen();

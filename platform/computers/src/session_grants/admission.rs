@@ -39,7 +39,7 @@ impl ComputersStore {
         authority::ready(&computer, self.provider_instance_id)?;
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $policy;",
+                include_str!("../../queries/session_grants/admission/issue_browser.surql"),
                 vec![("policy", self.session_policy_record().into_value())],
             )
             .await?;
@@ -100,6 +100,7 @@ impl ComputersStore {
                     .into_value(),
             ),
             crate::audit::binding(
+                self.platform.audit_targets(),
                 actor.accepted(),
                 computer_id,
                 crate::audit::Transition::accepted(
@@ -216,6 +217,7 @@ impl ComputersStore {
                         actor.admission_expires_at().into_value(),
                     ),
                     crate::audit::binding(
+                        self.platform.audit_targets(),
                         actor.accepted(),
                         row.computer_id()?,
                         crate::audit::Transition::accepted(

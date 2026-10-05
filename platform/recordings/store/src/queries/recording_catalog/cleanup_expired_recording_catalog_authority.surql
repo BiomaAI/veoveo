@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $expired_projections = (DELETE recording_projection_receipt WHERE expires_at <= $now RETURN BEFORE); LET $expired_grants = (DELETE recording_read_grant WHERE expires_at <= $now RETURN BEFORE); RETURN { projection_receipts: array::len($expired_projections), read_grants: array::len($expired_grants) }; COMMIT TRANSACTION;

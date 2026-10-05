@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; DELETE ONLY $pointer; CREATE ONLY $alias CONTENT { tenant: $tenant, dataset_key: $dataset, release_key: $release, activated_by: $owner, activated_at: $at, record_version: 1 }; COMMIT TRANSACTION;

@@ -96,15 +96,12 @@ impl PlatformStore {
             ));
         }
         let count = window.candidates();
-        let sql = include_str!("search.surql")
-            .replace("__ADMISSION__", include_str!("admitted.surql"))
-            .replace(
-                "__URI_SELECTION__",
-                include_str!("resource_selection.surql"),
-            )
-            .replace("__TABLE__", &chunk_table(generation))
-            .replace("__CANDIDATES__", &count.to_string())
-            .replace("__EF__", &(u32::from(count) * 2).to_string());
+        let sql = match window {
+            SearchWindow::Initial => include_str!("../queries/knowledge/search_initial.surql"),
+            SearchWindow::Expanded => include_str!("../queries/knowledge/search_expanded.surql"),
+            SearchWindow::Deep => include_str!("../queries/knowledge/search_deep.surql"),
+            SearchWindow::Maximum => include_str!("../queries/knowledge/search_maximum.surql"),
+        };
         let mut response = scope
             .bind(self.client().query(sql), generation)
             .bind(("query", query.as_str().to_owned()))

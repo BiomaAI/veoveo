@@ -1,3 +1,5 @@
+#[path = "../../../../../fixtures/module_lanes.rs"]
+mod module_lanes;
 use super::*;
 
 pub(crate) fn spawn_fake_hosted_mcp(
@@ -417,9 +419,11 @@ async fn initialize_surreal_platform(platform: &PlatformStoreSmoke) -> Result<()
         &platform.database,
         StoreCredentials::root(SURREAL_ROOT_USER, SURREAL_ROOT_PASSWORD),
     )
-    .migrate_on_connect(true)
     .build()?;
     let store = PlatformStore::connect(config).await?;
+    module_lanes::install(&store, Vec::new())
+        .await
+        .map_err(anyhow::Error::from_boxed)?;
     store
         .replace_database_editor(
             SURREAL_RUNTIME_USER,

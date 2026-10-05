@@ -309,16 +309,17 @@ ConfigMap. `configs/otel-collector.siem.example.yaml` is a vendor-neutral
 OTLP/HTTP example using `VEOVEO_SIEM_OTLP_ENDPOINT` and
 `VEOVEO_SIEM_AUTHORIZATION`.
 
-The `installation-bootstrap` Job authenticates at root scope, creates or rotates
-the database-level runtime user, applies schema migrations, and publishes the
-initial gateway control revision. Every long-running workload authenticates at
-database scope with the runtime Secret. Rotating either Secret is owned by the
-installation operator.
+The `installation-bootstrap` Job runs `installation-prepare` with root credentials
+to provision the namespace/database and create or rotate the database-level runtime
+user under the installation generation fence. Per-owner migration Jobs apply the
+selected current schema lanes. A separate `control-plane-publish` Job authenticates
+at database scope and publishes the initial gateway control revision after those
+lanes are current. Long-running workloads use the runtime Secret and never apply
+schema. Rotating either Secret is owned by the installation operator.
 
-Each gateway replica canonicalizes the mounted seed control plane and compares its
-revision with the active platform-store revision before it opens a listener. A replica
-that races ahead of `installation-bootstrap` exits and restarts instead of serving a
-stale authorization catalog.
+Each gateway replica verifies completed preparation, current selected lanes and the
+published control revision before opening a listener. A replica that races ahead of
+those checks exits and restarts instead of serving a stale authorization catalog.
 
 The Work Context governance schema uses a coordinated hard-cut rollout. Stop
 producers, preserve any externally required evidence, then clear SurrealDB,
@@ -368,8 +369,8 @@ recording spool mount stays read-only, and GPU resource requests are still requi
 Configured Computers command execution requires `computers` in
 `artifactService.allowedAudiences`. The chart rejects a configured profile without
 that entry. Artifact policy still checks the forwarded caller and Work Context; the
-audience entry alone grants no file access. Upgrade command readers and workers with
-migration 0067 and the matching service v2 configuration before admitting commands.
+audience entry alone grants no file access. Install the current Computers owner
+schema and matching v2-compatible command readers/workers before admitting commands.
 
 ### Managed agent installation
 

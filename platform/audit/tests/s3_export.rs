@@ -21,7 +21,7 @@ struct ExportedEvent {
 
 #[derive(Deserialize)]
 struct Source {
-    veoveo: AuditRecord,
+    veoveo: serde_json::Value,
 }
 
 async fn delivered(
@@ -133,11 +133,12 @@ async fn qualify(exports: AuditExportConfig, s3: &dyn ObjectStore, prefix: &Path
                 .filter(|line| !line.is_empty())
             {
                 let event: ExportedEvent = serde_json::from_slice(line).unwrap();
-                assert!(
-                    records
-                        .insert(event.unmapped.veoveo.draft.id(), event.unmapped.veoveo)
-                        .is_none()
-                );
+                let record: AuditRecord =
+                    db.a.audit_targets()
+                        .decoder()
+                        .from_value(event.unmapped.veoveo)
+                        .unwrap();
+                assert!(records.insert(record.draft.id(), record).is_none());
             }
         } else {
             assert!(name.ends_with(".seal.json"));

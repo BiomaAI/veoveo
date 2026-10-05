@@ -5,7 +5,7 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
     let db = TestDb::new().await;
     let a = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
     let b = TaskRuntime::new(db.b.clone(), "computers-test", "worker-b");
-    db.a.client().query("DEFINE TABLE recovery_fixture SCHEMALESS; CREATE recovery_fixture:one SET windows = 0;").await.unwrap().check().unwrap();
+    db.a.client().query(include_str!("../queries/provider_wait/resume/resumption_is_atomic_and_requires_the_exact_current_cancellation_and_lease/statement_1.surql")).await.unwrap().check().unwrap();
     let task = a
         .create(draft(RecoveryClass::ProviderWait))
         .await
@@ -16,7 +16,9 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
         .claim_observation(id, Duration::from_secs(30))
         .await
         .unwrap();
-    let body = "UPDATE ONLY recovery_fixture:one SET windows += 1;";
+    let body = include_str!(
+        "../queries/provider_wait/resume/resumption_is_atomic_and_requires_the_exact_current_cancellation_and_lease/statement_2.surql"
+    );
     assert!(
         b.resume_provider_journal(&claim, None, body, vec![])
             .await
@@ -47,7 +49,7 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
         a.resume_provider_journal(
             &claim,
             cancelled.cancel_requested_at,
-            "UPDATE ONLY recovery_fixture:one SET windows += 100; THROW 'domain_refused';",
+            include_str!("../queries/provider_wait/resume/resumption_is_atomic_and_requires_the_exact_current_cancellation_and_lease/statement_3.surql"),
             vec![]
         )
         .await
@@ -107,7 +109,7 @@ async fn resumption_is_atomic_and_requires_the_exact_current_cancellation_and_le
     );
     let count: Option<i64> =
         db.a.client()
-            .query("SELECT VALUE windows FROM ONLY recovery_fixture:one;")
+            .query(include_str!("../queries/provider_wait/resume/resumption_is_atomic_and_requires_the_exact_current_cancellation_and_lease/statement_4.surql"))
             .await
             .unwrap()
             .check()
@@ -140,7 +142,7 @@ async fn resumption_rejects_other_recovery_classes_and_preserves_uncancelled_pro
                 .unwrap()
         };
         let result = runtime
-            .resume_provider_journal(&claim, None, "RETURN NONE;", vec![])
+            .resume_provider_journal(&claim, None, include_str!("../queries/provider_wait/resume/resumption_rejects_other_recovery_classes_and_preserves_uncancelled_provider_work/statement_1.surql"), vec![])
             .await;
         assert_eq!(result.is_ok(), class == RecoveryClass::ProviderWait);
         if let Ok(resumed) = result {

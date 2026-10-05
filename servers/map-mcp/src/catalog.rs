@@ -1,3 +1,4 @@
+use crate::persistence::MapRepository;
 use anyhow::{Context, Result, anyhow, bail};
 pub mod mobility;
 pub mod owned;
@@ -5,13 +6,14 @@ pub mod releases;
 pub mod restrictions;
 pub mod routing_authority;
 pub mod sources;
-use chrono::Utc;
-use veoveo_platform_store::{
+use crate::persistence::{
     MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,
     MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft, MapReleaseState,
     MapRestrictionDraft, MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft,
-    MapRouteState, MapSourceDraft, PlatformIdentity, PlatformStore,
+    MapRouteState, MapSourceDraft,
 };
+use chrono::Utc;
+use veoveo_platform_store::{PlatformIdentity, PlatformStore};
 
 use crate::contract::{
     AcquisitionJob, AcquisitionPhase, AcquisitionProgress, AcquisitionStatus, ActiveReleasePointer,
@@ -32,16 +34,18 @@ impl MapAccessContext {
 
 #[derive(Clone, Debug)]
 pub struct MapCatalog {
-    store: PlatformStore,
+    repository: MapRepository,
 }
 
 impl MapCatalog {
     pub fn new(store: PlatformStore) -> Self {
-        Self { store }
+        Self {
+            repository: MapRepository::new(store),
+        }
     }
 
     pub fn store(&self) -> &PlatformStore {
-        &self.store
+        self.repository.platform()
     }
 
     pub async fn create_source(
@@ -51,7 +55,7 @@ impl MapCatalog {
     ) -> Result<RegisteredSource> {
         source.validate()?;
         let draft = source_draft(scope, &source)?;
-        self.store.create_map_source(draft).await?;
+        self.repository.create_map_source(draft).await?;
         Ok(source)
     }
 
@@ -66,7 +70,7 @@ impl MapCatalog {
             bail!("replacement source record_version must increment expected_record_version");
         }
         let draft = source_draft(scope, &source)?;
-        self.store
+        self.repository
             .replace_map_source(draft, integer_version(expected_record_version)?)
             .await?;
         Ok(source)
@@ -78,7 +82,7 @@ impl MapCatalog {
         release: DatasetRelease,
     ) -> Result<DatasetRelease> {
         release.validate()?;
-        self.store
+        self.repository
             .create_map_release(MapReleaseDraft {
                 identity: scope.identity.clone(),
                 release_key: release.release_id.to_string(),
@@ -100,7 +104,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         release_id: &crate::contract::DatasetReleaseId,
     ) -> Result<Option<DatasetRelease>> {
-        self.store
+        self.repository
             .map_release(scope.identity.tenant_id, release_id.as_str())
             .await?
             .map(|record| decode(&record.canonical_json, "dataset release"))
@@ -108,7 +112,7 @@ impl MapCatalog {
     }
 
     pub async fn list_releases(&self, scope: &MapAccessContext) -> Result<Vec<DatasetRelease>> {
-        self.store
+        self.repository
             .list_map_releases(scope.identity.tenant_id)
             .await?
             .into_iter()
@@ -130,7 +134,7 @@ impl MapCatalog {
         release.record_version += 1;
         release.updated_at = Utc::now();
         let canonical_json = encode(&release)?;
-        self.store
+        self.repository
             .transition_map_release(
                 scope.identity.tenant_id,
                 release.release_id.as_str(),
@@ -153,7 +157,7 @@ impl MapCatalog {
         release.state = DatasetReleaseState::Active;
         release.record_version += 1;
         release.updated_at = Utc::now();
-        self.store
+        self.repository
             .activate_map_release(
                 &scope.identity,
                 release.dataset_id.as_str(),
@@ -171,7 +175,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         dataset_id: &crate::contract::MapDatasetId,
     ) -> Result<Option<crate::contract::DatasetReleaseId>> {
-        self.store
+        self.repository
             .active_map_release(scope.identity.tenant_id, dataset_id.as_str())
             .await?
             .map(|record| record.release_key.parse())
@@ -183,7 +187,7 @@ impl MapCatalog {
         &self,
         scope: &MapAccessContext,
     ) -> Result<Vec<ActiveReleasePointer>> {
-        self.store
+        self.repository
             .list_active_map_releases(scope.identity.tenant_id)
             .await?
             .into_iter()
@@ -209,7 +213,7 @@ impl MapCatalog {
     ) -> Result<MobilityProfile> {
         profile.validate()?;
         let metadata = profile.metadata();
-        self.store
+        self.repository
             .create_map_mobility_profile(MapMobilityProfileDraft {
                 identity: scope.identity.clone(),
                 profile_key: metadata.profile_id.to_string(),
@@ -230,7 +234,7 @@ impl MapCatalog {
         restriction: Restriction,
     ) -> Result<Restriction> {
         validate_restriction(&restriction)?;
-        self.store
+        self.repository
             .create_map_restriction(MapRestrictionDraft {
                 identity: scope.identity.clone(),
                 restriction_key: restriction.restriction_id.to_string(),
@@ -272,7 +276,7 @@ impl MapCatalog {
         restriction.cancelled_by = Some(cancelled_by);
         restriction.record_version += 1;
         validate_restriction(&restriction)?;
-        self.store
+        self.repository
             .replace_map_restriction(
                 scope.identity.tenant_id,
                 restriction.restriction_id.as_str(),
@@ -291,7 +295,7 @@ impl MapCatalog {
         snapshot: &OperationalSnapshot,
     ) -> Result<()> {
         snapshot.coverage.validate()?;
-        self.store
+        self.repository
             .create_map_operational_snapshot(MapOperationalSnapshotDraft {
                 tenant_id: scope.identity.tenant_id,
                 snapshot_key: snapshot.snapshot_id.to_string(),
@@ -308,7 +312,7 @@ impl MapCatalog {
         route: &RoutePlan,
         cache_digest_sha256: String,
     ) -> Result<()> {
-        self.store
+        self.repository
             .create_map_route(MapRouteDraft {
                 identity: scope.identity.clone(),
                 route_key: route.route_id.to_string(),
@@ -359,7 +363,7 @@ impl MapCatalog {
         dependency_kind: MapDependencyKind,
         dependency_key: &str,
     ) -> Result<()> {
-        self.store
+        self.repository
             .create_map_route_dependency(MapRouteDependencyDraft {
                 tenant_id: scope.identity.tenant_id,
                 route_key: route_id.to_string(),
@@ -377,7 +381,7 @@ impl MapCatalog {
         mobility_profile_id: &crate::contract::MobilityProfileId,
         mobility_profile_version: crate::contract::MobilityProfileVersion,
     ) -> Result<()> {
-        self.store
+        self.repository
             .create_map_route_matrix(MapRouteMatrixDraft {
                 identity: scope.identity.clone(),
                 matrix_key: matrix.matrix_id.to_string(),
@@ -404,7 +408,7 @@ impl MapCatalog {
             bail!("expected_source_digest_sha256 must be a 64-character hexadecimal digest");
         }
         if let Some(record) = self
-            .store
+            .repository
             .map_acquisition_for_idempotency(
                 scope.identity.tenant_id,
                 scope.identity.principal_id.record_id(),
@@ -442,7 +446,7 @@ impl MapCatalog {
             updated_at: now,
             record_version: 1,
         };
-        self.store
+        self.repository
             .create_map_acquisition(MapAcquisitionDraft {
                 identity: scope.identity.clone(),
                 acquisition_key: job.acquisition_id.to_string(),
@@ -465,7 +469,7 @@ impl MapCatalog {
         let expected = job.record_version;
         job.record_version += 1;
         job.updated_at = Utc::now();
-        self.store
+        self.repository
             .update_map_acquisition(MapAcquisitionUpdate {
                 identity: scope.identity.clone(),
                 acquisition_key: job.acquisition_id.to_string(),

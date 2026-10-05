@@ -1,0 +1,2 @@
+CREATE ONLY $record CONTENT $content
+RETURN NONE;

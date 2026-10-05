@@ -57,7 +57,9 @@ contract = [
     "dep:veoveo-types",
 ]
 knowledge = ["contract", "dep:veoveo-mcp-knowledge-extension"]
+persistence = ["contract", "schema", "chrono/clock", "dep:surrealdb", "dep:sha2", "dep:veoveo-platform-store"]
 runtime = [
+    "persistence",
     "schema",
     "knowledge",
     "chrono/clock",
@@ -99,6 +101,7 @@ mcp = [
 ]
 
 [dependencies]
+surrealdb = { version = "=3.3.0", default-features = false, features = ["protocol-ws", "rustls"], optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
@@ -149,6 +152,7 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-contract.workspace = true
 jsonschema.workspace = true
@@ -165,3 +169,15 @@ required-features = ["contract"]
 [[test]]
 name = "route_handoff_contract"
 required-features = ["contract"]
+
+[[test]]
+name = "map_authoring_reads"
+required-features = ["persistence"]
+
+[[test]]
+name = "map_completion"
+required-features = ["persistence"]
+
+[[test]]
+name = "map_persistence"
+required-features = ["persistence"]

@@ -434,10 +434,10 @@ reads allow 30 seconds and cancellation allows 10 seconds. Unknown begin or
 cancellation outcomes report that database session cleanup may be required.
 The worker performs no mutation and never retries a failed read transaction.
 
-Query files live in `queries/`. Their fixed selection, completion and cursor
-fragments are included owner SQL; runtime values remain bound. Template replacement
-is an explicit composition exception for these finite query shapes. Adapters cannot
-supply SQL or untrusted predicates.
+Complete query files live in `queries/catalog/`. Exact identity, completion,
+completed-result and cursor choices select finite statements with the same owner
+predicates. Runtime values use driver bindings. Native mutations live in
+`tests/queries/`; each finite malformed-envelope case selects a complete statement.
 
 `OptimizationIndexCursor` preserves the version 1 fields `version`, `collection`,
 `created_at` and `task_id`, including emitted Base64 bytes. It requires a native RFC

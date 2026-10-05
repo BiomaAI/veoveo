@@ -881,10 +881,10 @@ pub(crate) async fn agent_pilot_mission(
         }
     }
     {
-        use veoveo_platform_store::{
-            AgentTaskRecord, AgentTaskWatchState, PlatformStore, StoreConfig, StoreCredentials,
-            WakeKind, WakeRecord,
+        use veoveo_agent_runtime::persistence::{
+            AgentTaskRecord, AgentTaskWatchState, WakeKind, WakeRecord,
         };
+        use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
         let store = PlatformStore::connect(
             StoreConfig::builder(
@@ -898,7 +898,9 @@ pub(crate) async fn agent_pilot_mission(
         .await?;
         let mut response = store
             .client()
-            .query("SELECT * FROM agent_task WHERE tool_name = $tool;")
+            .query(include_str!(
+                "../queries/agent_kernel/select_from_agent_task_where.surql"
+            ))
             .bind(("tool", "optimization__solve_milp"))
             .await?
             .check()?;
@@ -919,7 +921,9 @@ pub(crate) async fn agent_pilot_mission(
 
         let mut response = store
             .client()
-            .query("SELECT * FROM wake WHERE kind = 'resource_changed';")
+            .query(include_str!(
+                "../queries/agent_kernel/select_from_wake_where.surql"
+            ))
             .await?
             .check()?;
         let wakes: Vec<WakeRecord> = response.take(0)?;

@@ -65,7 +65,7 @@ async fn checked_completion_survives_cross_replica_reads_and_reconnect() {
         let mut corrupt = expected;
         corrupt["content"][1]["data"] = json!(BASE64_STANDARD.encode(b"different capture bytes"));
         db.b.client()
-            .query("UPDATE ONLY $task SET result = { payload: $result } RETURN NONE;")
+            .query(include_str!("../../../../queries/server/tasks/results/tests/checked_completion_survives_cross_replica_reads_and_reconnect.surql"))
             .bind(("task", task_record_id(id)))
             .bind(("result", corrupt))
             .await
@@ -185,16 +185,14 @@ async fn sql_rejects_foreign_context_and_operation_before_completion_decoding() 
         let request = capture(&caller);
         let visible = create(&writer, &caller, &request).await;
         let mut excluded = Vec::new();
-        for assignment in [
-            "authority.context_key = 'another-context'",
-            "task_type = 'another-operation'",
-        ] {
+        for (_assignment, statement) in [
+("authority.context_key = 'another-context'", include_str!("../../../../queries/server/tasks/results/tests/sql_rejects_foreign_context_and_operation_before_completion_decoding_variant_1.surql")),
+("task_type = 'another-operation'", include_str!("../../../../queries/server/tasks/results/tests/sql_rejects_foreign_context_and_operation_before_completion_decoding_variant_2.surql"))
+] {
             let id = create(&writer, &caller, &request).await;
             finish(&writer, id, completed(&request)).await;
             db.a.client()
-                .query(format!(
-                    "UPDATE ONLY $task SET {assignment}, request.input = NONE RETURN NONE;"
-                ))
+                .query(statement)
                 .bind(("task", task_record_id(id)))
                 .await
                 .unwrap()

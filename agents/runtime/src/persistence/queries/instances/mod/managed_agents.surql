@@ -1,0 +1,1 @@
+RETURN SELECT * FROM managed_agent WHERE tenant = $authority.tenant AND work_context = $authority.work_context AND key > $command.after AND (owner = $authority.principal OR $authority.manage_context) ORDER BY key LIMIT $command.limit;

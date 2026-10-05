@@ -56,7 +56,7 @@ retain the `time://` scheme.
 | [NTPv4 RFC 5905](https://www.rfc-editor.org/rfc/rfc5905.html) and [Network Time Security RFC 8915](https://www.rfc-editor.org/rfc/rfc8915.html) | Approved node clocks may use NTP/NTS. Time MCP consumes a bounded `ntpd-rs` observation; it does not act as an NTP network endpoint. |
 | HTTPS | Registered IANA authority sources are acquired under fixed host, media, digest, size, and elapsed-time policy. |
 | OAuth bearer and signed JWT identity | Read, schedule, event, task, and authority-administration scopes are fixed by gateway policy and verified again in the hosted server. |
-| SurrealDB 3.3.0 and SurrealQL | Private runtime persistence uses Store's qualified Rust SDK version and connection. Bound parameters carry domain values; SQL applies catalog visibility, ordering, paging and activation transactions. Store owns schema migrations. |
+| SurrealDB 3.3.0 and SurrealQL | Private runtime persistence uses Store's qualified Rust SDK version and connection. Bound parameters carry domain values; SQL applies catalog visibility, ordering, paging and activation transactions. Time owns the temporal schema lane. |
 
 ## Domain Contract
 
@@ -708,7 +708,7 @@ SurrealDB is the canonical temporal catalog and task store.
 
 The runtime's private `persistence/` modules own temporal queries, driver records,
 mutation drafts and validation. `PlatformStore` supplies the connection and platform
-identity; Store owns the migration catalog. Time uses the same pinned SurrealDB 3.3.0
+identity. Time owns `schema/migrations/` and its module lane. Time uses the same pinned SurrealDB 3.3.0
 SDK as Store, behind its `runtime` feature. Contract-only consumers do not resolve it.
 
 Catalog calls retain source, release, acquisition, calendar, epoch and event ID types
@@ -716,7 +716,12 @@ through the persistence interface. Calendar, epoch and existing-record guards us
 Collection queries accept `CalendarCursor`, `EpochCursor` or `EventCursor` directly;
 requested epoch batches and completion parents also retain their domain IDs. The
 driver binds their text and numeric values alongside typed database identity records.
-Only fixed table/field choices and fixed activation clauses enter SQL construction.
+Production statements live in `src/persistence/queries/`; native fixture statements
+live in `src/tests/queries/`. Each call embeds a named file and binds its inputs.
+Completion selects one of six fixed queries through `TimeCompletion`. Authority
+activation embeds one complete transaction, including exact-ID locks, the joined
+pointer/release snapshot and optimistic updates. The standalone active read and
+transaction snapshot use the same predicates and ordering.
 Tenant and event-owner predicates, sorting, grouping and limits execute in SurrealDB.
 
 Public Time IDs accept bounded prefixed names because bootstrap authority provenance
@@ -725,8 +730,8 @@ prefix followed by a UUID whose version is 7, preserving the existing persistenc
 profile. Public syntax does not establish that a stored record exists. Bootstrap
 references keep their public spelling and are not converted into database keys.
 The persistence admission check applies before stored reads and writes. It does not
-narrow public provenance deserialization or rewrite retained keys. Store's migrations
-define tables and record fields; the Time contract defines JSON bodies and cursor versions.
+narrow public provenance deserialization or rewrite retained keys. Time's schema lane
+defines tables and record fields; the Time contract defines JSON bodies and cursor versions.
 Broader DTO field typing remains in the [consolidated plan](../../docs/CONTRACT_CONSISTENCY_PLAN.md).
 
 | Table | Responsibility |
@@ -740,8 +745,8 @@ Broader DTO field typing remains in the [consolidated plan](../../docs/CONTRACT_
 | `time_temporal_event` | owner-scoped scheduled events |
 | `time_clock_policy` | tenant clock acceptance policy |
 
-All tables are schema-full and carry a 30-day changefeed. Platform migrations create
-their fields and indexes during installation bootstrap. The server connects with the
+All tables are schema-full and carry a 30-day changefeed. The Time module lane creates
+their fields and indexes during installation. The server connects with the
 database-scoped runtime identity and never applies migrations.
 
 ### Version Guards
@@ -906,7 +911,8 @@ Examples of agent requests include:
 | `src/prompts.rs` | reusable temporal interaction prompts |
 | `src/server/tasks.rs` | final Task API adapter, leases, recovery, subscriptions |
 | `src/server/` | configuration, internal auth, host checks, HTTP assembly |
-| `platform/store/migrations/0019_time_domain.surql` | temporal schema and indexes |
+| `src/schema/migrations/0000_current.surql` | Time-owned temporal schema and indexes |
+| `src/persistence/queries/`, `src/tests/queries/` | production statements and native fixture scripts |
 
 ## Verification
 
@@ -932,8 +938,8 @@ and uncertainty preservation, including overflow without epoch mutation.
 Active-pointer cases corrupt family, identity, version, history and
 release links; raw query checks prove SQL excludes denied release payloads. Fixture
 events change pointer and previous-release fields after the candidate update, proving
-that the production transaction rechecks them and rolls back all changes. Store tests
-own schema migrations. Registry cases use copied Linux UTC tzdata and temporary leap
+that the production transaction rechecks them and rolls back all changes. Time fixtures
+select the Time module lane explicitly alongside the required kernel lanes. Registry cases use copied Linux UTC tzdata and temporary leap
 files. They qualify persisted selection on a fresh replica, request-time refresh without
 notifications, independent epoch maps, cache reuse, failed-load eviction and recovery,
 native LIVE/reconciliation eviction through separate database connections, and batched
@@ -977,12 +983,11 @@ Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `time_*`.
 It requires Identity and its Store requirement.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The lane embeds `src/schema/migrations/0000_current.surql`, which defines the
+Time tables and their indexes. The composition root supplies the checked execution
+image and command. Installation execution and its Jobs require separate qualification;
+the runtime server never applies the lane. Owner migrations and queries live in this
+crate, with one declaration per schema object.
 
 Artifact path text and client-facing temporal relationships do not invent optional schema requirements.
 

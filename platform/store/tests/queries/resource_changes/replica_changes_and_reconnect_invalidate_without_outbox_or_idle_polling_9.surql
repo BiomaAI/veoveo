@@ -1,0 +1,1 @@
+DELETE observation_fixture_recording:fixture;

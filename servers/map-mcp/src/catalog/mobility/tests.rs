@@ -41,7 +41,7 @@ async fn scope(store: &PlatformStore, tenant: &str, principal: &str) -> MapAcces
 #[tokio::test]
 async fn pages_and_completions_select_tenant_and_parent_before_numeric_version_limits() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "mobility", "author").await;
@@ -53,7 +53,7 @@ async fn pages_and_completions_select_tenant_and_parent_before_numeric_version_l
                 .await
                 .unwrap();
             db.a.client()
-                .query("UPDATE ONLY $id SET canonical_json = '{' RETURN NONE;")
+                .query(include_str!("../../queries/catalog/mobility/tests/pages_and_completions_select_tenant_and_parent_before_numeric_version_limits/statement_1.surql"))
                 .bind(("id", record(n, 1)))
                 .await
                 .unwrap()
@@ -201,7 +201,7 @@ async fn pages_and_completions_select_tenant_and_parent_before_numeric_version_l
                 .is_empty()
         );
         db.a.client()
-            .query("UPDATE ONLY $id SET tenant = $tenant RETURN NONE;")
+            .query(include_str!("../../queries/catalog/mobility/tests/pages_and_completions_select_tenant_and_parent_before_numeric_version_limits/statement_2.surql"))
             .bind(("id", record(1000, 101)))
             .bind(("tenant", foreign.identity.tenant_id.record_id()))
             .await
@@ -235,7 +235,7 @@ async fn pages_and_completions_select_tenant_and_parent_before_numeric_version_l
 #[tokio::test]
 async fn selected_profile_metadata_and_physical_identity_must_agree() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let catalog = MapCatalog::new(db.a.clone());
         let access = scope(&db.a,"mobility-corruption","author").await;
         let profile = profile(1,1);
@@ -253,18 +253,17 @@ async fn selected_profile_metadata_and_physical_identity_must_agree() {
             ("/profile/metadata/version",serde_json::json!(u64::MAX)),
         ] {
             let mut bad = wire.clone(); *bad.pointer_mut(path).unwrap() = value;
-            db.a.client().query("UPDATE ONLY $id SET canonical_json = $json RETURN NONE;")
+            db.a.client().query(include_str!("../../queries/catalog/mobility/tests/selected_profile_metadata_and_physical_identity_must_agree/statement_1.surql"))
                 .bind(("id",record(1,1))).bind(("json",serde_json::to_string(&bad).unwrap()))
                 .await.unwrap().check().unwrap();
             assert!(catalog.mobility_profile(&access,&id(1),version(1)).await.is_err(),"{path}");
             assert!(catalog.mobility_profiles_page(&access,&MapMobilityProfilesUri::new(None)).await.is_err(),"{path}");
         }
-        db.a.client().query("UPDATE ONLY $id SET canonical_json = $json, family = 'uas' RETURN NONE;")
+        db.a.client().query(include_str!("../../queries/catalog/mobility/tests/selected_profile_metadata_and_physical_identity_must_agree/statement_2.surql"))
             .bind(("id",record(1,1))).bind(("json",serde_json::to_string(&wire).unwrap()))
             .await.unwrap().check().unwrap();
         assert!(catalog.mobility_profile(&access,&id(1),version(1)).await.is_err());
-        db.a.client().query("BEGIN; LET $content = (SELECT * OMIT id FROM ONLY $id); DELETE $id;
-            CREATE $wrong CONTENT $content; UPDATE ONLY $wrong SET family = 'human' RETURN NONE; COMMIT;")
+        db.a.client().query(include_str!("../../queries/catalog/mobility/tests/selected_profile_metadata_and_physical_identity_must_agree/statement_3.surql"))
             .bind(("id",record(1,1))).bind(("wrong",record(2,1))).await.unwrap().check().unwrap();
         assert!(catalog.mobility_profile(&access,&id(1),version(1)).await.is_err());
         assert!(catalog.mobility_profiles_page(&access,&MapMobilityProfilesUri::new(None)).await.is_err());

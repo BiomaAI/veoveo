@@ -13,7 +13,7 @@ use connection_switch::ConnectionSwitch;
 async fn task_live_ids(writer: &veoveo_platform_store::PlatformStore) -> Vec<String> {
     let mut response = writer
         .client()
-        .query("INFO FOR TABLE observation_fixture_task;")
+        .query(include_str!("queries/resource_changes/task_live_ids.surql"))
         .await
         .unwrap()
         .check()
@@ -39,13 +39,7 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
         test_writer
             .client()
             .query(
-                "DEFINE TABLE observation_fixture_frame_world SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE observation_fixture_provider_job SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE observation_fixture_media_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE observation_fixture_recording SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE observation_fixture_task SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE observation_fixture_domain_usage SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;
-             DEFINE TABLE changefeed_noise_fixture SCHEMALESS CHANGEFEED 1h INCLUDE ORIGINAL;",
+                include_str!("queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling.surql"),
             )
             .await
             .unwrap()
@@ -90,12 +84,24 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
             "an idle source must not wake"
         );
         for statement in [
-            "CREATE observation_fixture_frame_world:fixture SET revision = 1;",
-            "CREATE observation_fixture_provider_job:fixture SET state = 'completed';",
-            "CREATE observation_fixture_media_usage:fixture SET cost = 1;",
-            "CREATE observation_fixture_recording:fixture SET state = 'writing';",
-            "CREATE observation_fixture_task:fixture SET state = 'succeeded';",
-            "CREATE observation_fixture_domain_usage:fixture SET quantity = 1;",
+            include_str!(
+                "queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_2.surql"
+            ),
+            include_str!(
+                "queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_3.surql"
+            ),
+            include_str!(
+                "queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_4.surql"
+            ),
+            include_str!(
+                "queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_5.surql"
+            ),
+            include_str!(
+                "queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_6.surql"
+            ),
+            include_str!(
+                "queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_7.surql"
+            ),
         ] {
             test_writer
                 .client()
@@ -117,8 +123,7 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
         test_writer
             .client()
             .query(
-                "CREATE changefeed_noise_fixture:unrelated SET ordinal = 1;
-             UPDATE observation_fixture_frame_world:fixture SET revision = 2;",
+                include_str!("queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_8.surql"),
             )
             .await
             .unwrap()
@@ -133,7 +138,7 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
         );
         test_writer
             .client()
-            .query("DELETE observation_fixture_recording:fixture;")
+            .query(include_str!("queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_9.surql"))
             .await
             .unwrap()
             .check()
@@ -160,7 +165,8 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
                 ] {
                     let mut response = writer
                         .client()
-                        .query(format!("INFO FOR TABLE observation_fixture_{name};"))
+                        .query(include_str!("queries/resource_changes/replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling_11.surql"))
+            .bind(("table", format!("observation_fixture_{name}")))
                         .await
                         .unwrap()
                         .check()

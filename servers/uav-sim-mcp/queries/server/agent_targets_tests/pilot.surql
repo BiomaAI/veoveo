@@ -1,0 +1,1 @@
+UPSERT ONLY $context SET tenant = $tenant, context_key = $key, title = $key, policy_revision = 'fixture-v1', memberships = [], output_policy = {owner_kind:'principal', owner_key:'owner', initial_grants:[], data_labels:[]};

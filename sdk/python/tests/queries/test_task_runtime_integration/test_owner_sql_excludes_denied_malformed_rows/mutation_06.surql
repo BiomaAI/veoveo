@@ -1,0 +1,1 @@
+UPDATE $task SET request.owner.profile = 'other-profile', request.owner.authority = {};

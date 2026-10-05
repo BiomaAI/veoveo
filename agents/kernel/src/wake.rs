@@ -11,8 +11,9 @@ use anyhow::Result;
 use chrono::{TimeDelta, Utc};
 use futures::{StreamExt, stream::BoxStream};
 use tokio::sync::mpsc;
+use veoveo_agent_runtime::persistence::{WakeId, WakeKind};
 use veoveo_agent_runtime::{AgentRuntime, ClaimedWake, NewWake};
-use veoveo_platform_store::{OpenObject, WakeId, WakeKind};
+use veoveo_platform_store::OpenObject;
 
 pub fn resource_updated(uri: &str) -> NewWake {
     NewWake::now(

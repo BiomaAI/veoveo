@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; UPDATE ONLY $wake SET state = 'pending', claimed_by = NONE, claimed_at = NONE, claim_expires_at = NONE, claim_fence = NONE, available_at = $now, last_error = 'claim lease expired', updated_at = $now, revision += 1 WHERE state = 'claimed' AND revision = $revision RETURN NONE; COMMIT TRANSACTION;

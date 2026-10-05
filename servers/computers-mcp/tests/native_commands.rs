@@ -157,7 +157,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         "veoveo_computers_mcp=debug",
     )
     .unwrap();
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     support::policy::install(&db.a, support::automation::control()).await;
     let selected = template::retained_template(image);
     let home = native_service_support::Fixture::start_with_templates(
@@ -250,7 +250,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         .await
         .unwrap();
     db.a.client()
-        .query("UPDATE $computer SET replacement_instance_id=$instance;")
+        .query(include_str!("queries/native_commands/governed_command_worker_publishes_real_outputs_and_contains_revoked_execution.surql"))
         .bind((
             "computer",
             surrealdb::types::RecordId::new(

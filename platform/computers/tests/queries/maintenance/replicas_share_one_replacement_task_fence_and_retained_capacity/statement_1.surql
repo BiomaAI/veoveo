@@ -1,0 +1,1 @@
+SELECT VALUE retained FROM computer_usage; SELECT VALUE target_ref FROM audit_record WHERE activity = 'computer_maintain' AND draft.detail.stage = 'queued'; SELECT VALUE operation_id FROM computer_maintenance;

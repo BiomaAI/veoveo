@@ -2,6 +2,7 @@ use crate::contract::AgentAction;
 use crate::contract::control::{
     AgentInputRequestDecision, AgentInputRequestView, AgentOperatorMessageRequest, AgentWakeReceipt,
 };
+use crate::persistence::{AgentInputRequestId, AgentInputRequestState};
 use crate::{
     AgentControlReceipt, AgentControlTarget, AgentRuntimeError, GovernedInputRequest,
     InputRequestAnswer, InputRequestDecisionDraft, OperatorMessageDraft, json_object,
@@ -12,7 +13,6 @@ use veoveo_mcp_contract::audit::AdministrativeOperation;
 use veoveo_mcp_contract::{GatewayProfile, PolicyTarget};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_mcp_gateway::http::auth_support::internal_error_response;
-use veoveo_platform_store::{AgentInputRequestId, AgentInputRequestState};
 
 use super::AgentManagementState;
 use axum::{

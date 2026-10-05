@@ -1,0 +1,1 @@
+fn::store::outer(fixture_marker:base,'changed'); CREATE fixture_marker:side SET value='side'; THROW 'controlled failure';

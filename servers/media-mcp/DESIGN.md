@@ -89,6 +89,15 @@ owner envelope must match the indexed owner and profile, including the distincti
 between an omitted tenant and an explicit `installation` tenant. Media applies Task
 owner policy; a shared Work Context alone grants no additional access.
 
+Public read statements live in `src/reads/queries/`. Media lifecycle transactions
+live in `src/queries/`, and billing writes and recovery selections live in
+`src/state/queries/`. Native fixture scripts live in `tests/queries/`. Calls embed
+complete named statements and bind their values. Predictions, usage and billing
+select fixed first-page or cursor-page queries. Generation reads select by the
+prediction resource or native Task identity through two fixed statements. These
+statements carry the same owner and linked-record predicates before decoding,
+without adding response slots or changing transaction boundaries.
+
 Prediction selection requires the indexed provider ID to match the stored payload ID.
 Usage may precede provider submission; a present provider-job link must match the Task,
 tenant, provider and payload identity. Exact reads apply these predicates in the same
@@ -215,12 +224,11 @@ Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims explicit `media_task_context` and `media_usage` tables.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
-The lane is empty. The composition root supplies the checked execution image and
-command; the existing gateway composition image is the initial host candidate.
-Its current `installation-bootstrap` command runs the mixed Store catalog, which
-continues to own production migration execution. A named-lane command and its Job
-require separate implementation and qualification. Future owner migrations and
-queries belong together in this owner's crate, with one declaration per object.
+The lane embeds `src/schema/migrations/0000_current.surql`, which defines the
+Media tables and their indexes. The composition root supplies the checked execution
+image and command. Installation execution and its Jobs require separate qualification;
+the runtime server never applies the lane. Owner migrations and queries live in this
+crate, with one declaration per schema object.
 
 Media provider requests and GPU data-plane behavior are independent of this persistence declaration.
 

@@ -72,7 +72,7 @@ async fn create_only<T: SurrealValue>(
 ) -> Result<(), PersistenceError> {
     store
         .client()
-        .query("CREATE ONLY $record CONTENT $content RETURN NONE;")
+        .query(include_str!("queries/create_record.surql"))
         .bind(("record", record))
         .bind(("content", content))
         .await?
@@ -90,7 +90,7 @@ where
 {
     let mut response = store
         .client()
-        .query("SELECT * FROM ONLY $record WHERE tenant = $tenant;")
+        .query(include_str!("queries/read_tenant_record.surql"))
         .bind(("record", record))
         .bind(("tenant", tenant_id.record_id()))
         .await?

@@ -42,7 +42,7 @@ impl PlatformStore {
     ) -> Result<KnowledgeCatalogTicket, StoreError> {
         let mut response = self
             .client()
-            .query(include_str!("catalog_begin.surql"))
+            .query(include_str!("../queries/knowledge/catalog_begin.surql"))
             .bind(("tenant", tenant.to_string()))
             .bind(("digest", control.hex().to_owned()))
             .await?
@@ -103,7 +103,7 @@ impl PlatformStore {
             });
         }
         self.client()
-            .query(include_str!("catalog_replace.surql"))
+            .query(include_str!("../queries/knowledge/catalog_replace.surql"))
             .bind(("tenant", ticket.tenant.to_string()))
             .bind(("control", ticket.control))
             .bind(("digest", ticket.digest.hex().to_owned()))

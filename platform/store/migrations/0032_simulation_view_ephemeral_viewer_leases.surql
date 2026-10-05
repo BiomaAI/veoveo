@@ -1,6 +1,0 @@
-UPDATE simulation_view_state UNSET snapshot.leases;
-
-DEFINE FIELD OVERWRITE desired_digest_schema ON TABLE simulation_view_state TYPE
-  "veoveo.ai/simulation-view-desired-digest/legacy-v1"
-  | "veoveo.ai/simulation-view-desired-digest/v1"
-  | "veoveo.ai/simulation-view-desired-digest/v2";

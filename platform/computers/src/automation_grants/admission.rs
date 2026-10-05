@@ -81,7 +81,7 @@ impl ComputersStore {
         }
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $request;",
+                include_str!("../../queries/automation_grants/admission/request_grant.surql"),
                 vec![("request", request.clone().into_value())],
             )
             .await?;
@@ -92,7 +92,7 @@ impl ComputersStore {
             }
             let mut read = self
                 .query(
-                    "SELECT * FROM ONLY $grant;",
+                    include_str!("../../queries/automation_grants/admission/retained_grant.surql"),
                     vec![("grant", prior.grant.into_value())],
                 )
                 .await?;
@@ -130,7 +130,7 @@ impl ComputersStore {
             .record_id();
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $grantee;",
+                include_str!("../../queries/automation_grants/admission/grantee.surql"),
                 vec![("grantee", grantee_id.clone().into_value())],
             )
             .await?;
@@ -193,6 +193,7 @@ impl ComputersStore {
                 .into_value(),
             ),
             crate::audit::binding(
+                self.platform.audit_targets(),
                 actor.accepted(),
                 input.computer_id,
                 crate::audit::Transition::accepted(
@@ -230,10 +231,9 @@ impl ComputersStore {
             let computer = self.get(actor.owner(), computer_id).await?;
             let mut response = self
                 .query(
-                    "SELECT * FROM computer_automation_grant
-                 WHERE owner_key = $owner_key AND computer_id = $computer_id
-                   AND provider_instance_id = $provider AND revoked_at = NONE AND expires_at > time::now()
-                 ORDER BY grant_id LIMIT 64;",
+                    include_str!(
+                        "../../queries/automation_grants/admission/list_automation_grants.surql"
+                    ),
                     vec![
                         ("owner_key", owner_key(&computer.owner)?.into_value()),
                         ("computer_id", computer_id.as_uuid().into_value()),
@@ -313,6 +313,7 @@ impl ComputersStore {
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
                 ("provider", self.provider_instance_id.as_uuid().into_value()),
                 crate::audit::binding(
+                    self.platform.audit_targets(),
                     actor.accepted(),
                     input.computer_id,
                     crate::audit::Transition::accepted(

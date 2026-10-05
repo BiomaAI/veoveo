@@ -190,7 +190,16 @@ fn sdk_live_teardown_outside_block_on_preserves_setup_errors() -> anyhow::Result
             .build()?,
     );
     let fixture = runtime.block_on(async {
-        tokio::time::timeout(Duration::from_secs(180), database::TestDb::new()).await
+        tokio::time::timeout(
+            Duration::from_secs(180),
+            database::TestDb::with_modules(vec![
+                veoveo_agent_runtime::schema::module_setup(
+                    database::module_lanes::execution("agents").unwrap(),
+                )
+                .unwrap(),
+            ]),
+        )
+        .await
     })?;
     let store = runtime.block_on(fixture.admin());
     // Real SDK streams are registered while entered, then all three teardown
@@ -248,7 +257,11 @@ fn published_control_plane_supports_complete_fixture_provision() -> anyhow::Resu
         .build()?;
     runtime.block_on(async {
         tokio::time::timeout(std::time::Duration::from_secs(180), async {
-            let fixture = database::TestDb::new().await;
+            let fixture = database::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                database::module_lanes::execution("agents").unwrap(),
+            ).unwrap(),
+        ]).await;
             let store = fixture.admin().await;
             let registry = veoveo_gateway_catalog::registry()?;
             let publication = GatewayControlStore::from_platform_store(
@@ -335,13 +348,13 @@ fn published_control_plane_supports_complete_fixture_provision() -> anyhow::Resu
             }, veoveo_agent_runtime::AgentInstanceId::new()).await?;
             let mut agent = agent_runtime.agent_record().await?;
             let mut instance = provisioned.instance.clone();
-            instance.observed = veoveo_platform_store::agent_management::instances::ManagedAgentPhase::Ready;
+            instance.observed = veoveo_agent_runtime::persistence::instances::ManagedAgentPhase::Ready;
             instance.active_generation = instance.generation;
             let mut pods = std::collections::BTreeMap::new();
             assert!(super::select_readiness(&instance, &[], &pods)?.is_none());
             assert!(super::select_readiness(&instance, &[agent.clone()], &pods)?.is_none());
             let uid = uuid::Uuid::now_v7();
-            agent.managed_ready = Some(veoveo_platform_store::agent_management::instances::ManagedKernelReady {generation: instance.generation, pod_uid: uid});
+            agent.managed_ready = Some(veoveo_agent_runtime::persistence::instances::ManagedKernelReady {generation: instance.generation, pod_uid: uid});
             assert!(super::select_readiness(&instance, &[agent.clone()], &pods)?.is_none());
             let mut pod: super::observations::Pod = serde_json::from_value(json!({"metadata":{"name":"native-kernel","uid":uid,"resourceVersion":"1","creationTimestamp":"2026-01-01T00:00:00Z"},"status":{"conditions":[{"type":"Ready","status":"False"}]}}))?;
             pods.insert(uid, pod.clone());
@@ -357,7 +370,7 @@ fn published_control_plane_supports_complete_fixture_provision() -> anyhow::Resu
             let mut extra = pods.get(&uid).unwrap().clone(); extra.metadata.uid = uuid::Uuid::now_v7();
             pods.insert(extra.metadata.uid, extra);
             assert!(super::select_readiness(&instance, &[agent], &pods).is_err());
-            instance.observed = veoveo_platform_store::agent_management::instances::ManagedAgentPhase::Failed;
+            instance.observed = veoveo_agent_runtime::persistence::instances::ManagedAgentPhase::Failed;
             assert!(super::select_readiness(&instance, &[], &std::collections::BTreeMap::new()).is_err());
             Ok::<_, anyhow::Error>(())
         })

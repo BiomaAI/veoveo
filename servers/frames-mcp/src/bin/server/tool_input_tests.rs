@@ -13,7 +13,13 @@ mod fixture;
 async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = fixture::TestDb::new().await;
+        let db = fixture::TestDb::with_modules(vec![
+            veoveo_frames_mcp::schema::module_setup(
+                fixture::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let state = Arc::new(AppState {
             tasks: TaskRuntime::new(db.a.clone(), "frames", "strict-input"),
             frames: FramesState::new(db.a.clone()),

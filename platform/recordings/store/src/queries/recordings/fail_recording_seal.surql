@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'failed', failure_reason = $reason, updated_at = time::now(), revision += 1 RETURN AFTER; COMMIT TRANSACTION;

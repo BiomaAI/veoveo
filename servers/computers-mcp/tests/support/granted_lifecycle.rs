@@ -11,7 +11,7 @@ use veoveo_task_runtime::TaskRuntime;
 async fn granted_collection_receives_revocation_and_exact_listener_loses_authority() {
     use rmcp::model::{ServerNotification, SubscriptionFilter};
     use std::time::Duration;
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = store
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -104,14 +104,14 @@ async fn granted_collection_receives_revocation_and_exact_listener_loses_authori
 #[tokio::test]
 async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() {
     for action in [Action::Start, Action::Stop] {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
         let selected = template::retained_template(format!(
             "fixture.invalid/computer@sha256:{}",
             "f".repeat(64)
         ));
         db.a.client()
-            .query("UPDATE ONLY $computer SET template_fingerprint = $fingerprint, phase = $phase;")
+            .query(include_str!("../queries/support/granted_lifecycle/named_start_and_stop_share_public_discovery_retry_and_owner_recovery.surql"))
             .bind(("computer", command_support::computer_record(computer)))
             .bind(("fingerprint", selected.fingerprint()))
             .bind((

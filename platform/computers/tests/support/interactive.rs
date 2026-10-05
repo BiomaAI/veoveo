@@ -74,8 +74,20 @@ pub async fn ready(
         )
         .await
         .unwrap();
-    db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'fixture-resource', process_id = 'fixture-process';")
-        .bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.computer_id.as_uuid()))))
-        .await.unwrap().check().unwrap();
+    db.a.client()
+        .query(include_str!(
+            "../queries/support/interactive/ready/statement_1.surql"
+        ))
+        .bind((
+            "computer",
+            RecordId::new(
+                "computer",
+                surrealdb::types::Uuid::from(computer.computer_id.as_uuid()),
+            ),
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     (a, b, computer.computer_id)
 }

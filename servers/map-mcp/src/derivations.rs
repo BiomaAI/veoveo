@@ -1,8 +1,9 @@
 //! Shared derivation persistence and lightweight cursor pages.
+use crate::persistence::MapRepository;
+use crate::persistence::{MapDerivationDraft, MapDerivationKind, MapDerivationScope};
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use veoveo_platform_store::{MapDerivationDraft, MapDerivationKind, MapDerivationScope};
 use veoveo_types::{PrincipalId, WorkContextId};
 
 use crate::{
@@ -48,7 +49,7 @@ impl MapCatalog {
         derivation: &RasterDerivation,
     ) -> Result<()> {
         derivation.validate()?;
-        self.store()
+        MapRepository::new(self.store().clone())
             .put_map_derivation(MapDerivationDraft {
                 scope: self::scope(scope, &derivation.work_context)?,
                 kind: MapDerivationKind::Raster,
@@ -66,7 +67,7 @@ impl MapCatalog {
         derivation: &SpatialDerivation,
     ) -> Result<()> {
         derivation.validate()?;
-        self.store()
+        MapRepository::new(self.store().clone())
             .put_map_derivation(MapDerivationDraft {
                 scope: self::scope(scope, &derivation.work_context)?,
                 kind: MapDerivationKind::Spatial,
@@ -84,8 +85,7 @@ impl MapCatalog {
         context: &WorkContextId,
         id: &RasterDerivationId,
     ) -> Result<Option<RasterDerivation>> {
-        let row = self
-            .store()
+        let row = MapRepository::new(self.store().clone())
             .map_derivation(
                 self::scope(scope, context)?,
                 MapDerivationKind::Raster,
@@ -109,8 +109,7 @@ impl MapCatalog {
         context: &WorkContextId,
         id: &SpatialDerivationId,
     ) -> Result<Option<SpatialDerivation>> {
-        let row = self
-            .store()
+        let row = MapRepository::new(self.store().clone())
             .map_derivation(
                 self::scope(scope, context)?,
                 MapDerivationKind::Spatial,
@@ -144,8 +143,7 @@ impl MapCatalog {
                 after.map(SpatialDerivationId::as_str),
             ),
         };
-        let mut rows = self
-            .store()
+        let mut rows = MapRepository::new(self.store().clone())
             .map_derivations_page(self::scope(scope, context)?, kind, after, PAGE_SIZE + 1)
             .await?;
         let more = rows.len() > PAGE_SIZE;
@@ -198,8 +196,7 @@ impl MapCatalog {
         kind: MapDerivationKind,
         needle: &str,
     ) -> Result<Vec<String>> {
-        Ok(self
-            .store()
+        Ok(MapRepository::new(self.store().clone())
             .complete_map_derivations(self::scope(scope, context)?, kind, needle)
             .await?)
     }

@@ -55,7 +55,7 @@ pub(super) struct ReadArgs {
     outcome: Option<AuditOutcome>,
     /// One typed AuditTarget JSON object.
     #[arg(long, value_parser=parse_target)]
-    target: Option<AuditTarget>,
+    target: Option<String>,
     #[arg(long, default_value="100", value_parser=clap::value_parser!(u16).range(1..=1000))]
     limit: u16,
 }
@@ -67,8 +67,12 @@ fn parse_outcome(input: &str) -> Result<AuditOutcome, String> {
     serde_json::from_value(serde_json::Value::String(input.to_owned()))
         .map_err(|error| error.to_string())
 }
-fn parse_target(input: &str) -> Result<AuditTarget, String> {
-    serde_json::from_str(input).map_err(|error| error.to_string())
+fn parse_target(input: &str) -> Result<String, String> {
+    if input.len() > 16_384 {
+        return Err("audit target exceeds 16 KiB".into());
+    }
+    // Admission uses the exact registry shared with the Store connection.
+    Ok(input.to_owned())
 }
 #[derive(Debug, Subcommand)]
 pub(super) enum AuditCommand {
@@ -315,7 +319,11 @@ async fn read(args: ReadArgs, export: bool) -> anyhow::Result<()> {
     query.until = args.until;
     query.class = args.class;
     query.outcome = args.outcome;
-    query.target = args.target;
+    query.target = args
+        .target
+        .as_deref()
+        .map(|input| store.audit_targets().decoder().from_str(input))
+        .transpose()?;
     query.actor = args.actor;
     query.trace = args.trace;
     query.limit = args.limit;

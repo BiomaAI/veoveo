@@ -1,0 +1,1 @@
+DEFINE TABLE fixture_right SCHEMAFULL; DEFINE FIELD link ON fixture_right TYPE record<fixture_left>;

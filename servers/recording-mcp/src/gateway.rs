@@ -40,7 +40,13 @@ mod tests {
         use veoveo_mcp_gateway::{GatewayControlStore, new_gateway_control_plane_revision_id};
         use veoveo_types::PrincipalId;
 
-        let db = test_store::TestDb::new().await;
+        let db = test_store::TestDb::with_modules(vec![
+            veoveo_recording_store::schema::module_setup(
+                test_store::module_lanes::execution("recordings").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let store = GatewayControlStore::from_platform_store(db.a.clone(), admission());
         let mut control_plane: GatewayControlPlane =
             serde_json::from_str(include_str!("../../../configs/gateway.smoke.json")).unwrap();
@@ -104,7 +110,9 @@ mod tests {
                 revision.revision_id.as_str(),
             );
             db.a.client()
-                .query(include_str!("../tests/fixtures/gateway_revision.surql"))
+                .query(include_str!(
+                    "../tests/queries/fixtures/gateway_revision.surql"
+                ))
                 .bind(("record", record))
                 .bind(("content", content))
                 .bind(("revision_id", revision.revision_id.to_string()))

@@ -1,4 +1,5 @@
 use super::*;
+use crate::persistence::AgentRepository;
 
 #[test]
 fn public_executable_content_round_trips_without_provider_secrets() {
@@ -128,7 +129,11 @@ fn model_revision_changes_only_when_execution_configuration_changes() {
 
 #[tokio::test]
 async fn http_authoring_publishes_immutable_revisions_with_private_content_and_replay() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     crate::work_context_authority::setup(&db.a).await;
     let state = state(&db.a);
     let _stop = state.stop.clone().drop_guard();
@@ -283,14 +288,12 @@ async fn http_authoring_publishes_immutable_revisions_with_private_content_and_r
     )
     .await
     .unwrap();
-    let revision = state
-        .store()
+    let revision = AgentRepository::new(state.store().clone())
         .agent_catalog_revision(&actor.authority)
         .await
         .unwrap();
     assert_eq!(
-        state
-            .store()
+        AgentRepository::new(state.store().clone())
             .agent_catalog_revision(&actor.authority)
             .await
             .unwrap(),
@@ -300,7 +303,11 @@ async fn http_authoring_publishes_immutable_revisions_with_private_content_and_r
 
 #[tokio::test]
 async fn current_context_and_principal_override_authoring_policy() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     crate::work_context_authority::setup(&db.a).await;
     let state = state(&db.a);
     let _stop = state.stop.clone().drop_guard();
@@ -310,7 +317,7 @@ async fn current_context_and_principal_override_authoring_policy() {
         .unwrap()
         .record_id();
     db.a.client()
-        .query("UPDATE ONLY $context SET memberships[0].level = 'viewer';")
+        .query(include_str!("../../queries/gateway/http/tests/current_context_and_principal_override_authoring_policy/statement_1.surql"))
         .bind(("context", context.clone()))
         .await
         .unwrap()
@@ -322,7 +329,7 @@ async fn current_context_and_principal_override_authoring_policy() {
     let content = json!({"model":authoring["models"][0]["reference"],"instructions":"Test", "tools":[],"execution":{"kind":"chat"},"budgets":authoring["models"][0]["limits"]});
     assert_eq!(request(&alice, "POST", "agent-definitions", json!({"requestId":uuid::Uuid::now_v7(),"id":"forbidden","name":"Test","description":"Test","source":{"kind":"blank","content":content}})).await.0, StatusCode::FORBIDDEN);
     db.a.client()
-        .query("UPDATE ONLY $context SET memberships = [];")
+        .query(include_str!("../../queries/gateway/http/tests/current_context_and_principal_override_authoring_policy/statement_2.surql"))
         .bind(("context", context))
         .await
         .unwrap()
@@ -341,7 +348,7 @@ async fn native_catalog_stream_filters_private_changes_and_ends_on_policy_or_tok
     use futures::StreamExt;
     use std::time::Duration;
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap()).unwrap()]).await;
         crate::work_context_authority::setup(&db.a).await;
         let state = state(&db.a);
         let _stop = state.stop.clone().drop_guard();
@@ -361,7 +368,8 @@ async fn native_catalog_stream_filters_private_changes_and_ends_on_policy_or_tok
         let content = json!({"model":authoring["models"][0]["reference"], "instructions":"Private", "tools":[], "execution":{"kind":"chat"}, "budgets":authoring["models"][0]["limits"]});
         let (status, definition) = request(&alice, "POST", "agent-definitions", json!({"requestId":uuid::Uuid::now_v7(), "id":"private", "name":"Private", "description":"Fixture", "source":{"kind":"blank", "content":content}})).await;
         assert_eq!(status, StatusCode::OK, "{definition}");
-        assert!(tokio::time::timeout(Duration::from_millis(250), stream.next()).await.is_err());
+        let observed = tokio::time::timeout(Duration::from_millis(250), stream.next()).await;
+        assert!(observed.is_err(), "private mutation stream outcome: {observed:?}");
         let (status, published) = request(&alice, "POST", "agent-definitions/private/publish", json!({"requestId":uuid::Uuid::now_v7(), "expectedRevision":definition["revision"], "digest":definition["draftDigest"], "audience":["shared"]})).await;
         assert_eq!(status, StatusCode::OK, "{published}");
         let updated = tokio::time::timeout(Duration::from_secs(5), stream.next()).await.unwrap().unwrap().unwrap();
@@ -382,7 +390,11 @@ async fn native_catalog_stream_filters_private_changes_and_ends_on_policy_or_tok
 
 #[tokio::test]
 async fn closed_module_refuses_event_worker_construction() {
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("agents").unwrap())
+            .unwrap(),
+    ])
+    .await;
     let state = state(&db.a);
     state.scope.close();
     assert!(router(state.clone()).is_err());

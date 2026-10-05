@@ -1,0 +1,1 @@
+UPDATE $record MERGE { dataset_key: $dataset_key, name: $name, adapter_kind: $adapter_kind, authority_class: $authority_class, map_families: $map_families, enabled: $enabled, canonical_json: $canonical_json, record_version: $next_version, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;

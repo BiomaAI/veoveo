@@ -11,35 +11,30 @@ impl TimePersistence {
         if !(1..=101).contains(&limit) {
             return Err(invalid("limit", "must be in 1..=101"));
         }
-        let (table, field, predicate, parent_key) = match domain {
-            TimeCompletion::CalendarId => ("time_calendar_version", "calendar_key", "true", None),
+        let (statement, parent_key) = match domain {
+            TimeCompletion::CalendarId => {
+                (include_str!("queries/complete_calendar_id.surql"), None)
+            }
             TimeCompletion::CalendarVersion { calendar_key } => {
                 if let Some(key) = calendar_key.as_ref() {
                     validate_key("calendar_key", key, "calendar-")?;
                 }
                 (
-                    "time_calendar_version",
-                    "type::string(calendar_version)",
-                    "($parent_key = NONE OR calendar_key = $parent_key)",
+                    include_str!("queries/complete_calendar_version.surql"),
                     calendar_key.map(|key| key.to_string()),
                 )
             }
-            TimeCompletion::EpochId => ("time_mission_epoch", "epoch_key", "true", None),
+            TimeCompletion::EpochId => (include_str!("queries/complete_epoch_id.surql"), None),
             TimeCompletion::EpochVersion { epoch_key } => (
-                "time_mission_epoch",
-                "type::string(epoch_version)",
-                "($parent_key = NONE OR epoch_key = $parent_key)",
+                include_str!("queries/complete_epoch_version.surql"),
                 epoch_key.map(|key| key.to_string()),
             ),
-            TimeCompletion::AuthorityReleaseId => {
-                ("time_authority_release", "release_key", "true", None)
-            }
-            TimeCompletion::EventId => ("time_temporal_event", "event_key", "owner = $owner", None),
+            TimeCompletion::AuthorityReleaseId => (
+                include_str!("queries/complete_authority_release_id.surql"),
+                None,
+            ),
+            TimeCompletion::EventId => (include_str!("queries/complete_event_id.surql"), None),
         };
-        // Only fixed repository-owned expressions enter the statement. All input is bound.
-        let statement = format!(
-            "SELECT VALUE candidate FROM (SELECT {field} AS candidate FROM {table} WHERE tenant = $tenant AND {predicate} AND string::lowercase({field}) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);"
-        );
         let mut response = self
             .client()
             .query(statement)

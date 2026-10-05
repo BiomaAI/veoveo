@@ -17,6 +17,14 @@ pub struct OwnerTaskQuery {
     context: Option<ContextScope>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum OwnerSelection {
+    Owner,
+    Operations,
+    Context,
+    ContextOperations,
+}
+
 impl TaskRuntime {
     pub fn for_owner(&self, owner: &TaskOwner) -> OwnerTaskQuery {
         OwnerTaskQuery {
@@ -72,18 +80,13 @@ impl OwnerTaskQuery {
         Ok(self)
     }
 
-    pub(super) fn selection_predicate(&self) -> String {
-        let operations = if self.task_types.is_some() {
-            "AND task_type IN $task_types"
-        } else {
-            ""
-        };
-        let context = if self.context.is_some() {
-            ContextScope::TASK_PREDICATE
-        } else {
-            ""
-        };
-        format!("{operations} {context}")
+    pub(super) fn selection(&self) -> OwnerSelection {
+        match (self.task_types.is_some(), self.context.is_some()) {
+            (false, false) => OwnerSelection::Owner,
+            (true, false) => OwnerSelection::Operations,
+            (false, true) => OwnerSelection::Context,
+            (true, true) => OwnerSelection::ContextOperations,
+        }
     }
 
     pub(super) fn bind<'a, C: Connection>(

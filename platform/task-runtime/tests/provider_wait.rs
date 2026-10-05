@@ -180,7 +180,9 @@ async fn expire(runtime: &TaskRuntime, task: &TaskSnapshot) {
     runtime
         .platform_store()
         .client()
-        .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
+        .query(include_str!(
+            "queries/provider_wait/expire/statement_1.surql"
+        ))
         .bind(("task", task_record_id(task.task_id)))
         .await
         .unwrap()
@@ -197,7 +199,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
     let db = TestDb::new().await;
     let a = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
     let b = TaskRuntime::new(db.b.clone(), "computers-test", "worker-b");
-    db.a.client().query("DEFINE TABLE lease_journal_fixture SCHEMALESS; CREATE lease_journal_fixture:one SET dispatches = 0;").await.unwrap().check().unwrap();
+    db.a.client().query(include_str!("queries/provider_wait/domain_journal_commits_with_the_current_lease_and_preserves_cancellation/statement_1.surql")).await.unwrap().check().unwrap();
     let task = a
         .create(draft(RecoveryClass::ProviderWait))
         .await
@@ -207,7 +209,9 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
         .claim_observation(task.task_id, Duration::from_secs(30))
         .await
         .unwrap();
-    let body = "UPDATE ONLY $journal SET dispatches += 1;";
+    let body = include_str!(
+        "queries/provider_wait/domain_journal_commits_with_the_current_lease_and_preserves_cancellation/statement_2.surql"
+    );
     let bindings = || {
         vec![(
             "journal",
@@ -230,7 +234,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
         a.commit_provider_journal(
             &claimed,
             ProviderCommit::Dispatch,
-            "UPDATE ONLY $journal SET dispatches += 100; THROW 'fixture_domain_rejection';",
+            include_str!("queries/provider_wait/domain_journal_commits_with_the_current_lease_and_preserves_cancellation/statement_3.surql"),
             bindings()
         )
         .await
@@ -238,7 +242,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
     );
     let count: Option<i64> =
         db.a.client()
-            .query("SELECT VALUE dispatches FROM ONLY lease_journal_fixture:one;")
+            .query(include_str!("queries/provider_wait/domain_journal_commits_with_the_current_lease_and_preserves_cancellation/statement_4.surql"))
             .await
             .unwrap()
             .check()
@@ -275,7 +279,7 @@ async fn domain_journal_commits_with_the_current_lease_and_preserves_cancellatio
         .unwrap();
     let count: Option<i64> =
         db.a.client()
-            .query("SELECT VALUE dispatches FROM ONLY lease_journal_fixture:one;")
+            .query(include_str!("queries/provider_wait/domain_journal_commits_with_the_current_lease_and_preserves_cancellation/statement_5.surql"))
             .await
             .unwrap()
             .check()
@@ -305,7 +309,7 @@ async fn renewing_a_task_lease_invalidates_an_old_journal_receipt() {
         .unwrap();
     assert!(
         runtime
-            .commit_provider_journal(&claimed, ProviderCommit::Observe, "RETURN NONE;", vec![])
+            .commit_provider_journal(&claimed, ProviderCommit::Observe, include_str!("queries/provider_wait/renewing_a_task_lease_invalidates_an_old_journal_receipt/statement_1.surql"), vec![])
             .await
             .is_err()
     );
@@ -315,7 +319,7 @@ async fn renewing_a_task_lease_invalidates_an_old_journal_receipt() {
         snapshot: renewed,
     };
     runtime
-        .commit_provider_journal(&fresh, ProviderCommit::Observe, "RETURN NONE;", vec![])
+        .commit_provider_journal(&fresh, ProviderCommit::Observe, include_str!("queries/provider_wait/renewing_a_task_lease_invalidates_an_old_journal_receipt/statement_2.surql"), vec![])
         .await
         .unwrap();
     assert!(
@@ -323,7 +327,7 @@ async fn renewing_a_task_lease_invalidates_an_old_journal_receipt() {
             .commit_provider_journal(
                 &fresh,
                 ProviderCommit::Observe,
-                "RETURN NONE;",
+                include_str!("queries/provider_wait/renewing_a_task_lease_invalidates_an_old_journal_receipt/statement_3.surql"),
                 vec![("_provider_task", surrealdb::types::Value::None)]
             )
             .await
@@ -509,46 +513,62 @@ async fn existing_recovery_profiles_keep_their_qualified_behavior() {
 }
 
 #[tokio::test]
-async fn additive_schema_expansion_preserves_existing_tasks_and_rejects_early_admission() {
-    let db = TestDb::new().await;
-    db.a.client().query("DEFINE FIELD OVERWRITE recovery_class ON TABLE task TYPE 'resume' | 'webhook_wait' | 'interrupted_indeterminate';").await.unwrap().check().unwrap();
-    let runtime = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
-    let mut previous = Vec::new();
-    for class in [
-        RecoveryClass::Resume,
-        RecoveryClass::WebhookWait,
-        RecoveryClass::InterruptedIndeterminate,
-    ] {
-        previous.push(runtime.create(draft(class)).await.unwrap().snapshot);
-    }
-    let rejected = draft(RecoveryClass::ProviderWait);
-    let id = rejected.task_id;
-    assert!(runtime.create(rejected).await.is_err());
-    assert!(runtime.get(id).await.unwrap().is_none());
-    db.a.client()
-        .query(include_str!(
-            "../../store/migrations/0052_provider_wait.surql"
-        ))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
-    for original in previous {
-        let seen = current(&runtime, &original).await;
-        assert_eq!(seen.recovery_class, original.recovery_class);
-        assert_eq!(seen.request, original.request);
-        assert_eq!(seen.created_at, original.created_at);
-        assert_eq!(seen.status, original.status);
-    }
-    assert_eq!(
-        runtime
-            .create(draft(RecoveryClass::ProviderWait))
+async fn current_recovery_classes_survive_reconnect_and_follow_their_recovery_profiles() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "computers-test", "worker-a");
+        let mut originals = Vec::new();
+        for class in [
+            RecoveryClass::Resume,
+            RecoveryClass::WebhookWait,
+            RecoveryClass::ProviderWait,
+            RecoveryClass::InterruptedIndeterminate,
+        ] {
+            originals.push(writer.create(draft(class)).await.unwrap().snapshot);
+        }
+        // Reopen the authenticated connection rather than cloning an existing client.
+        let reconnected = veoveo_platform_store::PlatformStore::connect(db.a.config().clone())
             .await
-            .unwrap()
-            .snapshot
-            .recovery_class,
-        RecoveryClass::ProviderWait
-    );
+            .unwrap();
+        let reader = TaskRuntime::new(reconnected, "computers-test", "worker-after-reconnect");
+        for original in &originals {
+            let seen = current(&reader, original).await;
+            assert_eq!(seen.recovery_class, original.recovery_class);
+            assert_eq!(seen.request, original.request);
+            assert_eq!(seen.created_at, original.created_at);
+            assert_eq!(seen.status, original.status);
+        }
+        let recovered = reader.recover().await.unwrap();
+        assert_eq!(recovered.resumable.len(), 2);
+        assert_eq!(recovered.webhook_waiting.len(), 1);
+        assert_eq!(recovered.provider_waiting.len(), 1);
+        assert!(recovered.failed_indeterminate.is_empty());
+        assert!(recovered.cancelled.is_empty());
+        for original in &originals {
+            let seen = current(&reader, original).await;
+            assert_eq!(seen.recovery_class, original.recovery_class);
+            assert_eq!(seen.request, original.request);
+            assert_eq!(seen.created_at, original.created_at);
+            assert_eq!(
+                seen.status,
+                if original.recovery_class == RecoveryClass::WebhookWait {
+                    TaskStatus::Waiting
+                } else {
+                    TaskStatus::Queued
+                }
+            );
+            let selected = match original.recovery_class {
+                RecoveryClass::WebhookWait => &recovered.webhook_waiting,
+                RecoveryClass::ProviderWait => &recovered.provider_waiting,
+                RecoveryClass::Resume | RecoveryClass::InterruptedIndeterminate => {
+                    &recovered.resumable
+                }
+            };
+            assert!(selected.iter().any(|task| task.task_id == original.task_id));
+        }
+    })
+    .await
+    .expect("current recovery class reconnect exceeded 60 seconds");
 }
 
 #[tokio::test]

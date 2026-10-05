@@ -1,7 +1,7 @@
 //! Bounded, request-scoped observations. Durable Task status has its own source.
+use crate::persistence::WorkspaceOperationProgress;
 use rmcp::model::{ProgressNotificationParam, ProgressToken};
 use tokio::sync::watch;
-use veoveo_platform_store::workspace::WorkspaceOperationProgress;
 
 #[derive(Clone)]
 pub(super) struct RequestProgress {

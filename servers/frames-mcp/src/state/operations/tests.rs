@@ -74,7 +74,9 @@ async fn task(db: &TestDb, s: &FrameOperationScope, server: &str) -> TaskId {
 async fn events(db: &TestDb, id: &CoordinateOperationId) -> usize {
     let mut response =
         db.b.client()
-            .query("SELECT VALUE id FROM coordinate_operation WHERE id = $key;")
+            .query(include_str!(
+                "../../../tests/queries/operation_record_ids.surql"
+            ))
             .bind(("key", record_id(id).unwrap()))
             .await
             .unwrap()
@@ -86,7 +88,13 @@ async fn events(db: &TestDb, id: &CoordinateOperationId) -> usize {
 #[tokio::test]
 async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let a = FramesState::new(db.a.clone());
         let b = FramesState::new(db.b.clone());
         let caller = scope(Some("tenant-a"), "owner", "operator", &["cui", "mission"]);
@@ -126,7 +134,9 @@ async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay
         assert!(a.record_operation(&caller, None, &changed).await.is_err());
         assert_eq!(events(&db, p.operation.operation_id()).await, 1);
         db.a.client()
-            .query("UPDATE ONLY $operation SET labels += 'secret' RETURN NONE;")
+            .query(include_str!(
+                "../../../tests/queries/restrict_operation.surql"
+            ))
             .bind(("operation", record_id(p.operation.operation_id()).unwrap()))
             .await
             .unwrap()
@@ -140,7 +150,9 @@ async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay
         assert!(b.get_operation(&cleared, uri).await.unwrap().is_some());
         // SQL must discard a denied record without trying to decode its provenance.
         db.a.client()
-            .query("UPDATE ONLY $operation SET provenance = {} RETURN NONE;")
+            .query(include_str!(
+                "../../../tests/queries/clear_operation_provenance.surql"
+            ))
             .bind(("operation", record_id(p.operation.operation_id()).unwrap()))
             .await
             .unwrap()
@@ -168,7 +180,13 @@ async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay
 #[tokio::test]
 async fn task_operations_check_current_parent_in_read_and_write_transactions() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let a = FramesState::new(db.a.clone());
         let b = FramesState::new(db.b.clone());
         let caller = scope(Some("tenant-a"), "owner", "operator", &["cui"]);
@@ -190,15 +208,15 @@ async fn task_operations_check_current_parent_in_read_and_write_transactions() {
                 .is_err()
         );
         for query in [
-            "UPDATE ONLY $task SET owner = principal:other RETURN NONE;",
-            "UPDATE ONLY $task SET tenant = tenant:other RETURN NONE;",
-            "UPDATE ONLY $task SET profile = profile:other RETURN NONE;",
-            "UPDATE ONLY $task SET server = mcp_server:other RETURN NONE;",
-            "UPDATE ONLY $task SET request.owner.principal_key = 'other' RETURN NONE;",
-            "UPDATE ONLY $task SET request.owner.profile = 'other' RETURN NONE;",
-            "UPDATE ONLY $task SET request.owner.tenant_key = NONE RETURN NONE;",
-            "UPDATE ONLY $task SET request.owner.data_labels += 'secret' RETURN NONE;",
-            "DELETE $task RETURN NONE;",
+            include_str!("../../../tests/queries/corrupt_task_owner.surql"),
+            include_str!("../../../tests/queries/corrupt_task_tenant.surql"),
+            include_str!("../../../tests/queries/corrupt_task_profile.surql"),
+            include_str!("../../../tests/queries/corrupt_task_server.surql"),
+            include_str!("../../../tests/queries/corrupt_task_principal_key.surql"),
+            include_str!("../../../tests/queries/corrupt_task_profile_key.surql"),
+            include_str!("../../../tests/queries/clear_task_tenant_key.surql"),
+            include_str!("../../../tests/queries/restrict_task.surql"),
+            include_str!("../../../tests/queries/delete_task.surql"),
         ] {
             let id = task(&db, &caller, "frames").await;
             let p = provenance();
@@ -255,7 +273,13 @@ async fn task_operations_check_current_parent_in_read_and_write_transactions() {
 #[tokio::test]
 async fn operation_schema_requires_profile_authority() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let state = FramesState::new(db.a.clone());
         let caller = scope(Some("tenant-a"), "owner", "operator", &[]);
         let provenance = provenance();
@@ -265,8 +289,8 @@ async fn operation_schema_requires_profile_authority() {
             .unwrap();
         let operation = record_id(provenance.operation.operation_id()).unwrap();
         for query in [
-            "UPDATE ONLY $operation UNSET authority;",
-            "UPDATE ONLY $operation UNSET authority.profile;",
+            include_str!("../../../tests/queries/remove_operation_authority.surql"),
+            include_str!("../../../tests/queries/remove_operation_profile.surql"),
         ] {
             assert!(
                 db.b.client()
@@ -313,16 +337,51 @@ fn persisted_operation_keys_require_uuid_v7() {
 #[tokio::test]
 async fn domain_failure_rolls_back_operation_and_allows_retry() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db=TestDb::new().await; let state=FramesState::new(db.a.clone());
-        let caller=scope(Some("tenant-a"),"owner","operator", &[]);let p=provenance();
-        db.a.client().query("DEFINE EVENT reject_operation_event ON TABLE coordinate_operation WHEN $event = 'CREATE' THEN { THROW 'fixture rejected operation commit'; };")
-            .await.unwrap().check().unwrap();
-        assert!(state.record_operation(&caller,None,&p).await.is_err());
-        assert!(state.get_operation(&caller,p.operation.operation_uri()).await.unwrap().is_none());
-        assert_eq!(events(&db,p.operation.operation_id()).await,0);
-        db.a.client().query("REMOVE EVENT reject_operation_event ON TABLE coordinate_operation;").await.unwrap().check().unwrap();
-        state.record_operation(&caller,None,&p).await.unwrap();
-        assert!(state.get_operation(&caller,p.operation.operation_uri()).await.unwrap().is_some());
-        assert_eq!(events(&db,p.operation.operation_id()).await,1);
-    }).await.expect("operation rollback qualification exceeded 60 seconds");
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let state = FramesState::new(db.a.clone());
+        let caller = scope(Some("tenant-a"), "owner", "operator", &[]);
+        let p = provenance();
+        db.a.client()
+            .query(include_str!(
+                "../../../tests/queries/reject_operation_creation.surql"
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(state.record_operation(&caller, None, &p).await.is_err());
+        assert!(
+            state
+                .get_operation(&caller, p.operation.operation_uri())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(events(&db, p.operation.operation_id()).await, 0);
+        db.a.client()
+            .query(include_str!(
+                "../../../tests/queries/remove_operation_event.surql"
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        state.record_operation(&caller, None, &p).await.unwrap();
+        assert!(
+            state
+                .get_operation(&caller, p.operation.operation_uri())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(events(&db, p.operation.operation_id()).await, 1);
+    })
+    .await
+    .expect("operation rollback qualification exceeded 60 seconds");
 }

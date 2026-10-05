@@ -59,9 +59,10 @@ async fn catalog_completion_and_live_statistics_preserve_caller_visibility() {
             .build(&content.tenant, &registrations, &spec).await.unwrap();
         db.a.activate_knowledge_generation(&lease, &content.tenant, generation, None).await.unwrap();
         // Neither completion nor statistics may decode an excluded document.
-        db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'malformed' WHERE collection = 'media.private';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility.surql")).await.unwrap().check().unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-        db.a.client().query(format!("UPDATE {table} SET observation.observedAt = 'malformed' WHERE uri = 'media://members/hidden';"))
+        db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility_2.surql"))
+            .bind(("table", table.clone()))
             .await.unwrap().check().unwrap();
         let server = Server::new(db.b.clone(), embeddings.clone(), &signing).await;
         let replica = Server::new(db.a.clone(), embeddings, &signing).await;
@@ -86,19 +87,19 @@ async fn catalog_completion_and_live_statistics_preserve_caller_visibility() {
         let mut inventory = client.listen(SubscriptionFilter::builder().resources_list_changed().build()).await.unwrap();
         assert!(matches!(tokio::time::timeout(Duration::from_secs(10), inventory.next()).await.unwrap().unwrap(),
             Some(ServerNotification::ResourceListChangedNotification(_))));
-        db.a.client().query("UPDATE knowledge_member SET title = 'hidden title changed' WHERE uri = 'media://members/hidden';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility_3.surql")).await.unwrap().check().unwrap();
         assert!(tokio::time::timeout(Duration::from_millis(500), first.next()).await.is_err(), "hidden activity must not invalidate readable statistics");
-        db.a.client().query("UPDATE knowledge_sync SET ready = false WHERE collection.collection = 'media.records';")
+        db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility_4.surql"))
             .await.unwrap().check().unwrap();
         update(&mut first, &uri).await; update(&mut second, &uri).await;
         assert_eq!(statistics(client.peer(), &uri).await.indexed_members(), 0);
-        db.a.client().query("UPDATE knowledge_sync SET ready = true WHERE collection.collection = 'media.records';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility_5.surql")).await.unwrap().check().unwrap();
         update(&mut first, &uri).await; update(&mut second, &uri).await;
         assert_eq!(statistics(other.peer(), &uri).await, initial);
         assert!(tokio::time::timeout(Duration::from_millis(300), inventory.next()).await.is_err(), "member updates do not change static discovery");
         inventory.cancel().await.unwrap();
         // One real lease deadline must invalidate results without timer polling.
-        db.a.client().query("UPDATE knowledge_coordinator SET expires_at = time::now() + 2s;").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility_6.surql")).await.unwrap().check().unwrap();
         update(&mut first, &uri).await; update(&mut second, &uri).await;
         assert_eq!(statistics(client.peer(), &uri).await, CollectionStatistics::empty());
         revoke(&db.a, &identity).await;

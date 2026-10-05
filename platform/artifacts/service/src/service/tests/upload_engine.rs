@@ -553,7 +553,7 @@ async fn upload_ownership_filters_foreign_malformed_rows_before_decoding() {
         let (session, _) = service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
         service.status(&verified, session.upload_id, 0).await.unwrap();
         store.client()
-            .query("DEFINE FIELD OVERWRITE state ON artifact_upload TYPE string; UPDATE $upload SET state = 'invalid-state' RETURN NONE;")
+            .query(include_str!("../../../tests/queries/service/tests/upload_engine/upload_ownership_filters_foreign_malformed_rows_before_decoding.surql"))
             .bind(("upload", platform::upload_record_id(session.upload_id.as_uuid())))
             .await.unwrap().check().unwrap();
         for field in ["tenant", "actor", "profile", "context", "issuer", "subject", "missing_tenant"] {

@@ -1,0 +1,1 @@
+UPDATE $task SET request.owner.principal_key = 'someone-else', request.owner.authority = {};

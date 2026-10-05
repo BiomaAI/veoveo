@@ -14,7 +14,7 @@ records the requested object without claiming the capability's issuing actor.
 | Gateway identity | Forwarded, verified short-lived internal assertion for ordinary operations and capability issuance/revocation |
 | Upload identity | Dedicated `artifact-upload` EdDSA assertion includes the checked control-plane SHA-256 and Work Context digest; ordinary forwarded server tokens do not authorize uploads |
 | Veoveo Artifact read delegation | Repository-owned internal API, opaque UUIDv7 capability and task identities, bearer secret confined to task-read routes |
-| Persistence | Typed platform Store records and ordered SurrealQL migrations; native durability acceptance uses SurrealDB 3.3.0 |
+| Persistence | Typed platform Store records and the current Artifacts owner lane; native durability acceptance uses SurrealDB 3.3.0 |
 | Content and credential identity | SHA-256 for immutable blobs and domain-separated secret hashes |
 | Local blob storage | `object_store` 0.14.1 filesystem profile; opaque files with HTTP delivery headers supplied by the Artifact service, without unsupported object attributes |
 | S3 multipart adapter | `object_store` 0.14.1 low-level `MultipartStore`, one-based public parts mapped to zero-based adapter indices; private provider handles and receipts |
@@ -213,7 +213,7 @@ Native validation uses SurrealDB 3.3.0. SQL formatting uses
 `@surrealdb/surql-fmt@0.1.0-beta.2`, the latest published formatter; upstream has no
 stable formatter release. The formatter does not supply execution evidence.
 
-Migration `0050` stores upload admission, part descriptors, recovery leases, and
+The Artifacts owner lane stores upload admission, part descriptors, recovery leases, and
 tenant/global transfer accounting. Admission serializes through the tenant usage row;
 it includes retained cleanup bytes and committed tenant storage in quota decisions.
 Request replay is scoped to tenant, actor, profile, and Work Context. Native admission
@@ -225,7 +225,8 @@ The repository-owned `fn::artifact_upload_profile_digest` and
 Part admission fixes number, byte length, and SHA-256 before reading a body. A leased
 generation owns its acknowledgement; stale generations cannot replace a receipt.
 Tenant counters and a shared installation memory row bound simultaneous payloads
-across replicas. Unknown-length streams reserve another bounded part window before
+across replicas. The fresh Artifacts lane creates `artifact_upload_memory:global`
+with zero inflight bytes. Recorded lane replay preserves the existing counter. Unknown-length streams reserve another bounded part window before
 exceeding their current reservation. Failed requests release transfer budget while
 preserving the immutable descriptor for a matching retry.
 
@@ -378,3 +379,9 @@ An embedded MCP App host picker is separate work: intersect its explicit App gra
 with installation policy, bind the App URI and grant revision to trusted authority,
 and return only the receipt to the App. Bytes stay in the host origin. The
 [upload client design](../../../apps/console/web/src/uploads/DESIGN.md) owns that UI.
+
+## Native Query Fixture Placement
+
+Artifact service native fixtures include complete statements from `tests/queries/`,
+grouped by source responsibility. Runtime test values remain bound. Store owns the
+production Artifact persistence statements and their transaction admission.

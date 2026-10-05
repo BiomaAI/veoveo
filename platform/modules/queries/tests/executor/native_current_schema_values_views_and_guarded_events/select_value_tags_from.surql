@@ -1,0 +1,1 @@
+SELECT VALUE tags FROM fixture_marker;

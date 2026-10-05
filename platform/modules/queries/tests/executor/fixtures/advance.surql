@@ -1,0 +1,1 @@
+CREATE fixture_marker:advanced SET value = 'advanced';

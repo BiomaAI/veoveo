@@ -349,7 +349,7 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
     let mut response = first
         .platform_store()
         .client()
-        .query("SELECT * FROM gateway_refresh_token ORDER BY generation ASC;")
+        .query(include_str!("queries/gateway_state/gateway_correctness_state_is_shared_and_single_use_across_replicas/statement_1.surql"))
         .await
         .unwrap()
         .check()
@@ -387,7 +387,7 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
     let mut response = first
         .platform_store()
         .client()
-        .query("SELECT * FROM gateway_refresh_token ORDER BY generation ASC;")
+        .query(include_str!("queries/gateway_state/gateway_correctness_state_is_shared_and_single_use_across_replicas/statement_2.surql"))
         .await
         .unwrap()
         .check()
@@ -736,7 +736,6 @@ fn store_configs() -> (StoreConfig, StoreConfig) {
         &database,
         StoreCredentials::root(username, password),
     )
-    .migrate_on_connect(true)
     .build()
     .unwrap();
     let runtime = StoreConfig::builder(
@@ -960,7 +959,9 @@ async fn stored_refresh_generation(
     let mut response = state
         .platform_store()
         .client()
-        .query("SELECT * FROM gateway_refresh_token WHERE generation = $generation;")
+        .query(include_str!(
+            "queries/gateway_state/stored_refresh_generation/statement_1.surql"
+        ))
         .bind(("generation", generation))
         .await
         .unwrap()

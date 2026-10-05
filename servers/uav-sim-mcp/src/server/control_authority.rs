@@ -196,7 +196,7 @@ impl VehicleControlAuthority {
         let result = self
             .store
             .client()
-            .query("CREATE ONLY $record CONTENT $content RETURN AFTER;")
+            .query(include_str!("control_authority/queries/create_grant.surql"))
             .bind(("record", record_id.clone()))
             .bind(("content", content.clone()))
             .await
@@ -225,7 +225,7 @@ impl VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query("UPDATE ONLY $record SET revoked_at = $now, revoked_by = $actor, updated_at = $now, revision += 1 WHERE revoked_at = NONE AND revision = $revision RETURN AFTER;")
+            .query(include_str!("control_authority/queries/revoke_grant.surql"))
             .bind(("record", record_id))
             .bind(("now", now))
             .bind(("actor", identity.actor.id.to_string()))
@@ -292,7 +292,7 @@ impl VehicleControlAuthority {
         let record_id = scoped_record_id("uav_vehicle_mission_plan", identity, plan_id.as_str());
         self.store
             .client()
-            .query("CREATE ONLY $record CONTENT $content RETURN NONE;")
+            .query(include_str!("control_authority/queries/create_plan.surql"))
             .bind(("record", record_id))
             .bind(("content", content))
             .await?
@@ -315,7 +315,7 @@ where
 {
     let mut response = store
         .client()
-        .query("SELECT * FROM ONLY $record;")
+        .query(include_str!("control_authority/queries/read_record.surql"))
         .bind(("record", record))
         .await?
         .check()?;

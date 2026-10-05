@@ -253,7 +253,7 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   runtime contract suite uses dependencies supplied by the Isaac simulation image. Copy
   the complete 3 MiB `showcase/uav-sim/runtime` tree into a writable image path before
   running it; the suite inspects its adjacent source, asset, Dockerfile, and patch fixtures.
-- Update the Store migration, Rust strong types, Hub, Recording MCP, Gateway, Console,
+- Update the Recording owner schema, Rust strong types, Hub, Recording MCP, Gateway, Console,
   smoke fixtures, Helm schema, examples, and both recording design documents together.
 - Search active contracts for obsolete manifest versions, query tool names, Hub query
   binaries, segment-table Rust types, and filesystem playback authority.
@@ -309,8 +309,9 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
 
 Development activation discards pre-cut recording data. Stop producers, drain accepted
 batches, and suspend their owning GitOps reconciliation. Remove the approved recording
-rows and disposable recording object data, clear the spool and catalog cache, then apply
-migration `0046_recording_catalog_hard_cut` and deploy Gateway, Artifact service, Hub,
+rows and disposable recording object data, clear the spool and catalog cache, then
+prepare a fresh selected-lane database and install the current Recording schema.
+Deploy Gateway, Artifact service, Hub,
 Recording MCP, Console, and their Helm contract as one compatible release. Resume
 reconciliation only after the compatible desired state is available.
 
@@ -319,9 +320,10 @@ running. Confirm that the root Kustomization and affected HelmReleases are idle 
 reset. When an action is already active, keep the resources suspended and let its bounded
 upgrade or rollback settle before resuming from the root Kustomization.
 
-Before the migration, rollback is an ordinary code rollback. After activation, recovery
-is roll-forward or restoration of the complete old database, object data, and workload
-set together. A mixed playback-manifest deployment is unsupported.
+Before resetting state, rollback is an ordinary code rollback. After activation, recovery
+is roll-forward or restoration of a compatible complete database, object-data and
+workload snapshot together. Restoring a mixed-catalog database does not make it
+admissible to current selected-lane runtimes. A mixed playback-manifest deployment is unsupported.
 
 The final acceptance uses the typed Rust recording and browser smoke entrypoints. The
 browser run must be headed, hardware-backed, and visibly exercise archived or live data

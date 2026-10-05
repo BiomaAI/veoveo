@@ -2,8 +2,8 @@ use secrecy::SecretString;
 use veoveo_gateway_contract::SecretPurpose;
 use veoveo_gateway_contract::SecretReferenceId;
 
+use crate::persistence::WorkspaceRunFailure;
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
-use veoveo_platform_store::workspace::WorkspaceRunFailure;
 
 #[derive(Clone, Default)]
 pub(super) struct ModelKeys {

@@ -49,7 +49,7 @@ impl ComputersStore {
     ) -> Result<Option<Operation>> {
         let mut response = self
             .query(
-                "SELECT VALUE operation_id FROM ONLY $request;",
+                include_str!("../queries/operation_admission/operation_for_request.surql"),
                 vec![(
                     "request",
                     request_record(caller, computer, request_id)?.into_value(),
@@ -182,6 +182,7 @@ impl ComputersStore {
             ("next_phase", phase(next).into_value()),
         ];
         bindings.push(crate::audit::binding(
+            self.platform.audit_targets(),
             actor.accepted(),
             computer_id,
             crate::audit::Transition::accepted(
@@ -198,7 +199,7 @@ impl ComputersStore {
             .await?;
         let mut selected = self
             .query(
-                "SELECT VALUE operation_id FROM ONLY $request;",
+                include_str!("../queries/operation_admission/operation_for_request.surql"),
                 vec![("request", request.into_value())],
             )
             .await?;

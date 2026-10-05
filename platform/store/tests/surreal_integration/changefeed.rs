@@ -1,34 +1,15 @@
 use super::*;
 use std::collections::BTreeSet;
+use surrealdb::types::RecordId;
 
 #[tokio::test]
 async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            endpoint,
-            "veoveo_integration",
-            format!("changefeed_sparse_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
+    let db = fixture::TestDb::new().await;
+    let store = db.a.clone();
     store
         .client()
         .query(
-            "DEFINE TABLE agent SCHEMAFULL CHANGEFEED 1h INCLUDE ORIGINAL;
-         DEFINE FIELD lease ON agent TYPE datetime;
-         DEFINE TABLE changefeed_noise_fixture SCHEMAFULL CHANGEFEED 1h INCLUDE ORIGINAL;
-         DEFINE FIELD ordinal ON changefeed_noise_fixture TYPE int;",
+            include_str!("../queries/surreal_integration/changefeed/database_replay_crosses_unrelated_pages_and_keeps_whole_transactions.surql"),
         )
         .await
         .unwrap()
@@ -38,9 +19,9 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
     for ordinal in 0..20 {
         store
             .client()
-            .query(format!(
-                "CREATE changefeed_noise_fixture:noise{ordinal} SET ordinal = {ordinal};"
-            ))
+            .query(include_str!("../queries/surreal_integration/changefeed/database_replay_crosses_unrelated_pages_and_keeps_whole_transactions_2.surql"))
+            .bind(("noise", RecordId::new("changefeed_noise_fixture", format!("noise{ordinal}"))))
+            .bind(("ordinal", ordinal))
             .await
             .unwrap()
             .check()
@@ -49,10 +30,7 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
     store
         .client()
         .query(
-            "BEGIN TRANSACTION;
-         CREATE agent:pilot SET lease = time::now() + 30s;
-         CREATE changefeed_noise_fixture:coupled SET ordinal = 99;
-         COMMIT TRANSACTION;",
+            include_str!("../queries/surreal_integration/changefeed/database_replay_crosses_unrelated_pages_and_keeps_whole_transactions_3.surql"),
         )
         .await
         .unwrap()
@@ -91,6 +69,11 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
                     let veoveo_platform_store::Value::RecordId(id) = row.get("id") else {
                         panic!("changefeed upsert has no record id");
                     };
+                    // The inclusive clock anchor can overlap fresh kernel seed rows.
+                    // Count the two fixture tables whose writes this test owns.
+                    if !matches!(id.table.as_str(), "agent" | "changefeed_noise_fixture") {
+                        continue;
+                    }
                     let RecordIdKey::String(key) = &id.key else {
                         panic!("fixture records use string keys");
                     };
@@ -109,11 +92,4 @@ async fn database_replay_crosses_unrelated_pages_and_keeps_whole_transactions() 
     );
     assert_eq!(agent_batches, 1);
     assert_eq!(rows.len(), 22);
-    store
-        .client()
-        .query(format!("REMOVE DATABASE {};", store.config().database()))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
 }

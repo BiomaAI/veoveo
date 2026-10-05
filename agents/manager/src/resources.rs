@@ -2,7 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
 use veoveo_agent_runtime::contract::authoring as wire;
-use veoveo_platform_store::agent_management::{
+use veoveo_agent_runtime::persistence::{
     AgentExecution, AgentTemplateParameter,
     instances::{ManagedAgentInstance, ManagedAgentReconciliation},
 };

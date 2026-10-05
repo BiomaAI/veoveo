@@ -1,9 +1,7 @@
 //! Message admission owns response intent; browser lifetime never splits it.
 use super::*;
+use crate::persistence::{WorkspaceReplyTarget, WorkspaceRunFailure, WorkspaceTurnRequest};
 use veoveo_http::RequestJson;
-use veoveo_platform_store::workspace::{
-    WorkspaceReplyTarget, WorkspaceRunFailure, WorkspaceTurnRequest,
-};
 
 pub(super) async fn send(
     State(state): State<RunState>,
@@ -22,7 +20,7 @@ pub(super) async fn send(
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
     let turn = state
         .workspace
-        .store
+        .repository
         .send_workspace_turn(
             &actor,
             chat,
@@ -34,7 +32,7 @@ pub(super) async fn send(
                     .into_iter()
                     .map(|value| match value {
                         wire::ChatAttachment::Artifact { id, name } => {
-                            veoveo_platform_store::workspace::WorkspaceAttachment {
+                            crate::persistence::WorkspaceAttachment {
                                 artifact: veoveo_platform_store::ArtifactId::from_uuid(
                                     id.as_uuid(),
                                 ),
@@ -86,7 +84,12 @@ pub(super) async fn send(
         else {
             return;
         };
-        let Ok(agents) = state.workspace.store.workspace_agents(&actor, chat).await else {
+        let Ok(agents) = state
+            .workspace
+            .repository
+            .workspace_agents(&actor, chat)
+            .await
+        else {
             return;
         };
         for run in turn
@@ -131,7 +134,7 @@ pub(super) async fn send(
             if let Ok(id) = super::super::projection::uuid(&run.id) {
                 let _ = state
                     .workspace
-                    .store
+                    .repository
                     .reject_workspace_run(&actor, chat, WorkspaceRunId::from_uuid(id), failure)
                     .await;
             }

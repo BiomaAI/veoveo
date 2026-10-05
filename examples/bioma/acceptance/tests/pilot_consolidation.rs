@@ -7,14 +7,12 @@ use anyhow::{Context, Result, ensure};
 use std::{fs::File, time::Duration};
 use support::*;
 use surrealdb::types::{RecordId, ToSql, Value};
-use veoveo_bioma_acceptance::pilot_consolidation::{PilotRebinding, apply, prepare};
-use veoveo_platform_store::{
-    agent_management::{
-        AgentDefinition, AgentDefinitionStatus, AgentExecution, AgentRevision,
-        agent_definition_record, instances::*,
-    },
-    deterministic_tenant_id,
+use veoveo_agent_runtime::persistence::{
+    AgentDefinition, AgentDefinitionStatus, AgentExecution, AgentRevision, agent_definition_record,
+    instances::*,
 };
+use veoveo_bioma_acceptance::pilot_consolidation::{PilotRebinding, apply, prepare};
+use veoveo_platform_store::deterministic_tenant_id;
 
 #[tokio::test]
 #[ignore = "reads live pilot records and rehearses consolidation in an isolated pinned database"]

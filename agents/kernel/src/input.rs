@@ -9,9 +9,9 @@ use rig::{
     },
     wasm_compat::WasmBoxedFuture,
 };
+use veoveo_agent_runtime::persistence::{AgentInputRequestId, AgentInputRequestState};
 use veoveo_agent_runtime::{AgentRuntime, NewInputRequest, json_object};
 use veoveo_mcp_contract::CanonicalTaskId;
-use veoveo_platform_store::{AgentInputRequestId, AgentInputRequestState};
 
 use crate::wake::WakeBus;
 

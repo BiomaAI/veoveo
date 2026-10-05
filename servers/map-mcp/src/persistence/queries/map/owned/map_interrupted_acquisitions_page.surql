@@ -1,0 +1,1 @@
+SELECT * FROM map_acquisition WHERE tenant = $tenant AND owner = $owner AND status IN ['queued', 'running', 'cancel_requested'] AND acquisition_key NOT IN $active AND ($after = NONE OR acquisition_key > $after) ORDER BY acquisition_key ASC LIMIT $limit;

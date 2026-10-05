@@ -21,7 +21,7 @@ fn record(table: &str, id: Uuid) -> RecordId {
 }
 #[tokio::test]
 async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_observations() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let (store, replica, id) = support::interactive::ready(&db, &actor).await;
@@ -77,7 +77,7 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
     );
     let mut q =
         db.a.client()
-            .query("SELECT * FROM audit_record WHERE activity = 'computer_restart_observed';")
+            .query(include_str!("queries/observed_restart/host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_observations/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -85,8 +85,7 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
     let events: Vec<surrealdb::types::Value> = q.take(0).unwrap();
     assert_eq!(events.len(), 1);
     let audited: Option<u64> = db.b.client().query(
-        "RETURN array::len(SELECT id FROM audit_record WHERE activity = 'computer_restart_observed'
-            AND actor_key = $actor AND target_ref = $computer);"
+        include_str!("queries/observed_restart/host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_observations/statement_2.surql")
     ).bind(("actor", actor.owner().principal_key.as_str()))
         .bind(("computer", record("computer", id.as_uuid())))
         .await.unwrap().check().unwrap().take(0).unwrap();
@@ -98,7 +97,7 @@ async fn host_restart_preserves_resource_and_owner_and_rejects_old_grants_and_ob
 }
 #[tokio::test]
 async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let (store, _, id) = support::interactive::ready(&db, &actor).await;
@@ -143,7 +142,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
             .is_err()
     );
     db.a.client()
-        .query("UPDATE ONLY $computer SET active_operation = $op;")
+        .query(include_str!("queries/observed_restart/restart_observation_cannot_replace_identity_or_cross_an_operation_fence/statement_1.surql"))
         .bind(("computer", record("computer", id.as_uuid())))
         .bind(("op", Uuid::now_v7()))
         .await
@@ -168,13 +167,13 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
 }
 #[tokio::test]
 async fn restart_observation_preserves_unresolved_command_or_file_slot() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let actor =
         ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
     let (store, _, id) = support::interactive::ready(&db, &actor).await;
     let before = store.get(actor.owner(), id).await.unwrap();
     db.a.client()
-        .query("CREATE $slot CONTENT {computer_id:$id, execution:$execution};")
+        .query(include_str!("queries/observed_restart/restart_observation_preserves_unresolved_command_or_file_slot/statement_1.surql"))
         .bind(("slot", record("computer_execution_slot", id.as_uuid())))
         .bind(("id", id.as_uuid()))
         .bind(("execution", record("computer_execution", Uuid::now_v7())))

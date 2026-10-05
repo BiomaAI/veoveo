@@ -1,5 +1,6 @@
 //! Authoring and publication compose existing policy, store and native discovery.
 use crate::contract::AgentAction as Action;
+use crate::persistence::AgentRepository;
 mod audit;
 pub(crate) mod authority;
 mod commands;
@@ -21,6 +22,7 @@ mod validation;
 use std::sync::Arc;
 
 use crate::contract::authoring as wire;
+use crate::persistence as domain;
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, Query, State},
@@ -31,7 +33,7 @@ use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::set_header::SetResponseHeaderLayer;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
-use veoveo_platform_store::{PlatformStore, agent_management as domain};
+use veoveo_platform_store::PlatformStore;
 
 use crate::gateway::capabilities::AgentsCapabilityReader;
 use veoveo_mcp_gateway::http::ModuleTaskScope;
@@ -236,8 +238,7 @@ async fn list(
     Query(page): Query<Page>,
 ) -> Api<wire::DefinitionPage> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsRead).await?;
-    let values = state
-        .store()
+    let values = AgentRepository::new(state.store().clone())
         .agent_definitions(&actor.authority, page.after.as_deref(), page.limit)
         .await?;
     let next = if values.len() == page.limit as usize {
@@ -262,8 +263,7 @@ async fn read(
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Api<wire::Definition> {
     let actor = authority::admit(&state, profile, subject, Action::AgentDefinitionsRead).await?;
-    let value = state
-        .store()
+    let value = AgentRepository::new(state.store().clone())
         .agent_definition(&actor.authority, &id)
         .await?;
     let value = projection::definitions(&state, &actor, vec![value])
@@ -285,8 +285,7 @@ async fn draft(
         Action::AgentDefinitionsReadContent,
     )
     .await?;
-    let value = state
-        .store()
+    let value = AgentRepository::new(state.store().clone())
         .agent_definition(&actor.authority, &id)
         .await?;
     Ok(Json(wire::Draft {
@@ -316,8 +315,7 @@ async fn revisions(
             veoveo_types::Sha256Digest::parse(v).map_err(|_| Fault::status(StatusCode::BAD_REQUEST))
         })
         .transpose()?;
-    let values = state
-        .store()
+    let values = AgentRepository::new(state.store().clone())
         .agent_revision_history(
             &actor.authority,
             &id,

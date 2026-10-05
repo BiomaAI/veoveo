@@ -1,0 +1,1 @@
+CREATE ONLY record_guard:owner CONTENT $owner; CREATE ONLY record_guard:authority CONTENT $authority; CREATE ONLY record_guard:input CONTENT $input; CREATE ONLY record_guard:result CONTENT $result; CREATE ONLY record_guard:output CONTENT $output;

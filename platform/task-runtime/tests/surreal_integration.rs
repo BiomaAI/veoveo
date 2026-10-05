@@ -666,12 +666,12 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
                 .is_some()
         );
         let rolled_back = runtime.platform_store().client()
-            .query("BEGIN; DELETE $task; THROW 'qualification_rollback'; COMMIT;")
+            .query(include_str!("queries/surreal_integration/pruning_a_terminal_task_also_releases_its_idempotency_key/statement_1.surql"))
             .bind(("task", task_record_id(first.task_id)))
             .await.unwrap().check();
         assert!(rolled_back.is_err());
         let mut children = runtime.platform_store().client()
-            .query("SELECT VALUE id FROM task_input WHERE task = $task; SELECT VALUE id FROM task_idempotency WHERE task = $task;")
+            .query(include_str!("queries/surreal_integration/pruning_a_terminal_task_also_releases_its_idempotency_key/statement_2.surql"))
             .bind(("task", task_record_id(first.task_id)))
             .await.unwrap().check().unwrap();
         assert_eq!(children.take::<Vec<surrealdb::types::RecordId>>(0).unwrap().len(), 1);
@@ -699,7 +699,7 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
         let mut response = runtime
             .platform_store()
             .client()
-            .query("SELECT VALUE id FROM task_input WHERE task = $task;")
+            .query(include_str!("queries/surreal_integration/pruning_a_terminal_task_also_releases_its_idempotency_key/statement_3.surql"))
             .bind(("task", task_record_id(first.task_id)))
             .await
             .unwrap()

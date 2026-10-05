@@ -1,6 +1,6 @@
 use super::*;
 use veoveo_agent_runtime::ManagedRuntimeBinding;
-use veoveo_platform_store::agent_management::{instances::*, *};
+use veoveo_agent_runtime::persistence::{instances::*, *};
 
 const LIMITS: ManagedAgentLimits = ManagedAgentLimits {
     instances: 4,
@@ -19,8 +19,17 @@ async fn admit(store: &PlatformStore) -> (AgentCatalogAuthority, ManagedAgentOpe
         .await
         .unwrap();
     let context = deterministic_work_context_id("integration", "integration-mission").unwrap();
-    store.client().query("CREATE ONLY $context SET tenant = $tenant, context_key = 'integration-mission', title = 'Mission', policy_revision = 'r1', memberships = [], output_policy = {owner_kind: 'principal', owner_key: 'alice', initial_grants: [], data_labels: []};")
-        .bind(("context", context.record_id())).bind(("tenant", human.tenant_id.record_id())).await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../queries/surreal/managed/admit/statement_1.surql"
+        ))
+        .bind(("context", context.record_id()))
+        .bind(("tenant", human.tenant_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let version = store
         .artifact_read_context_version("integration", "integration-mission")
         .await
@@ -55,7 +64,7 @@ async fn admit(store: &PlatformStore) -> (AgentCatalogAuthority, ManagedAgentOpe
             resource_subscriptions: vec![],
         },
     };
-    let draft = store
+    let draft = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             "pilot",
@@ -69,7 +78,7 @@ async fn admit(store: &PlatformStore) -> (AgentCatalogAuthority, ManagedAgentOpe
         )
         .await
         .unwrap();
-    let definition = store
+    let definition = AgentRepository::new(store.clone())
         .mutate_agent_definition(
             &authority,
             "pilot",
@@ -85,7 +94,7 @@ async fn admit(store: &PlatformStore) -> (AgentCatalogAuthority, ManagedAgentOpe
         )
         .await
         .unwrap();
-    let operation = store
+    let operation = AgentRepository::new(store.clone())
         .mutate_managed_agent(
             &authority,
             "durability-agent",
@@ -126,18 +135,18 @@ async fn admit(store: &PlatformStore) -> (AgentCatalogAuthority, ManagedAgentOpe
 
 async fn converge(store: &PlatformStore, op: &ManagedAgentOperation, terminal: ManagedAgentPhase) {
     let owner = Uuid::now_v7();
-    let claim = store
+    let claim = AgentRepository::new(store.clone())
         .claim_managed_agent_operation(op.id.clone(), owner)
         .await
         .unwrap()
         .unwrap()
         .claim(owner)
         .unwrap();
-    store
+    AgentRepository::new(store.clone())
         .observe_managed_agent(&claim, ManagedAgentPhase::Credentials, None)
         .await
         .unwrap();
-    store
+    AgentRepository::new(store.clone())
         .register_managed_agent_key(
             &claim,
             ManagedAgentPublicKey {
@@ -153,13 +162,13 @@ async fn converge(store: &PlatformStore, op: &ManagedAgentOperation, terminal: M
         ManagedAgentPhase::Draining,
         terminal,
     ] {
-        store
+        AgentRepository::new(store.clone())
             .observe_managed_agent(&claim, phase, None)
             .await
             .unwrap();
     }
     if terminal == ManagedAgentPhase::Workload {
-        store
+        AgentRepository::new(store.clone())
             .observe_managed_agent(&claim, ManagedAgentPhase::Ready, None)
             .await
             .unwrap();
@@ -181,7 +190,13 @@ fn completed() -> EpisodeCompletion {
 
 #[tokio::test]
 async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
-    let db = database::TestDb::new().await;
+    let db = database::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            database::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     let (authority, provision) = admit(&db.a).await;
     converge(&db.a, &provision, ManagedAgentPhase::Workload).await;
     let runtime = AgentRuntime::register(
@@ -257,8 +272,8 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
         Some(binding)
     );
     assert!(runtime.start_episode("overlapping work").await.is_err());
-    let pause =
-        db.a.mutate_managed_agent(
+    let pause = AgentRepository::new(db.a.clone())
+        .mutate_managed_agent(
             &authority,
             "durability-agent",
             Uuid::now_v7(),
@@ -271,7 +286,8 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
         .await
         .unwrap();
     assert!(
-        db.a.managed_agent_dispatch(provision.instance.clone(), 1, 1)
+        AgentRepository::new(db.a.clone())
+            .managed_agent_dispatch(provision.instance.clone(), 1, 1)
             .await
             .unwrap()
     );
@@ -295,8 +311,8 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
             .unwrap()
             .is_empty()
     );
-    let stop =
-        db.a.mutate_managed_agent(
+    let stop = AgentRepository::new(db.a.clone())
+        .mutate_managed_agent(
             &authority,
             "durability-agent",
             Uuid::now_v7(),
@@ -312,7 +328,7 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
         .unwrap()
         .unwrap();
     assert!(
-        !db.a
+        !AgentRepository::new(db.a.clone())
             .managed_agent_dispatch(provision.instance.clone(), 1, 1)
             .await
             .unwrap()
@@ -347,15 +363,16 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
     // A paused kernel keeps its lease for Task observation without model admission.
     converge(&db.a, &stop, ManagedAgentPhase::Paused).await;
     assert_eq!(
-        db.a.managed_agent_operation(&authority, pause.id)
+        AgentRepository::new(db.a.clone())
+            .managed_agent_operation(&authority, pause.id)
             .await
             .unwrap()
             .phase,
         ManagedAgentPhase::Superseded
     );
     runtime.release_lease().await.unwrap();
-    let resume =
-        db.a.mutate_managed_agent(
+    let resume = AgentRepository::new(db.a.clone())
+        .mutate_managed_agent(
             &authority,
             "durability-agent",
             Uuid::now_v7(),

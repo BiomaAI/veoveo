@@ -8,7 +8,7 @@ use veoveo_modules::{
     ModuleName,
     runner::{self, DatabaseEditorCredentials},
 };
-use veoveo_platform_store::{PlatformStore, StoreAuthLevel};
+use veoveo_platform_store::{PlatformStore, StoreAuthLevel, StoreError};
 
 pub(crate) async fn prepare(
     args: PlanArgs,
@@ -40,7 +40,6 @@ pub(crate) async fn prepare(
     let registry = composition::registry()?;
     let prepared = runner::prepare(registry.select(plan.enabled().to_vec())?)?;
     prepared.claim_preparation(store.client(), &key).await?;
-    store.migrate().await?;
     prepared
         .complete_preparation(store.client(), &key, credentials)
         .await?;
@@ -105,17 +104,17 @@ async fn provision_database(
         );
         tokio::time::sleep(Duration::from_millis(200)).await;
     };
-    db.query(format!(
-        "DEFINE NAMESPACE IF NOT EXISTS `{}`;",
-        config.namespace()
+    db.query(include_str!(
+        "../../../queries/bin/gateway/module_installation/commands/define_namespace.surql"
     ))
+    .bind(("namespace", config.namespace().to_owned()))
     .await?
     .check()?;
     db.use_ns(config.namespace()).await?;
-    db.query(format!(
-        "DEFINE DATABASE IF NOT EXISTS `{}`;",
-        config.database()
+    db.query(include_str!(
+        "../../../queries/bin/gateway/module_installation/commands/define_database.surql"
     ))
+    .bind(("database", config.database().to_owned()))
     .await?
     .check()?;
     Ok(())
@@ -229,10 +228,6 @@ pub(crate) async fn require_current(args: &PlanArgs, store: &PlatformStore) -> a
         prepared.status(store.client()).await?.is_current(),
         "selected module lanes are incomplete"
     );
-    ensure!(
-        store.schema_status().await?.is_current(),
-        "mixed legacy schema catalog is incomplete"
-    );
     store.healthcheck().await?;
     Ok(())
 }
@@ -242,13 +237,17 @@ async fn connect_ready(
     deadline: Instant,
 ) -> anyhow::Result<PlatformStore> {
     loop {
-        if let Ok(Ok(store)) = tokio::time::timeout(
+        match tokio::time::timeout(
             Duration::from_secs(30),
             PlatformStore::connect(config.clone()),
         )
         .await
         {
-            return Ok(store);
+            Ok(Ok(store)) => return Ok(store),
+            Ok(Err(error @ (StoreError::FreshInstallationRequired | StoreError::Config(_)))) => {
+                return Err(error.into());
+            }
+            Ok(Err(_)) | Err(_) => {}
         }
         ensure!(
             Instant::now() < deadline,

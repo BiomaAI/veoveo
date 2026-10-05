@@ -18,7 +18,7 @@ async fn operation_selection_precedes_decode_and_limits_on_every_read() {
                 .unwrap()
                 .snapshot;
             db.b.client()
-                .query("UPDATE ONLY $id SET request.input = NONE RETURN NONE;")
+                .query(include_str!("../queries/support/owner_query_cases/operation_selection_precedes_decode_and_limits_on_every_read/statement_1.surql"))
                 .bind(("id", task_record_id(task.task_id)))
                 .await
                 .unwrap()
@@ -121,7 +121,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
 
         // Current type selection must survive native Task wakes, even if a
         // previously admitted row changes to a malformed unrelated operation.
-        db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("../queries/support/owner_query_cases/operation_selection_survives_updates_and_store_reconnect_without_events/statement_1.surql"))
             .bind(("task", task_record_id(ids[0]))).await.unwrap().check().unwrap();
         writer.transition(ids[2], TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
         loop {
@@ -131,7 +131,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
         }
 
         switch.set_enabled(false).await;
-        db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("../queries/support/owner_query_cases/operation_selection_survives_updates_and_store_reconnect_without_events/statement_2.surql"))
             .bind(("task", task_record_id(ids[1]))).await.unwrap().check().unwrap();
         writer.transition(ids[2], TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
 

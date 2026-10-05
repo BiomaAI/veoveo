@@ -1,4 +1,4 @@
-//! Qualify referential cleanup on the complete production schema.
+//! Qualify referential cleanup on the selected kernel schema.
 use super::*;
 use std::{collections::BTreeSet, time::Duration};
 use surrealdb::types::RecordId;
@@ -6,7 +6,9 @@ use surrealdb::types::RecordId;
 async fn assert_present(store: &PlatformStore, records: &[RecordId], expected: &[RecordId]) {
     let actual = store
         .client()
-        .query("SELECT VALUE id FROM $records;")
+        .query(include_str!(
+            "../queries/surreal_integration/relationships/assert_present.surql"
+        ))
         .bind(("records", records.to_vec()))
         .await
         .unwrap()
@@ -24,7 +26,9 @@ async fn aborted_delete(store: &PlatformStore, parent: RecordId) {
     assert!(
         store
             .client()
-            .query("BEGIN; DELETE $parent; THROW 'qualification_rollback'; COMMIT;")
+            .query(include_str!(
+                "../queries/surreal_integration/relationships/aborted_delete.surql"
+            ))
             .bind(("parent", parent))
             .await
             .unwrap()
@@ -39,7 +43,7 @@ async fn original_rows_are_kept_only_for_deleted_tenant_or_parent_consumers() {
         let db = fixture::TestDb::new().await;
         let info: surrealdb::types::Value =
             db.a.client()
-                .query("INFO FOR DB;")
+                .query(include_str!("../queries/surreal_integration/relationships/original_rows_are_kept_only_for_deleted_tenant_or_parent_consumers.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -66,14 +70,6 @@ async fn original_rows_are_kept_only_for_deleted_tenant_or_parent_consumers() {
             "artifact_grant",
             "artifact_access_request",
             "share_link",
-            "agent",
-            "wake",
-            "recording",
-            "recording_layer",
-            "computer_automation_grant",
-            "computer_session_grant",
-            "computer_cli_grant",
-            "computer_maintenance",
         ]);
         assert_eq!(actual, expected);
         let feeds = tables
@@ -149,7 +145,7 @@ async fn occurrence_deletion_cascades_shares_and_graph_grants_with_parent_notifi
         aborted_delete(&db.a, parents[0].clone()).await;
         assert_present(&db.b, &all, &all).await;
         db.a.client()
-            .query("DELETE $parent;")
+            .query(include_str!("../queries/surreal_integration/relationships/occurrence_deletion_cascades_shares_and_graph_grants_with_parent_notifications.surql"))
             .bind(("parent", parents[0].clone()))
             .await
             .unwrap()
@@ -250,7 +246,7 @@ async fn refresh_family_deletion_cascades_only_its_tokens_and_rolls_back_togethe
         aborted_delete(&db.a, parents[0].clone()).await;
         assert_present(&db.b, &all, &all).await;
         db.a.client()
-            .query("DELETE $parent;")
+            .query(include_str!("../queries/surreal_integration/relationships/refresh_family_deletion_cascades_only_its_tokens_and_rolls_back_together.surql"))
             .bind(("parent", parents[0].clone()))
             .await
             .unwrap()

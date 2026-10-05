@@ -21,8 +21,6 @@ use veoveo_platform_store::{
 use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, PrincipalId, TenantId};
 
-const ACTIVE_CONTROL_PLANE_RECORD: &str = "gateway_control_active:current";
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct GatewayControlPlaneRevisionHead {
     pub revision_id: GatewayControlPlaneRevisionId,
@@ -70,14 +68,6 @@ impl GatewayControlStore {
 
     pub fn admission(&self) -> GatewayCatalogAdmission {
         self.admission.clone()
-    }
-
-    pub async fn migrate(&self) -> Result<()> {
-        self.platform
-            .migrate()
-            .await
-            .context("failed to migrate the SurrealDB platform store")?;
-        Ok(())
     }
 
     pub async fn load_active_revision(&self) -> Result<Option<GatewayControlPlaneRevision>> {
@@ -182,6 +172,7 @@ impl GatewayControlStore {
             RecordId::new("gateway_control_revision", revision.revision_id.as_str())
         });
         let changes = audit::changes(
+            self.platform.audit_targets(),
             previous.as_ref().map_or(&[], |revision| {
                 revision.control_plane.work_contexts.as_slice()
             }),
@@ -227,42 +218,17 @@ impl GatewayControlStore {
 
         self.platform
             .client()
-            .query(
-                r#"
-                BEGIN TRANSACTION;
-                IF $preparation_generation != NONE {
-                    LET $preparation = (SELECT * FROM ONLY platform_module_installation:current FOR UPDATE);
-                    IF $preparation.generation != $preparation_generation OR $preparation.identity != $preparation_identity OR $preparation.complete != true { THROW 'installation_preparation_changed'; };
-                };
-                LET $head = (SELECT * FROM ONLY gateway_control_active:current FOR UPDATE);
-                IF $head.revision != $expected { THROW 'control_plane_revision_changed'; };
-                CREATE ONLY $revision_record CONTENT $revision;
-                FOR $object IN $objects {
-                    CREATE gateway_control_object CONTENT $object;
-                };
-                DELETE work_context WHERE id NOT IN $work_context_ids;
-                FOR $context IN $work_contexts {
-                    UPSERT $context.id MERGE {
-                        tenant: $context.tenant,
-                        context_key: $context.context_key,
-                        title: $context.title,
-                        policy_revision: $context.policy_revision,
-                        output_policy: $context.output_policy,
-                        memberships: $context.memberships,
-                        updated_at: $context.updated_at
-                    };
-                };
-                UPSERT ONLY gateway_control_active:current CONTENT {
-                    revision: $revision_record,
-                    revision_id: $revision_id,
-                    updated_at: $applied_at
-                };
-                fn::append_audit($audit_rows);
-                COMMIT TRANSACTION;
-                "#,
-            )
-            .bind(("preparation_generation", preparation.map(|key| key.generation().to_string())))
-            .bind(("preparation_identity", preparation.map(|key| key.identity().to_owned())))
+            .query(include_str!(
+                "queries/control_store/record_revision_with_preparation/statement_1.surql"
+            ))
+            .bind((
+                "preparation_generation",
+                preparation.map(|key| key.generation().to_string()),
+            ))
+            .bind((
+                "preparation_identity",
+                preparation.map(|key| key.identity().to_owned()),
+            ))
             .bind(("revision_record", revision_record))
             .bind(("expected", expected))
             .bind(changes.into_binding())
@@ -282,7 +248,7 @@ impl GatewayControlStore {
     pub async fn revision_count(&self) -> Result<u64> {
         count_query(
             &self.platform,
-            "SELECT VALUE count FROM (SELECT count() AS count FROM gateway_control_revision GROUP ALL);",
+            include_str!("queries/control_store/revision_count/statement_1.surql"),
             None,
         )
         .await
@@ -293,7 +259,7 @@ impl GatewayControlStore {
         let mut response = self
             .platform
             .client()
-            .query(format!("SELECT * FROM ONLY {ACTIVE_CONTROL_PLANE_RECORD};"))
+            .query(include_str!("queries/control_store/active_record.surql"))
             .await
             .context("failed to load active gateway control-plane pointer for object count")?
             .check()?;
@@ -303,7 +269,9 @@ impl GatewayControlStore {
         };
         count_query(
             &self.platform,
-            "SELECT VALUE count FROM (SELECT count() AS count FROM gateway_control_object WHERE revision = $revision GROUP ALL);",
+            include_str!(
+                "queries/control_store/object_count_for_active_revision/statement_1.surql"
+            ),
             Some(active.revision),
         )
         .await

@@ -589,3 +589,10 @@ Finding data and summaries retain their Wire fields through `Checked`. Owner che
 ## Cursor Admission
 
 Analysis continuation uses a private OpaqueCursor with its owner base64url collection envelope and admitted aliases. Finding continuation keeps its on-demand tuple encoding and canonical equality through an ordinary owner codec; the nominal collection and analysis position stay typed.
+
+## Persistence Query Placement
+
+Complete persistence statements live in `queries/`, grouped by source responsibility.
+Completion selects one static statement for each admitted Task or Artifact field.
+Native query fixtures live in `tests/queries/`; finite corruption cases select complete
+statements and preserve SQL admission before decoding. Runtime values use bindings.

@@ -2,13 +2,14 @@
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Value};
+use veoveo_agent_runtime::persistence::{
+    AgentRecord, instances::ManagedAgentDesired, instances::ManagedAgentInstance,
+    instances::ManagedAgentOperation, instances::ManagedAgentPhase,
+    instances::managed_agent_record,
+};
 use veoveo_platform_store::{
-    AgentRecord, PlatformStore, PrincipalKind, PrincipalRecord,
-    agent_management::instances::{
-        ManagedAgentDesired, ManagedAgentInstance, ManagedAgentOperation, ManagedAgentPhase,
-        managed_agent_record,
-    },
-    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
+    PlatformStore, PrincipalKind, PrincipalRecord, deterministic_principal_id,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
 
 #[derive(Clone, Serialize, Deserialize, SurrealValue)]

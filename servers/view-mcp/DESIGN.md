@@ -540,3 +540,9 @@ View and scene input/overlay/style identities use `Id` with their existing owner
 ## Value Admission
 
 Frame, tile, preview and composition records use immutable `Checked` storage with owner geodesy, ordering, identity and digest checks. Composition construction sorts declared inputs before admission; decoding compares canonical facts and rejects unsorted records. ViewRecord keeps its explicit identity projection and camera agreement adapter.
+
+## Native Query Fixture Placement
+
+Store-backed native fixture statements live in `tests/queries/`, grouped by the
+calling harness. Colocated fixtures include those files with their existing bindings
+and result slots. Complete static statements cover finite SQL grammar choices.

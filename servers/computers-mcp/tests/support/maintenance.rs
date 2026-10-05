@@ -21,7 +21,7 @@ fn control() -> veoveo_mcp_contract::GatewayControlPlane {
 
 #[tokio::test]
 async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     support::policy::install(&db.a, control()).await;
     let source = template::retained_template(format!(
@@ -72,7 +72,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
         .await
         .unwrap()
         .computer_id;
-    db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'private-source-resource', process_id = 'private-source-process';")
+    db.a.client().query(include_str!("../queries/support/maintenance/maintenance_http_mcp_retry_and_current_task_authority_share_one_fence.surql"))
         .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.as_uuid()))))
         .await.unwrap().check().unwrap();
     let client = client();

@@ -1,9 +1,12 @@
+use crate::persistence::MapRepository;
 use std::collections::BTreeMap;
 
+use crate::persistence::{
+    MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
+};
 use tempfile::TempDir;
 use veoveo_platform_store::{
-    ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, MapFeatureCommitDraft,
-    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, PrincipalKind,
+    ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, PrincipalKind,
     WorkContextMembershipLevel,
 };
 
@@ -20,7 +23,11 @@ async fn recovery_pages_map_commits_and_resumes_the_persisted_projection() {
 
 async fn recovery() {
     let extension = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION").unwrap();
-    let db = crate::test_store::TestDb::new().await;
+    let db = crate::test_store::TestDb::with_modules(vec![
+        crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+            .unwrap(),
+    ])
+    .await;
     let store = db.a.clone();
     let identity = store
         .ensure_identity(
@@ -47,7 +54,7 @@ async fn recovery() {
     };
     let layer_id = FeatureLayerId::new();
     let feature_id = MapFeatureId::new();
-    store
+    MapRepository::new(store.clone())
         .create_map_feature_layer(MapFeatureLayerDraft {
             identity: identity.clone(),
             authority: authority.clone(),
@@ -124,14 +131,17 @@ async fn recovery() {
             expected_feature_revision: None,
         }],
     };
-    let first = store
+    let first = MapRepository::new(store.clone())
         .commit_map_feature_changes(draft.clone())
         .await
         .unwrap()
         .changeset
         .commit_sequence;
     append_unrelated_changes(&store).await;
-    let snapshot = store.latest_map_feature_commit_sequence().await.unwrap();
+    let snapshot = MapRepository::new(store.clone())
+        .latest_map_feature_commit_sequence()
+        .await
+        .unwrap();
     assert_eq!(snapshot, first);
 
     // Commit after the snapshot, then prove keyset paging honors both bounds.
@@ -148,31 +158,34 @@ async fn recovery() {
         ..feature
     };
     draft.revisions[0].canonical_json = serde_json::to_string(&second_feature).unwrap();
-    let second = store
+    let second = MapRepository::new(store.clone())
         .commit_map_feature_changes(draft.clone())
         .await
         .unwrap()
         .changeset
         .commit_sequence;
-    let first_page = store.read_map_feature_commits(0, second, 1).await.unwrap();
+    let first_page = MapRepository::new(store.clone())
+        .read_map_feature_commits(0, second, 1)
+        .await
+        .unwrap();
     assert_eq!(first_page.len(), 1);
     assert_eq!(first_page[0].commit_sequence, first);
     assert_eq!(first_page[0].tenant_key, "map-recovery");
     assert!(
-        store
+        MapRepository::new(store.clone())
             .read_map_feature_commits(first, snapshot, 1)
             .await
             .unwrap()
             .is_empty()
     );
-    let second_page = store
+    let second_page = MapRepository::new(store.clone())
         .read_map_feature_commits(first, second, 1)
         .await
         .unwrap();
     assert_eq!(second_page.len(), 1);
     assert_eq!(second_page[0].commit_sequence, second);
     assert!(
-        store
+        MapRepository::new(store.clone())
             .read_map_feature_commits(second, second, 1)
             .await
             .unwrap()
@@ -185,16 +198,23 @@ async fn recovery() {
         (0, second, 1001),
     ] {
         assert!(
-            store
+            MapRepository::new(store.clone())
                 .read_map_feature_commits(after, through, limit)
                 .await
                 .is_err()
         );
     }
-    let mut plan = store.client().query(
-        "SELECT tenant.slug AS tenant_key, work_context_key, layer_key, changeset_key, commit_sequence, resulting_layer_revision, feature_keys \
-         FROM map_feature_changeset WHERE commit_sequence > $after AND commit_sequence <= $through ORDER BY commit_sequence ASC LIMIT 1 EXPLAIN;"
-    ).bind(("after", first)).bind(("through", second)).await.unwrap().check().unwrap();
+    let mut plan = store
+        .client()
+        .query(include_str!(
+            "../../queries/authoring/projection/recovery_tests/recovery/statement_1.surql"
+        ))
+        .bind(("after", first))
+        .bind(("through", second))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let plan: Vec<serde_json::Value> = plan.take(0).unwrap();
     let plan = serde_json::to_string(&plan).unwrap();
     assert!(
@@ -235,7 +255,10 @@ async fn recovery() {
 
     // Unrelated writers cannot move Map's committed recovery boundary.
     append_unrelated_changes(&store).await;
-    let through = store.latest_map_feature_commit_sequence().await.unwrap();
+    let through = MapRepository::new(store.clone())
+        .latest_map_feature_commit_sequence()
+        .await
+        .unwrap();
     assert_eq!(through, second);
     assert_eq!(projection.reconcile().await.unwrap(), through as u64);
     assert_projection_rows(&projection, 2, 2);
@@ -266,10 +289,15 @@ async fn recovery() {
         ..second_feature
     };
     draft.revisions[0].canonical_json = serde_json::to_string(&third_feature).unwrap();
-    let third = store.commit_map_feature_changes(draft).await.unwrap();
+    let third = MapRepository::new(store.clone())
+        .commit_map_feature_changes(draft)
+        .await
+        .unwrap();
     store
         .client()
-        .query("DELETE ONLY $revision;")
+        .query(include_str!(
+            "../../queries/authoring/projection/recovery_tests/recovery/statement_2.surql"
+        ))
         .bind(("revision", third.revisions[0].id.clone()))
         .await
         .unwrap()
@@ -286,12 +314,14 @@ async fn assert_late_sequence_rolls_back(
     source: veoveo_platform_store::RecordId,
 ) {
     // The database rejects a stale sequence even for a direct trusted write.
-    let delayed_sequence = store.latest_map_feature_commit_sequence().await.unwrap() + 1;
-    let query = "BEGIN TRANSACTION; \
-        LET $copy = (SELECT * OMIT id FROM ONLY $source); \
-        CREATE ONLY type::record('map_feature_changeset', ['map-recovery', 'sequence-probe', $key]) \
-        CONTENT object::extend($copy, {changeset_key: $key, idempotency_key: $key, commit_sequence: $sequence}); \
-        COMMIT TRANSACTION;";
+    let delayed_sequence = MapRepository::new(store.clone())
+        .latest_map_feature_commit_sequence()
+        .await
+        .unwrap()
+        + 1;
+    let query = include_str!(
+        "../../queries/authoring/projection/recovery_tests/assert_late_sequence_rolls_back/statement_1.surql"
+    );
     let newer_sequence = delayed_sequence + 1;
     store
         .client()
@@ -304,7 +334,10 @@ async fn assert_late_sequence_rolls_back(
         .check()
         .unwrap();
     assert_eq!(
-        store.latest_map_feature_commit_sequence().await.unwrap(),
+        MapRepository::new(store.clone())
+            .latest_map_feature_commit_sequence()
+            .await
+            .unwrap(),
         newer_sequence
     );
     let mut rejected = store
@@ -323,10 +356,13 @@ async fn assert_late_sequence_rolls_back(
         "{errors:?}"
     );
     assert_eq!(
-        store.latest_map_feature_commit_sequence().await.unwrap(),
+        MapRepository::new(store.clone())
+            .latest_map_feature_commit_sequence()
+            .await
+            .unwrap(),
         newer_sequence
     );
-    let page = store
+    let page = MapRepository::new(store.clone())
         .read_map_feature_commits(delayed_sequence - 1, newer_sequence, 10)
         .await
         .unwrap();
@@ -339,7 +375,7 @@ async fn assert_late_sequence_rolls_back(
 }
 
 async fn append_unrelated_changes(store: &PlatformStore) {
-    store.client().query("BEGIN TRANSACTION; FOR $i IN 0..1001 { CREATE type::record('gateway_replay_id', rand::uuid::v7()) SET kind = 'client_assertion', authorization_server = 'fixture', client_id = $batch, jwt_id = type::string($i), seen_at = time::now(), expires_at = time::now() + 1h RETURN NONE; }; COMMIT TRANSACTION;")
+    store.client().query(include_str!("../../queries/authoring/projection/recovery_tests/append_unrelated_changes/statement_1.surql"))
         .bind(("batch", uuid::Uuid::now_v7().to_string()))
         .await.unwrap().check().unwrap();
 }

@@ -128,9 +128,7 @@ fn cases() -> Vec<(&'static str, AuditDetail, AuditTarget, bool)> {
                 stage: ComputerAuditStage::Reserved,
                 task: None,
             },
-            AuditTarget::Computer {
-                computer: uuid::Uuid::now_v7().try_into().unwrap(),
-            },
+            computer_target(),
             true,
         ),
     ]
@@ -236,4 +234,15 @@ async fn upstream_accepts_each_export_class_and_outcome() {
     })
     .await
     .expect("OCSF qualification exceeded 180 seconds");
+}
+
+fn computer_target() -> AuditTarget {
+    let mut builder = AuditTargetRegistry::builder();
+    veoveo_computers_contract::register_audit_target(&mut builder).unwrap();
+    builder
+        .build()
+        .target(veoveo_computers_contract::ComputerAuditTarget {
+            computer: veoveo_computers_contract::ComputerId::new(),
+        })
+        .unwrap()
 }

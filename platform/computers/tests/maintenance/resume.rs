@@ -17,12 +17,12 @@ pub(super) fn input(operation: &MaintenanceOperation) -> ResumeUpdateInput {
 
 #[tokio::test]
 async fn explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_twice() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks, claim) = journal::queued(&db).await;
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();
     let original = ticket.operation().clone();
     drop(ticket); // Lost dispatch response must be observed, never dispatched again.
-    db.a.client().query("UPDATE ONLY $operation SET progress.steps[0].observation_reads = 8, progress.steps[0].last_observation_id = $id, progress.steps[0].next_observation_at = <string>time::now();")
+    db.a.client().query(include_str!("../queries/maintenance/resume/explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_twice/statement_1.surql"))
         .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(original.operation_id.as_uuid()))))
         .bind(("id",Uuid::now_v7().to_string())).await.unwrap().check().unwrap();
     assert!(matches!(
@@ -109,7 +109,7 @@ async fn explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_
         second.steps()[0].dispatch_id,
         original.steps()[0].dispatch_id
     );
-    let mut query = db.a.client().query("SELECT VALUE previous_progress.steps[0].observation_reads FROM computer_maintenance_resume ORDER BY created_at; SELECT VALUE retained FROM computer_usage;")
+    let mut query = db.a.client().query(include_str!("../queries/maintenance/resume/explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_twice/statement_2.surql"))
         .await.unwrap().check().unwrap();
     assert_eq!(query.take::<Vec<i64>>(0).unwrap(), vec![8, 1]);
     assert_eq!(query.take::<Vec<i64>>(1).unwrap(), vec![1, 1, 1]);
@@ -120,7 +120,7 @@ async fn explicit_windows_retain_dispatch_history_and_exact_retries_never_renew_
 
 #[tokio::test]
 async fn cancellation_requires_exact_consent_current_recovery_policy_and_private_ownership() {
-    let db = TestDb::new().await;
+    let db = support::database().await;
     let (a, b, tasks, claim) = journal::queued(&db).await;
     let _ticket = a.begin_maintenance_step(&claim).await.unwrap();
     let paused = a
@@ -165,7 +165,7 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
     assert!(recancelled.cancel_requested_at > cancelled.cancel_requested_at);
     let count: Vec<Uuid> =
         db.a.client()
-            .query("SELECT VALUE request_id FROM computer_maintenance_resume;")
+            .query(include_str!("../queries/maintenance/resume/cancellation_requires_exact_consent_current_recovery_policy_and_private_ownership/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -176,35 +176,20 @@ async fn cancellation_requires_exact_consent_current_recovery_policy_and_private
 }
 
 #[tokio::test]
-async fn drained_migration_preserves_original_window_and_all_dispatch_metadata() {
-    let db = TestDb::new().await;
+async fn reconnect_preserves_original_window_and_all_dispatch_metadata() {
+    let db = support::database().await;
     let (a, _b, tasks, claim) = journal::queued(&db).await;
     let ticket = a.begin_maintenance_step(&claim).await.unwrap();
     let original = ticket.operation().clone();
     drop(ticket);
     tasks.release_observation(&claim).await.unwrap();
-    // Construct a pre-0071 row in this owned isolated fixture, then apply the exact migration.
-    let mut step = serde_json::to_value(&original.steps()[0]).unwrap();
-    step.as_object_mut()
-        .unwrap()
-        .remove("observation_started_at");
-    let step: veoveo_platform_store::OpenObject = serde_json::from_value(step).unwrap();
-    db.a.client().query("UPDATE ONLY $operation SET progress.steps = [$step]; REMOVE TABLE computer_maintenance_resume;")
-        .bind(("operation",RecordId::new("computer_maintenance",StoreUuid::from(original.operation_id.as_uuid()))))
-        .bind(("step",step)).await.unwrap().check().unwrap();
-    assert!(
-        a.maintenance(&original.actor, original.operation_id)
-            .await
-            .is_err()
-    );
-    db.a.client()
-        .query(include_str!(
-            "../../../store/migrations/0071_computer_maintenance_resumption.surql"
-        ))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
+    let reconnect = db.connect_at(db.a.config().endpoint().as_str()).await;
+    let a = ComputersStore::new(
+        reconnect,
+        a.provider_instance_id(),
+        veoveo_gateway_catalog::registry().unwrap(),
+    )
+    .unwrap();
     let migrated = a
         .maintenance(&original.actor, original.operation_id)
         .await

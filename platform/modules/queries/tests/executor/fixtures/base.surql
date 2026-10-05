@@ -1,0 +1,1 @@
+DEFINE TABLE fixture_marker SCHEMAFULL PERMISSIONS NONE; DEFINE FIELD value ON fixture_marker TYPE string; CREATE fixture_marker:base SET value = 'base';

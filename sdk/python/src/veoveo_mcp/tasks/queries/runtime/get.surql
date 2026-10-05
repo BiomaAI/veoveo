@@ -1,0 +1,1 @@
+SELECT * FROM $task WHERE server = $server;

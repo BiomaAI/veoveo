@@ -1,5 +1,5 @@
 //! Current generation results. Authorization precedes selection and decoding.
-use super::{MediaReads, VISIBLE_TASK, bind_owner, predictions::VISIBLE_PREDICTION};
+use super::{MediaReads, bind_owner};
 use crate::contract::{MediaGenerationResult, MediaGenerationUri};
 use surrealdb::types::SurrealValue;
 use veoveo_platform_store::{OpenObject, RecordId, RecordIdKey, task_record_id};
@@ -42,19 +42,11 @@ impl MediaReads<'_> {
         owner: &TaskOwner,
         selection: Selection<'_>,
     ) -> anyhow::Result<Option<MediaGenerationResult>> {
-        let predicate = match selection {
-            Selection::Resource(_) => "external_job_id = $prediction",
-            Selection::Task(_) => "task = $task",
+        let statement = match selection {
+            Selection::Resource(_) => include_str!("queries/generation_by_prediction.surql"),
+            Selection::Task(_) => include_str!("queries/generation_by_task.surql"),
         };
-        let query = bind_owner(
-            self.tasks.platform_store().client().query(format!(
-                "SELECT task, task.result.payload.structuredContent AS result FROM provider_job
-             WHERE {VISIBLE_TASK} AND {VISIBLE_PREDICTION} AND {predicate}
-               AND task.status = 'succeeded' AND (task.result.payload.isError ?? false) = false
-               AND task.result.payload.structuredContent.prediction.id = external_job_id LIMIT 1;"
-            )),
-            owner,
-        )?;
+        let query = bind_owner(self.tasks.platform_store().client().query(statement), owner)?;
         let query = match selection {
             Selection::Resource(uri) => query.bind(("prediction", uri.prediction_id().to_string())),
             Selection::Task(task) => query.bind(("task", task_record_id(task))),

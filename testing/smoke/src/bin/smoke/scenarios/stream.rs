@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use veoveo_recording_contract::{RecordingId, RecordingUri};
+use veoveo_recording_store::RecordingRepository;
 
 use anyhow::{Context, Result, bail, ensure};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -18,9 +19,9 @@ use veoveo_mcp_contract::{
     PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
-    PlatformStore, RecordIdKey, RecordingId as StoreRecordingId, StoreConfig, StoreCredentials,
-    deterministic_tenant_id,
+    PlatformStore, RecordIdKey, StoreConfig, StoreCredentials, deterministic_tenant_id,
 };
+use veoveo_recording_store::RecordingId as StoreRecordingId;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
     WorkContextId,
@@ -399,7 +400,7 @@ pub(crate) async fn wait_for_recording_source(
     let store = recording_store(environment).await?;
     let tenant_id = deterministic_tenant_id(installation.operator.tenant.as_str())?;
     for _ in 0..80 {
-        if let Some(recording) = store
+        if let Some(recording) = RecordingRepository::new(store.clone())
             .recording_by_key(tenant_id, "veoveo-video-test", recording_key)
             .await?
         {
@@ -432,10 +433,12 @@ pub(crate) async fn wait_for_recording_source(
                 let Some(remote_id) = queued.remote_stream_id else {
                     continue;
                 };
-                let remote_id = veoveo_platform_store::RecordingIngestStreamId::from_uuid(
+                let remote_id = veoveo_recording_store::RecordingIngestStreamId::from_uuid(
                     uuid::Uuid::parse_str(&remote_id)?,
                 );
-                let Some(remote) = store.recording_ingest_stream(tenant_id, remote_id).await?
+                let Some(remote) = RecordingRepository::new(store.clone())
+                    .recording_ingest_stream(tenant_id, remote_id)
+                    .await?
                 else {
                     continue;
                 };

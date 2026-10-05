@@ -1,3 +1,4 @@
+use crate::persistence::WorkspaceRepository;
 mod apps;
 mod client_config;
 use veoveo_mcp_gateway::http::native_mcp as catalog;
@@ -16,6 +17,10 @@ mod tests;
 
 use super::{Api, WorkspaceState, authority, fault};
 use crate::contract as wire;
+use crate::persistence::{
+    WorkspaceAuthority, WorkspaceChatId, WorkspaceOperation, WorkspaceOperationId,
+    WorkspaceOperationPhase as Phase,
+};
 use axum::{
     Json, Router,
     extract::{DefaultBodyLimit, Extension, Path, Query, State},
@@ -33,10 +38,7 @@ use uuid::Uuid;
 use veoveo_gateway_contract::GatewayToolName;
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalogHandle, GatewayState};
-use veoveo_platform_store::{
-    PlatformStore, WorkspaceChatId, WorkspaceOperationId,
-    workspace::{WorkspaceAuthority, WorkspaceOperation, WorkspaceOperationPhase as Phase},
-};
+use veoveo_platform_store::PlatformStore;
 
 #[derive(Clone)]
 pub(crate) struct OperationState {
@@ -100,7 +102,7 @@ impl OperationState {
         &self,
         caller: Caller,
         id: WorkspaceOperationId,
-        intent: veoveo_platform_store::workspace::WorkspaceOperationIntent,
+        intent: crate::persistence::WorkspaceOperationIntent,
     ) -> Result<wire::OperationSummary, StatusCode> {
         commands::submit(self.clone(), caller, id, intent, true).await
     }
@@ -115,7 +117,7 @@ impl OperationState {
         let stop = scope.cancellation_token();
         Ok(Self {
             personal: personal::PersonalHub::new(store.clone(), stop.clone(), &scope)?,
-            workspace: WorkspaceState { store },
+            workspace: WorkspaceState::new(store),
             gateway,
             catalog,
             native: native::NativeTransport::new(port, deployment, client_config::config())?,
@@ -146,9 +148,7 @@ impl OperationState {
         id: Uuid,
     ) -> Result<WorkspaceOperation, StatusCode> {
         let authority = self.authority(subject, profile).await?;
-        let operation = self
-            .workspace
-            .store
+        let operation = WorkspaceRepository::new(self.workspace.store.clone())
             .workspace_operation(&authority, WorkspaceOperationId::from_uuid(id))
             .await
             .map_err(fault)?;
@@ -237,7 +237,7 @@ async fn list(
     let authority = state.authority(&subject, &profile).await?;
     let values = state
         .workspace
-        .store
+        .repository
         .workspace_operations(
             &authority,
             query.chat.map(WorkspaceChatId::from_uuid),

@@ -1,10 +1,9 @@
 //! Catalog assembly from Store-authorized pages, without loading layer manifests.
 use anyhow::{Context, Result};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{
-    PlatformIdentity, RecordingCursor, RecordingId, RecordingReadScope, RecordingRecord,
-};
+use veoveo_platform_store::PlatformIdentity;
 use veoveo_recording_reader::access::record_uuid;
+use veoveo_recording_store::{RecordingCursor, RecordingId, RecordingReadScope, RecordingRecord};
 
 use super::RecordingService;
 use crate::contract::{
@@ -25,7 +24,7 @@ impl RecordingService {
             recording_id: RecordingId::from_uuid(cursor.recording_id().as_uuid()),
         });
         let mut records = self
-            .store
+            .recordings
             .list_recordings(&scope, position.as_ref(), PAGE_SIZE as u32 + 1)
             .await?;
         let has_more = records.len() > PAGE_SIZE;
@@ -57,7 +56,7 @@ impl RecordingService {
     ) -> Result<Vec<String>> {
         let platform = self.platform_identity(identity).await?;
         Ok(self
-            .store
+            .recordings
             .complete_recording_ids(
                 &read_scope(&platform, identity),
                 needle,
@@ -73,7 +72,7 @@ impl RecordingService {
     ) -> Result<Option<(PlatformIdentity, RecordingRecord)>> {
         let platform = self.platform_identity(identity).await?;
         Ok(self
-            .store
+            .recordings
             .visible_recording(&read_scope(&platform, identity), recording_id)
             .await?
             .map(|recording| (platform, recording)))

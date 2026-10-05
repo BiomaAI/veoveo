@@ -37,7 +37,7 @@ async fn replay_drains_unrelated_changes_before_the_export_deadline() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
         db.a.client()
-            .query("DEFINE TABLE audit_sealer_noise CHANGEFEED 7d;")
+            .query(include_str!("queries/service/replay_drains_unrelated_changes_before_the_export_deadline.surql"))
             .await
             .unwrap()
             .check()
@@ -46,7 +46,7 @@ async fn replay_drains_unrelated_changes_before_the_export_deadline() {
         // A one-second delay per 32-entry replay page cannot meet the reader deadline.
         for index in 0..768_u32 {
             db.a.client()
-                .query("CREATE type::record('audit_sealer_noise', $index) SET value = $index;")
+                .query(include_str!("queries/service/replay_drains_unrelated_changes_before_the_export_deadline_2.surql"))
                 .bind(("index", index))
                 .await
                 .unwrap()
@@ -145,7 +145,7 @@ async fn busy_replay_and_export_preserve_one_provider_acknowledgement() {
             .remove(0);
         let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
         db.a.client()
-            .query("DEFINE TABLE audit_export_noise CHANGEFEED 7d;")
+            .query(include_str!("queries/service/drop.surql"))
             .await
             .unwrap()
             .check()
@@ -161,7 +161,7 @@ async fn busy_replay_and_export_preserve_one_provider_acknowledgement() {
         // Continuous domain commits overlap LIVE sealing and HTTP acknowledgements.
         for index in 0..768_u32 {
             db.b.client()
-                .query("CREATE type::record('audit_export_noise', $index) SET value = $index;")
+                .query(include_str!("queries/service/drop_2.surql"))
                 .bind(("index", index))
                 .await
                 .unwrap()
@@ -328,8 +328,7 @@ async fn shutdown_reports_a_failed_seal_and_preserves_the_unsealed_record() {
         let db = fixture::TestDb::with_backend(fixture::StoreBackend::RocksDb).await;
         db.a.client()
             .query(
-                "DEFINE EVENT fixture_seal_failure ON TABLE audit_block
-            WHEN $event = 'CREATE' THEN { THROW 'fixture_seal_failure'; };",
+                include_str!("queries/service/shutdown_reports_a_failed_seal_and_preserves_the_unsealed_record.surql"),
             )
             .await
             .unwrap()
@@ -417,15 +416,15 @@ async fn export_intent_receipts_and_rejections_fence_retention_across_replicas()
         assert!(matches!(db.a.retain_audit_block(&lease, &block, cutoff, std::slice::from_ref(&first)).await, Err(StoreError::AuditLeaseLost)));
         // Both reference cascades participate in the deleting transaction. A
         // later abort must preserve seal membership and every export intent.
-        assert!(db.a.client().query("BEGIN; DELETE audit_record; DELETE audit_block; THROW 'qualification_rollback'; COMMIT;").await.unwrap().check().is_err());
-        let mut retained = db.b.client().query("RETURN array::len(SELECT id FROM audit_record); RETURN array::len(SELECT id FROM audit_record_seal); RETURN array::len(SELECT id FROM audit_export_delivery); RETURN array::len(SELECT id FROM audit_block);").await.unwrap().check().unwrap();
+        assert!(db.a.client().query(include_str!("queries/service/export_intent_receipts_and_rejections_fence_retention_across_replicas.surql")).await.unwrap().check().is_err());
+        let mut retained = db.b.client().query(include_str!("queries/service/export_intent_receipts_and_rejections_fence_retention_across_replicas_2.surql")).await.unwrap().check().unwrap();
         for (index, count) in [1_u64, 1, 2, 1].into_iter().enumerate() {
             assert_eq!(retained.take::<Option<u64>>(index).unwrap(), Some(count));
         }
         // The operator selects the destination that delivered successfully. The
         // retired signed anchor and its delivery cursor outlive record deletion.
         db.b.retain_audit_block(&next_lease, &block, cutoff, std::slice::from_ref(&first)).await.unwrap();
-        let mut counts = db.a.client().query("RETURN array::len(SELECT id FROM audit_record); RETURN array::len(SELECT id FROM audit_export_delivery); RETURN array::len(SELECT id FROM audit_export_cursor); RETURN array::len(SELECT id FROM audit_retention_anchor); RETURN array::len(SELECT id FROM audit_record_seal);").await.unwrap().check().unwrap();
+        let mut counts = db.a.client().query(include_str!("queries/service/export_intent_receipts_and_rejections_fence_retention_across_replicas_3.surql")).await.unwrap().check().unwrap();
         assert_eq!(counts.take::<Option<u64>>(0).unwrap(), Some(0));
         assert_eq!(counts.take::<Option<u64>>(1).unwrap(), Some(0));
         assert_eq!(counts.take::<Option<u64>>(2).unwrap(), Some(1));

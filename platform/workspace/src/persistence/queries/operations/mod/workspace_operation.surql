@@ -1,0 +1,1 @@
+IF !fn::workspace_operation_owner($authority, $command) { THROW 'workspace_not_found'; };              RETURN SELECT *, IF run = NONE { NONE } ELSE { { id: run.agent, name: run.agent.display_name } } AS agent FROM ONLY $command;

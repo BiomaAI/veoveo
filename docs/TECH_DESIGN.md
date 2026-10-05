@@ -256,9 +256,11 @@ the matching `3.3.0` release. The supported release runs one RocksDB-backed node
 The foundations upgrade is a coordinated hard cut onto fresh database state. Stop
 writers before resetting that store, bootstrap the current schema, and start only
 3.3.0 clients. Historical records and older database versions have no support path.
-Installation preparation connects with root credentials, applies the mixed catalogs
-and rotates the database runtime account under a generation fence. Selected module
-lanes finish before the runtime account publishes the gateway control revision.
+Installation preparation connects with root credentials, provisions an absent
+namespace/database and rotates the database runtime account under a generation fence.
+Selected owner lanes install their current schemas before the runtime account
+publishes the gateway control revision. Mixed-catalog database markers require a
+fresh installation; connection startup applies no schema.
 The [gateway command design](../platform/gateway/DESIGN.md#installation-command-composition)
 defines the preparation proof and ordered publication. Long-running services connect
 with database-scoped credentials and never run migrations.

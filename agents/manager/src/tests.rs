@@ -4,7 +4,7 @@ use super::*;
 use kubernetes_types::*;
 use serde_json::json;
 use veoveo_agent_runtime::contract::authoring as wire;
-use veoveo_platform_store::agent_management::{AgentRevision, instances::*};
+use veoveo_agent_runtime::persistence::{AgentRevision, instances::*};
 
 fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {
     let data = std::collections::BTreeMap::from([
@@ -25,7 +25,7 @@ fn fixture() -> (Config, ManagedAgentReconciliation, ConfigMap) {
         .record_id();
     let id = managed_agent_record(&tenant, "worker").unwrap();
     let definition =
-        veoveo_platform_store::agent_management::agent_definition_record(&tenant, "pilot").unwrap();
+        veoveo_agent_runtime::persistence::agent_definition_record(&tenant, "pilot").unwrap();
     let principal = veoveo_platform_store::deterministic_principal_id("test", "worker")
         .unwrap()
         .record_id();

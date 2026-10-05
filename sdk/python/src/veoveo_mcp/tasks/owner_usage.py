@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from surrealdb import RecordID
 
+from .queries import OwnerStatement
 from ..contract.usage import UsageRecord
 from .owner_query import OwnerTaskQuery, native_task_id
 from .types import InvalidRecord, TaskError, task_record
@@ -34,16 +35,13 @@ def _task_id(record: RecordID) -> uuid.UUID:
 class OwnerTaskUsageQuery:
     query: OwnerTaskQuery
 
-    def _predicate(self) -> str:
-        return "server = $server AND tenant = $tenant AND " + self.query.predicate(linked_task=True)
 
     async def page(self, after: uuid.UUID | None = None, limit: int = 100) -> TaskUsagePage:
         if type(limit) is not int or not 1 <= limit <= 1000:
             raise TaskError("usage page size must be 1–1000")
-        position = "AND task > $after AND task != $after" if after is not None else ""
+
         rows = await self.query.runtime.store.query(
-            f"SELECT VALUE task FROM domain_usage WHERE {self._predicate()} {position} "
-            "GROUP BY task ORDER BY task ASC LIMIT $limit;",
+            self.query._statement(OwnerStatement.USAGE_PAGE, after=after is not None),
             {**self.query.bindings(), "limit": limit + 1,
              "after": task_record(native_task_id(after)) if after is not None else None},
         )
@@ -54,8 +52,7 @@ class OwnerTaskUsageQuery:
     async def get(self, task_id: uuid.UUID) -> tuple[UsageRecord, ...]:
         task = task_record(native_task_id(task_id))
         rows = await self.query.runtime.store.query(
-            f"SELECT * FROM domain_usage WHERE {self._predicate()} "
-            "AND task = $task ORDER BY recorded_at ASC, id ASC;",
+            self.query._statement(OwnerStatement.USAGE_GET),
             {**self.query.bindings(), "task": task},
         )
         return tuple(UsageRecord(
@@ -71,9 +68,7 @@ class OwnerTaskUsageQuery:
         if len(prefix) > 36:
             return TaskUsageCompletion((), False)
         rows = await self.query.runtime.store.query(
-            f"SELECT VALUE task FROM domain_usage WHERE {self._predicate()} "
-            "AND string::starts_with(<string> record::id(task), $prefix) "
-            "GROUP BY task ORDER BY task ASC LIMIT 101;",
+            self.query._statement(OwnerStatement.USAGE_COMPLETE),
             {**self.query.bindings(), "prefix": prefix},
         )
         records = rows[0] or []

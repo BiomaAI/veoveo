@@ -1,0 +1,1 @@
+UPDATE $principal SET issuer = 'https://different.example';

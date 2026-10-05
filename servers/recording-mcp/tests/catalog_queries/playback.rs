@@ -2,10 +2,11 @@
 use super::*;
 use base64::Engine as _;
 use futures::StreamExt as _;
-use veoveo_platform_store::{RecordingLayerId, RecordingReadGrantClass};
 use veoveo_recording_mcp::{
     contract::PlaybackManifest, playback::PlaybackManager, service::PlaybackArchiveSelection,
 };
+use veoveo_recording_store::RecordingRepository;
+use veoveo_recording_store::{RecordingLayerId, RecordingReadGrantClass};
 
 async fn manifest(
     service: &RecordingService,
@@ -40,7 +41,13 @@ async fn manifest(
 #[tokio::test]
 async fn live_receiver_survives_the_gap_between_capture_layers() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = fixture::TestDb::new().await;
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_recording_store::schema::module_setup(
+            fixture::module_lanes::execution("recordings").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
     tokio::time::timeout(Duration::from_secs(30), async {
         let spool = tempfile::tempdir().unwrap();
         let service = RecordingService::new(
@@ -51,8 +58,8 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
         .unwrap();
         let caller = identity("playback-rollover", "reader", &["operations"]);
         let producer = service.platform_identity(&caller).await.unwrap();
-        let dataset =
-            db.a.ensure_recording_dataset(RecordingDatasetDraft::installation_default(
+        let dataset = RecordingRepository::new(db.a.clone())
+            .ensure_recording_dataset(RecordingDatasetDraft::installation_default(
                 producer.clone(),
                 "rollover",
             ))
@@ -71,7 +78,10 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
             metadata: BTreeMap::new(),
             started_at: Utc::now(),
         };
-        let row = db.a.create_recording(draft.clone()).await.unwrap();
+        let row = RecordingRepository::new(db.a.clone())
+            .create_recording(draft.clone())
+            .await
+            .unwrap();
         let recording = RecordingId::from_uuid(record_uuid(&row.id, "recording").unwrap());
         let key = base64::engine::general_purpose::STANDARD.encode([7_u8; 32]);
         let manager = PlaybackManager::new(&key, "https://archive.example", db.b.clone()).unwrap();
@@ -88,8 +98,8 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
         for ordinal in 0..2 {
             let relative = format!("capture-{ordinal}.rrd");
             std::fs::write(spool.path().join(&relative), []).unwrap();
-            let layer =
-                db.a.open_recording_layer(
+            let layer = RecordingRepository::new(db.a.clone())
+                .open_recording_layer(
                     RecordingLayerDraft::capture(
                         producer.clone(),
                         recording,
@@ -105,18 +115,19 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
             assert_eq!(serde_json::to_value(&writing.live).unwrap(), receiver);
             let layer_id =
                 RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer").unwrap());
-            db.a.stage_recording_layer(
-                &producer,
-                layer_id,
-                128,
-                1,
-                &"a".repeat(64),
-                Some("0.38.1"),
-                None,
-                Some(Utc::now()),
-            )
-            .await
-            .unwrap();
+            RecordingRepository::new(db.a.clone())
+                .stage_recording_layer(
+                    &producer,
+                    layer_id,
+                    128,
+                    1,
+                    &"a".repeat(64),
+                    Some("0.38.1"),
+                    None,
+                    Some(Utc::now()),
+                )
+                .await
+                .unwrap();
             let gap = manifest(&service, &manager, &caller, recording).await;
             assert_ne!(gap.catalog_revision, writing.catalog_revision);
             assert!(gap.archive.is_none());
@@ -132,8 +143,8 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
                     .is_none()
             );
         }
-        let row =
-            db.a.create_recording(RecordingDraft {
+        let row = RecordingRepository::new(db.a.clone())
+            .create_recording(RecordingDraft {
                 recording_key: "idle-start".into(),
                 ..draft
             })
@@ -153,14 +164,15 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
                 .await
                 .is_err()
         );
-        db.a.interrupt_recording(
-            &producer,
-            idle,
-            Utc::now(),
-            "producer closed before capture",
-        )
-        .await
-        .unwrap();
+        RecordingRepository::new(db.a.clone())
+            .interrupt_recording(
+                &producer,
+                idle,
+                Utc::now(),
+                "producer closed before capture",
+            )
+            .await
+            .unwrap();
         assert!(
             tokio::time::timeout(Duration::from_secs(5), channel.next())
                 .await

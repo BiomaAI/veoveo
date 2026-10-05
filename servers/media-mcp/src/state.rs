@@ -163,7 +163,7 @@ impl MediaState {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $context CONTENT $content RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/create_task_context.surql"))
             .bind(("context", context_id.record_id()))
             .bind(("content", content))
             .await
@@ -212,7 +212,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $context;")
+            .query(include_str!("queries/read_task_context.surql"))
             .bind(("context", context_id.record_id()))
             .await?
             .check()?;
@@ -274,7 +274,7 @@ impl MediaState {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $job CONTENT $job_content RETURN NONE; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE status = $expected_status AND updated_at = $expected_updated AND recovery_class = 'webhook_wait' AND lease_owner = $worker RETURN AFTER); IF $updated = NONE { THROW 'media task changed before provider binding'; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/bind_provider_job.surql"))
             .bind(("job", job_id.record_id()))
             .bind(("job_content", job))
             .bind(("task", task_record_id(current.task_id)))
@@ -284,7 +284,6 @@ impl MediaState {
             .bind(("expected_status", current.status))
             .bind(("expected_updated", current.updated_at))
             .bind(("worker", runtime.worker_id().to_owned()))
-
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -404,7 +403,7 @@ impl MediaState {
         let result = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; CREATE ONLY $event CONTENT $event_content RETURN NONE; UPSERT ONLY $job CONTENT $job_content RETURN NONE; IF $update_task { LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook task changed'; }; }; COMMIT TRANSACTION;")
+            .query(include_str!("queries/record_provider_event.surql"))
             .bind(("event", event_id.record_id()))
             .bind(("event_content", event))
             .bind(("job", job_id.record_id()))
@@ -412,10 +411,14 @@ impl MediaState {
             .bind(("update_task", waiting.is_some()))
             .bind(("task", task_record_id(current.task_id)))
             .bind(("request", request))
-            .bind(("progress", waiting.as_ref().map_or(current.progress, |task| task.progress)))
+            .bind((
+                "progress",
+                waiting
+                    .as_ref()
+                    .map_or(current.progress, |task| task.progress),
+            ))
             .bind(("now", now))
             .bind(("expected_updated", current.updated_at))
-
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -445,7 +448,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM provider_event WHERE provider = $provider AND processed_at = NONE ORDER BY received_at ASC LIMIT $limit;")
+            .query(include_str!("queries/pending_provider_events.surql"))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("limit", i64::try_from(limit).unwrap_or(i64::MAX)))
             .await?
@@ -516,7 +519,7 @@ impl MediaState {
         let response = self
             .store
             .client()
-            .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, progress = $progress, result = $result, error = $error, completed_at = $now, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook completion conflict'; }; UPDATE ONLY $event SET processed_at = $now, processing_error = NONE WHERE processed_at = NONE RETURN NONE; UPDATE ONLY $job SET state = $job_state, completed_at = $now, updated_at = $now RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/settle_provider_event.surql"))
             .bind(("task", task_record_id(current.task_id)))
             .bind(("status", status))
             .bind(("request", request))
@@ -527,8 +530,14 @@ impl MediaState {
             .bind(("expected_updated", current.updated_at))
             .bind(("event", event.event_id.record_id()))
             .bind(("job", event.job.job_id.record_id()))
-            .bind(("job_state", if status == TaskStatus::Succeeded { ProviderJobState::Succeeded } else { ProviderJobState::Failed }))
-
+            .bind((
+                "job_state",
+                if status == TaskStatus::Succeeded {
+                    ProviderJobState::Succeeded
+                } else {
+                    ProviderJobState::Failed
+                },
+            ))
             .await
             .and_then(|response| response.check());
         if let Err(error) = response {
@@ -584,7 +593,7 @@ impl MediaState {
     ) -> Result<(), StoreError> {
         self.store
             .client()
-            .query("UPDATE ONLY $event SET processing_error = $error WHERE processed_at = NONE RETURN NONE;")
+            .query(include_str!("queries/record_event_error.surql"))
             .bind(("event", event.event_id.record_id()))
             .bind(("error", truncate(error, 2_000)))
             .await?
@@ -599,7 +608,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM provider_job WHERE provider = $provider AND task = $task ORDER BY submitted_at ASC LIMIT 1;")
+            .query(include_str!("queries/task_provider_job.surql"))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("task", task_record_id(task_id)))
             .await?
@@ -640,7 +649,7 @@ impl MediaState {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; UPDATE ONLY $job SET state = $state, provider_payload = $payload, completed_at = IF $terminal { $now } ELSE { completed_at }, updated_at = $now WHERE tenant = $tenant AND task = $task AND provider = $provider AND state IN ['submitted', 'waiting', 'cancel_requested'] RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/update_provider_job.surql"))
             .bind(("job", job.job_id.record_id()))
             .bind(("state", state))
             .bind(("payload", OpenObject::new(payload)))
@@ -663,12 +672,15 @@ impl MediaState {
         task_id: TaskId,
         prediction_id: &MediaPredictionId,
     ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let mut response = self.store.client()
-            .query("SELECT * FROM provider_job WHERE provider = $provider AND task = $task AND task.server = mcp_server:media AND tenant = task.tenant AND external_job_id = $prediction AND provider_payload.id = $prediction LIMIT 1;")
+        let mut response = self
+            .store
+            .client()
+            .query(include_str!("queries/linked_provider_job.surql"))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("task", task_record_id(task_id)))
             .bind(("prediction", prediction_id.to_string()))
-            .await?.check()?;
+            .await?
+            .check()?;
         response
             .take::<Vec<ProviderJobRecord>>(0)?
             .into_iter()
@@ -685,7 +697,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM provider_job WHERE tenant = $tenant AND provider = $provider AND external_job_id = $external_job_id LIMIT 1;")
+            .query(include_str!("queries/prediction_provider_job.surql"))
             .bind(("tenant", tenant.clone()))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("external_job_id", external_job_id.to_string()))
@@ -703,7 +715,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("DELETE media_task_context WHERE capability_expires_at <= time::now() RETURN BEFORE;")
+            .query(include_str!("queries/expire_task_contexts.surql"))
             .await?
             .check()?;
         Ok(response.take::<Vec<MediaTaskContextRecord>>(0)?.len() as u64)
@@ -736,7 +748,7 @@ impl MediaState {
 
         self.store
             .client()
-            .query("BEGIN TRANSACTION; UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running'] AND recovery_class = 'webhook_wait' RETURN NONE; COMMIT TRANSACTION;")
+            .query(include_str!("queries/wait_for_webhook.surql"))
             .bind(("task", task_record_id(current.task_id)))
             .bind(("request", request_envelope(&waiting)?))
             .bind(("progress", waiting.progress))
@@ -754,7 +766,7 @@ impl MediaState {
     ) -> Result<(), StoreError> {
         self.store
             .client()
-            .query("UPDATE ONLY $event SET processed_at = time::now(), processing_error = $error WHERE processed_at = NONE RETURN NONE;")
+            .query(include_str!("queries/reject_provider_event.surql"))
             .bind(("event", event.event_id.record_id()))
             .bind(("error", error.map(|value| truncate(value, 2_000))))
             .await?
@@ -770,7 +782,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM provider_event WHERE tenant = $tenant AND provider = $provider AND event_id = $event_id LIMIT 1;")
+            .query(include_str!("queries/provider_event_by_id.surql"))
             .bind(("tenant", tenant.clone()))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("event_id", webhook_id.to_owned()))
@@ -814,7 +826,7 @@ impl MediaState {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $job;")
+            .query(include_str!("queries/read_provider_job.surql"))
             .bind(("job", job_id.record_id()))
             .await?
             .check()?;

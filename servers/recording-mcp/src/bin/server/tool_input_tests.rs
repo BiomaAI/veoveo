@@ -13,7 +13,13 @@ mod fixture;
 async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = fixture::TestDb::new().await;
+        let db = fixture::TestDb::with_modules(vec![
+            veoveo_recording_store::schema::module_setup(
+                fixture::module_lanes::execution("recordings").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let (root, state) = {
             let root = tempfile::tempdir().unwrap();
             let state = Arc::new(AppState {

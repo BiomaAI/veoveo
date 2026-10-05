@@ -13,11 +13,11 @@ impl PlatformStore {
     ) -> Result<(), StoreError> {
         let _mutation = lease.mutation().await;
         lease.check_tenant(tenant)?;
-        let sql =
-            include_str!("remove_generation.surql").replace("__TABLE__", &chunk_table(generation));
+        let sql = include_str!("../queries/knowledge/remove_generation.surql");
         lease
-            .bind(self.client().query(fenced(&sql)))
+            .bind(self.client().query(sql))
             .bind(("tenant", tenant.to_string()))
+            .bind(("chunk_table", chunk_table(generation)))
             .bind(("generation", generation_record(generation)))
             .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))
             .await?
@@ -28,9 +28,15 @@ impl PlatformStore {
         &self,
         tenant: &TenantId,
     ) -> Result<Option<GenerationId>, StoreError> {
-        let mut response = self.client().query("SELECT VALUE <string> record::id(generation) FROM ONLY $active WHERE generation.tenant = $tenant AND generation.state = 'active';")
+        let mut response = self
+            .client()
+            .query(include_str!(
+                "../queries/knowledge/generations/active_knowledge_generation.surql"
+            ))
             .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))
-            .bind(("tenant", tenant.to_string())).await?.knowledge_check()?;
+            .bind(("tenant", tenant.to_string()))
+            .await?
+            .knowledge_check()?;
         let id: Option<String> = response.take(0)?;
         id.map(|id| {
             id.try_into()
@@ -47,11 +53,9 @@ impl PlatformStore {
     ) -> Result<(), StoreError> {
         let _mutation = lease.mutation().await;
         lease.check_tenant(tenant)?;
-        // DDL cannot bind identifiers or index dimensions. Both substitutions
-        // come from closed checked types, never a caller-controlled SQL fragment.
+        // The native HNSW grammar requires a literal dimension from the checked spec.
         let table = chunk_table(id);
-        let schema = include_str!("generation.surql")
-            .replace("__TABLE__", &table)
+        let schema = include_str!("../queries/knowledge/generation.surql")
             .replace("__DIMENSION__", &spec.space().dimension.get().to_string());
         let mut collections = Vec::new();
         for (collection, revision) in spec.collections() {
@@ -61,7 +65,8 @@ impl PlatformStore {
             collections.push(Value::Object(value));
         }
         lease
-            .bind(self.client().query(fenced(&schema)))
+            .bind(self.client().query(&schema))
+            .bind(("chunk_table", table))
             .bind(("generation", generation_record(id)))
             .bind(("tenant", tenant.to_string()))
             .bind(("document", Document(spec.clone())))
@@ -79,7 +84,9 @@ impl PlatformStore {
     ) -> Result<Option<GenerationSpec>, StoreError> {
         let mut response = self
             .client()
-            .query("SELECT VALUE document FROM ONLY $generation WHERE tenant = $tenant;")
+            .query(include_str!(
+                "../queries/knowledge/generations/knowledge_generation.surql"
+            ))
             .bind(("generation", generation_record(id)))
             .bind(("tenant", tenant.to_string()))
             .await?
@@ -98,7 +105,10 @@ impl PlatformStore {
         let _mutation = lease.mutation().await;
         lease.check_tenant(tenant)?;
         lease
-            .bind(self.client().query(fenced(include_str!("activate.surql"))))
+            .bind(
+                self.client()
+                    .query(include_str!("../queries/knowledge/activate.surql")),
+            )
             .bind(("tenant", tenant.to_string()))
             .bind(("generation", generation_record(generation)))
             .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))

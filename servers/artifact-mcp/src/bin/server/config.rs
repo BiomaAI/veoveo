@@ -80,7 +80,6 @@ impl Args {
                 self.surreal_password.clone(),
             ),
         )
-        .migrate_on_connect(false)
         .build()?)
     }
 }

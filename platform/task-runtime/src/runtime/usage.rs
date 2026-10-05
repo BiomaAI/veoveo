@@ -1,15 +1,9 @@
 //! Usage visibility follows the linked Task's current owner and the caller's clearance.
-use super::{
-    TaskRuntime,
-    context_scope::ContextScope,
-    owner_reads::{OwnerScope, VISIBLE_TASK},
-};
+use super::{TaskRuntime, context_scope::ContextScope, owner_reads::OwnerScope};
 use crate::types::{TaskError, TaskOwner, task_id_from_record};
 use surrealdb::{Connection, method::Query};
 use veoveo_platform_store::{DomainUsageRecord, RecordId, task_record_id};
 use veoveo_types::TaskId;
-
-const VISIBLE_USAGE: &str = include_str!("../../queries/usage_visible.surql");
 
 /// The domain selects its policy explicitly for every usage or Task admission read.
 /// Both variants enforce `TaskOwner::allows`. `WorkContext` additionally requires
@@ -25,20 +19,6 @@ impl<'a> TaskUsageAccess<'a> {
     fn owner(self) -> &'a TaskOwner {
         match self {
             Self::Owner(owner) | Self::WorkContext(owner) => owner,
-        }
-    }
-
-    fn usage_predicate(self) -> &'static str {
-        match self {
-            Self::Owner(_) => "",
-            Self::WorkContext(_) => ContextScope::USAGE_PREDICATE,
-        }
-    }
-
-    fn task_predicate(self) -> &'static str {
-        match self {
-            Self::Owner(_) => "",
-            Self::WorkContext(_) => ContextScope::TASK_PREDICATE,
         }
     }
 }
@@ -83,11 +63,15 @@ impl TaskRuntime {
         access: TaskUsageAccess<'_>,
         task_id: TaskId,
     ) -> Result<bool, TaskError> {
-        let context = access.task_predicate();
         let mut response = UsageScope::new(self, access)?
-            .bind(self.store.client().query(format!(
-                "SELECT VALUE id FROM task WHERE id = $task AND {VISIBLE_TASK} {context} LIMIT 1;",
-            )))
+            .bind(self.store.client().query(match access {
+                TaskUsageAccess::Owner(_) => {
+                    include_str!("../../queries/usage/task_visible_owner.surql")
+                }
+                TaskUsageAccess::WorkContext(_) => {
+                    include_str!("../../queries/usage/task_visible_context.surql")
+                }
+            }))
             .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
@@ -105,20 +89,25 @@ impl TaskRuntime {
         if !(1..=1000).contains(&limit) {
             return Err(TaskError::InvalidPageQuery);
         }
-        let position = if after.is_some() {
-            // The 3.3.0 task/time index can include rows whose leading Task key
-            // equals the exclusive bound. Keep inequality in the SQL residual.
-            "AND task > $after AND task != $after"
-        } else {
-            ""
-        };
-        let context = access.usage_predicate();
-        let mut response = UsageScope::new(self, access)?.bind(self.store.client()
-            .query(format!("SELECT VALUE task FROM domain_usage WHERE {VISIBLE_USAGE} {context} {position} GROUP BY task ORDER BY task ASC LIMIT $limit;"))
-            )
+        let mut response = UsageScope::new(self, access)?
+            .bind(self.store.client().query(match (access, after.is_some()) {
+                (TaskUsageAccess::Owner(_), false) => {
+                    include_str!("../../queries/usage/page_owner.surql")
+                }
+                (TaskUsageAccess::Owner(_), true) => {
+                    include_str!("../../queries/usage/page_owner_after.surql")
+                }
+                (TaskUsageAccess::WorkContext(_), false) => {
+                    include_str!("../../queries/usage/page_context.surql")
+                }
+                (TaskUsageAccess::WorkContext(_), true) => {
+                    include_str!("../../queries/usage/page_context_after.surql")
+                }
+            }))
             .bind(("after", after.map(task_record_id)))
             .bind(("limit", limit + 1))
-            .await?.check()?;
+            .await?
+            .check()?;
         let mut records: Vec<RecordId> = response.take(0)?;
         let has_more = records.len() > limit;
         records.truncate(limit);
@@ -141,12 +130,16 @@ impl TaskRuntime {
         access: TaskUsageAccess<'_>,
         task_id: TaskId,
     ) -> Result<Vec<DomainUsageRecord>, TaskError> {
-        let context = access.usage_predicate();
-        let mut response = UsageScope::new(self, access)?.bind(self.store.client()
-            .query(format!("SELECT * FROM domain_usage WHERE {VISIBLE_USAGE} {context} AND task = $task ORDER BY recorded_at ASC, id ASC;"))
-            )
+        let mut response = UsageScope::new(self, access)?
+            .bind(self.store.client().query(match access {
+                TaskUsageAccess::Owner(_) => include_str!("../../queries/usage/usage_owner.surql"),
+                TaskUsageAccess::WorkContext(_) => {
+                    include_str!("../../queries/usage/usage_context.surql")
+                }
+            }))
             .bind(("task", task_record_id(task_id)))
-            .await?.check()?;
+            .await?
+            .check()?;
         Ok(response.take(0)?)
     }
 }

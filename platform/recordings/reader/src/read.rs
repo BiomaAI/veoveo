@@ -9,9 +9,10 @@ use serde::Serialize;
 use veoveo_mcp_contract::{
     ArtifactReadAuthority, GatewayInternalIdentity, PrincipalKind, TokenIssuer, TokenSubject,
 };
-use veoveo_platform_store::{
-    PrincipalKind as StorePrincipalKind, RecordingDatasetId, RecordingId, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerState, RecordingState, TenantId as StoreTenantId,
+use veoveo_platform_store::{PrincipalKind as StorePrincipalKind, TenantId as StoreTenantId};
+use veoveo_recording_store::{
+    RecordingDatasetId, RecordingId, RecordingLayerId, RecordingLayerKind, RecordingLayerState,
+    RecordingState,
 };
 use veoveo_rrd::ingest_parts::{
     ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
@@ -400,7 +401,7 @@ impl RecordingReader {
             let mut changed = false;
             for layer_id in live_layers {
                 let current = self
-                    .store
+                    .recordings
                     .recording_layer(tenant_id, layer_id)
                     .await?
                     .context("recording layer disappeared from its catalog during capture")?;
@@ -449,9 +450,9 @@ impl RecordingReader {
             )
             .await?;
         let Some(recording) = self
-            .store
+            .recordings
             .visible_recording(
-                &veoveo_platform_store::RecordingReadScope {
+                &veoveo_recording_store::RecordingReadScope {
                     tenant_id: platform_identity.tenant_id,
                     data_labels: authority
                         .data_labels
@@ -468,7 +469,7 @@ impl RecordingReader {
         let dataset_id =
             RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
         let dataset = self
-            .store
+            .recordings
             .recording_dataset(platform_identity.tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
@@ -476,7 +477,7 @@ impl RecordingReader {
         let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
         let recording_uuid = record_uuid(&recording.id, "recording")?;
         let catalog_layers = self
-            .store
+            .recordings
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         let mut layers = Vec::with_capacity(catalog_layers.len());

@@ -15,7 +15,7 @@ use re_build_info::CrateVersion;
 use re_log_encoding::{EncodingOptions, rrd::Encoder};
 use re_log_types::{LogMsg, StoreId};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{RecordingId, RecordingLayerRecord, RecordingRecord, RecordingState};
+use veoveo_recording_store::{RecordingId, RecordingLayerRecord, RecordingRecord, RecordingState};
 
 use crate::schema::RecordingObservationTable;
 

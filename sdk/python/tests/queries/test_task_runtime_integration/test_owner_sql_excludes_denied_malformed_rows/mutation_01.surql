@@ -1,0 +1,1 @@
+UPDATE $task SET owner = $different_owner, request.owner.authority = {};

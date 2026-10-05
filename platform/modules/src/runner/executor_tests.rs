@@ -11,9 +11,9 @@ use surrealdb::{
 #[path = "../../../../testing/fixtures/store/container.rs"]
 mod container;
 
-const BASE: &str = "DEFINE TABLE fixture_marker SCHEMAFULL PERMISSIONS NONE; DEFINE FIELD value ON fixture_marker TYPE string; CREATE fixture_marker:base SET value = 'base';";
-const ADVANCE: &str = "CREATE fixture_marker:advanced SET value = 'advanced';";
-const FEATURE: &str = "DEFINE TABLE fixture_optional SCHEMAFULL PERMISSIONS NONE; DEFINE FIELD value ON fixture_optional TYPE string; CREATE fixture_optional:first SET value = 'first';";
+const BASE: &str = include_str!("../../queries/tests/executor/fixtures/base.surql");
+const ADVANCE: &str = include_str!("../../queries/tests/executor/fixtures/advance.surql");
+const FEATURE: &str = include_str!("../../queries/tests/executor/fixtures/feature.surql");
 
 fn name(value: &str) -> ModuleName {
     ModuleName::new(value).unwrap()
@@ -202,7 +202,7 @@ async fn fixture() -> (container::Container, Surreal<Client>, Surreal<Client>) {
                         .await
                     {
                         Ok(_) => {
-                            db.query("DEFINE NAMESPACE IF NOT EXISTS module_runner;")
+                            db.query(include_str!("../../queries/tests/executor/fixture/define_namespace_if_not.surql"))
                                 .await
                                 .expect("fixture namespace definition")
                                 .check()
@@ -210,7 +210,7 @@ async fn fixture() -> (container::Container, Surreal<Client>, Surreal<Client>) {
                             db.use_ns("module_runner")
                                 .await
                                 .expect("fixture namespace selection");
-                            db.query("DEFINE DATABASE IF NOT EXISTS fixture;")
+                            db.query(include_str!("../../queries/tests/executor/fixture/define_database_if_not.surql"))
                                 .await
                                 .expect("fixture database definition")
                                 .check()
@@ -248,7 +248,9 @@ async fn fixture() -> (container::Container, Surreal<Client>, Surreal<Client>) {
 }
 async fn markers(db: &Surreal<Client>, table: &'static str) -> Vec<RecordId> {
     let mut response = db
-        .query("SELECT VALUE id FROM type::table($table) ORDER BY id;")
+        .query(include_str!(
+            "../../queries/tests/executor/markers/select_value_id_from.surql"
+        ))
         .bind(("table", table))
         .await
         .unwrap()
@@ -319,13 +321,13 @@ async fn native_failed_body_rolls_back_and_unknown_history_blocks_pending_effect
         let first = migration(0, "base", BASE, vec![]);
         let baseline = registry(vec![first.clone()], vec![]);
         prepare(baseline.select(vec![]).unwrap()).unwrap().apply(&a).await.unwrap();
-        let failure = registry(vec![first.clone(), migration(1, "fail", "CREATE fixture_marker:rolled_back SET value = 'private-token'; THROW 'private-token';", vec![])], vec![]);
+        let failure = registry(vec![first.clone(), migration(1, "fail", include_str!("../../queries/tests/executor/native_failed_body_rolls_back_and_unknown_history_blocks_pending_effects/create_fixture_marker_rolled_back_set.surql"), vec![])], vec![]);
         let prepared = prepare(failure.select(vec![]).unwrap()).unwrap();
         let error = prepared.apply(&a).await.unwrap_err();
         assert!(!format!("{error:?} {error}").contains("private-token"));
         assert_eq!(markers(&a, "fixture_marker").await.len(), 1);
         assert_eq!(prepared.status(&a).await.unwrap().lane(&name("store")).unwrap().current, Some(MigrationVersion::new(0)));
-        a.query("CREATE platform_module_lane:unknown SET module = 'unknown', initialized = true;").await.unwrap().check().unwrap();
+        a.query(include_str!("../../queries/tests/executor/native_failed_body_rolls_back_and_unknown_history_blocks_pending_effects/create_platform_module_lane_unknown_set.surql")).await.unwrap().check().unwrap();
         let pending = registry(vec![first, migration(1, "advance", ADVANCE, vec![])], vec![]);
         let prepared = prepare(pending.select(vec![]).unwrap()).unwrap();
         assert!(prepared.apply(&a).await.is_err());
@@ -390,9 +392,9 @@ async fn native_incompatible_or_uncommitted_infrastructure_is_not_a_winner() {
         tx.query(INFRASTRUCTURE).await.unwrap().check().unwrap();
         tx.cancel().await.unwrap();
         assert!(!infrastructure_state(&a, ExecutionLimits::default()).await.unwrap());
-        a.query("DEFINE TABLE platform_module_lane SCHEMALESS PERMISSIONS FULL; DEFINE TABLE platform_module_migration SCHEMALESS PERMISSIONS FULL;").await.unwrap().check().unwrap();
+        a.query(include_str!("../../queries/tests/executor/native_incompatible_or_uncommitted_infrastructure_is_not_a_winner/define_table_platform_module_lane_schemaless.surql")).await.unwrap().check().unwrap();
         assert!(prepared.apply(&a).await.is_err());
-        let mut response = a.query("INFO FOR DB;").await.unwrap();
+        let mut response = a.query(include_str!("../../queries/tests/executor/native_incompatible_or_uncommitted_infrastructure_is_not_a_winner/info_for_db.surql")).await.unwrap();
         let info = response.take::<Option<DatabaseInfo>>(0).unwrap().expect("database metadata");
         assert!(!info.tables.contains_key("fixture_marker"));
     }).await.expect("native incompatible infrastructure qualification exceeded 120 seconds");
@@ -415,7 +417,7 @@ async fn native_transaction_timeout_and_dropped_awaiter_cancel_before_commit() {
         let delayed = migration(
             1,
             "delayed",
-            "CREATE fixture_marker:cancelled SET value = 'cancelled'; SLEEP 2s;",
+            include_str!("../../queries/tests/executor/native_transaction_timeout_and_dropped_awaiter_cancel_before_commit/create_fixture_marker_cancelled_set.surql"),
             vec![],
         );
         let result = transaction::execute(
@@ -537,7 +539,7 @@ async fn native_preparation_generation_fences_delayed_rotation_and_conflicting_i
         })
         .await
         .unwrap();
-        b.query("RETURN true;").await.unwrap().check().unwrap();
+        b.query(include_str!("../../queries/tests/executor/native_preparation_generation_fences_delayed_rotation_and_conflicting_identity/return_true.surql")).await.unwrap().check().unwrap();
     })
     .await
     .expect("preparation generation fixture exceeded 120 seconds");
@@ -553,26 +555,26 @@ async fn native_reciprocal_kernel_field_types_allow_forward_definition_and_check
                 "left",
                 "fixture_left",
                 ModuleLayer::Kernel,
-                vec![migration(0, "initial", "DEFINE TABLE fixture_left SCHEMAFULL; DEFINE FIELD link ON fixture_left TYPE record<fixture_right>;", vec![])],
+                vec![migration(0, "initial", include_str!("../../queries/tests/executor/native_reciprocal_kernel_field_types_allow_forward_definition_and_check_values/define_table_fixture_left_schemafull.surql"), vec![])],
                 vec![],
             );
             let right = module(
                 "right",
                 "fixture_right",
                 ModuleLayer::Kernel,
-                vec![migration(0, "initial", "DEFINE TABLE fixture_right SCHEMAFULL; DEFINE FIELD link ON fixture_right TYPE record<fixture_left>;", vec![])],
+                vec![migration(0, "initial", include_str!("../../queries/tests/executor/native_reciprocal_kernel_field_types_allow_forward_definition_and_check_values/define_table_fixture_right_schemafull.surql"), vec![])],
                 vec![],
             );
             let registry = ModuleRegistry::new(if reverse { vec![right, left] } else { vec![left, right] }).unwrap();
             let selection = registry.select(vec![]).unwrap();
             assert_eq!(selection.ordered()[0].name().as_str(), if reverse { "right" } else { "left" });
             prepare(selection).unwrap().apply(&db).await.unwrap();
-            db.query("CREATE fixture_left:one SET link = fixture_right:one; CREATE fixture_right:one SET link = fixture_left:one;")
+            db.query(include_str!("../../queries/tests/executor/native_reciprocal_kernel_field_types_allow_forward_definition_and_check_values/create_fixture_left_one_set.surql"))
                 .await.unwrap().check().unwrap();
             assert_eq!(markers(&db, "fixture_left").await.len(), 1);
             assert_eq!(markers(&db, "fixture_right").await.len(), 1);
-            assert!(db.query("CREATE fixture_left:wrong SET link = fixture_left:one;").await.unwrap().check().is_err());
-            assert!(db.query("CREATE fixture_right:wrong SET link = fixture_right:one;").await.unwrap().check().is_err());
+            assert!(db.query(include_str!("../../queries/tests/executor/native_reciprocal_kernel_field_types_allow_forward_definition_and_check_values/create_fixture_left_wrong_set.surql")).await.unwrap().check().is_err());
+            assert!(db.query(include_str!("../../queries/tests/executor/native_reciprocal_kernel_field_types_allow_forward_definition_and_check_values/create_fixture_right_wrong_set.surql")).await.unwrap().check().is_err());
             assert_eq!(markers(&db, "fixture_left").await.len(), 1);
             assert_eq!(markers(&db, "fixture_right").await.len(), 1);
         }
@@ -584,14 +586,14 @@ async fn native_reciprocal_kernel_field_types_allow_forward_definition_and_check
 async fn native_invalid_field_link_selection_has_no_bookkeeping_or_owner_effects() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let (_fixture, db, _other) = fixture().await;
-        let mut before = db.query("INFO FOR DB;").await.unwrap().check().unwrap();
+        let mut before = db.query(include_str!("../../queries/tests/executor/native_incompatible_or_uncommitted_infrastructure_is_not_a_winner/info_for_db.surql")).await.unwrap().check().unwrap();
         let before: surrealdb::types::Value = before.take(0).unwrap();
         let registry = ModuleRegistry::new(vec![
-            module("a_valid", "fixture_left", ModuleLayer::Kernel, vec![migration(0, "initial", "DEFINE TABLE fixture_left; CREATE fixture_left:one;", vec![])], vec![]),
-            module("z_invalid", "fixture_right", ModuleLayer::Kernel, vec![migration(0, "initial", "DEFINE TABLE fixture_right; DEFINE FIELD link ON fixture_right TYPE array<record<fixture_left> | record<unclaimed>>;", vec![])], vec![]),
+            module("a_valid", "fixture_left", ModuleLayer::Kernel, vec![migration(0, "initial", include_str!("../../queries/tests/executor/native_invalid_field_link_selection_has_no_bookkeeping_or_owner_effects/define_table_fixture_left_create.surql"), vec![])], vec![]),
+            module("z_invalid", "fixture_right", ModuleLayer::Kernel, vec![migration(0, "initial", include_str!("../../queries/tests/executor/native_invalid_field_link_selection_has_no_bookkeeping_or_owner_effects/define_table_fixture_right_define.surql"), vec![])], vec![]),
         ]).unwrap();
         assert!(prepare(registry.select(vec![]).unwrap()).is_err());
-        let mut after = db.query("INFO FOR DB;").await.unwrap().check().unwrap();
+        let mut after = db.query(include_str!("../../queries/tests/executor/native_incompatible_or_uncommitted_infrastructure_is_not_a_winner/info_for_db.surql")).await.unwrap().check().unwrap();
         let after: surrealdb::types::Value = after.take(0).unwrap();
         assert_eq!(before, after);
     }).await.expect("invalid field selection preflight exceeded 120 seconds");
@@ -600,10 +602,12 @@ async fn native_invalid_field_link_selection_has_no_bookkeeping_or_owner_effects
 #[tokio::test]
 #[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
 async fn native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction() {
-    const API: &str = "DEFINE FUNCTION fn::kernel::store::update_v1($id: record<fixture_marker>, $value: string) -> bool { UPDATE ONLY $id SET value = $value RETURN NONE; RETURN true; } PERMISSIONS FULL;";
+    const API: &str = include_str!(
+        "../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/api.surql"
+    );
     tokio::time::timeout(Duration::from_secs(120), async {
         let (_fixture, db, _other) = fixture().await;
-        let sql = Box::leak(format!("{BASE} {API}").into_boxed_str());
+        let sql = include_str!("../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/initial.surql");
         let owner = module("store", "fixture_marker", ModuleLayer::Kernel, vec![migration(0, "initial", sql, vec![])], vec![]);
         let api = KernelSqlApi::new(
             FunctionName::new("fn::kernel::store::update_v1").unwrap(), MigrationVersion::new(0),
@@ -615,22 +619,22 @@ async fn native_owned_update_api_and_caller_settle_or_roll_back_in_one_transacti
             .execution(owner.execution().clone()).lane(owner.lane().clone()).sql_apis(vec![api]).build().unwrap();
         let prerequisite = LaneRequirement::AtLeast { module: name("store"), version: MigrationVersion::new(0) };
         let failed = module("consumer", "fixture_optional", ModuleLayer::Optional,
-            vec![migration(0, "settle", "fn::kernel::store::update_v1(fixture_marker:base,'released'); DEFINE TABLE fixture_optional; CREATE fixture_optional:one SET value='settled'; THROW 'controlled failure';", vec![prerequisite.clone()])], vec![prerequisite.clone()]);
+            vec![migration(0, "settle", include_str!("../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/settle_failed.surql"), vec![prerequisite.clone()])], vec![prerequisite.clone()]);
         let registry = ModuleRegistry::new(vec![owner.clone(), failed]).unwrap();
         let prepared = prepare(registry.select(vec![name("consumer")]).unwrap()).unwrap();
         assert!(prepared.apply(&db).await.is_err());
-        let mut values = db.query("SELECT VALUE value FROM fixture_marker;").await.unwrap().check().unwrap();
+        let mut values = db.query(include_str!("../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/select_value_value_from.surql")).await.unwrap().check().unwrap();
         let values: Vec<String> = values.take(0).unwrap();
         assert_eq!(values, vec!["base"]);
-        let absent = db.query("SELECT * FROM fixture_optional;").await.unwrap().check().unwrap_err();
+        let absent = db.query(include_str!("../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/select_from_fixture_optional.surql")).await.unwrap().check().unwrap_err();
         assert!(absent.to_string().contains("does not exist"));
         assert_eq!(prepared.status(&db).await.unwrap().lane(&name("consumer")).unwrap().current, None);
         let successful = module("consumer", "fixture_optional", ModuleLayer::Optional,
-            vec![migration(0, "settle", "fn::kernel::store::update_v1(fixture_marker:base,'released'); DEFINE TABLE fixture_optional; CREATE fixture_optional:one SET value='settled';", vec![prerequisite.clone()])], vec![prerequisite]);
+            vec![migration(0, "settle", include_str!("../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/settle_success.surql"), vec![prerequisite.clone()])], vec![prerequisite]);
         let registry = ModuleRegistry::new(vec![owner, successful]).unwrap();
         let prepared = prepare(registry.select(vec![name("consumer")]).unwrap()).unwrap();
         prepared.apply(&db).await.unwrap();
-        let mut values = db.query("SELECT VALUE value FROM fixture_marker;").await.unwrap().check().unwrap();
+        let mut values = db.query(include_str!("../../queries/tests/executor/native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction/select_value_value_from.surql")).await.unwrap().check().unwrap();
         let values: Vec<String> = values.take(0).unwrap();
         assert_eq!(values, vec!["released"]);
         assert_eq!(markers(&db, "fixture_optional").await.len(), 1);
@@ -641,36 +645,9 @@ async fn native_owned_update_api_and_caller_settle_or_roll_back_in_one_transacti
 #[tokio::test]
 #[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
 async fn native_current_schema_values_views_and_guarded_events() {
-    const SQL: &str = "
-DEFINE FUNCTION fn::store::first($value: string) -> string { RETURN fn::store::second($value); };
-DEFINE FUNCTION fn::store::second($value: string) -> string { RETURN string::lowercase($value); };
-DEFINE FUNCTION fn::store::exists($id: record<fixture_marker>) -> bool { RETURN record::exists($id); };
-DEFINE TABLE fixture_marker SCHEMAFULL;
-DEFINE FIELD state ON fixture_marker TYPE 'queued' | 'running';
-DEFINE FIELD tags ON fixture_marker TYPE array<string> VALUE $value.distinct() ASSERT $value.all(|$item: any| string::len($item)>0);
-DEFINE FIELD digest ON fixture_marker TYPE string ASSERT $value.len()=64;
-DEFINE FIELD sealed ON fixture_marker TYPE {nonce:string, version:int};
-DEFINE FIELD target ON fixture_marker TYPE option<record> ASSERT $value=NONE OR record::tb($value)!='';
-DEFINE FIELD nonce ON fixture_marker TYPE uuid DEFAULT rand::uuid();
-DEFINE FIELD replacement ON fixture_marker TYPE option<uuid> ASSERT $value=NONE OR $value!=$this.nonce;
-DEFINE FIELD sequence ON fixture_marker TYPE int DEFAULT 0;
-DEFINE TABLE fixture_uuid SCHEMAFULL;
-DEFINE FIELD id ON fixture_uuid TYPE uuid DEFAULT rand::uuid();
-DEFINE TABLE fixture_relation TYPE RELATION IN fixture_marker OUT fixture_marker ENFORCED;
-DEFINE TABLE fixture_daily TYPE ANY SCHEMALESS AS SELECT state, count() AS count FROM fixture_marker GROUP BY state;
-DEFINE TABLE fixture_head SCHEMAFULL;
-DEFINE FIELD last_sequence ON fixture_head TYPE int;
-CREATE fixture_head:current SET last_sequence=0;
-DEFINE EVENT advance ON fixture_marker WHEN $after.sequence>0 AND $before.sequence!=$after.sequence THEN {
-    LET $head=SELECT * FROM ONLY fixture_head:current;
-    IF type::is_object($head) THEN {
-        IF $after.sequence<=$head.last_sequence { THROW 'sequence conflict'; };
-        UPDATE ONLY fixture_head:current SET last_sequence=$after.sequence;
-    } ELSE { THROW 'missing head'; } END;
-};
-CREATE fixture_marker:one SET state=fn::store::first('QUEUED'), tags=['pin','pin'], digest=crypto::sha256('input'), sealed={nonce:'opaque',version:1}, target=fixture_other:one, sequence=1;
-CREATE fixture_uuid;
-";
+    const SQL: &str = include_str!(
+        "../../queries/tests/executor/native_current_schema_values_views_and_guarded_events/sql.surql"
+    );
     tokio::time::timeout(Duration::from_secs(120), async {
         let (_fixture, db, _other) = fixture().await;
         let catalog = ModuleRegistry::new(vec![
@@ -697,7 +674,7 @@ CREATE fixture_uuid;
             .await
             .unwrap();
         let mut tags = db
-            .query("SELECT VALUE tags FROM fixture_marker;")
+            .query(include_str!("../../queries/tests/executor/native_current_schema_values_views_and_guarded_events/select_value_tags_from.surql"))
             .await
             .unwrap()
             .check()
@@ -705,7 +682,7 @@ CREATE fixture_uuid;
         let tags: Vec<Vec<String>> = tags.take(0).unwrap();
         assert_eq!(tags, vec![vec!["pin"]]);
         let mut head = db
-            .query("SELECT VALUE last_sequence FROM fixture_head;")
+            .query(include_str!("../../queries/tests/executor/native_current_schema_values_views_and_guarded_events/select_value_last_sequence_from.surql"))
             .await
             .unwrap()
             .check()
@@ -713,7 +690,7 @@ CREATE fixture_uuid;
         let head: Vec<i64> = head.take(0).unwrap();
         assert_eq!(head, vec![1]);
         let mut counts = db
-            .query("SELECT VALUE count FROM fixture_daily;")
+            .query(include_str!("../../queries/tests/executor/native_current_schema_values_views_and_guarded_events/select_value_count_from.surql"))
             .await
             .unwrap()
             .check()
@@ -722,14 +699,14 @@ CREATE fixture_uuid;
         assert_eq!(counts, vec![1]);
         assert_eq!(markers(&db, "fixture_uuid").await.len(), 1);
         assert!(
-            db.query("RETURN fn::store::exists(fixture_other:one);")
+            db.query(include_str!("../../queries/tests/executor/native_current_schema_values_views_and_guarded_events/return_fn_store_exists.surql"))
                 .await
                 .unwrap()
                 .check()
                 .is_err()
         );
         assert!(
-            db.query("CREATE fixture_marker:bad SET state='invalid';")
+            db.query(include_str!("../../queries/tests/executor/native_current_schema_values_views_and_guarded_events/create_fixture_marker_bad_set.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -744,7 +721,9 @@ CREATE fixture_uuid;
 #[tokio::test]
 #[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
 async fn native_private_function_effects_share_the_caller_transaction() {
-    const SQL: &str = "DEFINE TABLE fixture_marker SCHEMAFULL; DEFINE FIELD value ON fixture_marker TYPE string; CREATE fixture_marker:base SET value='base'; DEFINE FUNCTION fn::store::write($id: record<fixture_marker>, $value: string) -> bool { UPDATE ONLY $id SET value=$value RETURN NONE; RETURN true; }; DEFINE FUNCTION fn::store::outer($id: record<fixture_marker>, $value: string) -> bool { RETURN fn::store::write($id,$value); };";
+    const SQL: &str = include_str!(
+        "../../queries/tests/executor/native_private_function_effects_share_the_caller_transaction/sql.surql"
+    );
     tokio::time::timeout(Duration::from_secs(120), async {
         let (_fixture, db, _other) = fixture().await;
         let base = module("store", "fixture_marker", ModuleLayer::Kernel, vec![migration(0, "base", SQL, vec![])], vec![]);
@@ -754,15 +733,15 @@ async fn native_private_function_effects_share_the_caller_transaction() {
         let baseline = ModuleRegistry::new(vec![owner.clone()]).unwrap();
         prepare(baseline.select(vec![]).unwrap()).unwrap().apply(&db).await.unwrap();
         for (sql, succeeds) in [
-            ("fn::store::outer(fixture_marker:base,'changed'); CREATE fixture_marker:side SET value='side'; THROW 'controlled failure';", false),
-            ("fn::store::outer(fixture_marker:base,'changed'); CREATE fixture_marker:side SET value='side';", true),
+            (include_str!("../../queries/tests/executor/native_private_function_effects_share_the_caller_transaction/fn_store_outer_fixture_marker.surql"), false),
+            (include_str!("../../queries/tests/executor/native_private_function_effects_share_the_caller_transaction/fn_store_outer_fixture_marker_2.surql"), true),
         ] {
             let updated = ModuleSetup::builder(owner.name().clone(), owner.layer()).ownership(owner.ownership().to_vec()).execution(owner.execution().clone())
                 .lane(MigrationLane::new(vec![migration(0,"base",SQL,vec![]), migration(1,"settle",sql,vec![])]).unwrap()).build().unwrap();
             let catalog = ModuleRegistry::new(vec![updated]).unwrap();
             let prepared = prepare(catalog.select(vec![]).unwrap()).unwrap();
             assert_eq!(prepared.apply(&db).await.is_ok(), succeeds);
-            let mut rows = db.query("SELECT VALUE value FROM ONLY fixture_marker:base;").await.unwrap().check().unwrap();
+            let mut rows = db.query(include_str!("../../queries/tests/executor/native_private_function_effects_share_the_caller_transaction/select_value_value_from.surql")).await.unwrap().check().unwrap();
             let value: Option<String> = rows.take(0).unwrap();
             assert_eq!(value.as_deref(), Some(if succeeds { "changed" } else { "base" }));
             assert_eq!(markers(&db,"fixture_marker").await.len(), if succeeds {2} else {1});

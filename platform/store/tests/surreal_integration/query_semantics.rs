@@ -9,12 +9,7 @@ async fn conditional_writes_test_the_stored_value_before_applying_changes() {
         let mut response =
             db.a.client()
                 .query(
-                    "CREATE upgrade_guard:one SET revision = 1;
-             UPDATE upgrade_guard:one SET revision = 2 WHERE revision = 1;
-             UPSERT upgrade_guard:one SET revision = 3 WHERE revision = 2;
-             UPDATE upgrade_guard:one SET revision = 4 WHERE revision = 4;
-             UPSERT upgrade_guard:one SET revision = 5 WHERE revision = 5;
-             SELECT VALUE revision FROM ONLY upgrade_guard:one;",
+                    include_str!("../queries/surreal_integration/query_semantics/conditional_writes_test_the_stored_value_before_applying_changes.surql"),
                 )
                 .await
                 .unwrap()
@@ -32,21 +27,21 @@ async fn locked_exact_reads_conflict_with_concurrent_updates_and_insertions() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::with_backend(StoreBackend::RocksDb).await;
         db.a.client()
-            .query("DEFINE TABLE upgrade_pointer SCHEMALESS; DEFINE TABLE upgrade_decision SCHEMALESS;")
+            .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions.surql"))
             .await
             .unwrap()
             .check()
             .unwrap();
         for present in [false, true] {
             db.a.client()
-                .query("DELETE upgrade_pointer:one; DELETE upgrade_decision:one;")
+                .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions_2.surql"))
                 .await
                 .unwrap()
                 .check()
                 .unwrap();
             if present {
                 db.a.client()
-                    .query("CREATE upgrade_pointer:one SET revision = 1;")
+                    .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions_3.surql"))
                     .await
                     .unwrap()
                     .check()
@@ -54,19 +49,19 @@ async fn locked_exact_reads_conflict_with_concurrent_updates_and_insertions() {
             }
             let transaction = db.a.client().clone().begin().await.unwrap();
             transaction
-                .query("SELECT * FROM ONLY upgrade_pointer:one FOR UPDATE;")
+                .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions_4.surql"))
                 .await
                 .unwrap()
                 .check()
                 .unwrap();
             db.b.client()
-                .query("UPSERT upgrade_pointer:one SET revision = 2;")
+                .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions_5.surql"))
                 .await
                 .unwrap()
                 .check()
                 .unwrap();
             transaction
-                .query("CREATE upgrade_decision:one SET accepted = true;")
+                .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions_6.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -77,7 +72,7 @@ async fn locked_exact_reads_conflict_with_concurrent_updates_and_insertions() {
             );
             let count: Option<i64> =
                 db.b.client()
-                    .query("RETURN array::len(SELECT * FROM upgrade_decision);")
+                    .query(include_str!("../queries/surreal_integration/query_semantics/locked_exact_reads_conflict_with_concurrent_updates_and_insertions_7.surql"))
                     .await
                     .unwrap()
                     .check()

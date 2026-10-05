@@ -1,0 +1,1 @@
+SELECT count() AS batch_count, math::sum(byte_len) AS byte_len FROM recording_ingest_batch WHERE tenant = $tenant AND producer_id = $producer_id AND created_at >= $started_at AND created_at < $ends_at GROUP ALL;

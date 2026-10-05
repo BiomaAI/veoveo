@@ -13,7 +13,13 @@ use std::time::Duration;
 #[tokio::test]
 async fn native_world_pages_and_completion_filter_before_limits() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let writer = FramesState::new(db.a.clone());
         let reader = FramesState::new(db.b.clone());
         let owner = scope(&db.a, "world-pages", "author", &["cui"]).await;
@@ -37,31 +43,88 @@ async fn native_world_pages_and_completion_filter_before_limits() {
         let second = reader.worlds_page(&owner, Some(cursor)).await.unwrap();
         assert_eq!(second.items.len(), 26);
         assert!(second.next_cursor.is_none());
-        assert_eq!(first.items.iter().chain(second.items.iter()).map(|world| world.world_id().clone()).collect::<Vec<_>>(), expected);
-        assert_eq!(reader.complete_worlds(&owner, "NEEDLE").await.unwrap(), vec![matching]);
+        assert_eq!(
+            first
+                .items
+                .iter()
+                .chain(second.items.iter())
+                .map(|world| world.world_id().clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            reader.complete_worlds(&owner, "NEEDLE").await.unwrap(),
+            vec![matching]
+        );
         let completions = reader.complete_worlds(&owner, "").await.unwrap();
         assert_eq!(completions, expected[..101]);
-        assert!(reader.complete_worlds(&owner, "a-").await.unwrap().is_empty());
+        assert!(
+            reader
+                .complete_worlds(&owner, "a-")
+                .await
+                .unwrap()
+                .is_empty()
+        );
         assert!(reader.complete_worlds(&owner, "\n").await.is_err());
-        assert!(reader.complete_worlds(&owner, &"x".repeat(513)).await.is_err());
+        assert!(
+            reader
+                .complete_worlds(&owner, &"x".repeat(513))
+                .await
+                .is_err()
+        );
         // Cursors carry a key, not authority for the identity that minted them.
-        assert!(reader.worlds_page(&foreign, Some(cursor)).await.unwrap().items.is_empty());
-        db.a.client().query("UPDATE frame_world SET labels = ['cui', 'mission'] WHERE tenant = $tenant AND world_key > $after RETURN NONE;")
+        assert!(
+            reader
+                .worlds_page(&foreign, Some(cursor))
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        db.a.client()
+            .query(include_str!(
+                "../../tests/queries/restrict_page_worlds.surql"
+            ))
             .bind(("tenant", owner.identity.tenant_id.record_id()))
             .bind(("after", cursor.after().to_string()))
-            .await.unwrap().check().unwrap();
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         let revoked = reader.worlds_page(&owner, Some(cursor)).await.unwrap();
         assert!(revoked.items.is_empty());
         assert!(revoked.next_cursor.is_none());
-        assert!(reader.complete_worlds(&owner, "needle").await.unwrap().is_empty());
-        assert_eq!(reader.worlds_page(&denied_labels, Some(cursor)).await.unwrap().items.len(), 26);
-    }).await.expect("world catalog qualification exceeded 90 seconds");
+        assert!(
+            reader
+                .complete_worlds(&owner, "needle")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            reader
+                .worlds_page(&denied_labels, Some(cursor))
+                .await
+                .unwrap()
+                .items
+                .len(),
+            26
+        );
+    })
+    .await
+    .expect("world catalog qualification exceeded 90 seconds");
 }
 
 #[tokio::test]
 async fn native_revision_and_frame_completions_bind_visible_parents_before_limits() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let writer = FramesState::new(db.a.clone());
         let reader = FramesState::new(db.b.clone());
         let owner = scope(&db.a, "completions", "owner", &["cui"]).await;
@@ -165,7 +228,7 @@ async fn native_revision_and_frame_completions_bind_visible_parents_before_limit
                 .is_empty()
         );
         db.a.client()
-            .query("DELETE frame_world WHERE tenant = $tenant AND world_key = $world RETURN NONE;")
+            .query(include_str!("../../tests/queries/delete_named_world.surql"))
             .bind(("tenant", owner.identity.tenant_id.record_id()))
             .bind(("world", world.to_string()))
             .await

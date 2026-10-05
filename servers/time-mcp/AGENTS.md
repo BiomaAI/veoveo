@@ -28,7 +28,7 @@ leap second assumptions.
 - Deterministic resolution and conversion do not contain a live clock
   observation. `time://clock/current` carries the effective clock policy and
   measured quality, including holdover evidence.
-- Durable state lives in the SurrealDB platform tables (`time_*`) and the
+- Durable state lives in its SurrealDB owner tables (`time_*`) and the
   authority release volume under `/var/lib/veoveo/time`. The server never
   applies migrations. Tenant engine caches are derived and rebuilt from the
   active release pair.
@@ -61,13 +61,13 @@ leap second assumptions.
 - `cargo clippy -p veoveo-time-mcp --no-default-features --features runtime --all-targets -- -D warnings`
   checks runtime composition independently from the MCP feature.
 - Time owns its private `src/persistence/` queries, driver records and mutation
-  validation. Store owns migrations `0019_time_domain.surql` and
-  `0043_time_acquisition_release_index.surql`, and
-  `0102_time_provenance.surql`. Activation uses exact-ID locked reads
+  validation. Its `src/schema/` declaration owns the selected Time migration lane.
+  Activation uses exact-ID locked reads
   of both pointers, including absence, and their preflight releases. Preserve full
   snapshot comparison and qualify cross-family contention on RocksDB.
   Runtime library tests use the shared
-  isolated SurrealDB fixture; schema changes also require Store migration checks.
+  isolated SurrealDB fixture with the Time lane selected; schema changes require
+  fresh lane admission and persistence checks.
 - `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` checks
   page navigation behavior headlessly; it provides no visual or GPU acceptance.
 - The container builds from `servers/time-mcp/Dockerfile` (needs Docker);

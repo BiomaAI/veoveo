@@ -29,9 +29,11 @@ a workload because its schema prerequisite was selected.
 
 Ordinary preparation, per-lane migration and control-plane publication Jobs may start
 concurrently. Gateway commands wait for database readiness and the matching completed
-preparation proof; publication also waits for selected lanes. Preparation explicitly
-runs the mixed Store bootstrap before the new lanes until the ownership cut. This
-prologue does not certify mixed SQL as owner-lane SQL. Runtime credentials serve
+preparation proof; publication also waits for selected lanes. The existing
+`installation-bootstrap` Job runs `installation-prepare` to provision the database
+and generation-fenced runtime credentials. Per-owner Jobs install the selected
+current schemas; a separate runtime-authenticated Job publishes the control plane.
+Runtime credentials serve
 publication and gateway traffic. Root migration credentials enter only preparation
 and lane Jobs, apart from the database's own root provisioning input.
 

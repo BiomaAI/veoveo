@@ -117,6 +117,7 @@ impl ComputersStore {
 
         let params = vec![
             crate::audit::binding(
+                self.platform.audit_targets(),
                 actor.accepted(),
                 id,
                 crate::audit::Transition::accepted(

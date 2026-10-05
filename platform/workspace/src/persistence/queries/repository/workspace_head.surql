@@ -1,0 +1,1 @@
+RETURN $command.sequence;

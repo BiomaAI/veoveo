@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state != 'sealing' OR $current.manifest_artifact != $manifest { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealed', sealed_at = $sealed_at, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN NONE; COMMIT TRANSACTION;

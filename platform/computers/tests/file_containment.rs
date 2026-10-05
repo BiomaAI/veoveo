@@ -47,7 +47,9 @@ fn stopped(operation: &FileOperation) -> ReachedState {
 async fn slots(db: &support::TestDb) -> usize {
     let mut read =
         db.a.client()
-            .query("SELECT * FROM computer_execution_slot;")
+            .query(include_str!(
+                "queries/file_containment/slots/statement_1.surql"
+            ))
             .await
             .unwrap()
             .check()
@@ -56,7 +58,14 @@ async fn slots(db: &support::TestDb) -> usize {
     rows.len()
 }
 async fn ready_read(db: &support::TestDb) {
-    db.a.client().query("UPDATE computer_file_transfer SET next_containment_read=time::now()-1s WHERE containment_reads > 0;").await.unwrap().check().unwrap();
+    db.a.client()
+        .query(include_str!(
+            "queries/file_containment/ready_read/statement_1.surql"
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 }
 async fn read_ticket(store: &ComputersStore, claim: &ClaimedTask) -> FileContainmentRead {
     match store.admit_file_containment_read(claim).await.unwrap() {
@@ -67,7 +76,7 @@ async fn read_ticket(store: &ComputersStore, claim: &ClaimedTask) -> FileContain
 
 #[tokio::test]
 async fn cancelled_file_is_settled_only_after_original_run_termination() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, claim, grant) = dispatched(&db).await;
     let operation = a.file_for_claim(&claim).await.unwrap();
     let computer = operation.computer_id();
@@ -157,7 +166,7 @@ async fn cancelled_file_is_settled_only_after_original_run_termination() {
 
 #[tokio::test]
 async fn an_owner_stop_can_abort_before_containment_gets_its_first_stop_ticket() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, claim, _) = dispatched(&db).await;
     let computer = a.file_for_claim(&claim).await.unwrap().computer_id();
     let stop = a
@@ -198,7 +207,7 @@ async fn an_owner_stop_can_abort_before_containment_gets_its_first_stop_ticket()
 
 #[tokio::test]
 async fn containment_does_not_clear_an_independent_owner_stop_fence() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, claim, _) = dispatched(&db).await;
     let computer = a.file_for_claim(&claim).await.unwrap().computer_id();
     let stop = a
@@ -245,7 +254,7 @@ async fn containment_does_not_clear_an_independent_owner_stop_fence() {
 
 #[tokio::test]
 async fn wrong_run_evidence_and_exhausted_reads_keep_the_slot_across_workers() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, claim, _) = dispatched(&db).await;
     let computer = a.file_for_claim(&claim).await.unwrap().computer_id();
     a.begin_file_containment(&claim, FileInterruption::ExecutionUnknown)
@@ -299,7 +308,7 @@ async fn wrong_run_evidence_and_exhausted_reads_keep_the_slot_across_workers() {
         .a
         .client()
         .query(
-            "SELECT * FROM audit_record WHERE activity = 'computer_file_transfer' AND draft.detail.stage = 'recovery_required';",
+            include_str!("queries/file_containment/wrong_run_evidence_and_exhausted_reads_keep_the_slot_across_workers/statement_1.surql"),
         )
         .await
         .unwrap()
@@ -311,7 +320,7 @@ async fn wrong_run_evidence_and_exhausted_reads_keep_the_slot_across_workers() {
 
 #[tokio::test]
 async fn queued_cancellation_releases_only_an_undispatched_slot() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -379,13 +388,13 @@ async fn queued_cancellation_releases_only_an_undispatched_slot() {
 
 #[tokio::test]
 async fn an_expired_containment_deadline_cannot_gain_a_new_budget_after_restart() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, _, claim, _) = dispatched(&db).await;
     a.begin_file_containment(&claim, FileInterruption::ExecutionUnknown)
         .await
         .unwrap();
     // Backdate this isolated fixture's coherent event times instead of waiting three minutes.
-    db.a.client().query("LET $now=time::now(); UPDATE computer_file_transfer SET created_at=$now-300s, dispatched_at=$now-299s, execution_deadline=$now-270s, containment_started_at=$now-240s, containment_deadline=$now-60s;")
+    db.a.client().query(include_str!("queries/file_containment/an_expired_containment_deadline_cannot_gain_a_new_budget_after_restart/statement_1.surql"))
         .await.unwrap().check().unwrap();
     assert!(a.admit_file_stop(&claim).await.unwrap().is_none());
     assert!(matches!(
@@ -395,7 +404,7 @@ async fn an_expired_containment_deadline_cannot_gain_a_new_budget_after_restart(
     assert_eq!(slots(&db).await, 1);
     let mut response =
         db.a.client()
-            .query("SELECT VALUE containment_reads FROM computer_file_transfer;")
+            .query(include_str!("queries/file_containment/an_expired_containment_deadline_cannot_gain_a_new_budget_after_restart/statement_2.surql"))
             .await
             .unwrap()
             .check()
@@ -406,14 +415,14 @@ async fn an_expired_containment_deadline_cannot_gain_a_new_budget_after_restart(
 
 #[tokio::test]
 async fn containment_cannot_stop_or_settle_a_replacement_run() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, claim, _) = dispatched(&db).await;
     let file = a
         .begin_file_containment(&claim, FileInterruption::ExecutionUnknown)
         .await
         .unwrap();
     db.a.client()
-        .query("UPDATE $computer SET process_id='replacement-run';")
+        .query(include_str!("queries/file_containment/containment_cannot_stop_or_settle_a_replacement_run/statement_1.surql"))
         .bind(("computer", computer_record(file.computer_id())))
         .await
         .unwrap()

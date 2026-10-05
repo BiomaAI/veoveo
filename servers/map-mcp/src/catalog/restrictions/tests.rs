@@ -52,10 +52,10 @@ fn restriction(n: usize, at: DateTime<Utc>) -> Restriction {
         record_version: 1,
     }
 }
-async fn change(store: &PlatformStore, id: &RestrictionId, fields: &str) {
+async fn change(store: &PlatformStore, id: &RestrictionId, sql: &str) {
     store
         .client()
-        .query(format!("UPDATE ONLY $id SET {fields} RETURN NONE;"))
+        .query(sql)
         .bind(("id", RecordId::new("map_restriction", id.as_str())))
         .await
         .unwrap()
@@ -66,7 +66,7 @@ async fn change(store: &PlatformStore, id: &RestrictionId, fields: &str) {
 #[tokio::test]
 async fn pages_and_completion_apply_tenant_before_limits_and_recheck_continuations() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "restrictions", "author").await;
@@ -78,7 +78,7 @@ async fn pages_and_completion_apply_tenant_before_limits_and_recheck_continuatio
                 .create_restriction(&foreign, restriction(n, at))
                 .await
                 .unwrap();
-            change(&db.a, &id(n), "canonical_json = '{'").await;
+            change(&db.a, &id(n), include_str!("../../queries/catalog/restrictions/tests/mutation_01.surql")).await;
         }
         for n in 1000..1125 {
             writer
@@ -152,7 +152,7 @@ async fn pages_and_completion_apply_tenant_before_limits_and_recheck_continuatio
         // A cursor supplies position only; moving a row to another tenant immediately
         // changes both exact reads and the next page.
         db.a.client()
-            .query("UPDATE ONLY $id SET tenant = $tenant RETURN NONE;")
+            .query(include_str!("../../queries/catalog/restrictions/tests/pages_and_completion_apply_tenant_before_limits_and_recheck_continuations/statement_1.surql"))
             .bind(("id", RecordId::new("map_restriction", id(1100).as_str())))
             .bind(("tenant", foreign.identity.tenant_id.record_id()))
             .await
@@ -202,7 +202,11 @@ async fn pages_and_completion_apply_tenant_before_limits_and_recheck_continuatio
 #[tokio::test]
 async fn operational_selection_uses_half_open_time_family_and_withdrawal_in_sql() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "operational", "author").await;
@@ -227,7 +231,12 @@ async fn operational_selection_uses_half_open_time_family_and_withdrawal_in_sql(
         writer.create_restriction(&owner, cancelled).await.unwrap();
         // Nonmatching malformed documents prove the SQL predicates precede decoding.
         for n in [1001, 1002, 1003, 1004] {
-            change(&db.a, &id(n), "canonical_json = '{'").await;
+            change(
+                &db.a,
+                &id(n),
+                include_str!("../../queries/catalog/restrictions/tests/mutation_02.surql"),
+            )
+            .await;
         }
         let selected = reader
             .effective_restrictions(&owner, at, Some(MobilityFamily::Human))
@@ -273,21 +282,21 @@ async fn operational_selection_uses_half_open_time_family_and_withdrawal_in_sql(
 #[tokio::test]
 async fn selected_record_must_agree_with_indexed_identity_filters_and_version() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
         let owner = scope(&db.a, "retained", "author").await;
         let at = Utc::now();
         for (n, mutation) in [
-            "restriction_key = 'restriction-ffffffff-0000-7000-8000-000000000000'",
-            "kind = 'unknown'",
-            "effect_kind = 'prohibit'",
-            "affected_mobility_families = ['human']",
-            "valid_from = d'2000-01-01T00:00:00Z'",
-            "valid_until = d'2100-01-01T00:00:00Z'",
-            "cancelled_by = 'restriction-ffffffff-0000-7000-8000-000000000000'",
-            "record_version = 2",
-            "canonical_json = '{'",
+            include_str!("../../queries/catalog/restrictions/tests/mutation_03.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_04.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_05.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_06.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_07.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_08.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_09.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_10.surql"),
+            include_str!("../../queries/catalog/restrictions/tests/mutation_11.surql"),
         ]
         .into_iter()
         .enumerate()
@@ -309,7 +318,7 @@ async fn selected_record_must_agree_with_indexed_identity_filters_and_version() 
                     .is_err()
             );
             db.a.client()
-                .query("DELETE ONLY $id;")
+                .query(include_str!("../../queries/catalog/restrictions/tests/selected_record_must_agree_with_indexed_identity_filters_and_version/statement_1.surql"))
                 .bind(("id", RecordId::new("map_restriction", id(n).as_str())))
                 .await
                 .unwrap()
@@ -320,7 +329,7 @@ async fn selected_record_must_agree_with_indexed_identity_filters_and_version() 
             .create_restriction(&owner, restriction(99, at))
             .await
             .unwrap();
-        change(&db.a, &id(99), "restriction_key = 'malformed'").await;
+        change(&db.a, &id(99), include_str!("../../queries/catalog/restrictions/tests/mutation_12.surql")).await;
         assert!(
             reader
                 .complete_restrictions(&owner, "malformed")
@@ -335,7 +344,11 @@ async fn selected_record_must_agree_with_indexed_identity_filters_and_version() 
 #[tokio::test]
 async fn effective_selection_never_silently_truncates_constraints() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
         let owner = scope(&db.a, "limit", "author").await;
         let at = Utc::now();
         let rows: Vec<_> = (0..=MAX_EFFECTIVE_RESTRICTIONS)
@@ -360,7 +373,9 @@ async fn effective_selection_never_silently_truncates_constraints() {
         // not let a transport error print an encoded multi-megabyte request.
         for (batch, rows) in rows.chunks(250).enumerate() {
             db.a.client()
-                .query("INSERT INTO map_restriction $rows RETURN NONE;")
+                .query(include_str!(
+                    "../../queries/catalog/restrictions/tests/bulk_restrictions.surql"
+                ))
                 .bind(("rows", rows.to_vec()))
                 .await
                 .unwrap_or_else(|_| panic!("restriction fixture batch {batch} transport failed"))

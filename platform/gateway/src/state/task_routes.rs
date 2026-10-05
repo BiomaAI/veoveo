@@ -134,7 +134,9 @@ impl GatewayState {
             let mut response = self
                 .platform
                 .client()
-                .query("CREATE ONLY $record CONTENT $content;")
+                .query(include_str!(
+                    "../queries/state/task_routes/create_task_route/statement_1.surql"
+                ))
                 .bind(("record", record_id))
                 .bind(("content", content.clone()))
                 .await?
@@ -163,14 +165,18 @@ impl GatewayState {
         &self,
         content: &GatewayTaskRouteContent,
     ) -> Result<Option<GatewayTaskRouteRecord>, StoreError> {
-        let mut response = self.platform.client().query(
-            "SELECT * FROM gateway_task_route WHERE server = $server AND source_task_id = $source
-             AND owner = $owner AND profile = $profile LIMIT 1;",
-        ).bind(("server", content.server.clone()))
+        let mut response = self
+            .platform
+            .client()
+            .query(include_str!(
+                "../queries/state/task_routes/task_route_for_source/statement_1.surql"
+            ))
+            .bind(("server", content.server.clone()))
             .bind(("source", content.source_task_id.clone()))
             .bind(("owner", content.owner.clone()))
             .bind(("profile", content.profile.clone()))
-            .await?.check()?;
+            .await?
+            .check()?;
         let mut rows: Vec<GatewayTaskRouteRecord> = response.take(0)?;
         Ok(rows.pop())
     }
@@ -183,7 +189,9 @@ impl GatewayState {
         let mut response = self
             .platform
             .client()
-            .query("SELECT * FROM ONLY $record WHERE expires_at > time::now();")
+            .query(include_str!(
+                "../queries/state/task_routes/task_route/statement_1.surql"
+            ))
             .bind(("record", record))
             .await?
             .check()?;

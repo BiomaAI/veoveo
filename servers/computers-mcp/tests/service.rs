@@ -124,7 +124,7 @@ async fn selected_configuration_validates_pins_and_trust_before_provider_connect
 #[tokio::test]
 async fn service_reports_setup_or_outage_and_stops_without_waiting_for_compute() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     let signing = signing::Signing::new();
     let files = configuration::Files::new();

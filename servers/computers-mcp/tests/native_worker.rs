@@ -64,7 +64,7 @@ async fn expire(tasks: &TaskRuntime, operation: &Operation) {
     tasks
         .platform_store()
         .client()
-        .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
+        .query(include_str!("queries/native_worker/expire.surql"))
         .bind(("task", task_record_id(operation.task_id())))
         .await
         .unwrap()
@@ -103,7 +103,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         native_service_support::cleanup();
         return;
     }
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     support::policy::install_default(&db.a).await;
     let image = std::env::var("VEOVEO_COMPUTERS_NATIVE_IMAGE").expect("pinned Computer image");
     let selected = template::retained_template(image);
@@ -403,7 +403,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     let preparations = gate.preparations.load(Ordering::SeqCst);
     for _ in 0..8 {
         db.a.client()
-            .query("UPDATE ONLY $operation SET next_observation_at = time::now() - 1s;")
+            .query(include_str!("queries/native_worker/worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_fenced.surql"))
             .bind((
                 "operation",
                 surrealdb::types::RecordId::new(

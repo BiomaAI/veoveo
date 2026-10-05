@@ -16,9 +16,9 @@ use rig::{
     tool::DeferredToolLifecycleEvent,
 };
 use tokio::sync::Mutex;
+use veoveo_agent_runtime::persistence::AgentEpisodeId;
 use veoveo_agent_runtime::{AgentRuntime, NewAgentTask, json_object};
 use veoveo_mcp_contract::CanonicalTaskId;
-use veoveo_platform_store::AgentEpisodeId;
 use veoveo_task_runtime::TaskRetentionPin;
 
 use crate::background_tasks::BackgroundTaskDetached;

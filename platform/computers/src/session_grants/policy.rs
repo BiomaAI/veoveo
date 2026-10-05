@@ -48,7 +48,7 @@ impl ComputersStore {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let mut response = self
                 .query(
-                    "SELECT * FROM ONLY $policy;",
+                    include_str!("../../queries/session_grants/policy/session_grant_policy.surql"),
                     vec![("policy", self.session_policy_record().into_value())],
                 )
                 .await?;

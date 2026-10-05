@@ -1,0 +1,1 @@
+DELETE $dataset RETURN NONE;

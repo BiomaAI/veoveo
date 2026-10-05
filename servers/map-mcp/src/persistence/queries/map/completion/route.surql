@@ -1,0 +1,1 @@
+SELECT VALUE candidate FROM (SELECT route_key AS candidate FROM map_route WHERE tenant = $tenant AND owner = $owner AND string::lowercase(route_key) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT 101);

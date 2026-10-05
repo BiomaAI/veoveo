@@ -12,9 +12,7 @@ use axum::{
 };
 use prost::Message;
 use veoveo_mcp_contract::{GatewayInternalResourceIdentity, GatewayInternalResourceTokenVerifier};
-use veoveo_platform_store::{
-    RecordingIngestQuota as StoreRecordingIngestQuota, RecordingIngestStreamId, StoreError,
-};
+use veoveo_platform_store::StoreError;
 use veoveo_recording_protocol::{
     BatchValidationError, MEDIA_TYPE,
     v1::{
@@ -23,6 +21,9 @@ use veoveo_recording_protocol::{
         AuthorizedRecordingProducer, FinishRecordingStreamResult, IngestError, IngestErrorCode,
         RecordingIngestQuota as ProtocolRecordingIngestQuota, RecordingStreamFinishMode,
     },
+};
+use veoveo_recording_store::{
+    RecordingIngestQuota as StoreRecordingIngestQuota, RecordingIngestStreamId, RecordingStoreError,
 };
 
 use crate::RecordingIngestService;
@@ -552,44 +553,44 @@ fn service_error(error: anyhow::Error) -> Response {
             ),
         };
     }
-    if let Some(store) = error.downcast_ref::<StoreError>() {
+    if let Some(store) = error.downcast_ref::<RecordingStoreError>() {
         return match store {
-            StoreError::RecordingIngestStreamNotFound(_) => ingest_error(
+            RecordingStoreError::RecordingIngestStreamNotFound(_) => ingest_error(
                 StatusCode::NOT_FOUND,
                 IngestErrorCode::StreamNotFound,
                 "recording ingest stream was not found",
                 None,
             ),
-            StoreError::RecordingIngestStreamStateConflict { .. }
-            | StoreError::RecordingIngestStreamExpired(_) => ingest_error(
+            RecordingStoreError::RecordingIngestStreamStateConflict { .. }
+            | RecordingStoreError::RecordingIngestStreamExpired(_) => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::StreamFinished,
                 &store.to_string(),
                 None,
             ),
-            StoreError::RecordingIngestSequenceGap { expected, .. } => ingest_error(
+            RecordingStoreError::RecordingIngestSequenceGap { expected, .. } => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::SequenceGap,
                 &store.to_string(),
                 Some(*expected),
             ),
-            StoreError::RecordingIngestDigestConflict { .. } => ingest_error(
+            RecordingStoreError::RecordingIngestDigestConflict { .. } => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::DigestConflict,
                 &store.to_string(),
                 None,
             ),
-            StoreError::RecordingBlueprintRevisionConflict { .. }
-            | StoreError::RecordingBlueprintRevisionGap { .. } => ingest_error(
+            RecordingStoreError::RecordingBlueprintRevisionConflict { .. }
+            | RecordingStoreError::RecordingBlueprintRevisionGap { .. } => ingest_error(
                 StatusCode::CONFLICT,
                 IngestErrorCode::BlueprintRevisionConflict,
                 &store.to_string(),
                 None,
             ),
-            StoreError::RecordingIngestQuotaExceeded { quota } => {
+            RecordingStoreError::RecordingIngestQuotaExceeded { quota } => {
                 ingest_quota_error(*quota, &store.to_string())
             }
-            StoreError::InvalidRecordingIngestField { .. } => ingest_error(
+            RecordingStoreError::InvalidRecordingIngestField { .. } => ingest_error(
                 StatusCode::BAD_REQUEST,
                 IngestErrorCode::InvalidRequest,
                 &store.to_string(),
@@ -597,14 +598,13 @@ fn service_error(error: anyhow::Error) -> Response {
             ),
             _ => {
                 tracing::warn!(error = %store, "recording ingest store operation failed");
-                ingest_error(
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    IngestErrorCode::StorageUnavailable,
-                    "recording ingest storage is unavailable",
-                    None,
-                )
+                storage_unavailable_error("recording ingest storage is unavailable")
             }
         };
+    }
+    if let Some(store) = error.downcast_ref::<StoreError>() {
+        tracing::warn!(error = %store, "recording ingest platform operation failed");
+        return storage_unavailable_error("recording ingest storage is unavailable");
     }
     let message = error.to_string();
     if message.contains("quota") || message.contains("byte limit") {
@@ -719,6 +719,52 @@ mod tests {
             quota_response(StoreRecordingIngestQuota::MaximumBytesPerDay),
             (ProtocolRecordingIngestQuota::MaximumBytesPerDay, Some(60))
         );
+    }
+
+    #[tokio::test]
+    async fn owner_and_kernel_errors_preserve_protocol_admission_and_redaction() {
+        let cases = [
+            (
+                anyhow::Error::new(RecordingStoreError::RecordingIngestStreamNotFound(
+                    "fixture".into(),
+                )),
+                StatusCode::NOT_FOUND,
+                IngestErrorCode::StreamNotFound,
+            ),
+            (
+                anyhow::Error::new(RecordingStoreError::RecordingIngestSequenceGap {
+                    expected: 2,
+                    actual: 3,
+                }),
+                StatusCode::CONFLICT,
+                IngestErrorCode::SequenceGap,
+            ),
+            (
+                anyhow::Error::new(StoreError::Knowledge("private storage detail")),
+                StatusCode::SERVICE_UNAVAILABLE,
+                IngestErrorCode::StorageUnavailable,
+            ),
+            (
+                anyhow::Error::new(RecordingStoreError::from(StoreError::Knowledge(
+                    "private storage detail",
+                ))),
+                StatusCode::SERVICE_UNAVAILABLE,
+                IngestErrorCode::StorageUnavailable,
+            ),
+        ];
+        for (error, status, code) in cases {
+            let response = service_error(error);
+            assert_eq!(response.status(), status);
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .unwrap();
+            let admitted = IngestError::decode(bytes).unwrap();
+            assert_eq!(admitted.code, code as i32);
+            assert!(!admitted.message.contains("private storage detail"));
+            if code == IngestErrorCode::SequenceGap {
+                assert_eq!(admitted.expected_sequence, Some(2));
+            }
+        }
     }
 
     #[tokio::test]

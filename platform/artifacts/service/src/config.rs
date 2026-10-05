@@ -173,7 +173,6 @@ impl Config {
             env("VEOVEO_SURREAL_DATABASE")?,
             credentials,
         )
-        .migrate_on_connect(false)
         .build()
         .context("building SurrealDB configuration")?;
 

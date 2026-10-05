@@ -1,0 +1,1 @@
+UPDATE $task SET server = $server, request.owner.authority = {};

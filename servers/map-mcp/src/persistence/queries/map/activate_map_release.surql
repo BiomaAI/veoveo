@@ -1,0 +1,1 @@
+CREATE ONLY $active CONTENT { tenant: $tenant, dataset_key: $dataset_key, release_key: $release_key, previous_release_key: $previous, activated_by: $owner, activated_at: time::now(), record_version: $next } RETURN NONE;

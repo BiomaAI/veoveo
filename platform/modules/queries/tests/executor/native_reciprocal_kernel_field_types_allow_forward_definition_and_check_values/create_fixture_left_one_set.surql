@@ -1,0 +1,1 @@
+CREATE fixture_left:one SET link = fixture_right:one; CREATE fixture_right:one SET link = fixture_left:one;

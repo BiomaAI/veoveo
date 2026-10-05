@@ -131,7 +131,13 @@ pub(crate) mod tests {
         rcgen::KeyPair,
     ) {
         let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
-        let db = crate::test_store::TestDb::new().await;
+        let db = crate::test_store::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                crate::test_store::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
         let key_file = PublicKeyFile(
             std::env::temp_dir().join(format!("gateway-expiry-{}.jwks.json", uuid::Uuid::now_v7())),

@@ -15,7 +15,8 @@ fn table(name: &str) -> ObservationTable {
 async fn count(db: &PlatformStore, table: &ObservationTable) -> usize {
     let mut response = db
         .client()
-        .query(format!("INFO FOR TABLE {};", table.as_str()))
+        .query(include_str!("../queries/changefeed/live_tests/count.surql"))
+        .bind(("table", table.as_str().to_owned()))
         .await
         .unwrap()
         .check()
@@ -42,7 +43,12 @@ async fn await_count(db: &PlatformStore, table: &ObservationTable, expected: usi
 }
 async fn setup() -> fixture::TestDb {
     let db = fixture::TestDb::new().await;
-    db.a.client().query("DEFINE TABLE observation_cleanup_rows SCHEMALESS; DEFINE TABLE observation_cleanup_denied SCHEMALESS; DEFINE TABLE observation_cleanup_counter SCHEMALESS; CREATE observation_cleanup_counter:fixture SET registrations = 0;").await.unwrap().check().unwrap();
+    db.a.client()
+        .query(include_str!("../queries/changefeed/live_tests/setup.surql"))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     db
 }
 #[tokio::test]
@@ -52,7 +58,7 @@ async fn full_row_unpolled_drop_and_partial_registration_keep_parent_session() {
         let rows = table("observation_cleanup_rows");
         let mut stream = db.a.live::<Row>(rows.clone()).await.unwrap();
         db.b.client()
-            .query("CREATE observation_cleanup_rows:fixture SET value = 42;")
+            .query(include_str!("../queries/changefeed/live_tests/full_row_unpolled_drop_and_partial_registration_keep_parent_session.surql"))
             .await
             .unwrap()
             .check()
@@ -69,7 +75,7 @@ async fn full_row_unpolled_drop_and_partial_registration_keep_parent_session() {
         let result =
             db.a.registered_live::<Row>(
                 &[rows.clone(), denied.clone()],
-                include_str!("tests/registration.surql"),
+                include_str!("../queries/changefeed/tests/registration.surql"),
             )
             .await;
         let error = result
@@ -82,7 +88,7 @@ async fn full_row_unpolled_drop_and_partial_registration_keep_parent_session() {
         await_count(&db.a, &rows, 0).await;
         await_count(&db.a, &denied, 0).await;
         db.a.client()
-            .query("RETURN true;")
+            .query(include_str!("../queries/changefeed/live_tests/full_row_unpolled_drop_and_partial_registration_keep_parent_session_2.surql"))
             .await
             .unwrap()
             .check()
@@ -105,7 +111,7 @@ async fn abandoned_registration_and_unknown_receipt_close_only_owned_transport()
             store
                 .registered_live::<Row>(
                     &[owned_rows, later_rows],
-                    include_str!("tests/delayed_registration.surql"),
+                    include_str!("../queries/changefeed/tests/delayed_registration.surql"),
                 )
                 .await
         });
@@ -128,7 +134,7 @@ async fn abandoned_registration_and_unknown_receipt_close_only_owned_transport()
         await_count(&db.a, &rows, 0).await;
         let mut response =
             db.a.client()
-                .query("RETURN observation_cleanup_counter:fixture.registrations;")
+                .query(include_str!("../queries/changefeed/live_tests/abandoned_registration_and_unknown_receipt_close_only_owned_transport.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -142,7 +148,7 @@ async fn abandoned_registration_and_unknown_receipt_close_only_owned_transport()
         let task = tokio::spawn(async move {
             store.registered_live_with_timeout::<Row>(
                 &[owned_rows],
-                include_str!("tests/timeout_registration.surql"),
+                include_str!("../queries/changefeed/tests/timeout_registration.surql"),
                 Duration::from_secs(5),
             ).await
         });
@@ -160,7 +166,7 @@ async fn abandoned_registration_and_unknown_receipt_close_only_owned_transport()
         tokio::time::sleep_until(registered_at + Duration::from_secs(11)).await;
         assert_eq!(count(&db.a, &rows).await, 0, "late LIVE query survived owned transport closure");
         db.a.client()
-            .query("RETURN true;")
+            .query(include_str!("../queries/changefeed/live_tests/abandoned_registration_and_unknown_receipt_close_only_owned_transport_2.surql"))
             .await
             .unwrap()
             .check()

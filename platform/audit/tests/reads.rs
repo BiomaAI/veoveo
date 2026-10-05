@@ -64,11 +64,7 @@ async fn sql_filters_before_decoding_and_limits_and_binds_view_receipts_to_curre
         // Successful filtered reads therefore prove admission happened inside SQL.
         db.a.client()
             .query(
-                "LET $uuid = rand::uuid::v7();
-            CREATE ONLY type::record('audit_record', ['tenant:alpha', $uuid]) SET
-                partition = 'tenant:alpha', record_id = $uuid, class = 'authentication',
-                activity = 'login', outcome = 'allowed', trace_id = $trace,
-                request_id = rand::uuid::v7(), occurred_at = time::now(), draft = {};",
+                include_str!("queries/reads/sql_filters_before_decoding_and_limits_and_binds_view_receipts_to_current_identity.surql"),
             )
             .bind(("trace", request.trace_id.to_string()))
             .await
@@ -331,7 +327,7 @@ async fn scoped_live_daily_pages_and_sealed_recovery_preserve_partition_and_date
         assert_eq!(recovered_records[0].draft.id(), missed.id());
         service.shutdown(Duration::from_secs(15)).await.unwrap();
         db.a.client()
-            .query("DELETE $id;")
+            .query(include_str!("queries/reads/scoped_live_daily_pages_and_sealed_recovery_preserve_partition_and_date_bounds.surql"))
             .bind((
                 "id",
                 veoveo_platform_store::audit::record_id(&partition, expected[0].id()),

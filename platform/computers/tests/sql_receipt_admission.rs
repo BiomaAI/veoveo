@@ -11,7 +11,7 @@ use veoveo_computers::ComputerError;
 #[tokio::test]
 async fn reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let store = veoveo_computers::ComputersStore::new(db.a.clone(), "00000000-0000-7000-8000-000000000001".parse::<veoveo_computers::api::ProviderInstanceId>().unwrap(), veoveo_gateway_catalog::registry().expect("installed owner catalog recipe")).unwrap();
         store.install_capacity(None, veoveo_computers::CapacityPolicy { per_owner: 2, per_tenant: 2, provider: 2 }).await.unwrap();
         let actor = support::authenticated(&support::owner("alice"));
@@ -20,11 +20,11 @@ async fn reservation_receipts_admit_owner_clearance_before_decoding_and_never_re
         };
         assert!(store.reserved_for_request(actor.owner(), input.request_id).await.unwrap().is_none());
         let computer = store.reserve(&actor, &input).await.unwrap();
-        db.a.client().query("UPDATE ONLY $row SET owner_context.authority.policy_revision = 42, owner_context.data_labels = ['private'];")
+        db.a.client().query(include_str!("queries/sql_receipt_admission/reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again/statement_1.surql"))
             .bind(("row", command_fixture::computer_record(computer.computer_id))).await.unwrap().check().unwrap();
         assert!(matches!(store.reserved_for_request(actor.owner(), input.request_id).await, Err(ComputerError::NotFound)));
         assert!(matches!(store.reserve(&actor, &input).await, Err(ComputerError::NotFound)));
-        let mut reply = db.a.client().query("SELECT VALUE computer FROM computer_request; SELECT VALUE retained FROM computer_usage;")
+        let mut reply = db.a.client().query(include_str!("queries/sql_receipt_admission/reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again/statement_2.surql"))
             .await.unwrap().check().unwrap();
         let receipts: Vec<RecordId> = reply.take(0).unwrap();
         let usage: Vec<i64> = reply.take(1).unwrap();
@@ -36,7 +36,7 @@ async fn reservation_receipts_admit_owner_clearance_before_decoding_and_never_re
 #[tokio::test]
 async fn command_receipts_admit_the_accepted_actor_before_decoding_private_payloads() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         let grant = store.issue_automation_grant(&owner, &support::automation::input(computer)).await.unwrap();
         let request = veoveo_computers::api::RequestId::new();
@@ -48,7 +48,7 @@ async fn command_receipts_admit_the_accepted_actor_before_decoding_private_paylo
         corrupt_denied_target(&db, row).await;
         let authority = command_fixture::permit(&store, &agent, computer, grant.grant_id).await;
         assert!(matches!(store.queue_command(&agent, authority, request, &payload, &keys).await, Err(ComputerError::NotFound)));
-        let mut reply = db.a.client().query("SELECT VALUE execution FROM computer_execution_request; SELECT VALUE execution FROM computer_execution_slot;")
+        let mut reply = db.a.client().query(include_str!("queries/sql_receipt_admission/command_receipts_admit_the_accepted_actor_before_decoding_private_payloads/statement_1.surql"))
             .await.unwrap().check().unwrap();
         let receipts: Vec<RecordId> = reply.take(0).unwrap();
         let slots: Vec<RecordId> = reply.take(1).unwrap();
@@ -60,7 +60,7 @@ async fn command_receipts_admit_the_accepted_actor_before_decoding_private_paylo
 #[tokio::test]
 async fn file_receipts_admit_the_accepted_actor_before_decoding_private_payloads() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, _, computer) = file_support::setup(&db).await;
         let request = veoveo_computers::api::RequestId::new();
         let payload = file_support::payload("receipt-fixture");
@@ -71,7 +71,7 @@ async fn file_receipts_admit_the_accepted_actor_before_decoding_private_payloads
         corrupt_denied_target(&db, row).await;
         let authority = store.file_transfer_authority(&owner, computer, None).await.unwrap();
         assert!(matches!(store.queue_file_transfer(&owner, authority, request, &payload, &keys).await, Err(ComputerError::NotFound)));
-        let mut reply = db.a.client().query("SELECT VALUE transfer FROM computer_file_transfer_request; SELECT VALUE execution FROM computer_execution_slot;")
+        let mut reply = db.a.client().query(include_str!("queries/sql_receipt_admission/file_receipts_admit_the_accepted_actor_before_decoding_private_payloads/statement_1.surql"))
             .await.unwrap().check().unwrap();
         let receipts: Vec<RecordId> = reply.take(0).unwrap();
         let slots: Vec<RecordId> = reply.take(1).unwrap();
@@ -81,6 +81,14 @@ async fn file_receipts_admit_the_accepted_actor_before_decoding_private_payloads
 }
 
 async fn corrupt_denied_target(db: &support::TestDb, row: RecordId) {
-    db.a.client().query("UPDATE ONLY $row SET actor_key = $actor_key, authority.request_context.access_token.expires_at = 42;")
-        .bind(("row", row)).bind(("actor_key", "b".repeat(64))).await.unwrap().check().unwrap();
+    db.a.client()
+        .query(include_str!(
+            "queries/sql_receipt_admission/corrupt_denied_target/statement_1.surql"
+        ))
+        .bind(("row", row))
+        .bind(("actor_key", "b".repeat(64)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 }

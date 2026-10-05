@@ -1,0 +1,1 @@
+LET $definition = SELECT * FROM ONLY $command.definition; IF !fn::agent_definition_editor($authority, $definition) { THROW 'agent_not_found'; }; LET $revision = array::first(SELECT * FROM agent_definition_revision WHERE definition = $definition.id AND digest = $command.digest LIMIT 1); IF $revision = NONE { THROW 'agent_not_found'; }; RETURN $revision;

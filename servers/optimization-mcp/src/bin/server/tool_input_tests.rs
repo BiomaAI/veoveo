@@ -15,7 +15,13 @@ mod fixture;
 async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
     let qualification = async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = fixture::TestDb::new().await;
+        let db = fixture::TestDb::with_modules(vec![
+            veoveo_optimization_mcp::schema::module_setup(
+                fixture::module_lanes::execution("optimization").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
         let (root, state) = {
             let root = tempfile::tempdir().unwrap();
             let state = Arc::new(AppState {

@@ -1,0 +1,1 @@
+DELETE domain_usage WHERE task.server = $server; DELETE task_input WHERE task.server = $server; DELETE task WHERE server = $server;

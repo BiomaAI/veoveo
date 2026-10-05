@@ -1,14 +1,13 @@
 //! Installation-bound managed configuration. Authored instructions stay literal.
 use std::time::Duration;
+use veoveo_agent_runtime::persistence::AgentRepository;
 
 use anyhow::{Context, Result, ensure};
 use uuid::Uuid;
 use veoveo_agent_runtime::ManagedRuntimeBinding;
 use veoveo_agent_runtime::contract::authoring as wire;
-use veoveo_platform_store::{
-    PlatformStore,
-    agent_management::{AgentExecution, instances::ManagedAgentRegistration},
-};
+use veoveo_agent_runtime::persistence::{AgentExecution, instances::ManagedAgentRegistration};
+use veoveo_platform_store::PlatformStore;
 use veoveo_types::WorkContextId;
 
 use crate::manifest::{AgentManifest, ResourceSubscription};
@@ -23,7 +22,7 @@ impl ManagedKernel {
     /// The manager injects the generation and approved connection. The authoring
     /// API accepts neither environment variables nor provider destinations.
     pub async fn load(store: &PlatformStore, manifest: &mut AgentManifest) -> Result<Option<Self>> {
-        let registration = store
+        let registration = AgentRepository::new(store.clone())
             .managed_agent_registration(&manifest.gateway.client_id)
             .await?;
         let generation = std::env::var("VEOVEO_MANAGED_GENERATION").ok();
@@ -126,7 +125,7 @@ impl ManagedKernel {
 mod tests {
     use super::*;
     use serde_json::json;
-    use veoveo_platform_store::agent_management::{AgentContent, AgentRevision};
+    use veoveo_agent_runtime::persistence::{AgentContent, AgentRevision};
 
     #[test]
     fn managed_overlay_preserves_literal_instructions_and_requires_exact_model_generation() {
@@ -157,13 +156,11 @@ mod tests {
         let tenant = veoveo_platform_store::deterministic_tenant_id("test")
             .unwrap()
             .record_id();
-        let instance_id = veoveo_platform_store::agent_management::instances::managed_agent_record(
-            &tenant, "worker",
-        )
-        .unwrap();
-        let definition =
-            veoveo_platform_store::agent_management::agent_definition_record(&tenant, "worker")
+        let instance_id =
+            veoveo_agent_runtime::persistence::instances::managed_agent_record(&tenant, "worker")
                 .unwrap();
+        let definition =
+            veoveo_agent_runtime::persistence::agent_definition_record(&tenant, "worker").unwrap();
         let principal = veoveo_platform_store::deterministic_principal_id("test", "worker")
             .unwrap()
             .record_id();

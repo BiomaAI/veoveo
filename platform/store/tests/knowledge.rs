@@ -251,9 +251,8 @@ async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_own
         caller.work_contexts.insert("operations".parse().unwrap());
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
         db.a.client()
-            .query(format!(
-                "UPDATE {table} SET observation = {{malformed: true}};"
-            ))
+            .query(include_str!("queries/knowledge/source_scopes_and_selected_context_membership_cannot_be_bypassed_by_ownership.surql"))
+            .bind(("table", table.clone()))
             .await
             .unwrap()
             .check()
@@ -325,7 +324,8 @@ async fn selected_context_and_expiry_are_admitted_in_sql_before_decoding() {
         tokio::time::sleep((deadline - Utc::now()).to_std().unwrap_or_default() + Duration::from_millis(10)).await;
         assert_candidates(&db.b, &reader, generation, &["zzz-visible"]).await;
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-        db.a.client().query(format!("UPDATE {table} SET observation = {{malformed: true}} WHERE uri != 'fixture://records/zzz-visible';"))
+        db.a.client().query(include_str!("queries/knowledge/selected_context_and_expiry_are_admitted_in_sql_before_decoding.surql"))
+            .bind(("table", table.clone()))
             .await.unwrap().check().unwrap();
         let page = db.b.knowledge_candidates_page(&reader, generation, None, 1).await.unwrap();
         assert_eq!(page.len(), 1);
@@ -470,9 +470,15 @@ async fn qualify_read_policies() {
     // These earlier-sorting private rows are malformed. A reader must still get
     // its full page; decoding and then discarding a denied row cannot pass.
     let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
-    db.a.client().query(format!(
-        "UPDATE {table} SET observation = {{malformed: true}} WHERE admission.tenant_read = false AND admission.context_read = false;"
-    )).await.unwrap().check().unwrap();
+    db.a.client()
+        .query(include_str!(
+            "queries/knowledge/qualify_read_policies.surql"
+        ))
+        .bind(("table", table.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let page =
         db.b.knowledge_candidates_page(&reader, generation, None, 1)
             .await
@@ -621,9 +627,8 @@ async fn qualify() {
     // Malformed hidden observations must be excluded before typed decoding and LIMIT.
     let table = format!("knowledge_chunk_{}", first.as_uuid().simple());
     db.a.client()
-        .query(format!(
-            "UPDATE {table} SET observation = {{malformed: true}} WHERE admission.labels CONTAINS 'secret';"
-        ))
+        .query(include_str!("queries/knowledge/qualify.surql"))
+        .bind(("table", table.clone()))
         .await
         .unwrap()
         .check()
@@ -817,7 +822,7 @@ async fn qualify() {
     );
     let mut response =
         db.b.client()
-            .query("SELECT VALUE id FROM knowledge_member WHERE generation = $generation;")
+            .query(include_str!("queries/knowledge/qualify_2.surql"))
             .bind((
                 "generation",
                 veoveo_platform_store::RecordId::new(
@@ -1000,7 +1005,7 @@ async fn catalog_admits_before_source_paging_and_exact_record_decoding() {
         assert_eq!(next.len(), 5); assert_eq!(next[0].server.as_str(), "source-100");
         let selected = expected[104].descriptor.collection();
         // Corrupt another approved document: an exact read cannot decode it.
-        db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'malformed' WHERE collection = 'source-000.records';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("queries/knowledge/catalog_admits_before_source_paging_and_exact_record_decoding.surql")).await.unwrap().check().unwrap();
         let exact = db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Collection(selected)).await.unwrap();
         assert_eq!(exact, vec![expected[104].clone()]);
         let source = db.b.readable_knowledge_collections(&tenant, &approvals, &scopes, CatalogSelection::Source(selected.server())).await.unwrap();
@@ -1049,7 +1054,7 @@ async fn subscription_root_selection_applies_current_approval_scopes_and_tenant_
         approvals.insert(alias.approval.collection.clone(), alias.approval.clone());
         assert!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &scopes).await.is_err(), "ambiguous approved roots cannot select an arbitrary collection");
         // Poison the denied document: decoding before SQL admission would fail.
-        db.a.client().query("UPDATE knowledge_collection SET document.sourceContractRevision = 'malformed' WHERE collection = 'fixture.alias';").await.unwrap().check().unwrap();
+        db.a.client().query(include_str!("queries/knowledge/subscription_root_selection_applies_current_approval_scopes_and_tenant_in_sql.surql")).await.unwrap().check().unwrap();
         approvals.remove(&alias.approval.collection);
         assert_eq!(db.b.knowledge_collection_at_root(&allowed.tenant, &root, &approvals, &scopes).await.unwrap(), Some(allowed.clone()));
         approvals.insert(alias.approval.collection.clone(), alias.approval.clone());

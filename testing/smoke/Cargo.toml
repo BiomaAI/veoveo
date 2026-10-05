@@ -9,6 +9,7 @@ name = "smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
+veoveo-recording-store = { workspace = true }
 veoveo-gateway-catalog.workspace = true
 veoveo-gateway-contract.workspace = true
 veoveo-modules = { workspace = true, default-features = false, features = ["serialization"] }

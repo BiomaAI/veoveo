@@ -80,7 +80,7 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
             .snapshot;
         // A server-wide baseline would try to decode this unrelated envelope.
         db.b.client()
-            .query("UPDATE ONLY $id SET request = {};")
+            .query(include_str!("queries/subscriptions/exact_subscriptions_share_wakes_and_observe_other_replicas_without_unrelated_baselines/statement_1.surql"))
             .bind(("id", task_record_id(unrelated.task_id)))
             .await
             .unwrap()
@@ -218,7 +218,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
                 .unwrap_or_else(|error| panic!("creating excluded {exclusion} task: {error}"))
                 .snapshot;
             db.b.client()
-                .query("UPDATE ONLY $id SET request.input = NONE;")
+                .query(include_str!("queries/subscriptions/task_pages_filter_before_limit_and_resume_creation_time_ties/statement_1.surql"))
                 .bind(("id", task_record_id(task.task_id)))
                 .await
                 .unwrap()
@@ -234,7 +234,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
                 .unwrap()
                 .snapshot;
             db.b.client()
-                .query("UPDATE ONLY $id SET created_at = $at;")
+                .query(include_str!("queries/subscriptions/task_pages_filter_before_limit_and_resume_creation_time_ties/statement_2.surql"))
                 .bind(("id", task_record_id(task.task_id)))
                 .bind(("at", at))
                 .await
@@ -320,36 +320,34 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
         let reader = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
         let writer = TaskRuntime::new(db.b.clone(), "integration-server", "writer");
         db.b.client()
-            .query("CREATE ONLY task_policy_probe:owner CONTENT $owner RETURN NONE;")
+            .query(include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/statement_1.surql"))
             .bind(("owner", serde_json::to_value(owner()).unwrap()))
             .await
             .unwrap()
             .check()
             .unwrap();
         let mut ids = Vec::new();
-        for mutation in [
-            "request.owner = task_policy_probe:owner",
-            "request.owner.data_labels = NONE",
-            "request.owner.data_labels = 'internal'",
-            "request.owner.data_labels = ['internal', NONE]",
-            "request.owner.data_labels = ['restricted']",
-            "request.owner.principal_key = 'inconsistent'",
-            "request.owner.profile = 'inconsistent'",
-            "request.owner.tenant_key = 'inconsistent'",
-            "owner = principal:other",
-            "profile = profile:other",
-            "tenant = tenant:other",
-            "server = mcp_server:other",
-        ] {
+        for (mutation, sql) in [
+("request.owner case 1", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_01.surql")),
+("request.owner.data_labels case 2", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_02.surql")),
+("request.owner.data_labels case 3", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_03.surql")),
+("request.owner.data_labels case 4", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_04.surql")),
+("request.owner.data_labels case 5", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_05.surql")),
+("request.owner.principal_key case 6", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_06.surql")),
+("request.owner.profile case 7", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_07.surql")),
+("request.owner.tenant_key case 8", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_08.surql")),
+("owner case 9", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_09.surql")),
+("profile case 10", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_10.surql")),
+("tenant case 11", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_11.surql")),
+("server case 12", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_12.surql"))
+] {
             let task = writer
                 .create(draft("selected", RecoveryClass::Resume))
                 .await
                 .unwrap()
                 .snapshot;
             db.b.client()
-                .query(format!(
-                    "UPDATE ONLY $task SET {mutation}, request.input = NONE RETURN NONE;"
-                ))
+                .query(sql)
                 .bind(("task", task_record_id(task.task_id)))
                 .await
                 .unwrap()
@@ -367,7 +365,7 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
                 .await
                 .unwrap_err();
             assert_eq!(error.message.as_ref(), "unknown task id");
-            if mutation == "server = mcp_server:other" {
+            if mutation == "server case 12" {
                 assert!(reader.get(task.task_id).await.unwrap().is_none());
             }
             ids.push(task.task_id.to_string());
@@ -491,12 +489,12 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_change_pages() 
         let target = writer.create(draft("target", RecoveryClass::Resume)).await.unwrap().snapshot;
         let mut stream = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![revoked.task_id.to_string(), target.task_id.to_string()]).await.unwrap().updates;
         for _ in 0..2 { stream.next().await.unwrap().unwrap(); }
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
+        db.b.client().query(include_str!("queries/subscriptions/owner_updates_recheck_authority_and_advance_past_denied_change_pages/statement_1.surql"))
             .bind(("task", task_record_id(revoked.task_id))).await.unwrap().check().unwrap();
         // These native Task versions deliberately cannot decode as Task snapshots.
         // Recovery uses only their IDs before current SQL admission.
         for ordinal in 0..257 {
-            db.b.client().query("UPDATE ONLY $task SET request.input = { ordinal: $ordinal } RETURN NONE;")
+            db.b.client().query(include_str!("queries/subscriptions/owner_updates_recheck_authority_and_advance_past_denied_change_pages/statement_2.surql"))
                 .bind(("task", task_record_id(revoked.task_id))).bind(("ordinal", ordinal)).await.unwrap().check().unwrap();
         }
         writer.claim(target.task_id, Duration::from_secs(30)).await.unwrap();
@@ -510,7 +508,7 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_change_pages() 
             }
         }
         // Re-admission uses current SQL policy; an old denial is not cached authority.
-        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['internal'], request.input = {value:7} RETURN NONE;")
+        db.b.client().query(include_str!("queries/subscriptions/owner_updates_recheck_authority_and_advance_past_denied_change_pages/statement_3.surql"))
             .bind(("task", task_record_id(revoked.task_id))).await.unwrap().check().unwrap();
         loop {
             let update = stream.next().await.unwrap().unwrap();

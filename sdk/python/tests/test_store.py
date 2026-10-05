@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from query_files import test_query
 from veoveo_mcp.tasks import InvalidRecord
 from veoveo_mcp.tasks.store import StoreError, SurrealStore, task_result_from_store
 
@@ -64,7 +65,7 @@ async def test_query_replaces_known_stale_connection_before_dispatch() -> None:
 
     store = SurrealStore(stale, reconnect)
 
-    assert await store.query("RETURN 1;") == [[1]]
+    assert await store.query(test_query("test_store/test_query_replaces_known_stale_connection_before_dispatch.surql")) == [[1]]
     assert opens == 1
     assert stale.closed
     assert stale.queries == 0
@@ -88,13 +89,13 @@ async def test_query_restores_connection_without_replaying_ambiguous_request() -
     store = SurrealStore(disconnected, reconnect)
 
     with pytest.raises(StoreError, match="restored for the next request"):
-        await store.query("CREATE example CONTENT {};")
+        await store.query(test_query("test_store/test_query_restores_connection_without_replaying_ambiguous_request.surql"))
 
     assert opens == 1
     assert disconnected.closed
     assert disconnected.queries == 1
     assert healthy.queries == 0
-    assert await store.query("RETURN 1;") == [[1]]
+    assert await store.query(test_query("test_store/test_query_restores_connection_without_replaying_ambiguous_request_2.surql")) == [[1]]
     assert healthy.queries == 1
 
 
@@ -117,7 +118,7 @@ async def test_query_propagates_caller_cancellation_without_reconnecting() -> No
         return FakeConnection()
 
     store = SurrealStore(connection, reconnect)
-    task = asyncio.create_task(store.query("RETURN 1;"))
+    task = asyncio.create_task(store.query(test_query("test_store/test_query_propagates_caller_cancellation_without_reconnecting.surql")))
     await started.wait()
     task.cancel()
 
@@ -125,3 +126,33 @@ async def test_query_propagates_caller_cancellation_without_reconnecting() -> No
         await task
 
     assert opens == 0
+
+
+def test_fixture_cleans_owned_container_after_launch_timeout(monkeypatch, tmp_path):
+    import subprocess
+
+    import conftest
+
+    calls = []
+    monkeypatch.setattr(conftest, "_docker_available", lambda: True)
+    monkeypatch.setattr(conftest, "_gateway_binary", lambda: tmp_path / "gateway")
+    monkeypatch.setattr(conftest, "_free_port", lambda: 12345)
+
+    def run(arguments, **options):
+        calls.append((arguments, options))
+        if arguments[:2] == ["docker", "run"]:
+            raise subprocess.TimeoutExpired(arguments, options["timeout"])
+        return subprocess.CompletedProcess(arguments, 0)
+
+    monkeypatch.setattr(conftest.subprocess, "run", run)
+    fixture = conftest.surreal_platform.__wrapped__()
+    with pytest.raises(subprocess.TimeoutExpired) as error:
+        next(fixture)
+
+    assert len(calls) == 2
+    launch, cleanup = calls
+    owned_name = launch[0][launch[0].index("--name") + 1]
+    assert cleanup[0] == ["docker", "rm", "--force", owned_name]
+    assert cleanup[1] == {"check": False, "capture_output": True, "timeout": 30}
+    assert error.value.cmd == launch[0]
+    assert error.value.timeout == 60

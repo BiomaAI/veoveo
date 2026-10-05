@@ -1,0 +1,1 @@
+SELECT * FROM map_composition WHERE tenant = $tenant AND work_context = $context AND $labels CONTAINSALL authority.data_labels AND ($after = NONE OR composition_key > $after) ORDER BY composition_key ASC LIMIT $limit;

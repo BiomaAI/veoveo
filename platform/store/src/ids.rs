@@ -3,10 +3,6 @@ mod access;
 pub use access::*;
 mod content;
 pub use content::*;
-mod agents;
-pub use agents::*;
-mod workspace;
-pub use workspace::*;
 
 #[doc(hidden)]
 pub struct PersistenceIds;
@@ -129,72 +125,6 @@ mod identity_profiles {
         );
         check::<MediaUsageId>("media_usage", MediaUsageId::from_uuid(uuid).record_id());
         check::<DomainUsageId>("domain_usage", DomainUsageId::from_uuid(uuid).record_id());
-        check::<RecordingDatasetId>(
-            "recording_dataset",
-            RecordingDatasetId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingId>("recording", RecordingId::from_uuid(uuid).record_id());
-        check::<RecordingLayerId>(
-            "recording_layer",
-            RecordingLayerId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingReadGrantId>(
-            "recording_read_grant",
-            RecordingReadGrantId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingProjectionReceiptId>(
-            "recording_projection_receipt",
-            RecordingProjectionReceiptId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingIngestStreamId>(
-            "recording_ingest_stream",
-            RecordingIngestStreamId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingIngestBatchId>(
-            "recording_ingest_batch",
-            RecordingIngestBatchId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingIngestQuotaWindowId>(
-            "recording_ingest_quota_window",
-            RecordingIngestQuotaWindowId::from_uuid(uuid).record_id(),
-        );
-        check::<RecordingBlueprintId>(
-            "recording_blueprint",
-            RecordingBlueprintId::from_uuid(uuid).record_id(),
-        );
-        check::<AgentId>("agent", AgentId::from_uuid(uuid).record_id());
-        check::<WakeId>("wake", WakeId::from_uuid(uuid).record_id());
-        check::<AgentEpisodeId>("agent_episode", AgentEpisodeId::from_uuid(uuid).record_id());
-        check::<AgentTaskId>("agent_task", AgentTaskId::from_uuid(uuid).record_id());
-        check::<AgentInputRequestId>(
-            "agent_input_request",
-            AgentInputRequestId::from_uuid(uuid).record_id(),
-        );
-        check::<WorkspaceChatId>(
-            "workspace_chat",
-            WorkspaceChatId::from_uuid(uuid).record_id(),
-        );
-        check::<WorkspaceAgentId>(
-            "workspace_agent",
-            WorkspaceAgentId::from_uuid(uuid).record_id(),
-        );
-        check::<WorkspaceRunId>("workspace_run", WorkspaceRunId::from_uuid(uuid).record_id());
-        check::<WorkspaceOperationId>(
-            "workspace_operation",
-            WorkspaceOperationId::from_uuid(uuid).record_id(),
-        );
-        check::<WorkspaceMemberId>(
-            "workspace_member",
-            WorkspaceMemberId::from_uuid(uuid).record_id(),
-        );
-        check::<WorkspaceMessageId>(
-            "workspace_message",
-            WorkspaceMessageId::from_uuid(uuid).record_id(),
-        );
-        check::<WorkspaceInvitationId>(
-            "workspace_invitation",
-            WorkspaceInvitationId::from_uuid(uuid).record_id(),
-        );
     }
 }
 

@@ -4,8 +4,9 @@ use crate::contract::{
     MOBILITY_PROFILE_PAGE_SIZE, MapMobilityProfileCursor, MapMobilityProfilePage,
     MapMobilityProfilesUri, MobilityProfile, MobilityProfileId, MobilityProfileVersion,
 };
+use crate::persistence::MapMobilityProfileRecord;
 use anyhow::{Result, ensure};
-use veoveo_platform_store::{MapMobilityProfileRecord, RecordId};
+use veoveo_platform_store::RecordId;
 
 #[derive(Clone, Copy)]
 enum Selection<'a> {
@@ -50,21 +51,21 @@ impl MapCatalog {
         scope: &MapAccessContext,
         selection: Selection<'_>,
     ) -> Result<Vec<MobilityProfile>> {
-        let (predicate, limit) = match selection {
-            Selection::Exact(_, _) => ("AND profile_key = $key AND profile_version = $version", 2),
-            Selection::Page(None) => ("", MOBILITY_PROFILE_PAGE_SIZE + 1),
+        let (sql, limit) = match selection {
+            Selection::Exact(_, _) => (include_str!("../queries/catalog/mobility/exact.surql"), 2),
+            Selection::Page(None) => (
+                include_str!("../queries/catalog/mobility/first_page.surql"),
+                MOBILITY_PROFILE_PAGE_SIZE + 1,
+            ),
             Selection::Page(Some(_)) => (
-                "AND (profile_key > $key OR (profile_key = $key AND profile_version > $version))",
+                include_str!("../queries/catalog/mobility/after_page.surql"),
                 MOBILITY_PROFILE_PAGE_SIZE + 1,
             ),
         };
         let query = self
             .store()
             .client()
-            .query(format!(
-                "SELECT * FROM map_mobility_profile WHERE tenant = $tenant {predicate}
-             ORDER BY profile_key ASC, profile_version ASC LIMIT $limit TIMEOUT 5s;"
-            ))
+            .query(sql)
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("limit", limit));
         let query = match selection {
@@ -90,11 +91,9 @@ impl MapCatalog {
         let mut response = self
             .store()
             .client()
-            .query(
-                "SELECT VALUE profile_key FROM map_mobility_profile WHERE tenant = $tenant
-             AND string::lowercase(profile_key) CONTAINS $needle
-             GROUP BY profile_key ORDER BY profile_key ASC LIMIT 101 TIMEOUT 5s;",
-            )
+            .query(include_str!(
+                "../queries/catalog/mobility/complete_mobility_profiles/statement_1.surql"
+            ))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("needle", needle.to_lowercase()))
             .await?
@@ -116,12 +115,9 @@ impl MapCatalog {
         let mut response = self
             .store()
             .client()
-            .query(
-                "SELECT VALUE profile_version FROM map_mobility_profile WHERE tenant = $tenant
-             AND ($parent = NONE OR profile_key = $parent)
-             AND type::string(profile_version) CONTAINS $needle
-             GROUP BY profile_version ORDER BY profile_version ASC LIMIT 101 TIMEOUT 5s;",
-            )
+            .query(include_str!(
+                "../queries/catalog/mobility/complete_mobility_versions/statement_1.surql"
+            ))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("parent", parent.map(ToString::to_string)))
             .bind(("needle", needle.to_owned()))

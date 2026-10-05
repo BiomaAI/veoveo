@@ -1,7 +1,5 @@
 use super::{instant, metadata::set, scope};
-use crate::{
-    catalog::TimeCatalog, contract::*, persistence::TimeClockPolicyRecord, test_store::TestDb,
-};
+use crate::{catalog::TimeCatalog, contract::*, persistence::TimeClockPolicyRecord};
 use std::time::Duration;
 use surrealdb::types::RecordId;
 use veoveo_platform_store::PlatformStore;
@@ -28,7 +26,7 @@ async fn clock_row(store: &PlatformStore, record: &RecordId) -> TimeClockPolicyR
 #[tokio::test]
 async fn clock_policy_decoding_rejects_bad_scalars_and_versions_without_mutation() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "time-clock-numeric", "owner").await;
         let foreign = scope(&db.a, "time-clock-numeric-other", "owner").await;
         let catalog = TimeCatalog::new(db.b.clone());
@@ -104,7 +102,7 @@ async fn clock_policy_decoding_rejects_bad_scalars_and_versions_without_mutation
 #[tokio::test]
 async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "time-version-numeric", "owner").await;
         let catalog = TimeCatalog::new(db.b.clone());
         let max = TimeVersion::new(i64::MAX as u64).unwrap();

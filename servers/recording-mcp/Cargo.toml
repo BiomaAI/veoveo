@@ -22,10 +22,11 @@ required-features = ["contract"]
 
 [features]
 gateway = ["veoveo-recording-contract/policy", "dep:veoveo-gateway-contract", "contract", "dep:veoveo-mcp-gateway", "dep:veoveo-mcp-contract", "dep:veoveo-types", "dep:anyhow", "dep:axum", "dep:prost", "dep:veoveo-recording-protocol", "dep:chrono", "dep:secrecy", "dep:reqwest", "dep:parking_lot", "dep:futures", "dep:tokio", "dep:serde", "dep:serde_json", "dep:url", "dep:tracing", "dep:bytes", "chrono/clock", "dep:sha2"]
-schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
+schema = ["dep:veoveo-recording-store", "veoveo-recording-store/schema", "dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = ["dep:veoveo-recording-contract"]
 runtime = [
+    "veoveo-recording-store/persistence",
     "schema",
     "dep:veoveo-gateway-contract",
     "contract",
@@ -87,6 +88,7 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
+veoveo-recording-store = { workspace = true, default-features = false, optional = true }
 veoveo-gateway-contract = { workspace = true, optional = true }
 prost = { workspace = true, optional = true }
 veoveo-recording-protocol = { workspace = true, optional = true }
@@ -145,6 +147,7 @@ re_sdk = { workspace = true, optional = true }
 re_sdk_types = { workspace = true, optional = true }
 
 [dev-dependencies]
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-catalog.workspace = true
 serde.workspace = true

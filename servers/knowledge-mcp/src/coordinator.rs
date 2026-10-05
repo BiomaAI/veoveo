@@ -20,10 +20,7 @@ use veoveo_knowledge_contract::{
     CollectionRegistration, GenerationId, GenerationSpec, KnowledgeError,
 };
 use veoveo_mcp_knowledge_extension::{ChangeSignal, Freshness};
-use veoveo_platform_store::{
-    PlatformStore,
-    knowledge::{CoordinatorId, CoordinatorLease},
-};
+use veoveo_platform_store::{PlatformStore, knowledge::CoordinatorId, knowledge::CoordinatorLease};
 use veoveo_types::TenantId;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

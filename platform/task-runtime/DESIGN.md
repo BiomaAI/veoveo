@@ -99,10 +99,15 @@ Intermediate Task status stays in the kernel; catalog rows do not duplicate it.
 This keeps claims, input waits and provider resume independent of catalog refresh.
 
 The creation, transition, recovery and contribution statements live in `queries/`.
-The runtime composes included SQL using fixed lifecycle placeholders; owner selection
-adds the shared policy fragments. This is an explicit query-composition exception:
-all inserted statements and predicates are compile-time owner literals, and all
-runtime values remain bound. Callback-supplied statements are not part of this API.
+Owner, Work Context, usage, transition and input-response choices select complete static
+files. Contribution variants include the complete lifecycle transaction.
+Three extension templates insert one trusted repository-owned domain SQL body:
+`queries/admission/domain_transaction.surql` keeps the queued, unclaimed Task guard;
+`queries/provider/journal_transaction.surql` keeps the observation lease guard;
+`queries/provider/resume_body.surql` inserts recovery authorization between the
+claim/status/cancel checks and the waiting/request update. Domains own these bodies
+and bind runtime values. The open domain body API requires these explicit composition
+exceptions; reserved parameter namespaces and transaction guards still apply.
 `tests/contributions.rs` uses actual declared lanes in isolated native fixtures for
 idempotency, rollback, recovery, stale leases and reference cleanup.
 
@@ -271,7 +276,7 @@ Domains that scope Tasks by Work Context call `in_work_context()` on their owner
 query. Construction rejects a caller whose owner tenant disagrees with invocation
 authority. SQL requires the indexed Work Context, authority context key, and stored
 request authority to agree with the caller's tenant and context. Values use driver
-bindings; predicate composition accepts only repository-owned fragments. This
+bindings, and finite policy choices select complete static statements. This
 selection adds no membership or permission grant. Invocation admission supplies those.
 
 `OwnerTaskQuery::get` takes a native `TaskId` and applies tenant, server, principal,

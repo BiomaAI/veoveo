@@ -1,9 +1,35 @@
+use surrealdb::types::SurrealValue;
+
 use crate::{
-    InvocationAuthorityRecord, InvocationMode, PlatformStore, StoreError, TenantId,
-    WorkContextMembershipLevel, WorkContextRecord, deterministic_tenant_id,
+    InvocationAuthorityRecord, InvocationMode, PlatformStore, StoreError, TenantId, WorkContextId,
+    WorkContextMembershipLevel, WorkContextRecord,
 };
 
+#[derive(Clone, Debug, SurrealValue)]
+pub struct WorkContextSnapshot {
+    pub context: WorkContextRecord,
+    pub digest: String,
+}
+
 impl PlatformStore {
+    /// Admission snapshot and policy digest are read in the same database request.
+    pub async fn work_context_snapshot(
+        &self,
+        context: WorkContextId,
+    ) -> Result<WorkContextSnapshot, StoreError> {
+        let mut response = self
+            .client()
+            .query(include_str!("queries/governance/context_snapshot.surql"))
+            .bind(("context", context.record_id()))
+            .await?
+            .check()?;
+        response
+            .take::<Option<WorkContextSnapshot>>(1)?
+            .ok_or(StoreError::MissingRecord {
+                operation: "work context admission snapshot",
+            })
+    }
+
     pub async fn work_context_by_key(
         &self,
         tenant_id: TenantId,
@@ -11,58 +37,13 @@ impl PlatformStore {
     ) -> Result<Option<WorkContextRecord>, StoreError> {
         let mut response = self
             .db
-            .query(
-                "SELECT * FROM work_context \
-                 WHERE tenant = $tenant AND context_key = $context_key LIMIT 1;",
-            )
+            .query(include_str!("queries/governance/work_context_by_key.surql"))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("context_key", context_key.to_owned()))
             .await?
             .check()?;
         let contexts: Vec<WorkContextRecord> = response.take(0)?;
         Ok(contexts.into_iter().next())
-    }
-
-    pub async fn automated_authority_for_oauth_client(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        oauth_client: &str,
-    ) -> Result<Option<InvocationAuthorityRecord>, StoreError> {
-        let tenant_id = deterministic_tenant_id(tenant_key)?;
-        let Some(context) = self.work_context_by_key(tenant_id, context_key).await? else {
-            return Ok(None);
-        };
-        if let Some(managed) = self
-            .managed_agent_registration(oauth_client)
-            .await
-            .map_err(|_| StoreError::AdministrationFailed {
-                operation: "managed authority resolution",
-            })?
-        {
-            let mut response = self
-                .client()
-                .query(
-                    "SELECT VALUE count() FROM oauth_client WHERE client_id = $client GROUP ALL;",
-                )
-                .bind(("client", oauth_client.to_owned()))
-                .await?
-                .check()?;
-            let installed: Vec<i64> = response.take(0)?;
-            if installed.first().copied().unwrap_or(0) != 0
-                || !managed.enabled
-                || managed.tenant_key != tenant_key
-                || managed.context_key != context_key
-            {
-                return Ok(None);
-            }
-            return Ok(Some(
-                context.automated_authority(managed.instance.identity.membership),
-            ));
-        }
-        Ok(context
-            .membership_for_oauth_client(oauth_client)
-            .map(|membership| context.automated_authority(membership)))
     }
 }
 

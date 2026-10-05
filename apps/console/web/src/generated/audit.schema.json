@@ -1227,23 +1227,6 @@
         {
           "additionalProperties": false,
           "properties": {
-            "computer": {
-              "$ref": "#/$defs/ComputerId"
-            },
-            "kind": {
-              "const": "computer",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "computer"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
             "kind": {
               "const": "task",
               "type": "string"
@@ -1494,6 +1477,24 @@
           "required": [
             "kind"
           ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "computer": {
+              "$ref": "#/$defs/ComputerId"
+            },
+            "kind": {
+              "const": "computer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "computer",
+            "kind"
+          ],
+          "title": "ComputerAuditTarget",
           "type": "object"
         }
       ]

@@ -17,7 +17,7 @@ fn output(byte_count: u32) -> ExecutionOutput {
 
 #[tokio::test]
 async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -75,7 +75,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         // Corrupt only the disposable fixture projection. Status alone cannot
         // acknowledge a substituted output occurrence or wrong tool-error flag.
         db.a.client()
-            .query("UPDATE $task SET result.payload.isError = $wrong;")
+            .query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_1.surql"))
             .bind(("task", task_record_id(completed.task_id())))
             .bind(("wrong", code == 0))
             .await
@@ -85,7 +85,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(b.acknowledge_command_task(&completed).await.is_err());
         assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
-            .query("UPDATE $task SET result.payload.isError = $correct;")
+            .query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_2.surql"))
             .bind(("task", task_record_id(completed.task_id())))
             .bind(("correct", code != 0))
             .await
@@ -93,7 +93,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
             .check()
             .unwrap();
         db.a.client()
-            .query("UPDATE $task SET result.payload.structuredContent.stdout = $output;")
+            .query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_3.surql"))
             .bind(("task", task_record_id(completed.task_id())))
             .bind(("output", serde_json::to_value(output(32)).unwrap()))
             .await
@@ -103,7 +103,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(b.acknowledge_command_task(&completed).await.is_err());
         assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
-            .query("UPDATE $task SET result.payload.structuredContent.stdout = $output;")
+            .query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_4.surql"))
             .bind(("task", task_record_id(completed.task_id())))
             .bind(("output", serde_json::to_value(stdout).unwrap()))
             .await
@@ -130,7 +130,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(b.pending_commands(None, 100).await.unwrap().is_empty());
         assert!(b.ensure_command_task(&completed).await.is_err());
     }
-    let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'settled';").await.unwrap().check().unwrap();
+    let mut response = db.a.client().query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_5.surql")).await.unwrap().check().unwrap();
     let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     let events: Vec<surrealdb::types::Value> = response.take(1).unwrap();
     assert!(slots.is_empty());
@@ -151,7 +151,7 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
         "unknown_exit",
         "output_limit",
     ] {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
         let grant = a
             .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -178,7 +178,7 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
                     .unwrap(),
                 "run" => {
                     db.a.client()
-                        .query("UPDATE $computer SET process_id='replacement-run';")
+                        .query(include_str!("queries/command_completion/invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_known_result/statement_1.surql"))
                         .bind(("computer", computer_record(computer)))
                         .await
                         .unwrap()
@@ -202,7 +202,7 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
         let command = a.command_for_claim(&claim).await.unwrap();
         assert!(command.outcome().is_none(), "{scenario}");
         assert!(!command.is_terminal());
-        let mut response = db.a.client().query("SELECT * FROM computer_execution_slot; SELECT * FROM audit_record WHERE activity = 'computer_command' AND draft.detail.stage = 'settled';").await.unwrap().check().unwrap();
+        let mut response = db.a.client().query(include_str!("queries/command_completion/invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_known_result/statement_2.surql")).await.unwrap().check().unwrap();
         let slots: Vec<surrealdb::types::Value> = response.take(0).unwrap();
         let events: Vec<surrealdb::types::Value> = response.take(1).unwrap();
         assert_eq!(slots.len(), 1);
@@ -212,7 +212,7 @@ async fn invalid_outputs_lease_loss_replacement_and_containment_never_settle_a_k
 
 #[tokio::test]
 async fn a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     let (a, _, owner, agent, computer) = support::automation::setup(&db).await;
     let grant = a
         .issue_automation_grant(&owner, &support::automation::input(computer))
@@ -245,7 +245,7 @@ async fn a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop(
     assert_eq!(task.status, TaskStatus::CancelRequested);
     let mut read =
         db.a.client()
-            .query("SELECT VALUE active_operation FROM ONLY $computer;")
+            .query(include_str!("queries/command_completion/a_late_cancel_preserves_the_known_result_and_an_independent_owner_stop/statement_1.surql"))
             .bind(("computer", computer_record(computer)))
             .await
             .unwrap()

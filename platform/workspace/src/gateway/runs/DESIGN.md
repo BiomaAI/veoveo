@@ -35,7 +35,7 @@ Archived definitions remain usable by retained participants; they leave new admi
 ## Execution
 
 The Rust store owns run identity, claim fencing, fixed context and cancellation as
-specified in [`platform/store`](../../../../store/src/workspace/runs/DESIGN.md).
+specified in [`platform/store`](../../persistence/runs/DESIGN.md).
 `messages.rs` admits the human message and all response intents in one store
 transaction. The response does not depend on a second browser request. An owned
 background coordinator resolves current definitions and starts independently fenced

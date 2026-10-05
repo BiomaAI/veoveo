@@ -29,10 +29,21 @@ pub async fn install(store: &PlatformStore, control: GatewayControlPlane) -> Str
         control_plane: serde_json::from_value::<OpenObject>(serde_json::to_value(control).unwrap())
             .unwrap(),
     };
-    store.client().query("BEGIN; CREATE ONLY $revision CONTENT $content; UPSERT gateway_control_active:current SET revision = $revision, revision_id = $name, updated_at = time::now(); COMMIT;")
-        .bind(("revision", RecordId::new("gateway_control_revision", name.clone())))
-        .bind(("name", name.clone())).bind(("content", content))
-        .await.unwrap().check().unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../queries/support/policy/install/statement_1.surql"
+        ))
+        .bind((
+            "revision",
+            RecordId::new("gateway_control_revision", name.clone()),
+        ))
+        .bind(("name", name.clone()))
+        .bind(("content", content))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     name
 }
 

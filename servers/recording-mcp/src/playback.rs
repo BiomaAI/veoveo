@@ -4,6 +4,7 @@
 //! derives policy-scoped catalogs from immutable Artifact-backed layers, maps
 //! Redap token subjects to durable grants, and exposes only the required read
 //! profile.
+use veoveo_recording_store::RecordingRepository;
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -30,9 +31,10 @@ use re_server::{RerunCloudHandler, RerunCloudHandlerBuilder};
 use tokio::sync::Mutex as AsyncMutex;
 use tonic::{Request, Response, Status};
 use url::Url;
-use veoveo_platform_store::{
-    PlatformStore, RecordId, RecordingDatasetId, RecordingId, RecordingReadGrantClass,
-    RecordingReadGrantId, RecordingReadGrantRecord,
+use veoveo_platform_store::{PlatformStore, RecordId};
+use veoveo_recording_store::{
+    RecordingDatasetId, RecordingId, RecordingReadGrantClass, RecordingReadGrantId,
+    RecordingReadGrantRecord,
 };
 
 use crate::{
@@ -62,7 +64,7 @@ pub struct PlaybackManager {
 
 struct PlaybackManagerInner {
     provider: RedapProvider,
-    store: PlatformStore,
+    recordings: RecordingRepository,
     public_origin: RecordingRedapOrigin,
     allowed_host: String,
     catalogs: Mutex<HashMap<VirtualCatalogKey, Arc<CatalogSlot>>>,
@@ -122,7 +124,7 @@ impl PlaybackManager {
         Ok(Self {
             inner: Arc::new(PlaybackManagerInner {
                 provider,
-                store,
+                recordings: RecordingRepository::new(store),
                 public_origin,
                 allowed_host: public_url
                     .host_str()
@@ -391,7 +393,7 @@ impl PlaybackManager {
             .map_err(|_| Status::unauthenticated("invalid recording grant subject"))?;
         let grant = self
             .inner
-            .store
+            .recordings
             .recording_redap_grant(RecordingReadGrantId::from_uuid(grant_id.as_uuid()))
             .await
             .map_err(|_| Status::internal("recording grant store is unavailable"))?

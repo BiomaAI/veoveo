@@ -15,6 +15,7 @@ import pytest
 from pydantic import ValidationError
 from surrealdb import RecordID
 
+from query_files import test_query
 from veoveo_mcp.contract import InvocationAuthority
 from veoveo_mcp.tasks import (
     Conflict,
@@ -362,7 +363,7 @@ async def test_prune_removes_expired_unpinned_terminal_tasks(runtime):
     assert created.snapshot.task_id in pruned
     assert await runtime.get(task_id) is None
     rows = await runtime.store.query(
-        "SELECT VALUE id FROM task_input WHERE task = $task;",
+        test_query("test_task_runtime_integration/test_prune_removes_expired_unpinned_terminal_tasks.surql"),
         {"task": task_record(created.snapshot.task_id)},
     )
     assert rows[0] == []
@@ -424,19 +425,19 @@ async def test_snapshot_json_matches_rust_serde_shape(runtime):
 
 
 @pytest.mark.parametrize(
-    "assignment",
+    'assignment',
     [
-        "owner = $different_owner",
-        "tenant = $different_tenant",
-        "profile = $different_profile",
-        "server = $different_server",
-        "request.owner.principal_key = 'someone-else'",
-        "request.owner.profile = 'other-profile'",
-        "request.owner.tenant_key = 'other-tenant'",
-        "request.owner.data_labels = ['restricted']",
-        "request.owner.data_labels = NONE",
-        "request.owner.data_labels = 'restricted'",
-        "request.owner = {}",
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_01.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_02.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_03.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_04.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_05.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_06.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_07.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_08.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_09.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_10.surql',
+        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_11.surql',
     ],
 )
 async def test_owner_sql_excludes_denied_malformed_rows(runtime, assignment):
@@ -445,7 +446,7 @@ async def test_owner_sql_excludes_denied_malformed_rows(runtime, assignment):
         created = (await runtime.create(draft(owner=caller))).snapshot
         other = owner(f"other-{uuid.uuid4()}")
         await runtime.store.query(
-            f"UPDATE $task SET {assignment}, request.owner.authority = {{}};",
+            test_query(assignment),
             {
                 "task": task_record(created.task_id),
                 "different_owner": other.principal_record(),
@@ -490,13 +491,13 @@ async def test_owner_sql_rechecks_clearance_through_independent_connection(
                 }
             changed = tasks[frozenset({"a"})]
             await runtime.store.query(
-                "UPDATE $task SET request.owner.data_labels = ['restricted'];",
+                test_query("test_task_runtime_integration/test_owner_sql_rechecks_clearance_through_independent_connection.surql"),
                 {"task": task_record(changed)},
             )
             current = (await observer.for_owner(caller).page(limit=1000)).items
             assert changed not in {row.task_id for row in current}
             await runtime.store.query(
-                "UPDATE $task SET request.owner.authority = {};",
+                test_query("test_task_runtime_integration/test_owner_sql_rechecks_clearance_through_independent_connection_2.surql"),
                 {"task": task_record(changed)},
             )
             # A revoked row stays outside decoding; an admitted malformed row fails.
@@ -526,7 +527,7 @@ async def test_trusted_get_rejects_foreign_server_before_decoding(runtime):
     async with asyncio.timeout(15):
         created = (await runtime.create(draft())).snapshot
         await runtime.store.query(
-            "UPDATE $task SET server = $server, request.owner.authority = {};",
+            test_query("test_task_runtime_integration/test_trusted_get_rejects_foreign_server_before_decoding.surql"),
             {"task": task_record(created.task_id), "server": server_record("other-server")},
         )
         assert await runtime.get(str(created.task_id)) is None

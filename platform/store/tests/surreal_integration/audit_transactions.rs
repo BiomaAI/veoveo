@@ -23,10 +23,9 @@ fn draft() -> AuditDraft {
 async fn counts(store: &PlatformStore) -> (u64, u64) {
     let mut rows = store
         .client()
-        .query(
-            "RETURN array::len(SELECT id FROM audit_record);
-        RETURN array::len(SELECT id FROM audit_domain_fixture);",
-        )
+        .query(include_str!(
+            "../queries/surreal_integration/audit_transactions/counts.surql"
+        ))
         .await
         .unwrap()
         .check()
@@ -42,7 +41,7 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::with_backend(StoreBackend::RocksDb).await;
         db.a.client()
-            .query("DEFINE TABLE audit_domain_fixture SCHEMALESS;")
+            .query(include_str!("../queries/surreal_integration/audit_transactions/domain_and_audit_commit_or_rollback_together_and_retries_keep_one_record.surql"))
             .await
             .unwrap()
             .check()
@@ -51,13 +50,10 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
         let result =
             db.a.client()
                 .query(
-                    "BEGIN TRANSACTION;
-            CREATE audit_domain_fixture:one SET revision = 1;
-            fn::append_audit($audit_rows);
-            THROW 'injected_domain_failure'; COMMIT TRANSACTION;",
+                    include_str!("../queries/surreal_integration/audit_transactions/domain_and_audit_commit_or_rollback_together_and_retries_keep_one_record_2.surql"),
                 )
                 .bind(
-                    AuditTransactionWrite::new(record.clone())
+                    AuditTransactionWrite::new(db.a.audit_targets(), record.clone())
                         .unwrap()
                         .into_binding(),
                 )
@@ -69,12 +65,10 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
 
         db.a.client()
             .query(
-                "BEGIN TRANSACTION;
-            CREATE audit_domain_fixture:one SET revision = 1;
-            fn::append_audit($audit_rows); COMMIT TRANSACTION;",
+                include_str!("../queries/surreal_integration/audit_transactions/domain_and_audit_commit_or_rollback_together_and_retries_keep_one_record_3.surql"),
             )
             .bind(
-                AuditTransactionWrite::new(record.clone())
+                AuditTransactionWrite::new(db.a.audit_targets(), record.clone())
                     .unwrap()
                     .into_binding(),
             )
@@ -105,12 +99,10 @@ async fn domain_and_audit_commit_or_rollback_together_and_retries_keep_one_recor
         let result =
             db.a.client()
                 .query(
-                    "BEGIN TRANSACTION;
-            CREATE audit_domain_fixture:two SET revision = 2;
-            fn::append_audit($audit_rows); COMMIT TRANSACTION;",
+                    include_str!("../queries/surreal_integration/audit_transactions/domain_and_audit_commit_or_rollback_together_and_retries_keep_one_record_4.surql"),
                 )
                 .bind(
-                    AuditTransactionWrite::batch(vec![draft(), conflict])
+                    AuditTransactionWrite::batch(db.a.audit_targets(), vec![draft(), conflict])
                         .unwrap()
                         .into_binding(),
                 )

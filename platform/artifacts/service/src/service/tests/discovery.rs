@@ -41,11 +41,11 @@ async fn discovery_sql_admits_context_grants_clearance_and_retention_before_limi
             .await.unwrap();
 
         for id in [classified.artifact_id(), expired.artifact_id(), unshared.artifact_id(), expired_grant.artifact_id()] {
-            store.client().query("UPDATE $artifact SET producer_key = ''; ")
+            store.client().query(include_str!("../../../tests/queries/service/tests/discovery/discovery_sql_admits_context_grants_clearance_and_retention_before_limits.surql"))
                 .bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(id.as_uuid()).record_id()))
                 .await.unwrap().check().unwrap();
         }
-        store.client().query("UPDATE $artifact SET retention_expires_at = time::now() - 1s; UPDATE artifact_grant SET expires_at = time::now() - 1s WHERE in = $granted AND subject_key = 'bob';")
+        store.client().query(include_str!("../../../tests/queries/service/tests/discovery/discovery_sql_admits_context_grants_clearance_and_retention_before_limits_2.surql"))
             .bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(expired.artifact_id().as_uuid()).record_id()))
             .bind(("granted", veoveo_platform_store::ArtifactId::from_uuid(expired_grant.artifact_id().as_uuid()).record_id()))
             .await.unwrap().check().unwrap();
@@ -106,7 +106,7 @@ async fn discovery_sql_admits_context_grants_clearance_and_retention_before_limi
         assert!(service.metadata_snapshot(&cleared, &classified.artifact_id()).await.is_err());
         assert!(service.list(&cleared, ListArtifactsRequest::default()).await.is_err(),
             "an admitted corrupt row must fail explicitly");
-        store.client().query("UPDATE artifact_grant SET subject_key = 'incorrect-subject' WHERE in = $artifact;")
+        store.client().query(include_str!("../../../tests/queries/service/tests/discovery/discovery_sql_admits_context_grants_clearance_and_retention_before_limits_3.surql"))
             .bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(ids[2].as_uuid()).record_id()))
             .await.unwrap().check().unwrap();
         assert!(matches!(service.metadata_snapshot(&alice, &ids[2]).await, Err(ArtifactPlaneError::Transport(_))),

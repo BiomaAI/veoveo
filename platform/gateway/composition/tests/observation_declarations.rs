@@ -1,4 +1,4 @@
-//! Real installed mixed schema qualification for every current observation declaration.
+//! Fresh owner lane qualification for every current observation declaration.
 use futures::StreamExt;
 use veoveo_modules::{ObservationReplay, ObservationTable};
 use veoveo_platform_store::{ChangefeedCursor, PlatformTable};
@@ -8,7 +8,17 @@ mod store;
 #[tokio::test]
 async fn all_kernel_and_owner_observations_match_native_schema_retention() {
     tokio::time::timeout(std::time::Duration::from_secs(120), async {
-        let fixture = store::TestDb::new().await;
+        let execution = |name| store::module_lanes::execution(name).unwrap();
+        let fixture = store::TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(execution("agents")).unwrap(),
+            veoveo_computers::schema::module_setup(execution("computers")).unwrap(),
+            veoveo_recording_mcp::schema::module_setup(execution("recordings")).unwrap(),
+            veoveo_map_mcp::schema::module_setup(execution("map")).unwrap(),
+            veoveo_time_mcp::schema::module_setup(execution("time")).unwrap(),
+            veoveo_frames_mcp::schema::module_setup(execution("frames")).unwrap(),
+            veoveo_media_mcp::schema::module_setup(execution("media")).unwrap(),
+            veoveo_uav_sim_mcp::schema::module_setup(execution("uav")).unwrap(),
+        ]).await;
         let mut tables: Vec<ObservationTable> =
             PlatformTable::ALL.into_iter().map(Into::into).collect();
         tables.extend(
@@ -62,7 +72,7 @@ async fn all_kernel_and_owner_observations_match_native_schema_retention() {
         let mut response = fixture
             .a
             .client()
-            .query("INFO FOR DB;")
+            .query(include_str!("queries/observation_declarations/all_kernel_and_owner_observations_match_native_schema_retention/statement_1.surql"))
             .await
             .unwrap()
             .check()
@@ -113,7 +123,7 @@ async fn all_kernel_and_owner_observations_match_native_schema_retention() {
         let result = fixture
             .a
             .client()
-            .query("SHOW CHANGES FOR DATABASE SINCE $cursor LIMIT $limit;")
+            .query(include_str!("queries/observation_declarations/malformed_show_numeric_parameters.surql"))
             .bind(("cursor", 0_i64))
             .bind(("limit", 1_u32))
             .await;

@@ -2,7 +2,7 @@
 use super::*;
 use crate::server::{
     catalog_tests::{grant, mission_request},
-    test_support::{fixture::TestDb, identity},
+    test_support::identity,
 };
 use std::time::Duration as Timeout;
 use veoveo_map_mcp::contract::{MobilityProfileId, MobilityProfileVersion, RouteStatus};
@@ -63,7 +63,10 @@ fn map_status_and_handoff_policy_stay_explicit() {
 #[tokio::test]
 async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(120), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let reader = VehicleControlAuthority::new(db.b.clone());
@@ -154,7 +157,10 @@ async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
 #[tokio::test]
 async fn native_execution_rechecks_grant_after_preflight() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(60), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let writer = VehicleControlAuthority::new(db.b.clone());
@@ -194,7 +200,7 @@ async fn native_execution_rechecks_grant_after_preflight() {
         assert_eq!(retained, plan);
         let mut response =
             db.a.client()
-                .query("SELECT VALUE id FROM $record;")
+                .query(include_str!("queries/tests/record_ids.surql"))
                 .bind((
                     "record",
                     vehicle_lease_record_id(&pilot, &plan.session_id, &plan.vehicle_id),
@@ -216,12 +222,21 @@ async fn native_execution_rechecks_grant_after_preflight() {
 #[tokio::test]
 async fn native_selected_plan_metadata_and_grant_profile_fail_closed() {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
+    let db = crate::server::test_support::database(
+        crate::server::test_support::fixture::StoreBackend::Memory,
+    )
+    .await;
     tokio::time::timeout(Timeout::from_secs(60), async {
         let authority = VehicleControlAuthority::new(db.a.clone());
         let pilot = identity("retained", "operations", "pilot", &[]);
-        authority.grant(&pilot, grant(&pilot, "matching")).await.unwrap();
-        let plan = authority.prepare_plan(&pilot, mission_request("retained")).await.unwrap();
+        authority
+            .grant(&pilot, grant(&pilot, "matching"))
+            .await
+            .unwrap();
+        let plan = authority
+            .prepare_plan(&pilot, mission_request("retained"))
+            .await
+            .unwrap();
         let record_id = scoped_record_id("uav_vehicle_mission_plan", &pilot, plan.plan_id.as_str());
         let good = authority.plan_record(&record_id).await.unwrap();
         assert_eq!(plan_view(&good).unwrap(), plan);
@@ -231,32 +246,84 @@ async fn native_selected_plan_metadata_and_grant_profile_fail_closed() {
             corrupted(&good, |row| row.principal_key = "different".into()),
             corrupted(&good, |row| row.session_id = "different".into()),
             corrupted(&good, |row| row.vehicle_id = "different".into()),
-            corrupted(&good, |row| row.map_route_uri = "map://route/different".into()),
+            corrupted(&good, |row| {
+                row.map_route_uri = "map://route/different".into()
+            }),
             corrupted(&good, |row| row.map_route_digest_sha256 = "b".repeat(64)),
-            corrupted(&good, |row| row.map_mobility_profile_uri = "map://mobility-profile/invalid/1".into()),
+            corrupted(&good, |row| {
+                row.map_mobility_profile_uri = "map://mobility-profile/invalid/1".into()
+            }),
             corrupted(&good, |row| row.state = "executing".into()),
             corrupted(&good, |row| row.revision = 1),
-            corrupted(&good, |row| row.expires_at = good.expires_at + Duration::seconds(1)),
-            corrupted(&good, |row| row.created_at = good.created_at + Duration::seconds(1)),
-            corrupted(&good, |row| row.updated_at = good.updated_at + Duration::seconds(1)),
+            corrupted(&good, |row| {
+                row.expires_at = good.expires_at + Duration::seconds(1)
+            }),
+            corrupted(&good, |row| {
+                row.created_at = good.created_at + Duration::seconds(1)
+            }),
+            corrupted(&good, |row| {
+                row.updated_at = good.updated_at + Duration::seconds(1)
+            }),
         ];
-        for row in bad { assert!(plan_view(&row).is_err()); }
+        for row in bad {
+            assert!(plan_view(&row).is_err());
+        }
         let mut wrong_id = good.clone();
         wrong_id.id = RecordId::new("uav_vehicle_mission_plan", "wrong");
         assert!(visible_plan_view(&wrong_id, &pilot).is_err());
-        db.b.client().query("UPDATE ONLY $record SET map_mobility_profile_uri = 'map://mobility-profile/invalid/1';")
-            .bind(("record", record_id)).await.unwrap().check().unwrap();
-        assert!(authority.visible_plan(&pilot, false, &plan.plan_id).await.is_err());
+        db.b.client()
+            .query(include_str!("queries/tests/corrupt_grant_profile.surql"))
+            .bind(("record", record_id))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            authority
+                .visible_plan(&pilot, false, &plan.plan_id)
+                .await
+                .is_err()
+        );
         assert!(authority.plans_page(&pilot, false, None).await.is_err());
-        assert!(execution_test_support::begin(&authority, &pilot, &plan.plan_id, 0).await.is_err());
+        assert!(
+            execution_test_support::begin(&authority, &pilot, &plan.plan_id, 0)
+                .await
+                .is_err()
+        );
         let peer = identity("retained", "operations", "peer", &[]);
-        assert!(authority.plans_page(&peer, false, None).await.unwrap().items.is_empty());
+        assert!(
+            authority
+                .plans_page(&peer, false, None)
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
         let bad_grant = scoped_record_id("uav_vehicle_control_grant", &pilot, "matching");
-        db.b.client().query("UPDATE ONLY $record SET map_mobility_profile_uri = 'map://mobility-profile/invalid/1';")
-            .bind(("record", bad_grant)).await.unwrap().check().unwrap();
-        assert!(authority.grants_page(&pilot, false, None, None).await.is_err());
-        assert!(authority.grants_page(&peer, false, None, None).await.unwrap().items.is_empty());
-    }).await.expect("retained Map metadata qualification exceeded 60 seconds");
+        db.b.client()
+            .query(include_str!("queries/tests/corrupt_grant_profile.surql"))
+            .bind(("record", bad_grant))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            authority
+                .grants_page(&pilot, false, None, None)
+                .await
+                .is_err()
+        );
+        assert!(
+            authority
+                .grants_page(&peer, false, None, None)
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+    })
+    .await
+    .expect("retained Map metadata qualification exceeded 60 seconds");
 }
 
 fn corrupted<T: Clone>(good: &T, update: impl FnOnce(&mut T)) -> T {

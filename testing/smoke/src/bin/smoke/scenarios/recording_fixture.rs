@@ -1,4 +1,5 @@
 //! Finish explicitly selected smoke recordings through the producer's normal API.
+use veoveo_recording_store::RecordingRepository;
 
 use std::path::Path;
 use std::time::Duration;
@@ -81,8 +82,8 @@ pub(crate) async fn recording_fixture_finish(
     let store = recording_store(&environment).await?;
     let tenant = deterministic_tenant_id(installation.operator.tenant.as_str())?;
     for stream_id in stream_ids {
-        let stream_id = veoveo_platform_store::RecordingIngestStreamId::from_uuid(*stream_id);
-        let stream = store
+        let stream_id = veoveo_recording_store::RecordingIngestStreamId::from_uuid(*stream_id);
+        let stream = RecordingRepository::new(store.clone())
             .recording_ingest_stream(tenant, stream_id)
             .await?
             .context("selected ingest stream does not exist")?;
@@ -91,10 +92,10 @@ pub(crate) async fn recording_fixture_finish(
             RecordIdKey::String(id) => uuid::Uuid::parse_str(id)?,
             _ => anyhow::bail!("ingest stream has no recording UUID"),
         };
-        let recording = store
+        let recording = RecordingRepository::new(store.clone())
             .recording(
                 tenant,
-                veoveo_platform_store::RecordingId::from_uuid(recording_id),
+                veoveo_recording_store::RecordingId::from_uuid(recording_id),
             )
             .await?
             .context("selected stream has no recording")?;

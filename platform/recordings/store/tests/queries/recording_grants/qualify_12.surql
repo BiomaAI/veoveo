@@ -1,0 +1,1 @@
+DELETE $recording RETURN NONE;

@@ -1,0 +1,25 @@
+SELECT * FROM task WHERE id = $task AND server = $server AND tenant = $tenant
+    AND owner = $owner AND profile = $profile
+    AND (IF type::is_object(request) THEN
+        IF type::is_object(request.owner) THEN
+            IF type::is_array(request.owner.data_labels) THEN
+                request.owner.principal_key = $principal_key
+                AND request.owner.profile = $profile_key
+                AND (request.owner.tenant_key ?? NONE) = $tenant_key
+                AND request.owner.data_labels ALLINSIDE $labels
+            ELSE false END
+        ELSE false END
+    ELSE false END)
+  AND work_context = $work_context
+    AND (IF type::is_object(authority) THEN
+        IF type::is_object(request) THEN
+            IF type::is_object(request.owner) THEN
+                IF type::is_object(request.owner.authority) THEN
+                    authority.context_key = $work_context_key
+                    AND request.owner.authority.work_context = $work_context_key
+                    AND request.owner.authority.tenant = $authority_tenant
+                ELSE false END
+            ELSE false END
+        ELSE false END
+    ELSE false END)
+ LIMIT 1;

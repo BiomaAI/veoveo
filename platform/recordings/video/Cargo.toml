@@ -34,6 +34,7 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-recording-store = { workspace = true }
 thiserror = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 # Match the qualified workspace release; public snapshots need date/time values only.

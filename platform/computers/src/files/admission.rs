@@ -145,6 +145,7 @@ impl ComputersStore {
                 .into_value(),
             ),
             crate::audit::binding(
+                self.platform.audit_targets(),
                 actor.accepted(),
                 binding.computer_id,
                 crate::audit::Transition::accepted(
@@ -180,7 +181,7 @@ impl ComputersStore {
     ) -> Result<Option<FileOperation>> {
         let mut receipt = self
             .query(
-                "SELECT transfer FROM ONLY $request;",
+                include_str!("../../queries/files/admission/file_request.surql"),
                 vec![("request", request.clone().into_value())],
             )
             .await?;

@@ -5,19 +5,6 @@ use crate::{
     server::index,
 };
 
-const VISIBLE: &str = "tenant = $tenant AND work_context = $work_context AND ($include_all OR principal_key = $principal)";
-const ACTIVE: &str =
-    "revoked_at = NONE AND valid_from <= $now AND (valid_until = NONE OR valid_until > $now)";
-
-// Shared by grant selection and the execution-admission UPDATE. Values are bound
-// at the driver boundary; this predicate contains no caller-supplied SQL.
-pub(super) const PERMITTED: &str = "tenant = $tenant AND work_context = $work_context
-    AND principal_key = $principal AND session_id = $simulation_session AND vehicle_id = $vehicle
-    AND revoked_at = NONE AND valid_from <= $now AND (valid_until = NONE OR valid_until > $now)
-    AND permissions CONTAINSALL $permissions
-    AND ($profile = NONE OR map_mobility_profile_uri = $profile)
-    AND ($advisory = false OR allow_planning_advisory = true)";
-
 impl VehicleControlAuthority {
     pub(in crate::server) async fn grants_page(
         &self,
@@ -30,11 +17,7 @@ impl VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query(format!(
-                "SELECT * FROM uav_vehicle_control_grant WHERE {VISIBLE}
-             AND ($simulation_session = NONE OR (session_id = $simulation_session AND {ACTIVE}))
-             AND ($after = NONE OR grant_id > $after) ORDER BY grant_id ASC LIMIT $limit;"
-            ))
+            .query(include_str!("queries/grant_page.surql"))
             .bind(("tenant", tenant))
             .bind(("work_context", context))
             .bind(("principal", identity.actor.id.to_string()))
@@ -74,10 +57,7 @@ impl VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query(format!(
-                "SELECT * FROM uav_vehicle_mission_plan WHERE {VISIBLE}
-             AND ($after = NONE OR plan_id > $after) ORDER BY plan_id ASC LIMIT $limit;"
-            ))
+            .query(include_str!("queries/plan_page.surql"))
             .bind(("tenant", tenant))
             .bind(("work_context", context))
             .bind(("principal", identity.actor.id.to_string()))
@@ -111,7 +91,7 @@ impl VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query(format!("SELECT * FROM ONLY $record WHERE {VISIBLE};"))
+            .query(include_str!("queries/visible_record.surql"))
             .bind((
                 "record",
                 scoped_record_id("uav_vehicle_control_grant", identity, id.as_str()),
@@ -138,7 +118,7 @@ impl VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query(format!("SELECT * FROM ONLY $record WHERE {VISIBLE};"))
+            .query(include_str!("queries/visible_record.surql"))
             .bind((
                 "record",
                 scoped_record_id("uav_vehicle_mission_plan", identity, id.as_str()),
@@ -196,10 +176,7 @@ impl VehicleControlAuthority {
         let mut response = self
             .store
             .client()
-            .query(format!(
-                "SELECT * FROM uav_vehicle_control_grant WHERE {PERMITTED}
-             ORDER BY created_at ASC, grant_id ASC LIMIT 1;"
-            ))
+            .query(include_str!("queries/select_permission.surql"))
             .bind(("tenant", tenant))
             .bind(("work_context", context))
             .bind(("principal", identity.actor.id.to_string()))
@@ -239,14 +216,22 @@ impl VehicleControlAuthority {
         struct Vehicle {
             vehicle_id: String,
         }
-        let mut response = self.store.client().query(format!(
-            "SELECT vehicle_id FROM uav_vehicle_control_grant WHERE {VISIBLE} AND {ACTIVE}
-             AND session_id = $simulation_session AND vehicle_id IN $vehicles AND permissions CONTAINS 'inspect'
-             GROUP BY vehicle_id;"
-        )).bind(("tenant", tenant)).bind(("work_context", context)).bind(("include_all", false))
-            .bind(("principal", identity.actor.id.to_string())).bind(("now", Utc::now()))
-            .bind(("simulation_session", session.to_string())).bind(("vehicles", vehicles.iter().map(ToString::to_string).collect::<Vec<_>>()))
-            .await?.check()?;
+        let mut response = self
+            .store
+            .client()
+            .query(include_str!("queries/inspectable_vehicles.surql"))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("include_all", false))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("now", Utc::now()))
+            .bind(("simulation_session", session.to_string()))
+            .bind((
+                "vehicles",
+                vehicles.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            ))
+            .await?
+            .check()?;
         let records: Vec<Vehicle> = response.take(0)?;
         records
             .into_iter()
@@ -265,22 +250,26 @@ impl VehicleControlAuthority {
         needle: &str,
     ) -> Result<Vec<String>> {
         let (tenant, context) = context_records(identity)?;
-        let (table, field) = match domain {
-            ControlCollection::Grants => ("uav_vehicle_control_grant", "grant_id"),
-            ControlCollection::Plans => ("uav_vehicle_mission_plan", "plan_id"),
+        let statement = match domain {
+            ControlCollection::Grants => include_str!("queries/complete_grants.surql"),
+            ControlCollection::Plans => include_str!("queries/complete_plans.surql"),
         };
-        // Both SQL identifiers come only from the closed domain enum.
         #[derive(SurrealValue)]
         struct Completion {
             value: String,
         }
-        let mut response = self.store.client().query(format!(
-            "SELECT {field} AS value FROM {table} WHERE {VISIBLE}
-             AND string::contains(string::lowercase({field}), $needle) ORDER BY value ASC LIMIT $limit;"
-        )).bind(("tenant", tenant)).bind(("work_context", context))
-            .bind(("principal", identity.actor.id.to_string())).bind(("include_all", include_all))
-            .bind(("needle", needle.to_lowercase())).bind(("limit", index::PAGE_SIZE + 1))
-            .await?.check()?;
+        let mut response = self
+            .store
+            .client()
+            .query(statement)
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("include_all", include_all))
+            .bind(("needle", needle.to_lowercase()))
+            .bind(("limit", index::PAGE_SIZE + 1))
+            .await?
+            .check()?;
         let rows: Vec<Completion> = response.take(0)?;
         Ok(rows.into_iter().map(|row| row.value).collect())
     }

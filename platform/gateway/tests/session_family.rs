@@ -198,9 +198,13 @@ async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation(
                     issued.grant.family_id.as_str().parse().unwrap(),
                 );
                 let sql = if ending == "expiry" {
-                    "UPDATE $family SET expires_at = time::now() - 1s;"
+                    include_str!(
+                        "queries/session_family/session_binding_survives_rotation_and_rejects_cross_replica_revocation/statement_1.surql"
+                    )
                 } else {
-                    "DELETE $family;"
+                    include_str!(
+                        "queries/session_family/session_binding_survives_rotation_and_rejects_cross_replica_revocation/statement_2.surql"
+                    )
                 };
                 db.a.client()
                     .query(sql)

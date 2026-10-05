@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; CREATE ONLY $window CONTENT $content RETURN NONE; DELETE recording_ingest_quota_window WHERE tenant = $tenant AND producer_id = $producer_id AND window_ends_at <= $started_at RETURN NONE; COMMIT TRANSACTION;

@@ -1,6 +1,7 @@
 //! Map owns tenant-scoped source selection; creator identity is attribution.
+use crate::persistence::MapSourceRecord;
 use anyhow::{Result, ensure};
-use veoveo_platform_store::{MapSourceRecord, RecordId};
+use veoveo_platform_store::RecordId;
 
 use super::{MapAccessContext, MapCatalog, decode, integer_version, wire};
 use crate::contract::{
@@ -53,19 +54,21 @@ impl MapCatalog {
         scope: &MapAccessContext,
         selection: Selection<'_>,
     ) -> Result<Vec<RegisteredSource>> {
-        let (predicate, limit) = match selection {
-            Selection::Exact(_) => ("AND source_key = $key", 2),
-            Selection::Page(None) => ("", SOURCE_PAGE_SIZE + 1),
-            Selection::Page(Some(_)) => ("AND source_key > $after", SOURCE_PAGE_SIZE + 1),
+        let (sql, limit) = match selection {
+            Selection::Exact(_) => (include_str!("../queries/catalog/sources/exact.surql"), 2),
+            Selection::Page(None) => (
+                include_str!("../queries/catalog/sources/first_page.surql"),
+                SOURCE_PAGE_SIZE + 1,
+            ),
+            Selection::Page(Some(_)) => (
+                include_str!("../queries/catalog/sources/after_page.surql"),
+                SOURCE_PAGE_SIZE + 1,
+            ),
         };
-        // Only this closed selection enum chooses SQL fragments. User values bind below.
         let query = self
             .store()
             .client()
-            .query(format!(
-                "SELECT * FROM map_source WHERE tenant = $tenant {predicate}
-             ORDER BY source_key ASC LIMIT $limit TIMEOUT 5s;"
-            ))
+            .query(sql)
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("limit", limit));
         let query = match selection {
@@ -91,11 +94,9 @@ impl MapCatalog {
         let mut response = self
             .store()
             .client()
-            .query(
-                "SELECT VALUE source_key FROM map_source WHERE tenant = $tenant
-             AND string::lowercase(source_key) CONTAINS $needle
-             GROUP BY source_key ORDER BY source_key ASC LIMIT 101 TIMEOUT 5s;",
-            )
+            .query(include_str!(
+                "../queries/catalog/sources/complete_sources/statement_1.surql"
+            ))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("needle", needle.to_lowercase()))
             .await?

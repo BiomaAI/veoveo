@@ -20,7 +20,7 @@ pub(super) async fn preview(
     let profile = GatewayProfileId::parse(profile).map_err(|_| StatusCode::NOT_FOUND)?;
     let admitted = state
         .workspace
-        .store
+        .repository
         .workspace_agent_for_update(
             &actor,
             WorkspaceChatId::from_uuid(chat),
@@ -72,7 +72,7 @@ pub(super) async fn adopt(
     let chat = WorkspaceChatId::from_uuid(chat);
     let admitted = state
         .workspace
-        .store
+        .repository
         .workspace_agent_for_update(&actor, chat, WorkspaceAgentId::from_uuid(agent))
         .await
         .map_err(fault)?;
@@ -87,7 +87,7 @@ pub(super) async fn adopt(
         .await?;
     let result = state
         .workspace
-        .store
+        .repository
         .update_workspace_agent_revision(
             &actor,
             chat,

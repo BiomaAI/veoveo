@@ -269,10 +269,11 @@ impl TaskRuntime {
                 let query = self
                     .store
                     .client()
-                    .query(
+                    .query(if contribution_sql.is_empty() {
                         include_str!("../queries/create_idempotent.surql")
-                            .replace("/* creation contribution */", contribution_sql),
-                    )
+                    } else {
+                        include_str!("../queries/create_idempotent_contribution.surql")
+                    })
                     .bind(("idempotency", idempotency.clone()))
                     .bind(("link", link.clone()))
                     .bind(("task", task_record_id(task_id)))
@@ -304,10 +305,11 @@ impl TaskRuntime {
             let query = self
                 .store
                 .client()
-                .query(
+                .query(if contribution_sql.is_empty() {
                     include_str!("../queries/create.surql")
-                        .replace("/* creation contribution */", contribution_sql),
-                )
+                } else {
+                    include_str!("../queries/create_contribution.surql")
+                })
                 .bind(("task", record))
                 .bind(("content", content));
             contribution
@@ -339,7 +341,7 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM task WHERE id = $task AND server = $server LIMIT 1;")
+            .query(include_str!("../queries/runtime/get.surql"))
             .bind(("task", task_record_id(task_id)))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .await?
@@ -360,7 +362,7 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM task WHERE server = $server ORDER BY created_at ASC;")
+            .query(include_str!("../queries/runtime/list.surql"))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .await?
             .check()?;
@@ -384,9 +386,9 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query(
-                "UPDATE ONLY $task SET retention_pins += $pin WHERE server = $server AND !(retention_pins CONTAINS $pin) RETURN AFTER;",
-            )
+            .query(include_str!(
+                "../queries/runtime/adopt_retention_pin_for_repair.surql"
+            ))
             .bind(("task", task_record_id(task_id)))
             .bind(("pin", pin.as_str().to_owned()))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
@@ -412,9 +414,9 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query(
-                "UPDATE ONLY $task SET retention_pins -= $pin WHERE server = $server AND retention_pins CONTAINS $pin RETURN AFTER;",
-            )
+            .query(include_str!(
+                "../queries/runtime/acknowledge_retention_pin.surql"
+            ))
             .bind(("task", task_record_id(task_id)))
             .bind(("pin", pin.as_str().to_owned()))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
@@ -477,9 +479,7 @@ impl TaskRuntime {
         let result = self
             .store
             .client()
-            .query(
-                "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, updated_at = $now WHERE updated_at = $expected_updated_at AND status IN ['queued', 'running', 'waiting'] AND server = $server AND tenant = $tenant AND owner = $owner AND lease_owner = $worker AND lease_expires_at > $now RETURN AFTER); IF $updated = NONE { THROW 'task input transition conflict'; }; CREATE ONLY $input CONTENT $content RETURN NONE; COMMIT TRANSACTION;",
-            )
+            .query(include_str!("../queries/runtime/request_input.surql"))
             .bind(("task", task_record_id(current.task_id)))
             .bind(("request", envelope.into_open_object()?))
             .bind(("now", now))
@@ -522,9 +522,7 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query(
-                "SELECT * FROM task_input WHERE task = $task AND response = NONE ORDER BY created_at ASC;",
-            )
+            .query(include_str!("../queries/runtime/outstanding_inputs.surql"))
             .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
@@ -652,22 +650,43 @@ impl TaskRuntime {
         };
         envelope.status_message = Some(message.clone());
 
-        let admission = selection
-            .map(|query| {
-                format!(
-                    "AND {} {}",
-                    owner_reads::VISIBLE_TASK,
-                    query.selection_predicate()
-                )
-            })
-            .unwrap_or_default();
         let query = self
             .store
             .client()
             .query(
-                include_str!("../queries/transition.surql")
-                    .replace("/* caller selection */", &admission)
-                    .replace("/* settlement contribution */", contribution_sql),
+                match (
+                    selection.map(OwnerTaskQuery::selection),
+                    !contribution_sql.is_empty(),
+                ) {
+                    (None, false) => include_str!("../queries/transition/trusted.surql"),
+                    (None, true) => {
+                        include_str!("../queries/transition/trusted_contribution.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::Owner), false) => {
+                        include_str!("../queries/transition/owner.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::Owner), true) => {
+                        include_str!("../queries/transition/owner_contribution.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::Operations), false) => {
+                        include_str!("../queries/transition/operations.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::Operations), true) => {
+                        include_str!("../queries/transition/operations_contribution.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::Context), false) => {
+                        include_str!("../queries/transition/context.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::Context), true) => {
+                        include_str!("../queries/transition/context_contribution.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::ContextOperations), false) => {
+                        include_str!("../queries/transition/context_operations.surql")
+                    }
+                    (Some(owner_query::OwnerSelection::ContextOperations), true) => {
+                        include_str!("../queries/transition/context_operations_contribution.surql")
+                    }
+                },
             )
             .bind(("task", task_record_id(current.task_id)))
             .bind(("next", next))
@@ -844,9 +863,7 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query(
-                "DELETE task WHERE retention_expires_at != NONE AND retention_expires_at <= $now AND array::len(retention_pins) = 0 AND status IN ['succeeded', 'failed', 'cancelled'] RETURN BEFORE;",
-            )
+            .query(include_str!("../queries/runtime/prune_expired.surql"))
             .bind(("now", now))
             .await?
             .check()?;
@@ -866,7 +883,7 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT VALUE task FROM ONLY $id;")
+            .query(include_str!("../queries/runtime/idempotent_task.surql"))
             .bind(("id", id))
             .await?
             .check()?;
@@ -885,7 +902,9 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $input;")
+            .query(include_str!(
+                "../queries/runtime/input_exchange_by_id.surql"
+            ))
             .bind(("input", input_id))
             .await?
             .check()?;

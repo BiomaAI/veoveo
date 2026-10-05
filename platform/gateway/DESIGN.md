@@ -39,6 +39,13 @@ The MCP Apps `_meta.ui.resourceUri` field receives the corresponding App address
 `referenced_resource_schemes` preserves protocol links owned by another registered
 server; installation validation checks that declaration against the registry.
 
+## Database Queries
+
+The library embeds its SurrealQL statements from owner query folders, including
+`src/queries/`. Native fixtures use `tests/queries/` or their colocated source query
+family. Callers bind runtime values and decode the statement result slots. The
+composition package owns installation SQL and command-process fixtures.
+
 ## Forwarded Identity Directory
 
 `upstream_authorized_http.rs` signs each upstream HTTP request separately. Ordinary
@@ -359,13 +366,13 @@ and the expected image binding, generation and credential revision before connec
 The plan producer adds no owner vocabulary to the foundational module crate.
 
 `installation-prepare` authenticates as root, creates an absent namespace/database,
-claims the preparation generation, applies the existing mixed catalogs and completes
-runtime-account provisioning. It publishes no control plane. `module-migrate` runs one
+claims the preparation generation and completes runtime-account provisioning. It publishes no control plane. `module-migrate` runs one
 selected lane after database history proves its dependencies; waits are capped at 300
 seconds. `module-status` reads the selected history without mutation.
 
-`control-plane-publish` uses database-scoped runtime authentication after health, mixed
-catalog, preparation and selected-lane checks. Its revision/audit transaction checks
+`control-plane-publish` uses database-scoped runtime authentication after health,
+preparation and selected-lane checks. Every Store connection refuses mixed-catalog
+markers without applying schema. Its revision/audit transaction checks
 the preparation key again. Audit attribution names the authenticated database account;
 `applied_by` records the separately validated operator attribution. Identical active
 control data returns the existing validated revision after a transaction reads the

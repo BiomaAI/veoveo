@@ -36,7 +36,7 @@ contract = [
     "dep:veoveo-map-mcp",
     "dep:veoveo-frames-mcp",
 ]
-runtime = [
+runtime = ["dep:veoveo-recording-store",
     "dep:veoveo-agent-runtime",
     "schema",
     "contract",
@@ -69,6 +69,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-recording-store = { workspace = true, default-features = false, features = ["persistence"], optional = true }
 veoveo-agent-runtime = { workspace = true, default-features = false, features = ["schema"], optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-audit = { workspace = true, optional = true }
@@ -106,6 +107,9 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+veoveo-agent-runtime = { workspace = true, default-features = false, features = ["persistence"] }
+veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["schema", "contract"] }
+veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 veoveo-gateway-catalog.workspace = true
 veoveo-gateway-contract.workspace = true

@@ -40,7 +40,9 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         (
             "audit",
             "apps/console/web/src/generated",
-            serde_json::to_value(veoveo_audit_contract::reader_schema())?,
+            serde_json::to_value(veoveo_audit_contract::reader_schema(
+                veoveo_gateway_catalog::audit_target_registry()?.as_ref(),
+            )?)?,
         ),
         (
             "speech",

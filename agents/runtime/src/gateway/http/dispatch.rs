@@ -1,5 +1,6 @@
 //! Current managed model authority; this preflight never invokes a model.
 use crate::contract::authoring as wire;
+use crate::persistence::AgentRepository;
 use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
@@ -57,8 +58,7 @@ pub(super) async fn check(
     if managed.instance.key != binding.instance.as_str()
         || managed.instance.identity.profile != profile.id.as_str()
         || managed.context_key != subject.authority.work_context.as_str()
-        || !state
-            .store()
+        || !AgentRepository::new(state.store().clone())
             .managed_agent_kernel_dispatch(
                 managed.instance.id,
                 request.generation,

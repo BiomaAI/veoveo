@@ -1,0 +1,1 @@
+BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $layer); IF $current.revision != $revision OR $current.state IN ['committed', 'failed'] { THROW 'recording_layer_revision_conflict'; }; UPDATE ONLY $layer SET state = 'failed', failure_reason = $reason, staging_path = NONE, updated_at = time::now(), revision += 1 RETURN NONE; COMMIT TRANSACTION;

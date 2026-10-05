@@ -1,5 +1,5 @@
 use super::{instant, scope};
-use crate::{catalog::TimeCatalog, contract::*, test_store::TestDb};
+use crate::{catalog::TimeCatalog, contract::*};
 use chrono::Utc;
 use serde_json::json;
 use std::{collections::BTreeMap, time::Duration};
@@ -15,7 +15,7 @@ pub(super) async fn set(
     // Deliberate corruption through the fixture writer, bypassing catalog admission.
     store
         .client()
-        .query("UPDATE $record MERGE $patch RETURN NONE;")
+        .query(include_str!("../../tests/queries/merge_record.surql"))
         .bind(("record", record.clone()))
         .bind((
             "patch",
@@ -30,7 +30,9 @@ pub(super) async fn set(
 async fn body(store: &PlatformStore, record: &RecordId) -> String {
     store
         .client()
-        .query("SELECT VALUE canonical_json FROM ONLY $record;")
+        .query(include_str!(
+            "../../tests/queries/read_canonical_json.surql"
+        ))
         .bind(("record", record.clone()))
         .await
         .unwrap()
@@ -50,7 +52,7 @@ fn corrupt(original: &str, field: &str, value: serde_json::Value) -> String {
 #[tokio::test]
 async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visibility() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "time-metadata", "owner").await;
         let peer = scope(&db.a, "time-metadata", "peer").await;
         let foreign = scope(&db.a, "time-metadata-other", "owner").await;
@@ -315,7 +317,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
 #[tokio::test]
 async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflicting_bodies() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "time-authority-metadata", "owner").await;
         let foreign = scope(&db.a, "time-authority-metadata-other", "owner").await;
         let catalog = TimeCatalog::new(db.b.clone());
@@ -583,7 +585,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
 #[tokio::test]
 async fn matching_subsecond_corruption_rejects_reads_without_rewriting_rows() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "time-subseconds", "owner").await;
         let foreign = scope(&db.a, "time-subseconds-other", "owner").await;
         let catalog = TimeCatalog::new(db.b.clone());
@@ -699,7 +701,7 @@ async fn matching_subsecond_corruption_rejects_reads_without_rewriting_rows() {
 #[tokio::test]
 async fn retained_instants_reject_ambiguous_authority_bindings_after_sql_visibility() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let owner = scope(&db.a, "time-binding", "owner").await;
         let foreign = scope(&db.a, "time-binding-other", "owner").await;
         let catalog = TimeCatalog::new(db.b.clone());

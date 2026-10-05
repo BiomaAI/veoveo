@@ -4,7 +4,7 @@ mod lifecycle;
 #[cfg(feature = "mcp")]
 mod tool_input_tests;
 use super::*;
-use crate::{contract::*, test_store::TestDb};
+use crate::contract::*;
 use chrono::Utc;
 use futures::StreamExt;
 use sha2::{Digest, Sha256};
@@ -214,7 +214,7 @@ fn resolved(engine: &TemporalEngine) -> TimeInstant {
 async fn set(store: &PlatformStore, record: RecordId, field: &str, value: impl SurrealValue) {
     store
         .client()
-        .query("UPDATE $record MERGE $patch RETURN NONE;")
+        .query(include_str!("../tests/queries/merge_record.surql"))
         .bind(("record", record))
         .bind((
             "patch",
@@ -229,7 +229,7 @@ async fn set(store: &PlatformStore, record: RecordId, field: &str, value: impl S
 #[tokio::test]
 async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reuse() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let registry = files.registry();
         let writer = TimeCatalog::new(db.a.clone());
@@ -335,7 +335,7 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         let release_id = RecordId::new("time_authority_release", first.release_id.to_string());
         let body =
             db.a.client()
-                .query("SELECT VALUE canonical_json FROM ONLY $record;")
+                .query(include_str!("../tests/queries/read_canonical_json.surql"))
                 .bind(("record", release_id.clone()))
                 .await
                 .unwrap()
@@ -365,7 +365,7 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
             .unwrap();
         assert!(registry.authority_engine(&reader, &owner).await.is_ok());
         db.a.client()
-            .query("DELETE $record RETURN NONE;")
+            .query(include_str!("../tests/queries/delete_record.surql"))
             .bind(("record", release_id))
             .await
             .unwrap()
@@ -389,7 +389,7 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
 #[tokio::test]
 async fn live_and_reconciliation_invalidate_contexts_without_becoming_a_freshness_dependency() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let registry = files.registry();
         let writer = TimeCatalog::new(db.a.clone());
@@ -480,7 +480,7 @@ async fn live_and_reconciliation_invalidate_contexts_without_becoming_a_freshnes
 async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let db = TestDb::new().await;
+        let db = crate::test_database(crate::test_store::StoreBackend::Memory).await;
         let files = AuthorityFiles::new().await;
         let registry = files.registry();
         let catalog = TimeCatalog::new(db.b.clone());
@@ -563,7 +563,7 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
         let record = RecordId::new("time_authority_release", release.release_id.to_string());
         let body =
             db.a.client()
-                .query("SELECT VALUE canonical_json FROM ONLY $record;")
+                .query(include_str!("../tests/queries/read_canonical_json.surql"))
                 .bind(("record", record.clone()))
                 .await
                 .unwrap()

@@ -40,7 +40,7 @@ configured relationships without importing the Recording vocabulary.
 They share UUID admission mechanics without allowing implicit conversion between domains.
 `resources.rs` builds and admits domain routes
 through the foundational URI library. `cursor.rs` owns public catalog positions;
-the service converts them to Store's query types at the persistence call. `uris.rs`
+the service converts them to Recording-owned persistence types at the repository call. `uris.rs`
 declares fixed discovery roots and templates. `catalog.rs` owns grants. Its catalog-request
 constructor admits 1–500 input Recording IDs and produces a sorted unique selection.
 The response builder and JSON decoder admit that same selection shape, a closed schema

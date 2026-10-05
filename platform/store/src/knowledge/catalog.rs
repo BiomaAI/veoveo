@@ -51,20 +51,34 @@ impl PlatformStore {
         registration
             .validate()
             .map_err(|e| StoreError::Knowledge(e.0))?;
-        self.client().query("BEGIN TRANSACTION;
-            LET $prior = (SELECT * FROM ONLY $record);
-            IF $prior.revision != $expected AND $prior.revision != $revision { THROW 'knowledge_catalog_revision_changed'; };
-            UPSERT $record CONTENT {tenant: $tenant, collection: $collection, enumeration_root: $root, revision: $revision, approved: $approved, document: $document};
-            COMMIT TRANSACTION;")
-            .bind(("record", collection_record(&registration.tenant, registration.descriptor.collection())))
+        self.client()
+            .query(include_str!(
+                "../queries/knowledge/catalog/register_knowledge_collection.surql"
+            ))
+            .bind((
+                "record",
+                collection_record(&registration.tenant, registration.descriptor.collection()),
+            ))
             .bind(("tenant", registration.tenant.to_string()))
-            .bind(("collection", registration.descriptor.collection().to_string()))
-            .bind(("root", veoveo_mcp_knowledge_extension::enumeration_uri(&registration.descriptor, None)
-                .map_err(|error| StoreError::Knowledge(error.0))?.to_string()))
+            .bind((
+                "collection",
+                registration.descriptor.collection().to_string(),
+            ))
+            .bind((
+                "root",
+                veoveo_mcp_knowledge_extension::enumeration_uri(&registration.descriptor, None)
+                    .map_err(|error| StoreError::Knowledge(error.0))?
+                    .to_string(),
+            ))
             .bind(("revision", registration.revision().to_string()))
             .bind(("expected", expected.map(ToString::to_string)))
-            .bind(("approved", registration.approval.mode == CollectionApproval::Index))
-            .bind(("document", Document(registration.clone()))).await?.knowledge_check()?;
+            .bind((
+                "approved",
+                registration.approval.mode == CollectionApproval::Index,
+            ))
+            .bind(("document", Document(registration.clone())))
+            .await?
+            .knowledge_check()?;
         Ok(())
     }
 
@@ -80,7 +94,7 @@ impl PlatformStore {
         approvals_valid(approvals, scopes)?;
         let mut result = self
             .client()
-            .query(include_str!("read_root.surql"))
+            .query(include_str!("../queries/knowledge/read_root.surql"))
             .bind(("tenant", tenant.to_string()))
             .bind(("root", root.to_string()))
             .bind((
@@ -123,7 +137,7 @@ impl PlatformStore {
     ) -> Result<bool, StoreError> {
         let mut response = self
             .client()
-            .query(include_str!("observed_member.surql"))
+            .query(include_str!("../queries/knowledge/observed_member.surql"))
             .bind(("tenant", registration.tenant.to_string()))
             .bind((
                 "active",
@@ -146,9 +160,16 @@ impl PlatformStore {
         tenant: &TenantId,
         collection: &CollectionId,
     ) -> Result<Option<CollectionRegistration>, StoreError> {
-        let mut response = self.client().query("SELECT VALUE document FROM ONLY $record WHERE tenant = $tenant AND collection = $collection;")
-            .bind(("record", collection_record(tenant, collection))).bind(("tenant", tenant.to_string()))
-            .bind(("collection", collection.to_string())).await?.knowledge_check()?;
+        let mut response = self
+            .client()
+            .query(include_str!(
+                "../queries/knowledge/catalog/knowledge_collection.surql"
+            ))
+            .bind(("record", collection_record(tenant, collection)))
+            .bind(("tenant", tenant.to_string()))
+            .bind(("collection", collection.to_string()))
+            .await?
+            .knowledge_check()?;
         let document: Option<Document<CollectionRegistration>> = response.take(0)?;
         let Some(Document(document)) = document else {
             return Ok(None);
@@ -190,7 +211,7 @@ impl PlatformStore {
         };
         let mut response = self
             .client()
-            .query(include_str!("read_catalog.surql"))
+            .query(include_str!("../queries/knowledge/read_catalog.surql"))
             .bind(("selected", selected))
             .bind(("tenant", tenant.to_string()))
             .bind((
@@ -233,7 +254,7 @@ impl PlatformStore {
         approvals_valid(approvals, scopes)?;
         let mut response = self
             .client()
-            .query(include_str!("read_sources.surql"))
+            .query(include_str!("../queries/knowledge/read_sources.surql"))
             .bind(("tenant", tenant.to_string()))
             .bind((
                 "approvals",

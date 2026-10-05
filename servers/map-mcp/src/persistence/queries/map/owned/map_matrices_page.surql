@@ -1,0 +1,1 @@
+SELECT matrix_key, mobility_profile_key, mobility_profile_version, created_at FROM map_route_matrix WHERE tenant = $tenant AND owner = $owner AND canonical_json != NONE AND ($after = NONE OR matrix_key > $after) ORDER BY matrix_key ASC LIMIT $limit;

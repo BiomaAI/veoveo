@@ -2,6 +2,10 @@
 use super::super::{authority, projection::uuid};
 use super::{Caller, ResolvedAgent, RunState};
 use crate::contract as wire;
+use crate::persistence::{
+    WorkspaceChatId, WorkspaceReplyContext, WorkspaceRun, WorkspaceRunContext, WorkspaceRunFailure,
+    WorkspaceRunId, WorkspaceRunState, WorkspaceRunUpdate,
+};
 use axum::http::StatusCode;
 use chrono::Utc;
 use futures::StreamExt;
@@ -16,13 +20,6 @@ use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::OwnedSemaphorePermit;
 use uuid::Uuid;
-use veoveo_platform_store::{
-    WorkspaceChatId, WorkspaceRunId,
-    workspace::{
-        WorkspaceReplyContext, WorkspaceRun, WorkspaceRunContext, WorkspaceRunFailure,
-        WorkspaceRunState, WorkspaceRunUpdate,
-    },
-};
 
 pub(super) async fn execute(
     state: RunState,
@@ -48,7 +45,7 @@ pub(super) async fn execute(
     let fence = Uuid::now_v7();
     if state
         .workspace
-        .store
+        .repository
         .claim_workspace_run(&authority, chat, id, fence)
         .await
         .is_err()
@@ -89,7 +86,7 @@ pub(super) async fn execute(
     };
     let _ = state
         .workspace
-        .store
+        .repository
         .update_workspace_run(
             &authority,
             chat,
@@ -126,7 +123,7 @@ async fn stream(
             .map_err(|_| Failure::PermissionChanged)?;
     let context = state
         .workspace
-        .store
+        .repository
         .workspace_run_context(&authority, chat, id)
         .await
         .map_err(|_| Failure::PermissionChanged)?;
@@ -193,7 +190,7 @@ async fn stream(
                 if current == published && last_publish.elapsed() < Duration::from_secs(1) { continue; }
                 if !Arc::ptr_eq(&catalog, &state.catalog.current()) { return Err(Failure::PermissionChanged); }
                 let authority = authority::admit_live(&state.workspace, &state.gateway, &catalog, profile, subject).await.map_err(|_| Failure::PermissionChanged)?;
-                state.workspace.store.update_workspace_run(&authority, chat, id, WorkspaceRunUpdate {
+                state.workspace.repository.update_workspace_run(&authority, chat, id, WorkspaceRunUpdate {
                     fence, text: output.clone(), state: WorkspaceRunState::Running, failure: None,
                     feedback: current.1,
                 }).await.map_err(|_| Failure::PermissionChanged)?;

@@ -5,10 +5,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use uuid::Uuid;
-use veoveo_platform_store::agent_management::instances::{
-    ManagedAgentIdentity, ManagedAgentPublicKey,
-};
-use veoveo_platform_store::{AgentEpisodeRecord, AgentRecord, PlatformStore};
+use veoveo_agent_runtime::persistence::instances::{ManagedAgentIdentity, ManagedAgentPublicKey};
+use veoveo_agent_runtime::persistence::{AgentEpisodeRecord, AgentRecord};
+use veoveo_platform_store::PlatformStore;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -343,7 +342,7 @@ pub(super) struct Ready {
 pub(super) async fn zero_episodes(store: &PlatformStore) -> Result<Vec<AgentRecord>> {
     let mut response = store
         .client()
-        .query("SELECT * FROM agent; SELECT * FROM agent_episode;")
+        .query(include_str!("queries/select_from_agent_select.surql"))
         .await?
         .check()?;
     let agents: Vec<AgentRecord> = response.take(0)?;

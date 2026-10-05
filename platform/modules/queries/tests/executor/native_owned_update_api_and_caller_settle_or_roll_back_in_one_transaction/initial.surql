@@ -1,0 +1,1 @@
+DEFINE TABLE fixture_marker SCHEMAFULL PERMISSIONS NONE; DEFINE FIELD value ON fixture_marker TYPE string; CREATE fixture_marker:base SET value = 'base'; DEFINE FUNCTION fn::kernel::store::update_v1($id: record<fixture_marker>, $value: string) -> bool { UPDATE ONLY $id SET value = $value RETURN NONE; RETURN true; } PERMISSIONS FULL;

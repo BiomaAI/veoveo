@@ -3,7 +3,7 @@ use super::{RecordingService, VIEWER_GRANT_TTL};
 use anyhow::Result;
 use chrono::Utc;
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_platform_store::{
+use veoveo_recording_store::{
     RecordingAccessScope, RecordingDatasetId, RecordingId, RecordingReadGrantClass,
     RecordingReadGrantDraft, RecordingReadGrantId, RecordingReadGrantRecord,
     RecordingReadGrantRequest,
@@ -29,7 +29,7 @@ impl RecordingService {
         )?;
         if let Some(grant_id) = requested_grant
             && let Some(grant) = self
-                .store
+                .recordings
                 .reusable_recording_read_grant(
                     &scope,
                     &request,
@@ -40,7 +40,7 @@ impl RecordingService {
             return Ok(grant);
         }
         Ok(self
-            .store
+            .recordings
             .create_recording_read_grant(RecordingReadGrantDraft {
                 scope,
                 request,

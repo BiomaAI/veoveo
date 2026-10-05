@@ -1,0 +1,1 @@
+UPDATE gateway_refresh_token SET delivery_envelope = NONE, delivery_expires_at = NONE WHERE delivery_expires_at != NONE AND delivery_expires_at <= $now RETURN BEFORE;

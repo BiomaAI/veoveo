@@ -177,6 +177,7 @@ impl ComputersStore {
                 object(&computer.owner)?.into_value(),
             ),
             crate::audit::binding(
+                self.platform.audit_targets(),
                 actor.accepted(),
                 binding.computer_id,
                 crate::audit::Transition::accepted(
@@ -211,7 +212,7 @@ impl ComputersStore {
     ) -> Result<Option<CommandOperation>> {
         let mut receipt = self
             .query(
-                "SELECT execution FROM ONLY $request;",
+                include_str!("../../queries/commands/admission/command_request.surql"),
                 vec![("request", request.clone().into_value())],
             )
             .await?;

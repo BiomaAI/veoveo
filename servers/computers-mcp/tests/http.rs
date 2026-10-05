@@ -152,7 +152,7 @@ async fn rpc(
 
 #[tokio::test]
 async fn canonical_http_and_mcp_share_one_private_idempotent_task_across_replicas() {
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     let signing = Signing::new();
     let a = Server::new(app_support::application(&db, false).await.0, &signing).await;
@@ -538,7 +538,7 @@ async fn sdk(
 #[tokio::test]
 async fn subscription_baselines_cross_replicas_and_close_on_current_policy_revocation() {
     use rmcp::model::{ServerNotification, SubscriptionFilter};
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     let signing = Signing::new();
     let (app, capacity) = app_support::application(&db, false).await;
@@ -663,7 +663,7 @@ async fn subscription_baselines_cross_replicas_and_close_on_current_policy_revoc
 #[tokio::test]
 async fn subscription_assertion_expiry_and_foreign_targets_deliver_no_private_updates() {
     use rmcp::model::{ServerNotification, SubscriptionFilter};
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     let signing = Signing::new();
     let a = Server::new(app_support::application(&db, false).await.0, &signing).await;
@@ -741,7 +741,7 @@ async fn subscription_assertion_expiry_and_foreign_targets_deliver_no_private_up
 async fn subscription_closes_on_current_family_logout_or_expiry_before_assertion_expiry() {
     use rmcp::model::{ServerNotification, SubscriptionFilter};
     use veoveo_platform_store::{GatewayRefreshFamilyRecord, gateway_refresh_family_record_id};
-    let db = support::TestDb::new().await;
+    let db = support::database().await;
     app_support::identities(&db).await;
     let signing = Signing::new();
     let a = Server::new(app_support::application(&db, false).await.0, &signing).await;
@@ -806,7 +806,7 @@ async fn subscription_closes_on_current_family_logout_or_expiry_before_assertion
             Some(ServerNotification::ResourceUpdatedNotification(_))
         ));
         if ending == "logout" {
-            db.b.client().query("UPDATE ONLY $family SET revoked_at = time::now(), revocation_reason = 'logout';")
+            db.b.client().query(include_str!("queries/http/subscription_closes_on_current_family_logout_or_expiry_before_assertion_expiry.surql"))
                 .bind(("family", record)).await.unwrap().check().unwrap();
         }
         let end = tokio::time::timeout(Duration::from_secs(7), updates.next())

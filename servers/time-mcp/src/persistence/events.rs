@@ -59,7 +59,7 @@ impl TimePersistence {
         validate_key("event_key", event_key, "event-")?;
         let mut response = self
             .client()
-            .query("SELECT * FROM ONLY $record WHERE tenant = $tenant AND owner = $owner;")
+            .query(include_str!("queries/read_owned_event.surql"))
             .bind(("record", time_record("time_temporal_event", event_key)))
             .bind(("tenant", identity.tenant_id.record_id()))
             .bind(("owner", identity.principal_id.record_id()))
@@ -78,8 +78,18 @@ impl TimePersistence {
     ) -> Result<TimeTemporalEventRecord, PersistenceError> {
         validate_key("event_key", event_key, "event-")?;
         validate_json(&canonical_json)?;
-        let mut response = self.client().query("UPDATE $record MERGE { state: $state, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND owner = $owner AND record_version = $expected RETURN AFTER;")
-            .bind(("record", time_record("time_temporal_event", event_key))).bind(("tenant", identity.tenant_id.record_id())).bind(("owner", identity.principal_id.record_id())).bind(("state", state)).bind(("canonical_json", canonical_json)).bind(("expected", expected.get() as i64)).bind(("next", expected.checked_next()?.get() as i64)).await?.check()?;
+        let mut response = self
+            .client()
+            .query(include_str!("queries/update_event.surql"))
+            .bind(("record", time_record("time_temporal_event", event_key)))
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind(("owner", identity.principal_id.record_id()))
+            .bind(("state", state))
+            .bind(("canonical_json", canonical_json))
+            .bind(("expected", expected.get() as i64))
+            .bind(("next", expected.checked_next()?.get() as i64))
+            .await?
+            .check()?;
         response
             .take::<Option<TimeTemporalEventRecord>>(0)?
             .ok_or_else(|| conflict("temporal event", event_key.to_string()))
@@ -92,7 +102,14 @@ impl TimePersistence {
         key: &str,
     ) -> Result<Option<TimeTemporalEventRecord>, PersistenceError> {
         validate_text("idempotency_key", key, 256)?;
-        let mut response = self.client().query("SELECT * FROM time_temporal_event WHERE tenant = $tenant AND owner = $owner AND idempotency_key = $key LIMIT 1;").bind(("tenant", tenant_id.record_id())).bind(("owner", owner.record_id())).bind(("key", key.to_owned())).await?.check()?;
+        let mut response = self
+            .client()
+            .query(include_str!("queries/event_by_idempotency.surql"))
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("owner", owner.record_id()))
+            .bind(("key", key.to_owned()))
+            .await?
+            .check()?;
         let records: Vec<TimeTemporalEventRecord> = response.take(0)?;
         Ok(records.into_iter().next())
     }

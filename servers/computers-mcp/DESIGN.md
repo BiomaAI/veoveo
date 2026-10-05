@@ -175,12 +175,11 @@ management as the named tool policy, and the Console BFF retains session/CSRF
 ownership. Named Start and Stop use the lifecycle projection below; governed file
 movement uses the File Tasks boundary.
 
-Migration 0067 backfills canonical result URIs in completed command journals and
-successful shared Tasks in one migration transaction. It rejects mismatched Task
-identity, stored outcome or error semantics before rewriting either record. Drain
-old readers/writers before upgrading; preserve the migration history on rollback.
-Unfinished Tasks project their result with the new worker. This change does not
-rewrite audit history or claim installed migration acceptance.
+Current completed command journals and successful shared Tasks carry canonical
+result URIs. Delivery compares Task identity, stored outcome and error semantics
+before acknowledging projection. Compatible readers and workers are required;
+withdrawal must settle admitted work and preserve journal and Task identities.
+The fresh owner lane includes no historical result backfill or old-format decoder.
 
 ## Governed Command Worker
 
@@ -250,8 +249,8 @@ Import preparation redeems the Task-bound read capability, validates the source
 occurrence and hashes its bounded binary body. Source labels must fit the retained
 Computer's own label floor. Additional caller clearance cannot silently raise that
 floor. Preparation remains Queued and cancellable, and its five-minute deadline
-survives worker replacement. Migration 0075 gives a failed source preparation a
-specific undispatched result. The source buffer never enters a Task, audit event or
+survives worker replacement. A failed source preparation produces a specific
+undispatched result. The source buffer never enters a Task, audit event or
 control-database record.
 
 The worker obtains its one native dispatch ticket only after source preparation.
@@ -380,9 +379,9 @@ selecting it for writes; retain old keys until all dependent envelopes have expi
 under the retention policy. Never remove keys while pending Tasks still need them.
 Installation-owned encrypted backup includes these keys alongside the encrypted store.
 
-This private configuration is a coordinated v2 hard cut. Drain v1 workers, apply
-migrations through 0070, provision command keys, and start v2 workers with the matching
-configuration. A changed default also requires the compute host to admit that exact
+The private configuration requires v2-compatible workers. Provision the current
+Computers owner schema and command keys before admitting work, and drain incompatible
+workers before replacement. A changed default also requires the compute host to admit that exact
 template through its qualified retained-maintenance procedure. A service rollout alone
 does not upgrade a retained Computer. Downgrade must drain command admission and
 in-flight work; v1 cannot recover command Tasks. Preserve keys and schema on rollback.
@@ -447,7 +446,7 @@ current permission on the selected Computer. Exact retry resolves the original T
 before new capacity admission and retains its original grant. Task ownership records
 the actual agent, while the retained Computer owner can read and cancel that Task
 after revocation. Create continues to require direct ownership. Deployments drain old
-Computers workers before applying migration 0076 and admitting named lifecycle work.
+Computers workers before admitting named lifecycle work under the current owner schema.
 
 Collection and exact reads merge retained ownership with current named Read grants.
 The domain bounds candidate pages and checks each grantee's current client, profile,
@@ -783,3 +782,9 @@ Stop. A current owner may still Stop a Ready Computer during execution. File adm
 flags combine current direct-owner policy, Ready state, capacity and the explicit
 qualified template set. Existing retained templates keep their original identity; an
 explicit environment update enables the new helper without discarding their homes.
+
+## Native Query Fixture Placement
+
+Store-backed native fixture statements live in `tests/queries/`, grouped by the
+calling harness. Colocated fixtures include those files with their existing bindings
+and result slots. Complete static statements cover finite SQL grammar choices.

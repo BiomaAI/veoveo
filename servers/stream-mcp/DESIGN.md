@@ -542,3 +542,10 @@ Pipeline and model identities use `Id` with Stream-owned catalog-name admission.
 ## Cursor Admission
 
 Run and session cursors retain owner base64url collection envelopes through private OpaqueCursor storage. Parsing preserves admitted wire aliases, typed positions and existing inline String schemas.
+
+## Persistence Query Placement
+
+Complete persistence statements live in `queries/`, grouped by source responsibility.
+Completion selects one static statement for each admitted Task or Artifact field.
+Native query fixtures live in `tests/queries/`; finite corruption cases select complete
+statements and preserve SQL admission before decoding. Runtime values use bindings.

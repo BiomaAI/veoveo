@@ -94,7 +94,7 @@ impl FramesState {
         let result = self
             .store
             .client()
-            .query(include_str!("worlds/create.surql"))
+            .query(include_str!("queries/worlds/create.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", request.world_id.to_string()))
             .bind(("clearance", labels))
@@ -135,7 +135,7 @@ impl FramesState {
         let result = self
             .store
             .client()
-            .query(include_str!("worlds/publish.surql"))
+            .query(include_str!("queries/worlds/publish.surql"))
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("owner", scope.identity.principal_id.record_id()))
             .bind((
@@ -175,7 +175,7 @@ impl FramesState {
                 let response = self
                     .store
                     .client()
-                    .query(include_str!("worlds/replay.surql"))
+                    .query(include_str!("queries/worlds/replay.surql"))
                     .bind(("tenant", scope.identity.tenant_id.record_id()))
                     .bind(("owner", scope.identity.principal_id.record_id()))
                     .bind((

@@ -24,7 +24,9 @@ async fn reserve(store: &ComputersStore, owner: &TaskOwner) -> ComputerId {
 }
 async fn replace_owner(db: &support::TestDb, id: ComputerId, value: serde_json::Value) {
     db.a.client()
-        .query("UPDATE ONLY $computer SET owner_context = $owner;")
+        .query(include_str!(
+            "queries/sql_admission/replace_owner/statement_1.surql"
+        ))
         .bind(("computer", record(id)))
         .bind((
             "owner",
@@ -49,7 +51,7 @@ async fn read_grant(
 #[tokio::test]
 async fn owned_reads_filter_complete_identity_and_clearance_before_decoding_and_limits() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let actor =
             ComputerActor::from_verified(&support::browser::identity(&db, "alice").await).unwrap();
         let (store, _, first) = support::interactive::ready(&db, &actor).await;
@@ -132,7 +134,7 @@ async fn owned_reads_filter_complete_identity_and_clearance_before_decoding_and_
 async fn granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_the_next_computer()
 {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, first) = support::automation::setup(&db).await;
         let second = reserve(&store, owner.owner()).await;
         let third = reserve(&store, owner.owner()).await;
@@ -145,7 +147,7 @@ async fn granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_
         retained["data_labels"] = serde_json::json!(["private"]);
         retained["profile"] = serde_json::json!(42);
         replace_owner(&db, classified, retained).await;
-        db.a.client().query("UPDATE ONLY $grant SET grantee_issuer = 'https://foreign.invalid', authority.request_context = 42;")
+        db.a.client().query(include_str!("queries/sql_admission/granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_the_next_computer/statement_1.surql"))
             .bind(("grant", RecordId::new("computer_automation_grant", surrealdb::types::Uuid::from(wrong_grant.grant_id.as_uuid()))))
             .await.unwrap().check().unwrap();
         let control = store.control_authority(&agent).await.unwrap();
@@ -164,7 +166,7 @@ async fn granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_
 #[tokio::test]
 async fn current_owner_policy_is_resolved_before_decoding_granted_computer_state() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, hidden) = support::automation::setup(&db).await;
         read_grant(&store, &owner, hidden).await;
         let bob =
@@ -210,7 +212,7 @@ async fn current_owner_policy_is_resolved_before_decoding_granted_computer_state
 #[tokio::test]
 async fn policy_replacement_and_logout_invalidate_an_already_resolved_owner_read() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let identity = support::browser::identity(&db, "alice").await;
         let family = identity
             .request_context
@@ -246,7 +248,7 @@ async fn policy_replacement_and_logout_invalidate_an_already_resolved_owner_read
                 .is_ok()
         );
         db.a.client()
-            .query("UPDATE ONLY $family SET revoked_at = time::now();")
+            .query(include_str!("queries/sql_admission/policy_replacement_and_logout_invalidate_an_already_resolved_owner_read/statement_1.surql"))
             .bind(("family", family))
             .await
             .unwrap()
@@ -270,7 +272,7 @@ async fn policy_replacement_and_logout_invalidate_an_already_resolved_owner_read
 #[tokio::test]
 async fn reduced_grant_lifetime_denies_before_decoding_its_computer() {
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = support::TestDb::new().await;
+        let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         read_grant(&store, &owner, computer).await;
         let mut corrupt = serde_json::to_value(owner.owner()).unwrap();
