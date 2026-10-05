@@ -121,64 +121,41 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 ## Current Status
 
 The consolidation is closing Phase 3 ownership and implementing Phase 4 storage
-types. Persistence ownership, query placement and typed Rust/Python Task storage
-are committed through `7b050d4f8` and pushed to `main`. The UAV, Reason and Stream
-lookup batch now passes native qualification with the shared Task lifecycle and
-Artifact admission APIs. Checks cover atomic contributions, policy before paging,
-mission associations, retained products, grant revocation and subscription recovery.
-The composed nineteen-owner schema, installation commands and independent schema
-consumer pass. Affected compilation, strict lint and isolated contract/runtime builds
-pass, including correction of Recording Video's runtime dependency gate. Independent
-review found no remaining definite issue in this source batch.
+types. Native qualification covers the composed nineteen-owner schema, installation
+commands, normalized Rust/Python identity, Task storage and product URIs, owner SQL
+exports, contributed Task lookups, and Media's journaled callback/recovery profile.
+These source checkpoints preserve policy checks before paging and decoding,
+transaction rollback, grant revocation, retained products and subscription recovery.
 
-The normalized identity cut is committed as `6312fd086`: Rust and Python reject
-unknown Principal and group-membership fields, and Rust closes the outer policy
-decision. Native MCP and Python contract/authentication checks pass.
+The storage checkpoint `4fa68eaa9` and upload cancellation fix `acf740abe` pass
+190 selected tests across 25 test groups, including native database suites and
+independent schema/contract consumers. The storage batch covers:
 
-Map's retained Task lookups, Computers' Task/Gateway/Identity calls and controlled
-storage fields in Computers, Frames, Agents and Gateway now pass native qualification.
-Computers' affected 31 test targets pass, including policy before decoding and paging,
-grant revocation, worker recovery and HTTP/MCP consumers. Agent repository reads reject
-undeclared fields and mismatched revision content in both management and controller
-paths; its management, gateway and decoder suites pass. The composed schema,
-installation-command lifecycle and independent schema consumer pass. Affected
-compilation, strict lint, formatting and source-policy checks pass. Independent review
-findings are resolved. The batch is committed and pushed as `54f3bc130`.
+| Owner | Qualified change |
+|---|---|
+| Map | Projection recovery resolves retained tenant/context metadata through Identity; corrupt associations fail without advancing the checkpoint |
+| Agents | Managed-instance HTTP reads hydrate checked revisions and verify definition and tenant relationships |
+| Time | Acquisition phases use one closed owner vocabulary in Rust and the database |
+| Computers | Maintenance source, progress and resume records use typed adapters and closed fields; whole-value fences and recovery receipts are preserved |
+| Audit | Profile, whole-target and whole-detail lookups are written with the admitted draft and checked on reads; frozen bytes and hashes are preserved |
+| Gateway and Artifacts | Profile policy metadata is declared and checked before upload admission and retained access; missing metadata rejects atomically |
 
-Kernel SQL exports now admit creation of one typed record in an owned table, with
-an explicit field allowlist. The module admission and native runner suites pass,
-including rejection of foreign targets and mutations inside read-only contexts.
-This independent prerequisite is committed and pushed as `015c84b47`.
+Native acceptance also exposed an upload cancellation race between claim commit and
+lease-guard construction. The Artifact service now owns the guard before delivering
+the claim result and explicitly bounds that wait. All eleven native upload tests pass;
+unknown claim outcomes keep their existing lease-expiry recovery. Gateway control
+publication now runs through an isolated native fixture instead of silently skipping
+its assertions when an environment variable is absent.
 
-Agent Identity operations call owner exports, including service-principal creation
-inside the Agent transaction. The 21 native Agent management tests pass, and the cut is
-committed as `7acf1f901`. Artifact subscription deadlines reuse Store's read policy
-across the full selected collection. Native subscription revocation and expiry checks
-pass, including empty and explicit member selections; the move is committed as
-`eb4c9add3`.
+Affected compilation, strict lint, formatting, SQL parsing and source policies pass.
+The four composed schema plans come from the current Gateway binary. Independent
+contract builds exclude runtime dependencies, and the ordinary Store runtime builds
+in isolation. Independent review found no unresolved defect in this batch.
 
-The Task and Media integration batch passes source qualification. Task
-storage, Rust and Python transitions carry a separate typed product URI; server
-completion writers and their output schemas are updated together. The 20 selected
-Task native tests, Python completion/template checks and all ten Python native
-transaction cases pass. Media's schema passes admission after the qualified
-wildcard-proof fix in `22532e88f`. Its native lifecycle, read and hosted callback
-checks cover callback binding after private context expiry, retained product URIs,
-cancellation, billing recovery and SQL pagination. Expanded cases pass for concurrent
-provider associations and local publication failure after provider success, including
-an Artifact service rejection and absent private context. Focused Media and MCP
-completion library checks pass. Fresh Gateway schema and installation checks pass,
-and the four composed plans are regenerated from that Gateway. The independent
-schema consumer, affected owner completion tests, strict lint across 21 packages,
-isolated Media contract and normal Store runtime builds, formatting and source-policy
-checks pass. The Map denial fixtures preserve their malformed result checks while
-clearing product URIs when forcing non-success states. The host tracing approval
-described in Phase 3 remains required before deployment; real provider generation
-is not part of this local acceptance.
-
-Computers' real provider
-process suites still require a configured, qualified native execution profile before
-publication; the current tests do not close that Phase 10 requirement.
+Media deployment still requires the host tracing correction described in Phase 3;
+real provider generation is not part of local acceptance. Computers' real provider
+process suites require a configured, qualified native execution profile before
+publication.
 The remaining [Phase 3](#phase-3-module-ownership-of-persistence-and-queries) owner
 APIs, [Phase 4](#phase-4-database-field-types) field families and phases 5–10 keep
 the plan open. These source checkpoints do not qualify the installation cut.
@@ -1492,18 +1469,14 @@ declared fields and derive them from the validated content in the same write.
 Parameters stay opaque where their schema belongs to the selected template; compare
 the whole value to preserve the managed-update constraint. Preserve the draft's
 execution-kind constraint as well.
-The Agent instance HTTP projection still selects `content.execution.template` in
-`agents/runtime/src/queries/gateway/http/instances/projection/instances/statement_1.surql`.
-Use the declared `execution.template` field and preserve revision admission in that
-consumer; the repository's mutation-query cut did not update this read.
+The Agent instance HTTP projection hydrates the full retained revision through the
+repository's checked decoder and reads its declared `execution.template`. Native
+checks cover definition and tenant agreement, corrupt revisions and private reads.
 
-The path audit also includes Audit view admission and list filtering. They read
-`draft.authority.profile`, `draft.target` and `draft.detail` inside the FLEXIBLE
-`audit_record.draft`. Add Audit-owned lookup fields derived from the admitted draft
-in the same write. Preserve whole-target and whole-detail equality, registry
-admission, canonical draft bytes and hashes; a target record reference alone cannot
-replace the current predicate. Qualify lookup agreement, filtered paging, view
-admission and transaction rollback without changing the frozen Audit wire format.
+Audit view admission and list filtering use declared profile, whole-target and
+whole-detail lookup fields derived from the admitted draft in the same write.
+Native checks cover lookup agreement, filtered paging, view admission and rollback.
+Registered target admission and frozen draft bytes and hashes are preserved.
 
 Knowledge queries read `knowledge_collection.document.approval` and descriptor
 fields `requiredScopes`, `changeSignal` and `entityKind`. Both catalog writers must
@@ -1513,18 +1486,17 @@ query together. Preserve whole approval equality, current source leases and scop
 selection before ranking and limits. Search result hydration must use checked
 registration data without selecting nested fields from the FLEXIBLE document.
 
-Artifact upload admission also reads `policy_version` through an alias of a stored
-Gateway profile document in `fn::artifact_upload_profile_digest`. Gateway must write
-that relationship as declared metadata alongside the admitted profile. Select the
-policy through that field and continue hashing the complete profile and policy
-documents. Preserve revision scoping and rejection of missing or duplicate objects;
-qualify missing and inconsistent lookup metadata without constraining owner-defined
-catalog kinds.
+Gateway writes the profile's policy version as declared metadata alongside the
+admitted profile. Artifact's SQL guard selects the policy through that field and
+hashes the complete profile and policy documents. The service checks document and
+lookup agreement before initial admission and retained access. Native checks cover
+missing and inconsistent metadata, revision scoping and rollback; owner-defined
+catalog kinds keep their registered vocabulary.
 
-Computers maintenance settlement and resume compare `source.resource_id` and
-`source.process_id` inside the FLEXIBLE source snapshot. Move those queried values
-to declared fields with the typed maintenance adapter cut. Preserve the source
-variant, current Computer identity and same-transaction replacement fences.
+Computers maintenance settlement and resume use declared source resource/process
+lookups and compare the complete typed source and progress. Native maintenance
+checks preserve variant admission, Computer identity, replacement fences and
+current-format recovery receipts.
 
 ### Literal Types And Bound Values
 
@@ -1533,13 +1505,17 @@ vocabularies: `coordinate_operation.kind`, `map_acquisition.phase`,
 `map_restriction.kind`, `map_restriction.effect_kind`, `map_source.adapter_kind`,
 `map_source.authority_class` and `time_acquisition.phase`. The database already
 uses 150 literal types.
-The current schema declares the first six as literal unions. Time's acquisition
-phase still uses `string` and needs its owner vocabulary and native qualification.
+The current schema declares all seven as literal unions. Time's acquisition phase
+uses its owner vocabulary through the contract, service and driver record; native
+tests qualify rejection and rollback.
 
 Remove the unused `agent_owner` and `membership` relations with their
 `AgentOwnerEdge` and `MembershipEdge` records in the fresh schema cut. Neither has a
 producer or consumer that defines a role vocabulary. Configured group roles and
 Work Context membership use their existing contracts.
+Remove the schema-only `mcp_interaction` table with its ownership claim and schema
+inventory entries. Its input-request and input-response fields have no current
+writer or consumer; the implemented Task and Agent input flows own their storage.
 `gateway_control_object.object_kind` accepts owner-registered catalog extensions.
 Keep that field extensible, validate the shared `ExtensionName` syntax, and qualify
 an independent owner's kind. A kernel enum would require core edits for new owners.
@@ -1548,17 +1524,13 @@ Code that binds a wire type into SurrealQL binds a store-owned record type inste
 The inventory includes the artifact upload descriptor, layout and manifest compared
 in the artifact upload queries, workspace operation commands
 (`$command.run_fence`, `app_uri`), time activation expectations and agent mutation
-plans. Computers' maintenance source and progress also still cross the driver
-through `OpenObject` despite having controlled Rust types. Their typed adapters
-must preserve the existing whole-value comparisons and native encoding. Each owner
-lists every `.bind` and classifies the bound type.
+plans. Each owner lists every `.bind` and classifies the bound type.
 
 Artifact upload descriptors, layouts and manifests already use Store-owned driver
 records. Workspace operation commands and Time activation snapshots also use their
-owners' driver records. Computers maintenance still converts its controlled source
-and progress models through `OpenObject`; replace those adapters while preserving
-their comparisons. These source findings narrow the remaining work but do not
-close the complete bind audit.
+owners' driver records. Computers maintenance binds typed source, progress and
+resume values through its strict storage codec, preserving whole-value comparisons
+and native encoding. These qualified cuts do not close the complete bind audit.
 
 The following controlled adapters also remain in the production paths. They belong
 to the bind audit even where SQL compares only a whole object. Reuse owner codecs
@@ -1567,11 +1539,23 @@ and declared fields; a generic JSON wrapper does not establish the known shape.
 | Adapter | Required cut and qualification |
 |---|---|
 | Gateway `state/auth_state.rs` and `state/subscriptions.rs` | Replace generic serialization of authorization requests/codes, JWT revocations and resource subscriptions with typed driver records. Subscription and revocation payloads duplicate their declared columns; use one representation. Preserve OAuth scope and PKCE data, checked Principal snapshots, expiry, atomic one-time consumption and record identity agreement. Store must not depend on MCP to obtain these types. |
-| Task Runtime `types.rs::failure_to_open_object` | Give the controlled failure envelope a driver record shared by transition and recovery writers and checked Rust/Python readers. Keep domain error codes extensible and failure details opaque. Preserve absent versus explicit-null details where the public contract distinguishes them. |
+| Task Runtime `types.rs::failure_to_open_object` | Give the controlled failure envelope a driver record shared by transition, recovery and webhook settlement writers and checked Rust/Python readers. Keep domain error codes extensible and failure details opaque. Preserve absent versus explicit-null details where the public contract distinguishes them. Qualify Rust/Python writes and reads in both directions. |
+| Task Runtime input requests | Replace `TaskInputRecord.request`'s `OpenObject` with a typed driver record for `method` and `params`. Declare the outer database fields and apply method admission on retained reads as well as writes. Parameters and response objects keep their protocol-owned open shape. |
 | Frames `state/worlds.rs` and `state/operations.rs` | Bind typed world definitions and operation provenance rather than `OpenObject`. Preserve tree validation, immutable replay, digest and frame-index agreement, and SQL admission before decoding denied rows. |
 | Computers command output and file adapters | Replace generic object conversions for sealed output/file access, effective file limits and completed file results with owner adapters. Ciphertext remains opaque inside its typed envelope. Preserve full-value compare-and-set checks, nonce/key fields, capability deadlines and Task acknowledgement identity. |
 | Agent runtime and kernel wake producers | Model the five known `WakeKind` payload envelopes in the owning runtime and bind their driver records. Replace controlled string-key extraction in conversation and priority handling with checked variants. Preserve task-result and input-response payloads whose contents belong to a tool or model, wake deduplication, lineage, coalescing and recovery. |
+| Agent deferred tools | Type the known `DeferredToolDescriptor` storage envelope and the first-party `agent_task.result` success/error delivery variants. Keep backend-specific descriptor contents and tool outputs open. Qualify incomplete-descriptor recovery, result delivery and retained reads. |
+| Agent readiness, episode bindings and definition receipts | Declare the controlled `agent.managed_ready` and `agent_episode.managed` fields. The instance mutation query reads `managed.instance`; preserve that stop predicate through declared fields. Close the known definition receipt envelope while retaining its checked replay decoder and template-owned parameters. |
+| Workspace Agent revision receipts | Close the retained `WorkspaceAgent` result envelope and check its identity and relationships on add/adopt replay. Reuse the owning record rather than introducing another result model. |
 | Media `state.rs::prediction_payload` | Preserve the known prediction envelope through a typed owner driver adapter. Provider input and timing payloads remain open, and unrecognized provider statuses must remain nonterminal. Qualify stored prediction round trips without inventing a schema for model-specific data. |
+
+Gateway's storage cut moves the required OAuth and PKCE scalar declarations and
+their admission rules into `platform/gateway/contract`. Store imports those types
+without MCP runtime dependencies. Reuse the existing checked Principal storage
+model across authorization codes and refresh families, giving shared records names
+that describe both uses. Update the adapters together and preserve their published
+spellings. The MCP policy and runtime DTOs do not need to move to qualify these
+driver records.
 
 ### Migration And Gates
 
