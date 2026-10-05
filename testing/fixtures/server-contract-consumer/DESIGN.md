@@ -52,3 +52,16 @@ Selected valid requests qualify schema and decoder agreement for nested coordina
 and time objects, tagged Map variants and opaque Media provider input. These tests
 exercise owner contracts without importing RMCP. They do not establish the response
 envelope of a running server; hosted owner tests qualify that behavior.
+
+`tests/controlled_inputs.rs` qualifies 52 named branches across Computers file
+transfers, Map travel-time, spatial-query, raster, mobility and feature mutations,
+Optimization model sources, and View overlay inputs. The checked-in owner fixture
+sets are also consumed by their authenticated hosted tests through the pure
+[tool input fixture helper](../tool_inputs.rs). Each fixture label must match its
+tag, each declared default is absent before byte decoding, and the expected branch
+set rejects omissions or repeated cases. Every controlled object in these values
+receives an undeclared field. Unknown tags and missing required fields must fail
+both the published schema and the real serialized-byte decoder. Declared open
+feature properties accept arbitrary nested extensions in both paths. The matrix
+qualifies these branches without claiming every reachable server variant, service
+execution, installed authority or GPU behavior.

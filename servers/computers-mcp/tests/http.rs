@@ -31,8 +31,12 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_mcp_contract::*;
 
+#[path = "../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 #[path = "support/signing.rs"]
 mod signing;
+#[path = "support/tool_input_variants.rs"]
+mod tool_input_variants;
 use signing::Signing;
 struct Server {
     base: String,

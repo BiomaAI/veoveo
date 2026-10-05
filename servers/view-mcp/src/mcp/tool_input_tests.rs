@@ -1,6 +1,8 @@
 //! Authenticated protocol admission with a closed renderer channel.
 //! No rendering, provider fetch or GPU acceptance occurs in this fixture.
 use super::*;
+#[path = "../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 use crate::store_fixture as fixture;
 use serde_json::json;
 use std::time::Duration;
@@ -17,7 +19,13 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
         let renderer = crate::renderer::RendererHandle::unavailable();
         assert!(!renderer.adapter().hardware_accelerated);
         let catalog = crate::source::LayerCatalog::from_definitions(
-            vec![],
+            vec![crate::source::LayerDefinition {
+                layer_id: crate::contract::LayerId::parse("fixture-layer").unwrap(),
+                label: "Unavailable fixture tileset".into(),
+                source: crate::source::LayerSourceDefinition::HttpsTileset {
+                    root_url: "https://127.0.0.1:9/tileset.json".into(),
+                },
+            }],
             crate::source::SourceConfig {
                 raw_cache_bytes: 1024,
                 max_response_bytes: 1024,
@@ -63,6 +71,18 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
         );
         let discover = gateway.rpc("server/discover", json!({})).await;
         assert!(discover.get("error").is_none(), "{discover}");
+        let listed = gateway.rpc("tools/list", json!({})).await;
+        assert!(listed.get("error").is_none(), "{listed}");
+        let tool = listed["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == "create_scene_composition")
+            .unwrap();
+        assert_eq!(
+            tool["inputSchema"]["properties"]["base_layer"]["enum"],
+            json!(["fixture-layer"])
+        );
         let mut arguments = json!({"view_id":"view-fixture","expected_revision":1});
         let _: CloseViewRequest = serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
@@ -82,7 +102,59 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
                 .unwrap()
                 .contains("undeclared")
         );
+
+        let cases = input_fixture::ToolInputCase::load(include_bytes!(
+            "../../testdata/controlled-inputs.json"
+        ));
+        assert_eq!(cases.len(), 9);
+        for case in cases {
+            match case.tool.as_str() {
+                "create_scene_composition" => {
+                    let _: crate::contract::CreateSceneCompositionRequest = case.decode();
+                }
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case
+                .unknown_fields()
+                .into_iter()
+                .chain(case.invalid_values())
+            {
+                let body = gateway
+                    .rpc(
+                        "tools/call",
+                        json!({"name":case.tool,"arguments":arguments}),
+                    )
+                    .await;
+                assert!(
+                    body.get("error").is_none(),
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                assert_eq!(
+                    body["result"]["resultType"], "complete",
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                let result: rmcp::model::CallToolResult =
+                    serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(
+                    result.is_error,
+                    Some(true),
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
         assert!(state.tasks.list().await.unwrap().is_empty());
+        let authority = testing::authority();
+        let owner = crate::state::ResourceOwner {
+            principal_id: testing::principal().id,
+            tenant: authority.tenant,
+            work_context: authority.work_context,
+        };
+        assert!(state.views.list_scene_compositions(&owner).await.is_empty());
+        assert!(state.views.list_frames(&owner).is_empty());
     })
     .await
     .expect("View argument admission exceeded 120 seconds");

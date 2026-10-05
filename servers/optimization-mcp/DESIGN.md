@@ -677,6 +677,8 @@ matches the compiled provenance constant.
 
 ## Verification And Acceptance
 
+[Controlled-input fixtures](testdata/controlled-inputs.json) qualify solver-input and travel-model source variants through the [hosted admission test](src/bin/server/tool_input_tests.rs) and the [independent contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md).
+
 The ordinary Rust suite covers schemas, domain validation, compilation,
 independent verification, private protocol framing, resources, prompts, task
 behavior, artifacts, and control-server startup checks. Python unit tests cover

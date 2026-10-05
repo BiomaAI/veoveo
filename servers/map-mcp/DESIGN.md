@@ -971,17 +971,15 @@ modules, their query owners and their qualification paths.
 
 ## Verification
 
-Rust and Python qualify the helper's complete schemas in
-`testdata/private-protocol.schema.json` through the
-[private protocol checks](../../testing/python/DESIGN.md). Filesystem confinement,
-release labels and digests use owner behavioral checks.
+[Input cases](testdata/controlled-inputs.json) qualify travel-time, spatial, raster, mobility and mutation branches in [hosted tests](src/mcp/tool_input_tests.rs) and the [consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md).
 
-The implementation is checked at several boundaries:
+Rust/Python [protocol checks](../../testing/python/DESIGN.md) qualify
+`testdata/private-protocol.schema.json`; owner checks cover filesystem confinement,
+release labels and digests.
 
-- Rust contract tests cover ids, quantities, geometry, mobility taxonomy,
-  source validation, geodesics, graph costs, Valhalla profile limits, URI
-  parsing, paging, stable feature ids, routing archive bounds, travel-model
-  bounds, and activation;
+- Contract tests cover IDs, quantities, geometry, mobility taxonomy, sources,
+  geodesics, graph costs, Valhalla limits, URIs, paging, stable feature IDs,
+  routing archives, travel-model bounds and activation;
 - DuckDB runtime tests cover controlled HTTPS source policy, closed Spatial axis
   selection, effective-setting verification, and a pinned extension-backed meter
   baseline;
@@ -997,13 +995,12 @@ The implementation is checked at several boundaries:
   immutable publication and active-release queries, guided GeoPackage tasks,
   subscription wiring, the embedded MapLibre pin, and fail-closed hardware
   WebGL2 checks;
-- the Rust Map workspace browser smoke serves the exact generated App under the
-  Console's opaque-origin sandbox and an exact local MapLibre Style CSP. Headed Chrome
-  must prove an NVIDIA WebGL adapter before the App completes bounded
-  publication-pinned and active-release viewport queries, switches from light
-  to dark basemap without moving the camera or losing overlays, synchronizes
-  map and table selection, retains the map during governed-data inspection,
-  and emits screenshot evidence;
+- the Map browser smoke serves the exact generated App in the Console's
+  opaque-origin sandbox with the exact local MapLibre Style CSP. Headed Chrome
+  proves NVIDIA WebGL before bounded publication-pinned and active-release viewport
+  queries, light/dark switches preserving camera and overlays, synchronized
+  map/table selection, governed-data inspection with the map visible, and
+  screenshot capture;
 - the container build verifies the pinned Spatial extension and packages GDAL,
   Osmium, Valhalla, and the Python application;
 - the Rust Map smoke launches that image with a real SurrealDB 3.3 catalog and

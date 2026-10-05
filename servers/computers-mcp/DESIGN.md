@@ -718,6 +718,8 @@ Audit events contain identities and provenance, without commands or credentials.
 
 ## Contract Compliance
 
+[Controlled-input fixtures](testdata/controlled-inputs.json) qualify import and export file-transfer inputs through the [hosted admission test](tests/support/tool_input_variants.rs) and the [independent contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md).
+
 The router implements the protocol and HTTP projection described above. Registration, the public browser relay/Console, execution/file tools and production
 packaging remain delivery work. The runnable entrypoint and its startup/shutdown path
 are qualified with an isolated store and unavailable provider endpoints. That evidence

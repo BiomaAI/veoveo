@@ -1,0 +1,66 @@
+[
+  {
+    "branch": "FileTransfer.import",
+    "tool": "transfer_file",
+    "arguments": {
+      "computerId": "00000001-0000-7000-8000-000000000000",
+      "requestId": "00000001-0000-7000-8000-000000000000",
+      "transfer": {
+        "kind": "import",
+        "artifactId": "00000001-0000-7000-8000-000000000000",
+        "path": "inputs/file.txt"
+      },
+      "limits": {
+        "maximumSeconds": 60,
+        "maximumBytes": 1024,
+        "onInterruption": "stop_computer"
+      }
+    },
+    "tag": "/transfer/kind",
+    "required": [
+      "/computerId",
+      "/requestId",
+      "/transfer/kind",
+      "/transfer/artifactId",
+      "/transfer/path",
+      "/limits/maximumSeconds"
+    ],
+    "defaults": {
+      "/grantId": null
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "FileTransfer.export",
+    "tool": "transfer_file",
+    "arguments": {
+      "computerId": "00000001-0000-7000-8000-000000000000",
+      "requestId": "00000001-0000-7000-8000-000000000000",
+      "transfer": {
+        "kind": "export",
+        "path": "outputs/file.txt",
+        "filename": "file.txt",
+        "mediaType": "text/plain"
+      },
+      "limits": {
+        "maximumSeconds": 60,
+        "maximumBytes": 1024,
+        "onInterruption": "stop_computer"
+      }
+    },
+    "tag": "/transfer/kind",
+    "required": [
+      "/computerId",
+      "/requestId",
+      "/transfer/kind",
+      "/transfer/path",
+      "/transfer/filename",
+      "/transfer/mediaType",
+      "/limits/maximumSeconds"
+    ],
+    "defaults": {
+      "/grantId": null
+    },
+    "open_objects": []
+  }
+]

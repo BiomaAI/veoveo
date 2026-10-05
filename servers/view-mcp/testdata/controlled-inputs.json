@@ -1,0 +1,484 @@
+[
+  {
+    "branch": "ScenePosition.wgs84",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "marker",
+              "position": {
+                "kind": "wgs84",
+                "position": {
+                  "longitude_degrees": 0.0,
+                  "latitude_degrees": 0.0,
+                  "ellipsoidal_height_meters": 0.0
+                }
+              }
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/position/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/position/kind",
+      "/overlays/0/geometry/geometry/position/position"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "ScenePosition.local_meters",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "marker",
+              "position": {
+                "kind": "local_meters",
+                "xyz_meters": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              }
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/position/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/position/kind",
+      "/overlays/0/geometry/geometry/position/xyz_meters"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometry.marker",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "marker",
+              "position": {
+                "kind": "wgs84",
+                "position": {
+                  "longitude_degrees": 0.0,
+                  "latitude_degrees": 0.0,
+                  "ellipsoidal_height_meters": 0.0
+                }
+              }
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/kind",
+      "/overlays/0/geometry/geometry/position"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometry.polyline",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "polyline",
+              "positions": [
+                {
+                  "kind": "wgs84",
+                  "position": {
+                    "longitude_degrees": 0.0,
+                    "latitude_degrees": 0.0,
+                    "ellipsoidal_height_meters": 0.0
+                  }
+                },
+                {
+                  "kind": "wgs84",
+                  "position": {
+                    "longitude_degrees": 0.0,
+                    "latitude_degrees": 0.0,
+                    "ellipsoidal_height_meters": 0.0
+                  }
+                }
+              ]
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/kind",
+      "/overlays/0/geometry/geometry/positions"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true,
+      "/overlays/0/geometry/geometry/closed": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometry.polygon",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "polygon",
+              "positions": [
+                {
+                  "kind": "wgs84",
+                  "position": {
+                    "longitude_degrees": 0.0,
+                    "latitude_degrees": 0.0,
+                    "ellipsoidal_height_meters": 0.0
+                  }
+                },
+                {
+                  "kind": "wgs84",
+                  "position": {
+                    "longitude_degrees": 0.0,
+                    "latitude_degrees": 0.0,
+                    "ellipsoidal_height_meters": 0.0
+                  }
+                },
+                {
+                  "kind": "wgs84",
+                  "position": {
+                    "longitude_degrees": 0.0,
+                    "latitude_degrees": 0.0,
+                    "ellipsoidal_height_meters": 0.0
+                  }
+                }
+              ],
+              "triangle_indices": [
+                0,
+                1,
+                2
+              ]
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/kind",
+      "/overlays/0/geometry/geometry/positions",
+      "/overlays/0/geometry/geometry/triangle_indices"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometry.oriented_mesh_instance",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "oriented_mesh_instance",
+              "position": {
+                "kind": "wgs84",
+                "position": {
+                  "longitude_degrees": 0.0,
+                  "latitude_degrees": 0.0,
+                  "ellipsoidal_height_meters": 0.0
+                }
+              },
+              "orientation": {
+                "heading_degrees": 0.0,
+                "pitch_degrees": 0.0,
+                "roll_degrees": 0.0
+              },
+              "scale": [
+                1.0,
+                1.0,
+                1.0
+              ],
+              "mesh_input_id": "mesh-1"
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/kind",
+      "/overlays/0/geometry/geometry/position",
+      "/overlays/0/geometry/geometry/orientation",
+      "/overlays/0/geometry/geometry/scale",
+      "/overlays/0/geometry/geometry/mesh_input_id"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometry.label",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "label",
+              "position": {
+                "kind": "wgs84",
+                "position": {
+                  "longitude_degrees": 0.0,
+                  "latitude_degrees": 0.0,
+                  "ellipsoidal_height_meters": 0.0
+                }
+              },
+              "text": "Fixture"
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/geometry/kind",
+      "/overlays/0/geometry/geometry/position",
+      "/overlays/0/geometry/geometry/text"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometrySource.inline",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "inline",
+            "geometry": {
+              "kind": "marker",
+              "position": {
+                "kind": "wgs84",
+                "position": {
+                  "longitude_degrees": 0.0,
+                  "latitude_degrees": 0.0,
+                  "ellipsoidal_height_meters": 0.0
+                }
+              }
+            }
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/kind",
+      "/overlays/0/geometry/geometry"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SceneOverlayGeometrySource.artifact",
+    "tool": "create_scene_composition",
+    "arguments": {
+      "schema_version": 1,
+      "base_layer": "fixture-layer",
+      "style_id": "fixture-style",
+      "overlays": [
+        {
+          "overlay_id": "overlay-1",
+          "governed_input_ids": [],
+          "geometry": {
+            "kind": "artifact",
+            "input_id": "geometry-1"
+          },
+          "style": {
+            "stroke_color": {
+              "red": 0.0,
+              "green": 0.85,
+              "blue": 1.0,
+              "alpha": 1.0
+            }
+          },
+          "visibility": {}
+        }
+      ]
+    },
+    "tag": "/overlays/0/geometry/kind",
+    "required": [
+      "/base_layer",
+      "/overlays/0/geometry/kind",
+      "/overlays/0/geometry/input_id"
+    ],
+    "defaults": {
+      "/overlays/0/style/line_width_meters": 2.0,
+      "/overlays/0/visibility/visible": true
+    },
+    "open_objects": []
+  }
+]

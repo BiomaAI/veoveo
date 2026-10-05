@@ -1,0 +1,1082 @@
+[
+  {
+    "branch": "TravelTimeModel.static",
+    "tool": "build_travel_model",
+    "arguments": {
+      "locations": [
+        {
+          "location_id": "depot",
+          "endpoint": {
+            "kind": "position",
+            "position": {
+              "longitude_deg": 0.0,
+              "latitude_deg": 0.0
+            }
+          }
+        }
+      ],
+      "vehicle_types": [
+        {
+          "vehicle_type_id": "van",
+          "mobility_profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+          "mobility_profile_version": 1
+        }
+      ],
+      "departure_time": "2026-10-04T12:00:00Z",
+      "constraints": {},
+      "data_policy": {},
+      "time_model": {
+        "kind": "static"
+      }
+    },
+    "tag": "/time_model/kind",
+    "required": [
+      "/locations",
+      "/time_model/kind"
+    ],
+    "defaults": {
+      "/cost_metric": "duration",
+      "/prioritize_bidirectional": true,
+      "/data_policy/allow_planning_advisory": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TravelTimeModel.invariant_local_departure",
+    "tool": "build_travel_model",
+    "arguments": {
+      "locations": [
+        {
+          "location_id": "depot",
+          "endpoint": {
+            "kind": "position",
+            "position": {
+              "longitude_deg": 0.0,
+              "latitude_deg": 0.0
+            }
+          }
+        }
+      ],
+      "vehicle_types": [
+        {
+          "vehicle_type_id": "van",
+          "mobility_profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+          "mobility_profile_version": 1
+        }
+      ],
+      "departure_time": "2026-10-04T12:00:00Z",
+      "constraints": {},
+      "data_policy": {},
+      "time_model": {
+        "kind": "invariant_local_departure",
+        "local_time": "2026-10-04T12:00:00"
+      }
+    },
+    "tag": "/time_model/kind",
+    "required": [
+      "/locations",
+      "/time_model/kind",
+      "/time_model/local_time"
+    ],
+    "defaults": {
+      "/cost_metric": "duration",
+      "/prioritize_bidirectional": true,
+      "/data_policy/allow_planning_advisory": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SourceSpatialQuery.bounding_box",
+    "tool": "query_source_features",
+    "arguments": {
+      "release_id": "release-00000001-0000-7000-8000-000000000000",
+      "limit": 10,
+      "spatial": {
+        "kind": "bounding_box",
+        "bounds": {
+          "west": 0.0,
+          "south": 0.0,
+          "east": 1.0,
+          "north": 1.0
+        }
+      }
+    },
+    "tag": "/spatial/kind",
+    "required": [
+      "/release_id",
+      "/spatial/kind",
+      "/spatial/bounds"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "SourceSpatialQuery.intersects",
+    "tool": "query_source_features",
+    "arguments": {
+      "release_id": "release-00000001-0000-7000-8000-000000000000",
+      "limit": 10,
+      "spatial": {
+        "kind": "intersects",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "tag": "/spatial/kind",
+    "required": [
+      "/release_id",
+      "/spatial/kind",
+      "/spatial/geometry"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "SourceSpatialQuery.contains",
+    "tool": "query_source_features",
+    "arguments": {
+      "release_id": "release-00000001-0000-7000-8000-000000000000",
+      "limit": 10,
+      "spatial": {
+        "kind": "contains",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "tag": "/spatial/kind",
+    "required": [
+      "/release_id",
+      "/spatial/kind",
+      "/spatial/geometry"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "SourceSpatialQuery.within",
+    "tool": "query_source_features",
+    "arguments": {
+      "release_id": "release-00000001-0000-7000-8000-000000000000",
+      "limit": 10,
+      "spatial": {
+        "kind": "within",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "tag": "/spatial/kind",
+    "required": [
+      "/release_id",
+      "/spatial/kind",
+      "/spatial/geometry"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "SourceSpatialQuery.within_distance",
+    "tool": "query_source_features",
+    "arguments": {
+      "release_id": "release-00000001-0000-7000-8000-000000000000",
+      "limit": 10,
+      "spatial": {
+        "kind": "within_distance",
+        "position": {
+          "longitude_deg": 0.0,
+          "latitude_deg": 0.0
+        },
+        "distance": 1.0
+      }
+    },
+    "tag": "/spatial/kind",
+    "required": [
+      "/release_id",
+      "/spatial/kind",
+      "/spatial/position",
+      "/spatial/distance"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "SourceSpatialQuery.nearest",
+    "tool": "query_source_features",
+    "arguments": {
+      "release_id": "release-00000001-0000-7000-8000-000000000000",
+      "limit": 10,
+      "spatial": {
+        "kind": "nearest",
+        "position": {
+          "longitude_deg": 0.0,
+          "latitude_deg": 0.0
+        }
+      }
+    },
+    "tag": "/spatial/kind",
+    "required": [
+      "/release_id",
+      "/spatial/kind",
+      "/spatial/position"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.sample",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "sample",
+        "band": 1,
+        "positions": [
+          {
+            "longitude_deg": 0.0,
+            "latitude_deg": 0.0
+          }
+        ]
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band",
+      "/operation/positions"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.window",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "window",
+        "bounds": {
+          "west": 0.0,
+          "south": 0.0,
+          "east": 1.0,
+          "north": 1.0
+        },
+        "width": 2,
+        "height": 2
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/bounds",
+      "/operation/width",
+      "/operation/height"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.class_mask",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "class_mask",
+        "band": 1,
+        "classes": [
+          1,
+          2
+        ]
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band",
+      "/operation/classes"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.contour",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "contour",
+        "band": 1,
+        "interval": 1.0,
+        "base": 0.0
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band",
+      "/operation/interval",
+      "/operation/base"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.polygonize",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "polygonize",
+        "band": 1
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.skeletonize",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "skeletonize",
+        "band": 1,
+        "threshold": 1.0
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band",
+      "/operation/threshold"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.derive_lines",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "derive_lines",
+        "band": 1,
+        "threshold": 1.0,
+        "minimum_length": 1.0
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band",
+      "/operation/threshold",
+      "/operation/minimum_length"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RasterDerivationOperation.corridor_maximum",
+    "tool": "derive_raster",
+    "arguments": {
+      "raster_id": "raster-00000001-0000-7000-8000-000000000000",
+      "algorithm_revision": "gdal-3.13.3-veoveo-raster-v1",
+      "operation": {
+        "kind": "corridor_maximum",
+        "band": 1,
+        "corridor": {
+          "coordinates": [
+            {
+              "longitude_deg": 0.0,
+              "latitude_deg": 0.0
+            },
+            {
+              "longitude_deg": 1.0,
+              "latitude_deg": 1.0
+            }
+          ]
+        },
+        "sample_spacing": 10000.0,
+        "half_width": 1.0,
+        "cross_track_samples": 3
+      }
+    },
+    "tag": "/operation/kind",
+    "required": [
+      "/raster_id",
+      "/operation/kind",
+      "/operation/band",
+      "/operation/corridor",
+      "/operation/sample_spacing",
+      "/operation/half_width",
+      "/operation/cross_track_samples"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.human",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "human",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "mode": "walk",
+          "preferred_speed": 1.4,
+          "maximum_speed": 2.0,
+          "carried_load": 5.0,
+          "maximum_slope": 0.1,
+          "maximum_step": 0.2,
+          "maximum_continuous_duration": 3600.0
+        }
+      },
+      "idempotency_key": "controlled-input-human"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/mode"
+    ],
+    "defaults": {
+      "/profile/profile/stairs_allowed": false,
+      "/profile/profile/unpaved_allowed": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.road_vehicle",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "road_vehicle",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "passenger_car",
+          "gross_mass": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "nominal_speed": 1.0
+          },
+          "axle_count": 2,
+          "maximum_axle_load": 100.0
+        }
+      },
+      "idempotency_key": "controlled-input-road_vehicle"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {
+      "/profile/profile/hazardous_cargo": false,
+      "/profile/profile/unpaved_allowed": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.off_road_vehicle",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "off_road_vehicle",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "wheeled",
+          "gross_mass": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "nominal_speed": 1.0
+          },
+          "maximum_slope": 0.1,
+          "maximum_cross_slope": 0.1,
+          "maximum_step": 0.1,
+          "maximum_gap": 0.1,
+          "maximum_water_depth": 0.1,
+          "ground_clearance": 0.1,
+          "ground_pressure": 1.0
+        }
+      },
+      "idempotency_key": "controlled-input-off_road_vehicle"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.rail_vehicle",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "rail_vehicle",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "passenger_train",
+          "gross_mass": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "nominal_speed": 1.0
+          },
+          "gauge": 1.0,
+          "train_length": 10.0,
+          "maximum_axle_load": 100.0
+        }
+      },
+      "idempotency_key": "controlled-input-rail_vehicle"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {
+      "/profile/profile/schedule_required": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.surface_vessel",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "surface_vessel",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "small_craft",
+          "displacement": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "nominal_speed": 1.0
+          },
+          "draft": 1.0,
+          "air_draft": 1.0,
+          "minimum_under_keel_clearance": 1.0
+        }
+      },
+      "idempotency_key": "controlled-input-surface_vessel"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.subsurface_vessel",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "subsurface_vessel",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "autonomous_underwater_vehicle",
+          "displacement": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "nominal_speed": 1.0
+          },
+          "minimum_operating_depth": 1.0,
+          "maximum_operating_depth": 10.0,
+          "minimum_bathymetric_clearance": 1.0,
+          "maximum_submerged_duration": 10.0
+        }
+      },
+      "idempotency_key": "controlled-input-subsurface_vessel"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {
+      "/profile/profile/periodic_surfacing_required": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.fixed_wing",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "fixed_wing",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "light",
+          "maximum_takeoff_mass": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "cruise_speed": 1.0,
+            "service_ceiling": 100.0,
+            "maximum_range": 1000.0,
+            "payload_capacity": 1.0,
+            "minimum_reserve": 0.1
+          },
+          "minimum_runway_length": 10.0
+        }
+      },
+      "idempotency_key": "controlled-input-fixed_wing"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.rotorcraft",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "rotorcraft",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "helicopter",
+          "maximum_takeoff_mass": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "cruise_speed": 1.0,
+            "service_ceiling": 100.0,
+            "maximum_range": 1000.0,
+            "payload_capacity": 1.0,
+            "minimum_reserve": 0.1
+          },
+          "rotor_diameter": 2.0
+        }
+      },
+      "idempotency_key": "controlled-input-rotorcraft"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "MobilityProfile.uas",
+    "tool": "register_mobility_profile",
+    "arguments": {
+      "profile": {
+        "family": "uas",
+        "profile": {
+          "metadata": {
+            "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+            "name": "Pedestrian",
+            "version": 1,
+            "valid_from": "2026-01-01T00:00:00Z"
+          },
+          "planning": {
+            "minimum_speed": 0.1,
+            "vertical_clearance": 0.2,
+            "lateral_clearance": 0.2,
+            "maximum_route_points": 1000,
+            "maximum_segment_length": 1000.0
+          },
+          "dimensions": {
+            "length": 2.0,
+            "width": 1.0,
+            "height": 1.0
+          },
+          "energy": {
+            "source": "battery",
+            "battery_capacity": 20.0,
+            "minimum_reserve": 0.1
+          },
+          "class": "multirotor",
+          "maximum_takeoff_mass": 100.0,
+          "performance": {
+            "maximum_speed": 2.0,
+            "cruise_speed": 1.0,
+            "service_ceiling": 100.0,
+            "maximum_range": 1000.0,
+            "payload_capacity": 1.0,
+            "minimum_reserve": 0.1
+          }
+        }
+      },
+      "idempotency_key": "controlled-input-uas"
+    },
+    "tag": "/profile/family",
+    "required": [
+      "/idempotency_key",
+      "/profile/family",
+      "/profile/profile/metadata",
+      "/profile/profile/planning",
+      "/profile/profile/class"
+    ],
+    "defaults": {
+      "/profile/profile/beyond_visual_line_of_sight": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "FeatureMutation.create",
+    "tool": "validate_feature_changes",
+    "arguments": {
+      "layer_id": "feature-layer-00000001-0000-7000-8000-000000000000",
+      "expected_layer_revision": 1,
+      "mutations": [
+        {
+          "action": "create",
+          "feature": {
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                0.0,
+                0.0
+              ]
+            },
+            "semantic_type": "landmark",
+            "properties": {
+              "provider_extension": {
+                "undeclared": true,
+                "nested": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tag": "/mutations/0/action",
+    "required": [
+      "/layer_id",
+      "/mutations/0/action",
+      "/mutations/0/feature"
+    ],
+    "defaults": {},
+    "open_objects": [
+      "/mutations/0/feature/properties"
+    ]
+  },
+  {
+    "branch": "FeatureMutation.replace",
+    "tool": "validate_feature_changes",
+    "arguments": {
+      "layer_id": "feature-layer-00000001-0000-7000-8000-000000000000",
+      "expected_layer_revision": 1,
+      "mutations": [
+        {
+          "action": "replace",
+          "feature_id": "feature-00000001-0000-7000-8000-000000000000",
+          "expected_feature_revision": 1,
+          "feature": {
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                0.0,
+                0.0
+              ]
+            },
+            "semantic_type": "landmark",
+            "properties": {
+              "provider_extension": {
+                "undeclared": true,
+                "nested": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tag": "/mutations/0/action",
+    "required": [
+      "/layer_id",
+      "/mutations/0/action",
+      "/mutations/0/feature_id",
+      "/mutations/0/expected_feature_revision",
+      "/mutations/0/feature"
+    ],
+    "defaults": {},
+    "open_objects": [
+      "/mutations/0/feature/properties"
+    ]
+  },
+  {
+    "branch": "FeatureMutation.tombstone",
+    "tool": "validate_feature_changes",
+    "arguments": {
+      "layer_id": "feature-layer-00000001-0000-7000-8000-000000000000",
+      "expected_layer_revision": 1,
+      "mutations": [
+        {
+          "action": "tombstone",
+          "feature_id": "feature-00000001-0000-7000-8000-000000000000",
+          "expected_feature_revision": 1
+        }
+      ]
+    },
+    "tag": "/mutations/0/action",
+    "required": [
+      "/layer_id",
+      "/mutations/0/action",
+      "/mutations/0/feature_id",
+      "/mutations/0/expected_feature_revision"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FeatureMutation.restore",
+    "tool": "validate_feature_changes",
+    "arguments": {
+      "layer_id": "feature-layer-00000001-0000-7000-8000-000000000000",
+      "expected_layer_revision": 1,
+      "mutations": [
+        {
+          "action": "restore",
+          "feature_id": "feature-00000001-0000-7000-8000-000000000000",
+          "expected_feature_revision": 1
+        }
+      ]
+    },
+    "tag": "/mutations/0/action",
+    "required": [
+      "/layer_id",
+      "/mutations/0/action",
+      "/mutations/0/feature_id",
+      "/mutations/0/expected_feature_revision"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

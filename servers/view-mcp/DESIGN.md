@@ -502,6 +502,8 @@ adapter in the production profile.
 
 ## Deployment And Verification
 
+[Controlled-input fixtures](testdata/controlled-inputs.json) qualify scene positions, overlay geometries and inline or artifact geometry sources through the [hosted admission test](src/mcp/tool_input_tests.rs) and the [independent contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md).
+
 The Kubernetes Service exposes health and MCP ports only inside the cluster. The
 gateway is the normal caller and forwards signed internal identity. The
 container runs as the non-root Veoveo user with a read-only root filesystem and

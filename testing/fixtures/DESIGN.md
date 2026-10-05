@@ -95,3 +95,11 @@ The difference measures container-attributed block writes for the workload plus
 requested compaction. It does not establish steady-state write amplification or
 SSD NAND writes. Docker's `SizeRw` supplies the logical size of the writable layer,
 including engine files. The fixture removes that layer after the observation.
+
+## Input Admission
+
+`tool_inputs.rs` shares pure owner-owned input fixtures between contract consumers
+and authenticated hosted tests. It checks fixture integrity, decodes serialized
+bytes, and mutates controlled objects, required fields and variant tags. Owners
+select their actual request types and assert domain state; the helper owns no
+transport, lifecycle, provider or domain catalog.
