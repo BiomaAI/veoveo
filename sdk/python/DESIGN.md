@@ -103,6 +103,18 @@ values fail model and signed internal-token admission. External JWT claims keep 
 gateway normalization policy; this vocabulary applies to the principal delivered to
 the server.
 
+## Native Task Records
+
+The Task owner uses `tasks/records.py` for both admitted reads and native writes.
+Creation, idempotency links and input rows have closed record models. Request,
+owner-context and authority envelopes share constructors across admission, claims,
+transitions and compare-and-set snapshots. JSON-valued envelopes use the JSON codec;
+native record references and datetimes remain outside it. The codec preserves
+unsigned integers and explicit JSON null. An absent failure detail stays omitted.
+Native nullable lifecycle fields
+use database NONE, and authority label sets and retention pins serialize in sorted
+order. Query predicates and lease checks compare the complete admitted envelopes.
+
 ## Task Query Assets
 
 The Task runtime stores complete SurrealQL statements under

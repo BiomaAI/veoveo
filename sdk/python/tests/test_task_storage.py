@@ -855,3 +855,89 @@ def test_failure_decoder_rejects_uncontrolled_shape(value):
     from veoveo_mcp.tasks.types import TaskFailure
     with pytest.raises((ValidationError, InvalidRecord)):
         TaskFailure.from_json(value)
+
+
+def _json_after_driver_cbor(value):
+    # The outbound NULL marker becomes ordinary None only after CBOR decoding.
+    from surrealdb.data.cbor import decode, encode
+    from veoveo_mcp.tasks.store import _json_from_surreal
+    return _json_from_surreal(decode(encode(value)))
+
+
+def test_native_create_and_idempotency_records_keep_references_datetimes_and_sorted_sets():
+    from decimal import Decimal
+    from veoveo_mcp.tasks.records import TaskCreateRecord, TaskIdempotencyRecord
+
+    caller = owner()
+    authority = caller.authority.model_dump(mode="json")
+    authority["output_policy"]["data_labels"] = ["zulu", "alpha"]
+    from veoveo_mcp.contract import InvocationAuthority
+    caller = replace(caller, authority=InvocationAuthority.model_validate(authority),
+                     data_labels=frozenset({"zulu", "alpha"}))
+    request = draft(owner=caller, request={"provider": [None, 2**64 - 1, 1.5]},
+                    poll_interval_ms=2**64 - 1, idempotency_key="same-operation",
+                    retention_pins=frozenset({"zulu", "alpha"}))
+    now = datetime.now(timezone.utc)
+    expiry = now + timedelta(days=7)
+    content = TaskCreateRecord.from_draft(
+        request, work_context=_work_context_record(caller), initiator=_initiator_record(caller),
+        now=now, retention_expires_at=expiry,
+    ).to_native()
+    for field in ("tenant", "owner", "work_context", "profile", "server"):
+        assert isinstance(content[field], RecordID)
+    assert content["created_at"] is now
+    assert content["updated_at"] is now
+    assert content["retention_expires_at"] is expiry
+    assert content["result"] is None  # Native NONE, not a present JSON-null result.
+    assert content["request"]["poll_interval_ms"] == Decimal(2**64 - 1)
+    assert _json_after_driver_cbor(content["request"])["input"] == request.request
+    assert content["owner_context"]["data_labels"] == ["alpha", "zulu"]
+    assert content["owner_context"]["authority"]["output_policy"]["data_labels"] == ["alpha", "zulu"]
+    assert content["authority"]["data_labels"] == ["alpha", "zulu"]
+    assert content["retention_pins"] == ["alpha", "zulu"]
+    assert content["status"] == "queued"
+    assert content["recovery_class"] == request.recovery_class.value
+    link = TaskIdempotencyRecord.from_draft(request, task_record(request.task_id), now).to_native()
+    assert link["task"] == task_record(request.task_id)
+    assert link["tenant"] == content["tenant"]
+    assert link["owner"] == content["owner"]
+    assert link["server"] == content["server"]
+    assert link["created_at"] is now
+
+
+def test_native_input_and_failure_records_preserve_json_null_and_absent_details(stored_task):
+    from veoveo_mcp.tasks import TaskFailure
+    from veoveo_mcp.tasks.records import TaskFailureRecord, TaskInputRecord, TaskRequestRecord
+    from veoveo_mcp.tasks.runtime import _request_record
+
+    stored_task["request"]["poll_interval_ms"] = None
+    snapshot = _record_to_snapshot(stored_task)
+    now = datetime.now(timezone.utc)
+    request = TaskInputRequest("elicitation/create", {"provider": [None, 2**64 - 1]})
+    content = TaskInputRecord.from_request(task_record(snapshot.task_id), "answer", request, now).to_native()
+    assert isinstance(content["task"], RecordID)
+    assert content["created_at"] is now
+    assert content["response"] is None
+    assert content["responded_at"] is None
+    assert _json_after_driver_cbor(content["request"])["params"] == request.params
+    assert TaskRequestRecord.from_snapshot(snapshot, status_message=snapshot.status_message).to_native() == _request_record(snapshot)
+    decoded = _json_after_driver_cbor(_request_record(snapshot))
+    assert "poll_interval_ms" in decoded and decoded["poll_interval_ms"] is None
+    for value in [{"code": "provider", "message": "failed"},
+                  {"code": "provider", "message": "failed", "details": None},
+                  {"code": "provider", "message": "failed", "details": {"opaque": [None, 2**64 - 1]}}]:
+        assert _json_after_driver_cbor(TaskFailureRecord.from_failure(TaskFailure.from_json(value)).to_native()) == value
+
+
+@pytest.mark.parametrize("payload", [RecordID("task", "native"), datetime.now(timezone.utc)])
+def test_native_writers_keep_controlled_native_values_out_of_open_json(payload):
+    from veoveo_mcp.tasks.records import TaskCreateRecord, TaskInputRecord
+    request = draft(request={"provider": [payload]})
+    now = datetime.now(timezone.utc)
+    with pytest.raises(ValidationError):
+        TaskCreateRecord.from_draft(request, work_context=_work_context_record(request.owner),
+                                   initiator=_initiator_record(request.owner), now=now,
+                                   retention_expires_at=now + timedelta(days=7))
+    with pytest.raises(ValidationError):
+        TaskInputRecord.from_request(task_record(request.task_id), "answer",
+                                     TaskInputRequest("elicitation/create", {"provider": payload}), now)

@@ -15,7 +15,10 @@ from surrealdb import RecordID
 
 from .queries import OwnerStatement, query
 from .owner_query import OwnerTaskQuery
-from .records import AuthorityRecord, OwnerContextRecord, TaskRequestRecord, TaskInputRequestRecord, TaskFailureRecord
+from .records import (
+    AuthorityRecord, OwnerContextRecord, TaskCreateRecord, TaskFailureRecord,
+    TaskIdempotencyRecord, TaskInputRecord, TaskInputRequestRecord, TaskRequestRecord,
+)
 from .timestamp import TaskTimestamp
 
 from .store import (
@@ -23,7 +26,6 @@ from .store import (
     StoreError,
     SurrealStore,
     _json_from_surreal,
-    _json_to_surreal,
     task_result_from_store,
     task_result_to_store,
 )
@@ -93,28 +95,7 @@ def _initiator_record(owner: TaskOwner) -> RecordID | None:
 
 
 def _authority_record(owner: TaskOwner) -> dict[str, Any]:
-    authority = owner.authority
-    output = authority.output_policy
-    return {
-        "context_key": authority.work_context,
-        "membership": authority.membership.value,
-        "policy_revision": authority.policy_revision,
-        "owner_kind": output.owner.kind,
-        "owner_key": output.owner.id,
-        "initial_grants": [
-            {
-                "subject_kind": grant.subject.kind,
-                "subject_key": grant.subject.id,
-                "permission": grant.level.value,
-            }
-            for grant in output.initial_grants
-        ],
-        "classification": output.classification,
-        "data_labels": sorted(output.data_labels),
-        "invocation_mode": authority.invocation_mode,
-        "initiator_key": authority.initiator,
-        "delegation_id": authority.delegation_id,
-    }
+    return AuthorityRecord.from_owner(owner).to_native()
 
 
 class TaskRuntime:
@@ -146,12 +127,8 @@ class TaskRuntime:
     async def create(self, draft: CreateTask) -> CreateTaskResult:
         if draft.server != self.server:
             raise WrongServer(draft.server)
-        TaskRequestRecord.model_validate({
-            "input": draft.request,
-            "ttl_ms": draft.ttl_ms,
-            "poll_interval_ms": draft.poll_interval_ms,
-        })
-        owner_context = _owner_context_record(draft.owner)
+        TaskRequestRecord(input=draft.request, ttl_ms=draft.ttl_ms, poll_interval_ms=draft.poll_interval_ms)
+        OwnerContextRecord.from_owner(draft.owner)
         now = _now()
         retention = default_retention_expiry(now, draft.ttl_ms)
         if draft.idempotency_key is not None:
@@ -162,56 +139,16 @@ class TaskRuntime:
         await self.store.ensure_identity(draft.owner)
 
         record = task_record(draft.task_id)
-        envelope = {
-            "input": _json_to_surreal(draft.request),
-            "status_message": "Queued",
-            "ttl_ms": _timing_to_surreal(draft.ttl_ms),
-            "poll_interval_ms": _timing_to_surreal(draft.poll_interval_ms),
-        }
-        content = {
-            "tenant": draft.owner.tenant_record(),
-            "owner": draft.owner.principal_record(),
-            "work_context": _work_context_record(draft.owner),
-            "initiator": _initiator_record(draft.owner),
-            "invocation_mode": draft.owner.authority.invocation_mode,
-            "delegation_id": draft.owner.authority.delegation_id,
-            "policy_revision": draft.owner.authority.policy_revision,
-            "authority": _authority_record(draft.owner),
-            "profile": profile_record(draft.owner.profile),
-            "server": server_record(self.server),
-            "task_type": draft.task_type,
-            "status": TaskStatus.QUEUED.value,
-            "recovery_class": draft.recovery_class.value,
-            "request": envelope,
-            "owner_context": owner_context,
-            "progress": 0.0,
-            "result": None,
-            "error": None,
-            "result_artifact": None,
-            "idempotency_key": draft.idempotency_key,
-            "lease_owner": None,
-            "lease_expires_at": None,
-            "cancel_requested_at": None,
-            "created_at": now,
-            "updated_at": now,
-            "started_at": None,
-            "completed_at": None,
-            "retention_expires_at": retention,
-            "retention_pins": sorted(draft.retention_pins),
-            "search_text": f"{self.server} {draft.task_type} {draft.owner.principal_key}",
-        }
+        content = TaskCreateRecord.from_draft(
+            draft, work_context=_work_context_record(draft.owner),
+            initiator=_initiator_record(draft.owner), now=now,
+            retention_expires_at=retention,
+        ).to_native()
         if draft.idempotency_key is not None:
             idempotency = idempotency_record(
                 draft.owner, self.server, draft.idempotency_key
             )
-            link = {
-                "task": record,
-                "tenant": draft.owner.tenant_record(),
-                "owner": draft.owner.principal_record(),
-                "server": server_record(self.server),
-                "key": draft.idempotency_key,
-                "created_at": now,
-            }
+            link = TaskIdempotencyRecord.from_draft(draft, record, now).to_native()
             for attempt in range(MAX_TRANSACTION_ATTEMPTS):
                 try:
                     await self.store.query(
@@ -307,20 +244,8 @@ class TaskRuntime:
             raise LeaseHeld(task_id)
 
         input_id = task_input_record(current.task_id, key)
-        content = {
-            "task": task_record(current.task_id),
-            "request_key": key,
-            "request": _json_to_surreal(TaskInputRequestRecord.model_validate({"method": request.method, "params": request.params}).model_dump(mode="json")),
-            "response": None,
-            "created_at": now,
-            "responded_at": None,
-        }
-        envelope = {
-            "input": _json_to_surreal(current.request),
-            "status_message": "Waiting for input",
-            "ttl_ms": _timing_to_surreal(current.ttl_ms),
-            "poll_interval_ms": _timing_to_surreal(current.poll_interval_ms),
-        }
+        content = TaskInputRecord.from_request(task_record(current.task_id), key, request, now).to_native()
+        envelope = TaskRequestRecord.from_snapshot(current, status_message="Waiting for input").to_native()
         try:
             await self.store.query(
                 query("runtime/request_input.surql"),
@@ -452,12 +377,7 @@ class TaskRuntime:
         if snapshot.is_terminal() or snapshot.status == TaskStatus.CANCEL_REQUESTED:
             raise InvalidTransition(snapshot.status, TaskStatus.RUNNING)
         lease_expires_at = now + lease_duration
-        envelope = {
-            "input": _json_to_surreal(snapshot.request),
-            "status_message": "Running",
-            "ttl_ms": _timing_to_surreal(snapshot.ttl_ms),
-            "poll_interval_ms": _timing_to_surreal(snapshot.poll_interval_ms),
-        }
+        envelope = TaskRequestRecord.from_snapshot(snapshot, status_message="Running").to_native()
         results = await self.store.query(
             query("runtime/claim.surql"),
             {
@@ -545,12 +465,7 @@ class TaskRuntime:
             raise LeaseHeld(task_id)
         terminal = next_status.is_terminal()
         message = transition.message()
-        envelope = {
-            "input": _json_to_surreal(current.request),
-            "status_message": _json_to_surreal(message),
-            "ttl_ms": _timing_to_surreal(current.ttl_ms),
-            "poll_interval_ms": _timing_to_surreal(current.poll_interval_ms),
-        }
+        envelope = TaskRequestRecord.from_snapshot(current, status_message=message).to_native()
         result = transition.result()
         failure = transition.failure()
         results = await self.store.query(
@@ -566,7 +481,7 @@ class TaskRuntime:
                 "progress": progress,
                 "result": task_result_to_store(result),
                 "result_uri": str(transition.result_uri()) if transition.result_uri() is not None else None,
-                "error": _json_to_surreal(TaskFailureRecord.model_validate(failure.to_json()).model_dump(mode="json", exclude_unset=True)) if failure is not None else None,
+                "error": TaskFailureRecord.from_failure(failure).to_native() if failure is not None else None,
                 "cancel_requested_at": (
                     now
                     if next_status == TaskStatus.CANCEL_REQUESTED
@@ -746,12 +661,7 @@ class TaskRuntime:
         failure: TaskFailure | None,
     ) -> TaskSnapshot:
         now = _now()
-        envelope = {
-            "input": _json_to_surreal(task.request),
-            "status_message": _json_to_surreal(message),
-            "ttl_ms": _timing_to_surreal(task.ttl_ms),
-            "poll_interval_ms": _timing_to_surreal(task.poll_interval_ms),
-        }
+        envelope = TaskRequestRecord.from_snapshot(task, status_message=message).to_native()
         terminal = status == TaskStatus.FAILED
         results = await self.store.query(
             query("runtime/_force_status.surql"),
@@ -759,7 +669,7 @@ class TaskRuntime:
                 "task": task_record(task.task_id),
                 "status": status.value,
                 "request": envelope,
-                "error": _json_to_surreal(TaskFailureRecord.model_validate(failure.to_json()).model_dump(mode="json", exclude_unset=True)) if failure is not None else None,
+                "error": TaskFailureRecord.from_failure(failure).to_native() if failure is not None else None,
                 "completed_at": now if terminal else None,
                 "now": now,
                 "expected": task.status.value,
@@ -789,25 +699,11 @@ def _record_uuid(record: Any) -> str:
 
 
 def _owner_context_record(owner: TaskOwner) -> dict[str, Any]:
-    record = OwnerContextRecord.from_owner(owner).model_dump(mode="json")
-    record["data_labels"] = sorted(owner.data_labels)
-    record["authority"]["output_policy"]["data_labels"] = sorted(
-        owner.authority.output_policy.data_labels
-    )
-    return _json_to_surreal(record)
-
-
-def _timing_to_surreal(value: int | None) -> Any:
-    return _json_to_surreal(value)
+    return OwnerContextRecord.from_owner(owner).to_native()
 
 
 def _request_record(snapshot: TaskSnapshot) -> dict[str, Any]:
-    return {
-        "input": _json_to_surreal(snapshot.request),
-        "status_message": _json_to_surreal(snapshot.status_message),
-        "ttl_ms": _timing_to_surreal(snapshot.ttl_ms),
-        "poll_interval_ms": _timing_to_surreal(snapshot.poll_interval_ms),
-    }
+    return TaskRequestRecord.from_snapshot(snapshot, status_message=snapshot.status_message).to_native()
 
 
 def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
