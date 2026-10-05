@@ -1,14 +1,16 @@
 //! Durable media task state backed by the installation SurrealDB.
 
 use crate::storage::{MediaTaskContextId, MediaTaskContextRecord};
+mod cancellation;
 mod usage;
+use cancellation::CancellationReceiptRecord;
 pub use usage::MediaBillingPage;
 
 use std::collections::BTreeSet;
 use veoveo_platform_store::task_record_id;
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
@@ -82,7 +84,7 @@ pub struct WebhookReceipt {
     pub inserted: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum ProviderCancellationOutcome {
     Requested,
@@ -443,7 +445,11 @@ impl MediaState {
                 key: task.task_id.to_string(),
             });
         }
-        let receipt = open_object(serde_json::json!({ "recorded_at":Utc::now(),"result":outcome }));
+        let receipt = CancellationReceiptRecord {
+            recorded_at: Utc::now(),
+            result: outcome,
+        }
+        .into_payload();
         provider_job(
             self.journal()?
                 .record_cancellation(task.task_id, receipt)

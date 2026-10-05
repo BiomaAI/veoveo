@@ -286,3 +286,18 @@ admits an identifier; it does not certify installed schema or grant read authori
 These owner tables declare 30-day changefeed retention matching the installed SQL.
 LIVE invalidation and changefeed recovery keep their existing reconciliation and
 checkpoint behavior. Public DTO contract features do not activate observation sources.
+
+## Cancellation Receipt And Row Lifetimes
+
+`state::cancellation` owns the recorded-at/result envelope for cancellation request
+outcomes. Its nominal native record preserves the existing RFC 3339 JSON timestamp
+and tagged outcome, including unsigned counts. Only the admitted receipt crosses
+the Tasks journal's opaque extension boundary. A cancellation acknowledgement does
+not establish provider termination or release unresolved outcome fencing.
+
+The `media_task` identity, dispatch, association and settlement receipt is created
+with an admitted Task and is removed by its Task reference on deletion. Capability
+contexts are allocated before Task admission and expire independently at capability
+expiry. Usage rows survive Task deletion until billing retention expiry. Native
+retention tests check that Task pruning removes only the owner receipt while
+preserving its independent context and usage rows.

@@ -57,7 +57,7 @@ DEFINE INDEX media_usage_source_unique ON media_usage FIELDS task, kind, source_
 DEFINE INDEX media_usage_task_time ON media_usage FIELDS task, recorded_at;
 
 DEFINE TABLE media_task TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
-DEFINE FIELD OVERWRITE task ON media_task TYPE record<task> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE task ON media_task TYPE record<task> REFERENCE ON DELETE CASCADE PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE task_type ON media_task TYPE 'run' PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE created_at ON media_task TYPE datetime PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE identity ON media_task TYPE object READONLY PERMISSIONS FULL;

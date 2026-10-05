@@ -1258,6 +1258,7 @@ Media-specific ownership:
 | `servers/media-mcp/src/state/usage.rs` | ledger writes, retention and paged SQL billing recovery |
 | `servers/media-mcp/src/bin/server/setup.rs` | checked MCP startup, fixed discovery and typed resource templates |
 | `servers/media-mcp/src/bin/server/resources.rs` and `subscriptions.rs` | owner resource dispatch and SQL-backed subscription admission |
+| `servers/media-mcp/src/state/cancellation.rs` | typed cancellation receipt encoding preserves JSON timestamps and provider outcomes at the domain-neutral Tasks journal handoff |
 | `servers/media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |
 | `servers/media-mcp/src/webhook.rs` | signature parsing and constant-time verification |
 | `servers/media-mcp/src/bin/server/generation_task.rs` | durable submission/WebhookWait/terminal flow |

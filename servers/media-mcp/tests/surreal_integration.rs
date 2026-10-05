@@ -482,8 +482,14 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
         assert!(restarted_state.billing_candidates(None).await.unwrap().jobs.iter().any(|job| job.task_id == task_id), "billed but pinned outcome is selected after restart");
         restarted.webhooks("media".parse().unwrap()).release_retention_after_billing(task_id).await.unwrap();
         assert!(!restarted_state.billing_candidates(None).await.unwrap().jobs.iter().any(|job| job.task_id == task_id));
+        async fn receipt_counts(store: &veoveo_platform_store::PlatformStore, task: TaskId) -> [usize; 3] {
+            let mut response = store.client().query(include_str!("queries/surreal_integration/task_receipt_lifetime.surql")).bind(("task", veoveo_platform_store::task_record_id(task))).await.unwrap().check().unwrap();
+            [0, 1, 2].map(|slot| response.take::<Vec<veoveo_platform_store::RecordId>>(slot).unwrap().len())
+        }
+        assert_eq!(receipt_counts(first.platform_store(), task_id).await, [1, 1, 1]);
         assert!(first.prune_expired().await.unwrap().contains(&task_id));
         assert!(first.get(task_id).await.unwrap().is_none());
+        assert_eq!(receipt_counts(first.platform_store(), task_id).await, [0, 1, 1], "Task deletion removes its Media receipt; capability context and billed usage expire independently");
         // Explicit fixture cleanup removes the referencing job before its event.
         first.platform_store().client().query(include_str!("queries/surreal_integration/delete_journal_fixture.surql"))
             .bind(("job", preserved.job_id.record_id())).await.unwrap().check().unwrap();
