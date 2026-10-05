@@ -1098,6 +1098,20 @@ checks pass, as do the Frames, Workspace and direct Identity export native suite
 The affected consumer compile and strict lint checks pass. These owner APIs and the
 composed Task storage cut qualify together as a source checkpoint.
 
+Computers also reads Gateway control revisions and refresh families, and Identity
+tenant and principal records, inside admission and dispatch transactions. Replace
+those reads with owner exports that preserve revision/digest agreement, family
+revocation and expiry, enabled state, and identity relationships. Grant creation
+needs the admitted family's expiry to cap its own lifetime. Identity reads need
+the tenant slug and principal kind, issuer and subject for exact comparisons.
+Keep these comparisons in the existing transaction and before collection limits.
+The export calls do not replace Computers' policy decisions or provider fences.
+Its operation, execution, transfer and maintenance journals also need a declared
+Task tenant record derived from the same owner used for Task admission. This lets
+cross-tenant worker queues use Task lifecycle selection without copying Identity's
+record-ID construction into SQL. Qualify missing, disabled, foreign and changed
+records along with grant expiry and current-result acknowledgment.
+
 UAV and Reason need distinct caller and maintenance profiles. UAV preserves its
 indexed mission-plan and execution lookup, while Tasks owns terminal settlement
 and retention selection. Reason findings follow Artifact read access across Task
@@ -1332,14 +1346,26 @@ idempotency comparisons in Map, Time and UAV, `geometry_json` carries GeoJSON, a
 `schema_json` and `style_json` carry user documents. After phase 4 no query decodes
 any of them.
 
+The lookup inventory is not exhaustive. Agent mutation queries also compare
+execution kind, template and complete parameters. Give queried controlled values
+declared fields and derive them from the validated content in the same write.
+Parameters stay opaque where their schema belongs to the selected template; compare
+the whole value to preserve the managed-update constraint. Preserve the draft's
+execution-kind constraint as well.
+
 ### Literal Types And Bound Values
 
-Ten enumerated fields typed as plain `string` become literal types:
-`agent_owner.role`, `membership.role`, `coordinate_operation.kind`,
-`gateway_control_object.object_kind`, `map_acquisition.phase`,
+The owner review narrows the original ten-field literal inventory to eight closed
+vocabularies: `membership.role`, `coordinate_operation.kind`, `map_acquisition.phase`,
 `map_restriction.kind`, `map_restriction.effect_kind`, `map_source.adapter_kind`,
 `map_source.authority_class` and `time_acquisition.phase`. The database already
 uses 150 literal types.
+
+Remove the unused `agent_owner` relation and `AgentOwnerEdge` with the fresh schema
+cut; neither has a producer or consumer that defines a role vocabulary.
+`gateway_control_object.object_kind` accepts owner-registered catalog extensions.
+Keep that field extensible, validate the shared `ExtensionName` syntax, and qualify
+an independent owner's kind. A kernel enum would require core edits for new owners.
 
 Code that binds a wire type into SurrealQL binds a store-owned record type instead.
 Known sites are the artifact upload descriptor, layout and manifest compared in the
