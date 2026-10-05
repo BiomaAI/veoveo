@@ -234,6 +234,13 @@ across replicas. The fresh Artifacts lane creates `artifact_upload_memory:global
 with zero inflight bytes. Recorded lane replay preserves the existing counter. Unknown-length streams reserve another bounded part window before
 exceeding their current reservation. Failed requests release transfer budget while
 preserving the immutable descriptor for a matching retry.
+The service settles each part claim in a task that owns its returned lease guard
+before delivering the response to the request. Caller cancellation drops an owned
+guard even when it races the claim response. Accepted replays and another worker's
+lease create no release guard. The claim task waits for the configured Store query
+deadline, which defaults to 30 seconds. An unknown outcome stays fenced until the
+existing lease-expiry recovery settles it. Request
+body and object-store writes stay within the caller's cancellation scope.
 
 Finalization freezes a complete ordered manifest in Store before touching S3 completion.
 Session leases carry a generation; takeover invalidates prior workers. The publication

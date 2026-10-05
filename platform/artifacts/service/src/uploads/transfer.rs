@@ -43,42 +43,55 @@ impl UploadService {
             .ok_or(contract::UploadErrorCode::Busy)?;
         let timeout = authority.policy.part_timeout_seconds.get();
         let owner = uuid::Uuid::now_v7();
-        let part = self
-            .database
-            .claim_artifact_upload_part(platform::ClaimArtifactUploadPart {
+        let claim = platform::ClaimArtifactUploadPart {
+            upload_id: id.as_uuid(),
+            part_number: number.get(),
+            byte_len: i64::try_from(byte_len).map_err(|_| contract::UploadErrorCode::TooLarge)?,
+            sha256: sha256.as_str().to_owned(),
+            lease_owner: owner,
+            lease_seconds: (timeout + 15) as u32,
+            policy_digest: authority.policy_digest.clone(),
+            quota_bytes: authority.policy.tenant_quota_bytes.get() as i64,
+            max_inflight_bytes: authority.policy.max_inflight_bytes.get() as i64,
+            max_tenant_inflight_parts: authority
+                .policy
+                .max_active_uploads_per_tenant
+                .get()
+                .saturating_mul(authority.policy.parallel_parts.get()),
+        };
+        let database = self.database.clone();
+        // The claim can commit before its response reaches this request. Keep
+        // that response and its exact lease guard together even when the caller
+        // cancels while the database is settling the claim.
+        let claimed = tokio::spawn(async move {
+            let part = tokio::time::timeout(
+                database.config().query_timeout(),
+                database.claim_artifact_upload_part(claim),
+            )
+            .await
+            .map_err(|_| UploadFault::unavailable())??;
+            let fence = (part.state != platform::ArtifactUploadPartState::Accepted
+                && part.lease_owner == Some(owner))
+            .then(|| platform::ArtifactUploadPartFence {
                 upload_id: id.as_uuid(),
                 part_number: number.get(),
-                byte_len: i64::try_from(byte_len)
-                    .map_err(|_| contract::UploadErrorCode::TooLarge)?,
-                sha256: sha256.as_str().to_owned(),
                 lease_owner: owner,
-                lease_seconds: (timeout + 15) as u32,
-                policy_digest: authority.policy_digest.clone(),
-                quota_bytes: authority.policy.tenant_quota_bytes.get() as i64,
-                max_inflight_bytes: authority.policy.max_inflight_bytes.get() as i64,
-                max_tenant_inflight_parts: authority
-                    .policy
-                    .max_active_uploads_per_tenant
-                    .get()
-                    .saturating_mul(authority.policy.parallel_parts.get()),
-            })
-            .await?;
+                generation: part.generation,
+            });
+            Ok::<_, UploadFault>((part, PartLease { database, fence }))
+        });
+        let (part, mut guard) = claimed.await.map_err(|_| UploadFault::unavailable())??;
         if part.state == platform::ArtifactUploadPartState::Accepted {
             return view::part(&part);
         }
         if part.lease_owner != Some(owner) {
             return Err(contract::UploadErrorCode::Busy.into());
         }
-        let fence = platform::ArtifactUploadPartFence {
-            upload_id: id.as_uuid(),
-            part_number: number.get(),
-            lease_owner: owner,
-            generation: part.generation,
-        };
-        let mut guard = PartLease {
-            database: self.database.clone(),
-            fence: Some(fence.clone()),
-        };
+        let fence = guard
+            .fence
+            .as_ref()
+            .ok_or_else(UploadFault::unavailable)?
+            .clone();
         let accepted = tokio::time::timeout(Duration::from_secs(timeout), async {
             let payload = VerifiedUploadPayload::read(stream, byte_len, &sha256).await?;
             let content_id = self
