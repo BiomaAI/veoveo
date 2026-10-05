@@ -150,15 +150,25 @@ an explicit field allowlist. The module admission and native runner suites pass,
 including rejection of foreign targets and mutations inside read-only contexts.
 This independent prerequisite is committed and pushed as `015c84b47`.
 
-The Agent, Artifact, Task and Media integration batch is in progress and has not
-passed compilation or native qualification.
-Agent Identity operations now call owner exports, including service-principal creation
-inside the Agent transaction. Artifact subscription deadlines reuse Store's read policy
-across the full selected collection. Task storage, Rust and Python transitions carry a
-separate typed product URI; server completion writers and their affected output schemas
-are being updated together. Media's shared webhook journal, provider correlation,
-settlement and owner lookups are still being implemented. Qualification runs after this
-dependency chain is complete.
+Agent Identity operations call owner exports, including service-principal creation
+inside the Agent transaction. The 21 native Agent management tests pass, and the cut is
+committed as `7acf1f901`. Artifact subscription deadlines reuse Store's read policy
+across the full selected collection. Native subscription revocation and expiry checks
+pass, including empty and explicit member selections; the move is committed as
+`eb4c9add3`.
+
+The Task and Media integration batch compiles across the affected packages. Task
+storage, Rust and Python transitions carry a separate typed product URI; server
+completion writers and their output schemas are updated together. The 20 selected
+Task native tests and Python completion/template checks pass. Python's native
+transaction cases remain pending. Media's schema passes admission after the
+qualified wildcard-proof fix in `22532e88f`. Its twelve native lifecycle, read and
+hosted callback checks pass, including callback binding after private context expiry,
+retained product URIs, cancellation, billing recovery and SQL pagination. Focused
+library checks, composed-schema qualification and final lint/enforcement remain open
+before committing the Task and Media batch. The host tracing approval described in
+Phase 3 remains required before deployment; real provider generation is not part of
+this local acceptance.
 
 Computers' real provider
 process suites still require a configured, qualified native execution profile before
@@ -1168,6 +1178,11 @@ checks performed before the transaction do not protect a later journal write.
 The creation contribution's identity stays immutable. A later provider identity
 enters through a checked owner projection in the journal transaction, with the
 same rollback and replay guarantees as the Task contribution.
+Tasks exposes provider observation facts through an owner API that checks the
+job, Task, server, tenant and provider relationship. Media queries use those facts
+and its own lookup fields; provider payloads pass whole to Media for decoding.
+Caller reads still apply Task selection before page limits. Billing requires a
+recorded provider terminal event, independently of the local Task outcome.
 
 Media must authenticate callback-to-dispatch correlation before an external job ID
 has been bound. WaveSpeed's [signature profile](https://wavespeed.ai/docs/verify-webhooks)
@@ -1177,6 +1192,10 @@ require it alongside the provider signature. Keep callback secrets out of reques
 errors and logs. Qualify replay against two unbound Tasks, restart, binding races and
 late terminal observations after local cancellation. A submission timeout preserves
 an unresolved outcome and cannot authorize resubmission or a failed Task settlement.
+The host currently includes query parameters in request spans through
+`DefaultMakeSpan`. Path-only tracing and a captured-log regression check are required
+before deploying callback binding credentials. This protected host edit requires
+the user's approval under the installed-acceptance handover.
 The installation cut must drain the previous callback profile; missing binding
 credentials fail rather than selecting an older handler.
 
