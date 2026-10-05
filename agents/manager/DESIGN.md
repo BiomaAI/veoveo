@@ -10,6 +10,10 @@ credential renewal, stop, archive and revocation. The
 The manager uses Kubernetes `apps/v1` Deployments and `core/v1` Secrets, PVCs,
 ConfigMaps and Pods through typed HTTPS JSON requests. Native watches carry
 resource versions and reconnect through a fresh inventory after watch loss.
+Metadata inventories consume the `PartialObjectMetadataList` metadata envelope;
+empty lists may carry null or omitted items. The manager requires a nonempty list
+resourceVersion, stable versions across pages and advancing continuation tokens.
+Workload drain uses the separate typed Pod inventory, never metadata-list contents.
 Installation policy uses `admissionregistration.k8s.io/v1` ValidatingAdmissionPolicy
 with CEL. These are selected Kubernetes APIs, not a general Kubernetes client.
 

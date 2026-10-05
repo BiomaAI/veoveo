@@ -295,9 +295,16 @@ impl Pod {
                 .any(|c| c.kind == "Ready" && c.status == "True")
     }
 }
+// A metadata inventory establishes a watch revision; it never proves resource drain.
+// Kubernetes may encode an empty PartialObjectMetadataList with items:null.
+#[derive(Debug, Deserialize)]
+pub struct MetadataInventory {
+    pub metadata: ListMetadata,
+}
 #[derive(Debug, Deserialize)]
 pub struct ResourceList<T> {
-    pub metadata: ListMetadata,
+    #[serde(rename = "metadata")]
+    pub _metadata: ListMetadata,
     pub items: Vec<T>,
 }
 #[derive(Debug, Deserialize)]

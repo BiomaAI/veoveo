@@ -242,7 +242,7 @@ impl Kubernetes {
             let mut continuation = String::new();
             let mut version = None;
             loop {
-                let page: ResourceList<Bookmark> = decode(
+                let page: MetadataInventory = decode(
                     self.request(Method::GET, resource, None)
                         .await?
                         .header(
@@ -258,6 +258,10 @@ impl Kubernetes {
                         .await?,
                 )
                 .await?;
+                ensure!(
+                    !page.metadata.resource_version.is_empty(),
+                    "Kubernetes inventory lacks version"
+                );
                 if let Some(version) = &version {
                     ensure!(
                         version == &page.metadata.resource_version,
@@ -445,9 +449,10 @@ mod watch_tests {
         }
     }
 
-    #[tokio::test]
-    async fn metadata_watch_resumes_bookmarks_and_relists_after_gone() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+    impl Fixture {
+        async fn start(
+            responses: Vec<(u16, &'static str)>,
+        ) -> (Self, Kubernetes, tokio::task::JoinHandle<Vec<String>>) {
             let mut fixture = Fixture {
                 token: std::env::temp_dir().join(format!("manager-watch-{}", uuid::Uuid::now_v7())),
                 tasks: Vec::new(),
@@ -456,14 +461,6 @@ mod watch_tests {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let address = listener.local_addr().unwrap();
             let server = tokio::spawn(async move {
-                let responses = [
-                    (200, r#"{"metadata":{"resourceVersion":"10","continue":"next-page"},"items":[]}"#),
-                    (200, r#"{"metadata":{"resourceVersion":"10"},"items":[]}"#),
-                    (200, "{\"type\":\"BOOKMARK\",\"object\":{\"metadata\":{\"resourceVersion\":\"12\"}}}\n"),
-                    (410, "{}"),
-                    (200, r#"{"metadata":{"resourceVersion":"20"},"items":[]}"#),
-                    (200, "{\"type\":\"MODIFIED\",\"object\":{\"metadata\":{\"name\":\"owned\",\"resourceVersion\":\"21\"}}}\n"),
-                ];
                 let mut requests = Vec::new();
                 for (status, body) in responses {
                     let (mut connection, _) = listener.accept().await.unwrap();
@@ -480,7 +477,28 @@ mod watch_tests {
                 requests
             });
             fixture.tasks.push(server.abort_handle());
-            let kube = Kubernetes { http: Client::new(), endpoint: format!("http://{address}"), namespace: "agents".into(), token_file: fixture.token.clone() };
+            let kube = Kubernetes {
+                http: Client::new(),
+                endpoint: format!("http://{address}"),
+                namespace: "agents".into(),
+                token_file: fixture.token.clone(),
+            };
+            (fixture, kube, server)
+        }
+    }
+
+    #[tokio::test]
+    async fn metadata_watch_resumes_bookmarks_and_relists_after_gone() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let responses = vec![
+                    (200, r#"{"metadata":{"resourceVersion":"10","continue":"next-page"},"items":null}"#),
+                    (200, r#"{"metadata":{"resourceVersion":"10"},"items":null}"#),
+                    (200, "{\"type\":\"BOOKMARK\",\"object\":{\"metadata\":{\"resourceVersion\":\"12\"}}}\n"),
+                    (410, "{}"),
+                    (200, r#"{"metadata":{"resourceVersion":"20"},"items":null}"#),
+                    (200, "{\"type\":\"MODIFIED\",\"object\":{\"metadata\":{\"name\":\"owned\",\"resourceVersion\":\"21\"}}}\n"),
+            ];
+            let (mut fixture, kube, server) = Fixture::start(responses).await;
             let (changed, _changes) = watch::channel(0);
             let observing = tokio::spawn(kube.watch_resources(Resource::Secrets, changed));
             fixture.tasks.push(observing.abort_handle());
@@ -496,5 +514,32 @@ mod watch_tests {
             assert!(!requests[4].contains("watch=true"));
             assert!(requests[5].contains("watch=true") && requests[5].contains("resourceVersion=20"));
         }).await.expect("Kubernetes metadata watch qualification deadline");
+    }
+    #[tokio::test]
+    async fn metadata_inventory_rejects_missing_versions_and_inconsistent_pages() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let cases = [
+                (vec![(200, r#"{"metadata":{"resourceVersion":""},"items":null}"#)], "inventory lacks version"),
+                (vec![(200, r#"{"metadata":{},"items":null}"#)], "invalid Kubernetes resource response"),
+                (vec![
+                    (200, r#"{"metadata":{"resourceVersion":"10","continue":"page"},"items":null}"#),
+                    (200, r#"{"metadata":{"resourceVersion":"11"},"items":null}"#),
+                ], "inventory changed version between pages"),
+                (vec![
+                    (200, r#"{"metadata":{"resourceVersion":"10","continue":"page"},"items":null}"#),
+                    (200, r#"{"metadata":{"resourceVersion":"10","continue":"page"},"items":null}"#),
+                ], "inventory repeated continuation"),
+            ];
+            for (responses, diagnostic) in cases {
+                let (_fixture, kube, server) = Fixture::start(responses).await;
+                let error = kube.inventory_version(Resource::Pods).await.unwrap_err();
+                assert!(error.to_string().contains(diagnostic), "{error:#}");
+                server.await.unwrap();
+            }
+            let (_fixture, kube, server) = Fixture::start(vec![(200, r#"{"metadata":{"resourceVersion":"10"}}"#)]).await;
+            assert_eq!(kube.inventory_version(Resource::Pods).await.unwrap(), "10");
+            server.await.unwrap();
+            assert!(serde_json::from_str::<ResourceList<Pod>>(r#"{"metadata":{"resourceVersion":"10"},"items":null}"#).is_err());
+        }).await.expect("Kubernetes inventory admission qualification deadline");
     }
 }
