@@ -160,13 +160,17 @@ pass, including empty and explicit member selections; the move is committed as
 The Task and Media integration batch compiles across the affected packages. Task
 storage, Rust and Python transitions carry a separate typed product URI; server
 completion writers and their output schemas are updated together. The 20 selected
-Task native tests and Python completion/template checks pass. Python's native
-transaction cases remain pending. Media's schema passes admission after the
-qualified wildcard-proof fix in `22532e88f`. Its twelve native lifecycle, read and
-hosted callback checks pass, including callback binding after private context expiry,
-retained product URIs, cancellation, billing recovery and SQL pagination. Focused
-library checks, composed-schema qualification and final lint/enforcement remain open
-before committing the Task and Media batch. The host tracing approval described in
+Task native tests, Python completion/template checks and all ten Python native
+transaction cases pass. Media's schema passes admission after the qualified
+wildcard-proof fix in `22532e88f`. Its native lifecycle, read and hosted callback
+checks cover callback binding after private context expiry, retained product URIs,
+cancellation, billing recovery and SQL pagination. Expanded cases pass for concurrent
+provider associations and local publication failure after provider success, including
+an Artifact service rejection and absent private context. Focused Media and MCP
+completion library checks pass. Fresh Gateway schema and installation checks pass,
+and the four composed plans are regenerated from that Gateway. Independent schema
+consumer qualification and final lint/enforcement remain open before committing the
+Task and Media batch. The host tracing approval described in
 Phase 3 remains required before deployment; real provider generation is not part of
 this local acceptance.
 
@@ -424,14 +428,14 @@ Optional modules depend only on kernel modules and on modules they declare.
 The embedding runtime is required because Knowledge search needs it. NVIDIA is the
 qualified profile; D12 records the separate Apple proposal.
 
-### Current Leaks
+### Ownership Status
 
-| Leak | Evidence |
+| Concern | Current state |
 |---|---|
-| Module persistence in the kernel store | `platform/store/src`: Workspace 1,885 lines and 27 query files; Agent management 1,634 and 7; Map 3,800 across `map`, `map_authoring`, `map_presentations`, `map_derivations`, `map_projection`; Recordings 3,861 across `recording_catalog`, `recording_ingest`, `recordings`, `recording_blueprints` |
-| Kernel crates depending on optional modules | The reusable gateway's normal/build graph excludes optional owner runtimes, Computers transport, Recording protocol and Speech contract. Domain owners supply HTTP handlers, public token claims, Recording configuration and optional policy actions through shared ports. Agents' authoring/operator-control models and dependent Workspace models have moved to their owners. Native checks, isolated builds, affected consumers and generated schema checks pass. Store/Audit's existing Computers contract edges remain for Phase 3 |
-| Module schema in the kernel catalog | Every table is defined in `platform/store/migrations`; Optimization and UAV add indexes to `task` (migrations `0042`, `0093`) |
-| Module SQL on kernel tables | Statements reading or writing `task`, `artifact_occurrence` and identity tables directly: Computers 27, Reason 5, UAV 4, Map 3, Optimization 3, Frames, Stream, Artifact |
+| Persistence ownership | Workspace, Agents, Map and Recording repositories and queries live in their owning modules. Their native suites and fresh owner-lane composition have qualified source checkpoints. Store supplies shared connections and kernel services |
+| Optional-module dependencies | The reusable gateway excludes optional owner runtimes from its normal/build graph. Store and Audit use the registered Audit target codec; Computers supplies its implementation. Audit's Computers dependency is test-only. Native checks, isolated builds and generated reader checks pass |
+| Schema ownership | Owners declare separate current-schema lanes through `ModuleSetup`; Store owns kernel lanes. Optimization and UAV use owned lookup tables. The installation must activate the composed lanes in phase 8 |
+| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents and Artifact. The Task/Media batch is undergoing final qualification. Map's projection recovery query still dereferences `tenant.slug`; replace that read through Identity while preserving retained metadata and indexed commit paging. Complete the variable-record and foreign-dereference audit before closing phase 3 |
 
 Knowledge's dependencies on the gateway, store and `mcp/contract` are kernel-to-kernel
 under D11.
@@ -1380,6 +1384,12 @@ the Rust type that writes them. `option<…>` appears only where the Rust field 
 | Gateway sessions | `gateway_refresh_family.principal` |
 | Managed agents | `managed_agent.{identity, resources, public_key}`; the UNIQUE indexes on `identity.client_id`, `resources.workload`, `resources.credential_secret` and `resources.volume_claim` then always apply |
 
+All 28 root declarations are present and non-FLEXIBLE in the composed current schema.
+Computers applies its controlled-field declarations after the base file and before
+the indexes; inspecting only its base file gives an obsolete field profile. The
+qualified controlled-storage batch covers these owners. The wider path, bound-value
+and relationship audits below still govern phase 4 completion.
+
 The normalized `Principal` and its group memberships have a controlled shape.
 Close their Rust and Python decoders together; Python's extra-field preservation
 and Rust's silent dropping must not produce different stored authority snapshots.
@@ -1479,6 +1489,23 @@ declared fields and derive them from the validated content in the same write.
 Parameters stay opaque where their schema belongs to the selected template; compare
 the whole value to preserve the managed-update constraint. Preserve the draft's
 execution-kind constraint as well.
+The Agent instance HTTP projection still selects `content.execution.template` in
+`agents/runtime/src/queries/gateway/http/instances/projection/instances/statement_1.surql`.
+Use the declared `execution.template` field and preserve revision admission in that
+consumer; the repository's mutation-query cut did not update this read.
+
+The path audit also includes Audit view admission and list filtering. They read
+`draft.authority.profile`, `draft.target` and `draft.detail` inside the FLEXIBLE
+`audit_record.draft`. Add Audit-owned lookup fields derived from the admitted draft
+in the same write. Preserve whole-target and whole-detail equality, registry
+admission, canonical draft bytes and hashes; a target record reference alone cannot
+replace the current predicate. Qualify lookup agreement, filtered paging, view
+admission and transaction rollback without changing the frozen Audit wire format.
+
+Computers maintenance settlement and resume compare `source.resource_id` and
+`source.process_id` inside the FLEXIBLE source snapshot. Move those queried values
+to declared fields with the typed maintenance adapter cut. Preserve the source
+variant, current Computer identity and same-transaction replacement fences.
 
 ### Literal Types And Bound Values
 
@@ -1487,6 +1514,8 @@ vocabularies: `coordinate_operation.kind`, `map_acquisition.phase`,
 `map_restriction.kind`, `map_restriction.effect_kind`, `map_source.adapter_kind`,
 `map_source.authority_class` and `time_acquisition.phase`. The database already
 uses 150 literal types.
+The current schema declares the first six as literal unions. Time's acquisition
+phase still uses `string` and needs its owner vocabulary and native qualification.
 
 Remove the unused `agent_owner` and `membership` relations with their
 `AgentOwnerEdge` and `MembershipEdge` records in the fresh schema cut. Neither has a
@@ -1505,6 +1534,13 @@ plans. Computers' maintenance source and progress also still cross the driver
 through `OpenObject` despite having controlled Rust types. Their typed adapters
 must preserve the existing whole-value comparisons and native encoding. Each owner
 lists every `.bind` and classifies the bound type.
+
+Artifact upload descriptors, layouts and manifests already use Store-owned driver
+records. Workspace operation commands and Time activation snapshots also use their
+owners' driver records. Computers maintenance still converts its controlled source
+and progress models through `OpenObject`; replace those adapters while preserving
+their comparisons. These source findings narrow the remaining work but do not
+close the complete bind audit.
 
 ### Migration And Gates
 
