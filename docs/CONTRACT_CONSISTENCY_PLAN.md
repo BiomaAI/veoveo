@@ -19,8 +19,9 @@ pass their native checks. The staged gateway image passes isolated installed che
 for fresh preparation, lane completion, publication, credential rotation, stale Job
 rejection and later module enablement. Installed managed-agent replacement preserves
 identity and storage, advances the lease fence and survives replay. The extended
-lifecycle still fails its old-password probe on connection refusal before
-authentication; complete lifecycle acceptance and product activation remain open.
+three-generation lifecycle passes, including rejection of the old runtime password
+after database readiness and owned fixture cleanup. Full Helm qualification and
+reference product activation remain open.
 Phase 2 Task contributions, versioned kernel SQL admission and
 Optimization's catalog reads pass their native checks. The gateway composition split
 and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
@@ -44,7 +45,7 @@ bundles pass generation, consumer tests and builds. Production schema ownership 
 in Phase 3.
 Phase 5's MCP input batch closes controlled request fields and nested owner shapes.
 The independent consumer checks all 114 production tool-input root schemas; affected
-native suites and browser/Python consumers pass. The next batch closes controlled
+native suites and browser/Python consumers pass. A separate batch closes controlled
 HTTP bodies, registered installation configuration and private process inputs.
 Affected native suites, Python peers, generated browser consumers and Stream's C++
 build pass. Recording's sensor-stack loader now closes its flat variants and validates
@@ -52,7 +53,10 @@ sensor IDs during decoding. UAV state, acknowledgements, completion results and 
 use typed Python output models. Authenticated native wire checks now cover unknown
 arguments on all sixteen Rust servers. Map, cuOpt, Reason, Speech and UAV compare
 their complete private JSON protocol graphs across Rust and Python. Exhaustive
-controlled-variant coverage and installed process qualification remain open.
+controlled-variant coverage and installed process qualification remain open. A
+52-branch batch qualifies Computers file transfers, Map spatial and authoring inputs,
+Optimization sources and View overlays through independent schema/byte decoding and
+authenticated hosted rejection.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -666,6 +670,12 @@ includes standalone tests, colocated test modules and Rustdoc fixtures.
 | Qualification | 5,517 | 9,408 | +3,891 |
 | Total | 28,132 | 34,599 | +6,467 |
 
+Within that measured set, the complete `platform/macros`, `platform/types` and
+macro-policy files add 3,537 implementation/API lines. The remaining owner files
+remove 961. Smaller owner declarations have not offset the shared implementation
+cost, which stays part of the reduction requirement. These are whole-file
+partitions; neither isolates the cost of a particular capability.
+
 This scope includes checked-value, cursor, numeric and optional-catalog changes as well
 as later strict input admission. Their contributions need paired accounting with code
 removed from original owners; subtracting new modules alone would hide migration costs.
@@ -769,12 +779,16 @@ database check runs production control-plane publication through fixture definit
 creation, publication and managed provisioning without modifying the published Work
 Context. The kernel's native admission check also proves episode persistence precedes
 dispatch.
-Installed replacement and replay checks pass: the new kernel uses rotated credentials
-and a higher fence, preserves signing identity and PVC content, and drains without
-creating episodes. The extended lifecycle remains unqualified because its separate
-old-password probe fails to connect before authentication. The latest run also reports
-a cleanup-observation failure although a subsequent API query confirms namespace
-removal. Probe failures now retain their redacted diagnostics before bulk inventory.
+The extended installed scenario passes at `112852a4d`: the new kernel uses rotated
+credentials and a higher fence, preserves signing identity and PVC content, renews its
+lease twice, survives replay, and drains without creating episodes. All three
+installation generations complete. The old-password probe establishes database
+readiness in its own Pod before one validation attempt proves authentication
+rejection. Stale preparation, migration and publication commands are rejected.
+The scenario reports no execution or cleanup failure, and the disposable cluster,
+private kubeconfig and owned network are removed. This qualification uses an idle
+kernel and selected chart resources; full Helm lifecycle, hosted domain startup and
+reference activation remain open.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
@@ -1174,6 +1188,23 @@ separate malformed arguments from missing required values and side effects. Unav
 provider and GPU handles isolate admission; these fixtures do not qualify execution.
 Every reachable controlled variant still needs coverage before Phase 5 can close.
 The coordinated installation cut carries the stricter decoders and matching callers together.
+
+Four owner fixture sets qualify 52 branches:
+
+| Owner | Qualified input families |
+|---|---|
+| Computers | File transfers |
+| Map | Travel-time models, spatial queries, raster derivations, mobility profiles and feature mutations |
+| Optimization | Problem and travel-model sources |
+| View | Positions, overlay geometries and geometry sources |
+
+The independent consumer checks schemas and serialized-byte decoding in both
+feature profiles. Hosted tests reuse those cases to reject unknown
+fields, tags and missing required values with the expected completed tool errors and
+unchanged domain state. Fixtures check omitted defaults, branch identity and open
+feature properties. View also checks its configured layer in the advertised schema.
+These checks qualify argument admission; remaining variants and installed execution
+still require their owning checks.
 
 | Inbound surface | Change |
 |---|---|
