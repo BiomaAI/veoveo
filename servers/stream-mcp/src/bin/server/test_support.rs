@@ -3,9 +3,7 @@ use super::task_results::RUN_COMPLETED;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_stream_mcp::contract::RunId;
-use veoveo_task_runtime::{
-    CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition,
-};
+use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
     WorkContextId,
@@ -95,10 +93,11 @@ pub(super) async fn finish(runtime: &TaskRuntime, id: TaskId, stored: Value) {
     runtime
         .transition(
             id,
-            TaskTransition::Succeeded {
-                message: RUN_COMPLETED.into(),
-                result: stored,
-            },
+            veoveo_task_runtime::mcp_task_completion(
+                RUN_COMPLETED,
+                serde_json::from_value(stored).unwrap(),
+            )
+            .unwrap(),
         )
         .await
         .unwrap();

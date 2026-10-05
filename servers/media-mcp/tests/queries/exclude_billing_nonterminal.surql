@@ -1,3 +1,3 @@
-DELETE media_usage
-WHERE task = $task; UPDATE ONLY $job SET provider_payload.status = 'processing', provider_payload.model = NONE
-RETURN NONE;
+DELETE media_usage WHERE task = $task;
+-- Local deletion acknowledgement does not establish a provider terminal outcome.
+UPDATE ONLY $job SET state = 'cancelled', cancellation_receipt = {deleted_count: 1}, terminal_event = NONE, observed_at = NONE, provider_payload = {} RETURN NONE;

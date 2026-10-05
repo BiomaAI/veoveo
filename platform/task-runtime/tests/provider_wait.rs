@@ -53,6 +53,7 @@ async fn qualified_provider_completion_survives_queued_state_and_cancellation_ra
             runtime.cancel(id).await.unwrap();
         }
         let result = || TaskTransition::Succeeded {
+            result_uri: None,
             message: "provider outcome committed".into(),
             result: serde_json::json!({"content": []}),
         };
@@ -88,6 +89,7 @@ async fn qualified_provider_completion_survives_queued_state_and_cancellation_ra
                 .transition(
                     id,
                     TaskTransition::Succeeded {
+                        result_uri: None,
                         message: "rejected".into(),
                         result: serde_json::json!({"content": []})
                     }

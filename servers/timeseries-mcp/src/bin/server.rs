@@ -319,8 +319,8 @@ async fn notify_task_progress(progress: &Option<TaskProgress>, value: f64, messa
 
 async fn complete_tool_error(state: &AppState, task_id: TaskId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
-    let transition = match serde_json::to_value(result) {
-        Ok(result) => TaskTransition::Succeeded { message, result },
+    let transition = match veoveo_task_runtime::mcp_task_completion(message, result) {
+        Ok(transition) => transition,
         Err(error) => TaskTransition::Failed(TaskFailure::new(
             "result_serialization_failed",
             error.to_string(),
@@ -410,27 +410,21 @@ async fn run_task_inner(
         }
     };
     notify_task_progress(&progress, 1.0, "completed").await;
-    let payload = match serde_json::to_value(&result) {
-        Ok(payload) => payload,
-        Err(err) => {
-            fail_task(
-                &state,
-                task_id,
-                format!("serializing forecast result failed: {err}"),
-            )
-            .await;
-            return;
-        }
-    };
-    update_task(
-        &state,
-        task_id,
-        TaskTransition::Succeeded {
-            message: "completed; RRD artifact available".to_owned(),
-            result: payload,
-        },
-    )
-    .await;
+    let transition =
+        match veoveo_task_runtime::mcp_task_completion("completed; RRD artifact available", result)
+        {
+            Ok(transition) => transition,
+            Err(err) => {
+                fail_task(
+                    &state,
+                    task_id,
+                    format!("serializing forecast result failed: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+    update_task(&state, task_id, transition).await;
 }
 
 #[tokio::main]

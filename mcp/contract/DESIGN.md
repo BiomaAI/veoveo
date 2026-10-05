@@ -228,6 +228,12 @@ provenance and artifact metadata remain in structured content. A task that does
 not create an addressable product omits `result_uri` and does not invent a
 resource identity.
 
+The product rule also applies when an MCP tool result sets `isError` and retains
+an addressable output, such as a command transcript. An explicit null address is
+invalid. `task_completion::result_uri` validates the declared address and matching
+link before the Task adapter stores the result and its separate typed product URI.
+The Task runtime keeps the result payload opaque.
+
 Growing domain collections are read through bounded domain-owned pages with a
 stable order and opaque cursors. Exact canonical-URI reads use the owning
 domain identity and do not require a full collection scan. `resources/list`

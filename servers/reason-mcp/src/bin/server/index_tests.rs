@@ -147,10 +147,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             output["source_clip_artifact"] = output["results_artifact"].clone();
             let output: veoveo_reason_mcp::contract::AnalyzeRecordingOutput =
                 serde_json::from_value(output).unwrap();
-            let result = serde_json::to_value(
-                super::super::task_results::analysis_tool_result(output).unwrap(),
-            )
-            .unwrap();
+            let result = super::super::task_results::analysis_tool_result(output).unwrap();
             tasks
                 .claim(task.task_id, Duration::from_secs(30))
                 .await
@@ -158,10 +155,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             tasks
                 .transition(
                     task.task_id,
-                    veoveo_task_runtime::TaskTransition::Succeeded {
-                        message: "fixture".into(),
-                        result,
-                    },
+                    veoveo_task_runtime::mcp_task_completion("fixture", result).unwrap(),
                 )
                 .await
                 .unwrap();

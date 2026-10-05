@@ -47,6 +47,24 @@ pub trait TaskContributions: Send + Sync {
     fn task_types(&self) -> &[TaskTypeName];
     fn table(&self) -> &OwnedTaskTable;
     fn created(&self, creation: TaskCreation<'_>) -> Result<TaskContribution, TaskError>;
+    fn dispatch_prepared(
+        &self,
+        _current: &TaskSnapshot,
+        _dispatch: &crate::TaskDispatch,
+    ) -> Result<crate::TaskDispatch, TaskError> {
+        Err(TaskError::InvalidRecord(
+            "Task owner does not support dispatch preparation".into(),
+        ))
+    }
+    fn provider_associated(
+        &self,
+        _current: &TaskSnapshot,
+        _binding: &veoveo_platform_store::WebhookJobBinding,
+    ) -> Result<crate::TaskAssociation, TaskError> {
+        Err(TaskError::InvalidRecord(
+            "Task owner does not support provider associations".into(),
+        ))
+    }
     fn settled(
         &self,
         current: &TaskSnapshot,
@@ -98,7 +116,7 @@ impl TaskContribution {
             settlement,
         })))
     }
-    fn check_table(&self, table: &OwnedTaskTable) -> Result<(), TaskError> {
+    pub(crate) fn check_table(&self, table: &OwnedTaskTable) -> Result<(), TaskError> {
         if self.0.as_ref().is_some_and(|row| row.table.0 != table.0) {
             return Err(TaskError::InvalidRecord(
                 "Task contribution target differs from bound adapter table".into(),
@@ -217,6 +235,34 @@ impl TaskRuntime {
         let contribution = adapter.created(TaskCreation { draft, created_at })?;
         contribution.check_table(adapter.table())?;
         Ok(contribution)
+    }
+    pub(crate) fn dispatch_contribution(
+        &self,
+        current: &TaskSnapshot,
+        dispatch: &crate::TaskDispatch,
+    ) -> Result<crate::TaskDispatch, TaskError> {
+        let adapter = self
+            .contributions
+            .adapters
+            .get(&current.task_type)
+            .ok_or_else(|| TaskError::ContributionUnbound(current.task_type.clone()))?;
+        let admitted = adapter.dispatch_prepared(current, dispatch)?;
+        admitted.check_table(adapter.table())?;
+        Ok(admitted)
+    }
+    pub(crate) fn provider_association(
+        &self,
+        current: &TaskSnapshot,
+        binding: &veoveo_platform_store::WebhookJobBinding,
+    ) -> Result<crate::TaskAssociation, TaskError> {
+        let adapter = self
+            .contributions
+            .adapters
+            .get(&current.task_type)
+            .ok_or_else(|| TaskError::ContributionUnbound(current.task_type.clone()))?;
+        let association = adapter.provider_associated(current, binding)?;
+        association.check_table(adapter.table())?;
+        Ok(association)
     }
     pub(crate) fn settlement_contribution(
         &self,

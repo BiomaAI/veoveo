@@ -46,7 +46,7 @@ async fn result_shapes_survive_store_reads_events_and_authorized_reconnects() {
             let completed = writer
                 .transition(
                     id,
-                    TaskTransition::Succeeded {
+                    TaskTransition::Succeeded { result_uri: None,
                         message: "completed".into(),
                         result: payload.clone(),
                     },

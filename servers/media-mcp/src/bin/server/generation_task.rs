@@ -71,21 +71,59 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: TaskId, args: Run
         return;
     }
 
-    let webhook_url = state.public_endpoint.url(&format!("webhooks/{task_id}"));
+    let preparation = async {
+        let current = state
+            .tasks
+            .get(task_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("media task disappeared before dispatch"))?;
+        let context = state
+            .durable
+            .task_context(&current)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("media task has no private dispatch context"))?;
+        let provider = veoveo_types::ExtensionName::parse("media")?;
+        let binding = veoveo_media_mcp::webhook::CallbackBinding::derive(
+            &context.artifact_write_capability.secret,
+            task_id,
+            &current.owner.authority.tenant,
+            &provider,
+        );
+        let dispatch = veoveo_media_mcp::task_lookup::dispatch(&current, binding.digest())?;
+        let prepared = state
+            .tasks
+            .webhooks(provider)
+            .prepare_dispatch(task_id, dispatch)
+            .await?;
+        if prepared == veoveo_task_runtime::DispatchPreparation::AlreadyPrepared {
+            return Ok::<_, anyhow::Error>(None);
+        }
+        let mut url =
+            reqwest::Url::parse(&state.public_endpoint.url(&format!("webhooks/{task_id}")))
+                .map_err(|_| anyhow::anyhow!("invalid configured media callback endpoint"))?;
+        url.query_pairs_mut()
+            .append_pair("binding", binding.expose_secret());
+        Ok(Some(url))
+    }
+    .await;
+    let webhook_url = match preparation {
+        Ok(Some(url)) => url,
+        Ok(None) => return,
+        Err(error) => {
+            tracing::warn!(%task_id, "media dispatch preparation failed: {error}");
+            return;
+        }
+    };
     let prediction = match state
         .provider
-        .submit(&args.model, &input, Some(&webhook_url))
+        .submit(&args.model, &input, Some(webhook_url.as_str()))
         .await
     {
         Ok(prediction) => prediction,
         Err(error) => {
-            fail(
-                &state,
-                task_id,
-                "provider_submit_failed",
-                format!("media provider submission failed: {error}"),
-            )
-            .await;
+            // A lost response cannot prove whether the provider accepted the dispatch.
+            // The committed receipt forbids another send and keeps webhook recovery pinned.
+            tracing::warn!(%task_id, "media submission outcome remains unresolved: {error}");
             return;
         }
     };

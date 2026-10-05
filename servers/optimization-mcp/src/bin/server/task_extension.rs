@@ -499,31 +499,28 @@ async fn run_task_inner(
         return Ok(());
     }
     match result {
-        Ok(tool_result) => match serde_json::to_value(tool_result) {
-            Ok(result) => {
-                let snapshot = update_task(
-                    &state,
-                    task_id,
-                    TaskTransition::Succeeded {
-                        message: "cuOpt execution completed".to_owned(),
-                        result,
-                    },
-                )
-                .await?;
-                if snapshot.status != veoveo_task_runtime::TaskStatus::Succeeded {
-                    return Ok(());
+        Ok(tool_result) => {
+            match veoveo_task_runtime::mcp_task_completion("cuOpt execution completed", tool_result)
+            {
+                Ok(transition) => {
+                    let snapshot = update_task(&state, task_id, transition).await?;
+                    if snapshot.status != veoveo_task_runtime::TaskStatus::Succeeded {
+                        return Ok(());
+                    }
+                    for uri in [
+                        veoveo_optimization_mcp::contract::uris::PROBLEMS_URI,
+                        veoveo_optimization_mcp::contract::uris::RUNS_URI,
+                        veoveo_optimization_mcp::contract::uris::SOLUTIONS_URI,
+                    ] {
+                        state.subscriptions.notify_resource_updated(uri).await;
+                    }
+                    state.resource_observers.notify_changed().await;
                 }
-                for uri in [
-                    veoveo_optimization_mcp::contract::uris::PROBLEMS_URI,
-                    veoveo_optimization_mcp::contract::uris::RUNS_URI,
-                    veoveo_optimization_mcp::contract::uris::SOLUTIONS_URI,
-                ] {
-                    state.subscriptions.notify_resource_updated(uri).await;
+                Err(error) => {
+                    fail_task(&state, task_id, "result_serialization_failed", error).await?
                 }
-                state.resource_observers.notify_changed().await;
             }
-            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await?,
-        },
+        }
         Err(error) => fail_task(&state, task_id, "optimization_failed", error).await?,
     }
     Ok(())

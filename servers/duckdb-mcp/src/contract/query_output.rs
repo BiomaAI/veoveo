@@ -26,6 +26,13 @@ pub struct DuckDbQueryOutput {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct QueryOutputWire {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_product_uri"
+    )]
+    #[schemars(with = "veoveo_artifact_contract::ArtifactUri")]
+    result_uri: Option<veoveo_artifact_contract::ArtifactUri>,
     columns: Vec<DuckDbColumn>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     rows: Vec<Vec<Value>>,
@@ -98,6 +105,14 @@ impl DuckDbQueryOutput {
 impl TryFrom<QueryOutputWire> for DuckDbQueryOutput {
     type Error = DuckDbQueryOutputError;
     fn try_from(value: QueryOutputWire) -> Result<Self, Self::Error> {
+        if value.result_uri
+            != value
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.artifact_uri.clone())
+        {
+            return Err(DuckDbQueryOutputError);
+        }
         match value.artifact {
             Some(artifact) => {
                 if !value.columns.is_empty() || !value.rows.is_empty() || value.truncated {
@@ -112,6 +127,10 @@ impl TryFrom<QueryOutputWire> for DuckDbQueryOutput {
 impl From<DuckDbQueryOutput> for QueryOutputWire {
     fn from(value: DuckDbQueryOutput) -> Self {
         Self {
+            result_uri: value
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.artifact_uri.clone()),
             columns: value.columns,
             rows: value.rows,
             row_count: value.row_count,
@@ -127,11 +146,18 @@ fn output_schema(schema: &mut schemars::Schema) {
     schema.insert(
         "oneOf".into(),
         serde_json::json!([
-            {"properties":{"artifact":{"type":"null"}}},
-            {"required":["artifact"],"properties":{
+            {"properties":{"artifact":{"type":"null"}},"not":{"required":["result_uri"]}},
+            {"required":["artifact","result_uri"],"properties":{
                 "artifact":{"type":"object"},
                 "columns":{"maxItems":0},"rows":{"maxItems":0},"truncated":{"const":false}
             }}
         ]),
     );
+}
+
+fn deserialize_present_product_uri<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<veoveo_artifact_contract::ArtifactUri>, D::Error> {
+    <veoveo_artifact_contract::ArtifactUri as serde::Deserialize>::deserialize(deserializer)
+        .map(Some)
 }

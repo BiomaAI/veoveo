@@ -554,11 +554,11 @@ pub(super) async fn export_op(
                 DuckDbArtifactOrigin::new(db_id.clone(), DuckDbArtifactOperation::Snapshot {}),
             )
             .await?;
-            Ok(DuckDbExportOutput {
-                db: db_id,
-                rows_exported: 0,
-                artifact: artifact.without_download_url(),
-            })
+            Ok(DuckDbExportOutput::new(
+                db_id,
+                0,
+                artifact.without_download_url(),
+            ))
         }
         DuckDbExportRequest::Tabular {
             db: db_id,
@@ -632,11 +632,11 @@ pub(super) async fn export_op(
                 DuckDbArtifactOrigin::new(db_id.clone(), operation),
             )
             .await?;
-            Ok(DuckDbExportOutput {
-                db: db_id,
+            Ok(DuckDbExportOutput::new(
+                db_id,
                 rows_exported,
-                artifact: artifact.without_download_url(),
-            })
+                artifact.without_download_url(),
+            ))
         }
     }
 }

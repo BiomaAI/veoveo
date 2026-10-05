@@ -587,6 +587,7 @@ even when that server is first-party.
 | `deployment.rs` | Connected/offline Kubernetes topology contract |
 | `bootstrap.rs` | generic installation-time server bootstrap envelope, constants, and semantics |
 | `tasks.rs` | platform task ownership and durable routing vocabulary; official MCP Task wire types come from `rmcp` |
+| `task_completion.rs` | validates the canonical product URI against the MCP result link before Task settlement; no-product results omit both |
 | `provider.rs` | provider job/event contracts; no status polling API |
 | `hosting/` | the shared hosted server: `HostedServer` builder, `Hosted` handler over a typed `DomainServer` and `TaskSupport`, typed resource-subscription admission, gateway authentication and caller extraction, host validation, administrative documents, discovery and result helpers; `hosting/testing.rs` is the in-process test gateway behind the `testing` feature |
 | `subscriptions.rs` | request-scoped resource and list-change event hub for final `subscriptions/listen` streams |
@@ -726,6 +727,7 @@ observation lease and cancellation epoch in one transaction.
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, cancellation, collection pages and public Task delivery; current-state projection from native Task identities |
 | `src/contributions.rs` and `queries/` | typed module row contributions in Task creation, idempotency and terminal settlement transactions; fixed SQL protects Task links and immutable catalog identity |
+| `associations.rs` and `runtime/webhooks/` | typed owner dispatch receipts and provider associations; WebhookWait journal transactions preserve first terminal observations and unresolved-operation retention |
 | `queries/transition/` and `queries/recovery_transition{,_contribution}.surql` | Task compare-and-set transitions with owner-query selection repeated inside caller cancellations and contribution settlement under the ordinary or recovery guard |
 | `runtime/input_responses.rs`, `queries/input_responses/`, `tests/input_responses.rs` | input answer transactions with current caller selection, matching input identities and per-key deduplication; public API rollback and contention qualification |
 | `runtime/context_scope.rs` | checked Work Context predicates and bindings shared by Task observation and linked usage reads |
@@ -733,7 +735,7 @@ observation lease and cancellation epoch in one transaction.
 | `leases.rs` | distinct execution/observation claims and lease renewal |
 | `provider_transaction.rs` | fences domain journal writes with the current Task observation lease in one transaction; cancellation prevents new dispatch |
 | `recovery.rs` | restart profiles; uncertain provider outcomes and cancellations stay pending |
-| `mcp.rs` | conversion from stored state into official RMCP Task and DetailedTask types |
+| `mcp.rs` | conversion into official RMCP Task types and checked MCP completion into the protocol-independent Task transition with a typed product URI |
 | `service.rs` | RMCP service helpers, native handle admission, authorized snapshot streams and shared Task projection; domains validate their own payloads before projection |
 | `resource_subscriptions.rs` | one authorized Task watch for typed Task-backed resource invalidations and explicitly requested Task status; domains own address-to-Task relationships |
 | `lib.rs` | focused public API |
@@ -912,6 +914,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `platform/frames/contract/src/` and `servers/frames-mcp/src/contract.rs` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
+| `servers/frames-mcp/src/contract.rs` | server-owned batch Task envelope, with a product address when the coordinate result materializes an Artifact |
 | `platform/frames/contract/src/tree.rs` and `metadata.rs` | complete-tree admission and hashing, immutable revision construction, checked world heads and source identities shared by producers and consumers |
 | `platform/frames/contract/src/streams.rs` | typed concrete producer references and bounded entity selectors for dynamic frame transforms; producer route ownership stays outside Frames |
 | `servers/frames-mcp/src/contract/resources.rs`, `scopes.rs`, `src/uris.rs` | server-owned resource vocabulary, empty domain scope declaration and fixed templates available without hosted features |
@@ -1033,7 +1036,8 @@ converts validated overlays into GPU render products. `src/state.rs` owns
 principal, tenant and Work Context scoped composition, view and frame state.
 `src/contract/composition/record.rs` checks immutable scene records;
 `src/contract/view_record.rs` owns camera revision admission and updates.
-`src/contract/frame_record.rs` owns capture output assembly and byte agreement;
+`src/contract/frame_record.rs` owns capture output assembly, canonical product address
+and byte agreement;
 `src/contract/preview_record.rs` checks render-cut metadata and tile transforms.
 `src/state/snapshot.rs` checks capture parents, and `src/composition/validation.rs`
 checks retained geometry and artifact bytes against declared inputs. `src/mcp.rs`
@@ -1176,6 +1180,7 @@ domain vocabulary.
 | `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
 | `servers/map-mcp/src/contract/travel_model_uri.rs` and `travel_model_page.rs` | Map-owned travel-model addresses, canonical UUIDv5/v7 identities, native Task cursors and typed collection pages shared with Optimization through the contract feature |
 | `servers/map-mcp/src/contract/product_uri.rs` | typed dataset release, source feature, raster, derivation and route addresses shared with View; domain ID admission, parent components and discovery templates |
+| `servers/map-mcp/src/contract/task_product.rs` | retained Map Task product envelopes, with owner-derived canonical addresses and structured output metadata |
 | `servers/map-mcp/src/contract/route_handoff.rs` | checked route handoff builder and JSON admission, typed route/profile addresses, digest, geometry and provenance; UAV adds execution policy |
 | `servers/map-mcp/src/travel_models.rs` | completed travel-model exact reads, pages and completion, with owner, context and retained-identity agreement in SQL before limits |
 | `servers/map-mcp/src/task_lookup.rs` and `src/schema/migrations/0000_travel_model_task.surql` | Map-owned travel-model Task lookup and transactional creation/terminal contributions; typed product validation follows kernel Task admission |
@@ -1236,6 +1241,9 @@ Media-specific ownership:
 | Path | Responsibility |
 |---|---|
 | `servers/media-mcp/src/contract/` | isolated contract feature: typed model/prediction identities, public requests and responses, complete resource vocabulary, empty scopes, checked generation results, output attribution, collection cursors and pages |
+| `servers/media-mcp/src/storage.rs` | Media-owned driver records, record IDs and usage vocabulary for private Task context and the usage ledger |
+| `servers/media-mcp/src/task_lookup.rs` | Media-owned Task identity, dispatch, provider association and settlement contributions; the shared runtime executes their transactions |
+| `servers/media-mcp/src/webhook/binding.rs` | private per-dispatch callback credential derivation and verification against the retained digest |
 | `servers/media-mcp/src/reads/` | SQL selection of usage, prediction and retained generation result resources under current Task owner and parent-record checks |
 | `servers/media-mcp/src/task_results.rs` | Media-owned current MCP completion handoff and authorization/parent checks for Task reads and subscriptions |
 | `servers/media-mcp/src/state/usage.rs` | ledger writes, retention and paged SQL billing recovery |

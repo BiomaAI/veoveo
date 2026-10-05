@@ -65,6 +65,7 @@ fn capture_derives_identity_parent_and_byte_metadata() {
     assert_eq!(record.mime_type(), "image/jpeg");
     let wire = serde_json::to_value(record).unwrap();
     assert_eq!(wire["mime_type"], "image/jpeg");
+    assert_eq!(wire["result_uri"], wire["frame_uri"]);
     assert!(wire.get("encoding").is_none());
     let decoded: FrameRecord = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(serde_json::to_value(decoded).unwrap(), wire);
@@ -124,6 +125,7 @@ fn frame_decoding_rejects_inconsistent_identity_shape_and_detail() {
     let valid = serde_json::to_value(frame().record()).unwrap();
     for (field, value) in [
         ("frame_uri", json!("view://frame/other")),
+        ("result_uri", json!("view://frame/other")),
         (
             "composition_uri",
             json!(CompositionUri::new(SceneCompositionId::from_stable_key(

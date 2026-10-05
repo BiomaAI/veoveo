@@ -1183,3 +1183,11 @@ Store-backed native fixture statements live in `tests/queries/`, grouped by the
 calling harness. Colocated fixtures include those files with their existing bindings
 and result slots. Complete static statements cover finite SQL grammar choices.
 Analytical DuckDB query inputs and engine adapters keep their separate SQL contract.
+
+## Task Completion Products
+
+Artifact query and export outputs declare the Artifact's typed canonical URI as
+`result_uri` with one matching resource link. Their decoders reject missing, null or
+mismatched product addresses. Inline queries, SQL execution and ingestion report rows
+or existing database state without a product address. Task completion admits the MCP
+envelope before persisting its product address.

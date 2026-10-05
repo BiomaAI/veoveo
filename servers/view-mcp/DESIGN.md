@@ -546,3 +546,10 @@ Frame, tile, preview and composition records use immutable `Checked` storage wit
 Store-backed native fixture statements live in `tests/queries/`, grouped by the
 calling harness. Colocated fixtures include those files with their existing bindings
 and result slots. Complete static statements cover finite SQL grammar choices.
+
+## Task Completion Products
+
+Capture metadata carries `result_uri` equal to its checked `frame_uri`. The MCP
+result contains short status text, image content and one matching frame resource link.
+Task completion admits that envelope before storage; retained reads reconstruct the
+same checked capture metadata and content.

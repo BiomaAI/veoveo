@@ -153,11 +153,56 @@ pub struct DuckDbIngestOutput {
     pub db_created: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
+#[serde(try_from = "DuckDbExportWire")]
+pub struct DuckDbExportOutput(veoveo_types::Checked<DuckDbExportWire>);
+impl Serialize for DuckDbExportOutput {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbExportOutput {
-    pub db: DuckDbDatabaseId,
-    pub rows_exported: u64,
-    pub artifact: ArtifactMetadata,
+#[serde(deny_unknown_fields)]
+struct DuckDbExportWire {
+    result_uri: veoveo_artifact_contract::ArtifactUri,
+    db: DuckDbDatabaseId,
+    rows_exported: u64,
+    artifact: ArtifactMetadata,
+}
+impl DuckDbExportOutput {
+    pub fn new(db: DuckDbDatabaseId, rows_exported: u64, artifact: ArtifactMetadata) -> Self {
+        Self::try_from(DuckDbExportWire {
+            result_uri: artifact.artifact_uri.clone(),
+            db,
+            rows_exported,
+            artifact,
+        })
+        .expect("export address derives from its admitted Artifact")
+    }
+    pub fn db(&self) -> &DuckDbDatabaseId {
+        &self.0.db
+    }
+    pub fn rows_exported(&self) -> u64 {
+        self.0.rows_exported
+    }
+    pub fn artifact(&self) -> &ArtifactMetadata {
+        &self.0.artifact
+    }
+}
+impl veoveo_types::Check for DuckDbExportWire {
+    type Error = &'static str;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.result_uri != self.artifact.artifact_uri {
+            return Err("export product address differs from its Artifact");
+        }
+        Ok(())
+    }
+}
+impl TryFrom<DuckDbExportWire> for DuckDbExportOutput {
+    type Error = &'static str;
+    fn try_from(value: DuckDbExportWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
 }
 
 #[cfg(test)]

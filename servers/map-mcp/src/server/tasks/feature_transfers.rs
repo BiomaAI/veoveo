@@ -19,7 +19,7 @@ use crate::{
     state::MapApplication,
 };
 
-use super::{AuthenticatedCaller, cleanup_task_directory, task_directory, tool_result_with_links};
+use super::{AuthenticatedCaller, cleanup_task_directory, task_directory, tool_result};
 
 const STAGED_GEOPACKAGE_FILENAME: &str = "source.gpkg";
 const STAGED_GENERIC_FEATURE_FILENAME: &str = "source";
@@ -73,14 +73,13 @@ pub(super) async fn run_inspection(
         .inspect(&source_path, cancellation)
         .await?;
     let table_count = manifest.feature_tables.len();
-    let output = InspectGeoPackageOutput { manifest };
-    tool_result_with_links(
+    let output = InspectGeoPackageOutput {
+        source_artifact_uri: request.input.source_artifact_id.plane_uri(),
+        manifest,
+    };
+    tool_result(
         format!("inspected GeoPackage with {table_count} feature tables"),
         &output,
-        [(
-            request.input.source_artifact_id.plane_uri(),
-            "Inspected GeoPackage artifact",
-        )],
     )
 }
 

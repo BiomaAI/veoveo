@@ -143,10 +143,11 @@ pub(super) async fn finish(
     runtime
         .transition(
             id,
-            TaskTransition::Succeeded {
-                message: "capture completed".into(),
-                result,
-            },
+            veoveo_task_runtime::mcp_task_completion(
+                "capture completed",
+                serde_json::from_value(result).unwrap(),
+            )
+            .unwrap(),
         )
         .await
         .unwrap();

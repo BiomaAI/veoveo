@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use veoveo_types::TaskId;
 
-use rmcp::{ErrorData as McpError, RoleServer, model::CallToolResult, service::RequestContext};
+use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use secrecy::SecretString;
 use serde_json::Value;
 use tokio::sync::RwLock;
@@ -130,6 +130,10 @@ impl AppState {
     }
 
     async fn process_event(self: &Arc<Self>, event: &MediaProviderEvent) -> anyhow::Result<()> {
+        if !event.authoritative {
+            self.durable.acknowledge_superseded_event(event).await?;
+            return Ok(());
+        }
         let task_id = event.job.task_id;
         let snapshot = self
             .tasks
@@ -161,7 +165,9 @@ impl AppState {
             return Ok(());
         }
 
-        if event.prediction.status == "failed" {
+        if event.prediction.terminal_outcome()
+            != Some(veoveo_media_mcp::provider::TerminalOutcome::Succeeded)
+        {
             let message = event
                 .prediction
                 .error
@@ -208,15 +214,27 @@ impl AppState {
             );
             return Ok(());
         }
-        let context =
-            self.durable.task_context(&snapshot).await?.ok_or_else(|| {
-                anyhow::anyhow!("media task {task_id} has no durable write context")
-            })?;
-        let result: CallToolResult =
-            prediction_result(self, &event.prediction, event.job.task_id, &context).await?;
-        let result = serde_json::to_value(result)?;
+        // A database error leaves the receipt pending for recovery. An absent
+        // private context definitively prevents local publication, while the
+        // authenticated provider outcome stays in its separate journal.
+        let publication = match self.durable.task_context(&snapshot).await? {
+            Some(context) => {
+                prediction_result(self, &event.prediction, event.job.task_id, &context).await
+            }
+            None => Err(anyhow::anyhow!("media Task has no durable write context")),
+        };
+        let result = match publication {
+            Ok(result) => Ok(serde_json::to_value(result)?),
+            Err(error) => {
+                tracing::warn!(%task_id, "authenticated media outcome could not be published: {error}");
+                Err(TaskFailure::new(
+                    "artifact_publish_failed",
+                    "media product publication failed",
+                ))
+            }
+        };
         self.durable
-            .complete_event(&self.tasks, event, Ok(result), GENERATION_COMPLETED.into())
+            .complete_event(&self.tasks, event, result, GENERATION_COMPLETED.into())
             .await?;
         self.subscribers
             .notify_resource_updated(

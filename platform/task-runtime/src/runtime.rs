@@ -8,6 +8,8 @@ mod owner_subscriptions;
 mod subscriptions;
 mod task_pages;
 mod usage;
+mod webhooks;
+pub use webhooks::{AuthenticatedWebhookReceipt, WebhookJournal, WebhookTerminal};
 
 pub use owner_query::OwnerTaskQuery;
 pub use owner_subscriptions::OwnerTaskSubscription;
@@ -709,6 +711,10 @@ impl TaskRuntime {
             .bind(("next", next))
             .bind(("request", envelope.into_value()))
             .bind(("progress", progress))
+            .bind((
+                "result_uri",
+                transition.result_uri().map(|uri| uri.to_string()),
+            ))
             .bind((
                 "result",
                 transition

@@ -39,7 +39,9 @@ pub(super) async fn batch_result(
         ));
     }
     let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(serde_json::to_value(&output)?);
+    result.structured_content = Some(serde_json::to_value(
+        veoveo_frames_mcp::contract::BatchTransformTaskOutput::new(output),
+    )?);
     Ok(result)
 }
 

@@ -9,7 +9,7 @@
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
 | Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |
-| Internal Task result format | Store results have one required `payload` field. Native changefeed replay preserves absent and JSON-null results as distinct states. |
+| Internal Task result format | Store results have one required `payload` field and a separate optional typed product URI. Native changefeed replay preserves absent and JSON-null results as distinct states. |
 
 This library is the shared Task authority used by hosted domain services. Public
 handlers delegate protocol projection to the official RMCP types and the shared
@@ -22,6 +22,8 @@ column carries the admitted caller snapshot; `task.owner` keeps its principal re
 link. Runtime decoding compares the snapshot with the indexed tenant, principal,
 profile, context, initiator and the independent stored authority. Caller clearance
 labels and output-policy labels have separate meanings and can differ.
+Current reads compare the caller's clearance with the stored snapshot. A clearance
+change does not rewrite the Task's submission identity or its owner contribution.
 
 The request object declares `input`, `status_message`, `ttl_ms` and
 `poll_interval_ms`. Only `input` accepts arbitrary JSON, including null, scalars,
@@ -53,6 +55,9 @@ the owning domain.
 `provider_transaction` composes a domain journal write with the exact shared
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
+`runtime/webhooks` owns the provider journal for `WebhookWait`, including dispatch
+receipts, job associations and authenticated terminal observations. Domains verify
+provider signatures and callback correlation before calling this trusted API.
 `admission` composes a domain admission with the exact queued, unclaimed Task.
 `runtime/owner_query` owns `OwnerTaskQuery`, built by `TaskRuntime::for_owner`.
 The builder holds the current owner, an optional checked Work Context selection,
@@ -121,6 +126,13 @@ A missing row or contribution error rolls back the Task mutation. Provider dispa
 observation, cancellation and recovery permissions keep their existing guards.
 Required unbound adapters reject capability use before mutation, including recovery
 with an empty Task collection.
+
+Webhook adapters also supply typed dispatch metadata and provider associations.
+`TaskDispatch` and `TaskAssociation` carry the same immutable creation identity.
+The runtime compares it inside the journal transaction and accepts an existing
+dispatch or association only when the new value agrees. Preparing an existing
+dispatch does not authorize another provider request. Owner callbacks validate
+their fields; shared SQL controls the writes and transaction scope.
 
 Modules link their rows by `record<task>` with `REFERENCE ON DELETE CASCADE`.
 Intermediate Task status stays in the kernel; catalog rows do not duplicate it.
@@ -242,13 +254,57 @@ Existing classes keep their behavior. Deterministic Resume work can be reclaimed
 WebhookWait work stays on its qualified webhook path, and interrupted indeterminate
 execution produces its declared failure. Media retains its existing profile.
 
+## Webhook Provider Journals
+
+`TaskRuntime::webhooks` binds a provider to the runtime's server. Every journal
+transaction checks the Task's tenant, operation, request, owner snapshot and
+`WebhookWait` recovery class. The registered owner contribution must agree with
+the Task in the same transaction. Provider payloads stay opaque to the runtime.
+
+Before submission, `prepare_dispatch` requires the current execution lease and
+rejects cancellation. It stores the owner's dispatch metadata and adds a provider
+retention pin atomically. Only `NewlyPrepared` permits the original submission;
+`AlreadyPrepared` requires recovery. A lost response cannot establish whether the
+provider accepted a request or authorize another send. The domain owns the
+callback credential and its verification, including callbacks received before the
+submission response supplies an external job identity.
+
+Submission binding and callback receipt enforce one provider job association for
+the Task. Event identity, job identity and payload must agree on replay. The first
+authenticated terminal event fixes the provider outcome. Concurrent or later
+terminal events cannot replace it. A local publication error or Task cancellation
+cannot rewrite that outcome; the owner may still need it for billing and recovery.
+The journal's terminal-event reference rejects deletion while the job retains it.
+
+Owner SQL reads provider facts through the Tasks-owned observation export. The
+export checks job, Task, tenant and provider agreement; a terminal observation also
+requires its linked event and whole payload to agree. The runtime returns opaque
+provider payloads for domain decoding. Separate Task selection authorizes caller
+reads before pagination, while maintenance readers use lifecycle and submission
+identity checks without borrowing a caller's authority.
+
+Task settlement runs the owner's contribution in the same transaction. A terminal
+Task keeps its settled result when a late callback arrives. The dispatch retention
+pin protects the Task and its owner receipt through cancellation, expiry and
+unresolved provider outcomes. Release requires completed owner processing of the
+provider outcome; expiry of a wait or private execution credential is insufficient.
+
 ## Result Persistence And Installation
 
 A present Task result uses Store's `TaskResultRecord` with one required `payload`
 field. Domain JSON stays inside that field, including scalars, arrays and JSON null.
-SQL readers and indexes address domain fields beneath `result.payload`. An absent
-result is database `NONE`; a completed JSON null is `{payload: NULL}`. Envelope
+Owners publish queried product fields through their declared lookup rows; shared
+SQL does not interpret domain fields inside `result.payload`. An absent result
+is database `NONE`; a completed JSON null is `{payload: NULL}`. Envelope
 validation rejects missing or additional fields before returning a result.
+
+Successful transitions carry an explicit `Option<ResourceUri>` alongside the opaque
+result. Rust and Python persist this value atomically with settlement and expose it
+through the Task snapshot. The shared runtime does not extract addresses from
+domain JSON. At the MCP adapter, `mcp_task_completion` checks that a declared
+`result_uri` has exactly one matching resource link. No-product results omit that
+field and carry no resource link. An MCP tool error may still return a retained
+product; `isError` alone does not determine whether an address exists.
 
 Native changefeed replay decodes the same checked result envelope as direct reads.
 Snapshot JSON omits an absent result and includes a present result even when its

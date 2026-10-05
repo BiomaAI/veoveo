@@ -7,7 +7,7 @@ mod subscriptions;
 use chrono::Utc;
 use futures::StreamExt;
 use serde_json::json;
-use std::{collections::BTreeSet, time::Duration};
+use std::time::Duration;
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
 use veoveo_media_mcp::{
     contract::*,
@@ -17,7 +17,8 @@ use veoveo_media_mcp::{
     task_results,
 };
 use veoveo_platform_store::{
-    OpenObject, ProviderJobId, ProviderJobRecord, ProviderJobState, task_record_id,
+    OpenObject, ProviderEventId, ProviderEventRecord, ProviderJobId, ProviderJobRecord,
+    ProviderJobState, task_record_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::TaskId;
@@ -41,6 +42,16 @@ async fn create(
     number: u64,
     prediction_id: &str,
 ) -> (TaskSnapshot, MediaProviderJob) {
+    create_with_pin(tasks, owner, number, prediction_id, None).await
+}
+
+async fn create_with_pin(
+    tasks: &TaskRuntime,
+    owner: &TaskOwner,
+    number: u64,
+    prediction_id: &str,
+    pin: Option<&veoveo_task_runtime::TaskRetentionPin>,
+) -> (TaskSnapshot, MediaProviderJob) {
     let task_id: TaskId = format!("0195dabe-7777-7abc-8def-{number:012x}")
         .parse()
         .unwrap();
@@ -50,12 +61,12 @@ async fn create(
             owner: owner.clone(),
             server: tasks.server().into(),
             task_type: const { veoveo_types::TaskTypeName::from_static("run") },
-            request: json!({}),
+            request: json!({"model":"test/image", "input":{}}),
             recovery_class: RecoveryClass::WebhookWait,
             idempotency_key: None,
             ttl_ms: None,
             poll_interval_ms: None,
-            retention_pins: BTreeSet::new(),
+            retention_pins: pin.cloned().into_iter().collect(),
         })
         .await
         .unwrap()
@@ -81,6 +92,7 @@ async fn create(
         prediction: prediction.clone(),
         updated_at: Utc::now(),
     };
+    let event_id = ProviderEventId::new();
     let record = ProviderJobRecord {
         id: id.record_id(),
         tenant: veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())
@@ -102,13 +114,49 @@ async fn create(
         submitted_at: Utc::now(),
         updated_at: Utc::now(),
         completed_at: None,
+        cancellation_receipt: None,
+        terminal_event: Some(event_id.record_id()),
+        observed_at: Some(job.updated_at),
+    };
+    let event = ProviderEventRecord {
+        id: event_id.record_id(),
+        tenant: record.tenant.clone(),
+        provider_job: id.record_id(),
+        provider: "media".into(),
+        event_id: format!("fixture-{number}"),
+        signing_key_id: Some("fixture-signed".into()),
+        payload: record.provider_payload.clone(),
+        received_at: job.updated_at,
+        processed_at: Some(job.updated_at),
+        processing_error: None,
     };
     tasks
         .platform_store()
         .client()
         .query(include_str!("queries/create_provider_job.surql"))
         .bind(("job", id.record_id()))
+        .bind(("tenant", record.tenant.clone()))
         .bind(("record", record))
+        .bind(("event", event))
+        .bind(("event_id", event_id.record_id()))
+        .bind(("task", task_record_id(task_id)))
+        .bind((
+            "owner_context",
+            veoveo_platform_store::TaskOwnerRecord::try_from(owner).unwrap(),
+        ))
+        .bind((
+            "request",
+            OpenObject::new(
+                task.request
+                    .as_object()
+                    .unwrap()
+                    .clone()
+                    .into_iter()
+                    .collect(),
+            ),
+        ))
+        .bind(("created_at", task.created_at))
+        .bind(("prediction", job.external_job_id.to_string()))
         .await
         .unwrap()
         .check()
@@ -263,13 +311,16 @@ async fn media_sql_pages_filter_denied_tasks_and_recheck_current_clearance() {
         assert!(!reads.task_visible(&caller, usage.task_id()).await.unwrap());
         let mut cleared = caller.clone();
         cleared.data_labels.insert("secret".into());
-        assert_eq!(reads.usage(&cleared, usage).await.unwrap().len(), 2);
+        assert!(
+            reads.usage(&cleared, usage).await.unwrap().is_empty(),
+            "Task-only owner mutation disagrees with immutable Media identity"
+        );
         assert!(
             reads
                 .prediction(&cleared, prediction)
                 .await
                 .unwrap()
-                .is_some()
+                .is_none()
         );
         db.a.client()
             .query(include_str!("queries/corrupt_prediction_id.surql"))
@@ -381,6 +432,46 @@ async fn external_id_collisions_and_optional_tenants_never_cross_authority() {
                 .await
                 .unwrap()
         );
+        for (number, mutation) in [
+            (
+                6,
+                include_str!("queries/corrupt_media_receipt_created_at.surql"),
+            ),
+            (7, include_str!("queries/corrupt_task_type.surql")),
+        ] {
+            let (metadata_task, metadata_job) =
+                create(&writer, &caller, number, &format!("metadata-{number}")).await;
+            assert!(
+                state
+                    .has_actual_usage(metadata_task.task_id, &metadata_job.external_job_id)
+                    .await
+                    .unwrap()
+            );
+            db.a.client()
+                .query(mutation)
+                .bind(("task", task_record_id(metadata_task.task_id)))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                !state
+                    .has_actual_usage(metadata_task.task_id, &metadata_job.external_job_id)
+                    .await
+                    .unwrap(),
+                "billing cannot accept a mismatched Task type or receipt creation timestamp"
+            );
+            assert!(
+                reads
+                    .usage(
+                        &caller,
+                        &MediaTaskUsageUri::new(metadata_task.task_id).unwrap()
+                    )
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
         let usage = MediaTaskUsageUri::new(task.task_id).unwrap();
         db.a.client()
             .query(include_str!("queries/replace_job_task.surql"))
@@ -424,9 +515,66 @@ async fn billing_pages_select_unsettled_terminal_jobs_before_limits() {
         let tasks = TaskRuntime::new(db.a.clone(), "media", "writer");
         let caller = owner(Some("tenant-a"), "owner", "operator", &[]);
         let state = MediaState::new(db.b.clone());
+        let provider_pin =
+            veoveo_task_runtime::TaskRetentionPin::new("provider:media:webhook").unwrap();
+        let (billed_task, billed_job) =
+            create_with_pin(&tasks, &caller, 150, "billed-pinned", Some(&provider_pin)).await;
+        db.a.client()
+            .query(include_str!(
+                "queries/local_cancellation_after_terminal_event.surql"
+            ))
+            .bind(("task", task_record_id(billed_task.task_id)))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        // Reconstruct after billing committed but before shared retention release.
+        let restarted_state = MediaState::new(db.b.clone());
+        let recovered = restarted_state.billing_candidates(None).await.unwrap();
+        assert_eq!(
+            recovered
+                .jobs
+                .iter()
+                .map(|job| job.job_id)
+                .collect::<Vec<_>>(),
+            [billed_job.job_id]
+        );
+        assert!(
+            restarted_state
+                .has_actual_usage(billed_task.task_id, &billed_job.external_job_id)
+                .await
+                .unwrap()
+        );
+        let restarted_tasks = veoveo_media_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "media",
+            "billing-restarted",
+        ))
+        .unwrap();
+        restarted_tasks
+            .webhooks("media".parse().unwrap())
+            .release_retention_after_billing(billed_task.task_id)
+            .await
+            .unwrap();
+        assert!(
+            restarted_state
+                .billing_candidates(None)
+                .await
+                .unwrap()
+                .jobs
+                .is_empty(),
+            "billed and released jobs leave recovery"
+        );
         // Settled rows sort first. Their malformed bodies must never be decoded.
         for n in 1..=101 {
-            let (_, job) = create(&tasks, &caller, n, &format!("settled-{n}")).await;
+            let (_, job) = create_with_pin(
+                &tasks,
+                &caller,
+                n,
+                &format!("settled-{n}"),
+                (n == 1).then_some(&provider_pin),
+            )
+            .await;
             db.a.client()
                 .query(include_str!("queries/corrupt_model.surql"))
                 .bind(("job", job.job_id.record_id()))
@@ -457,6 +605,18 @@ async fn billing_pages_select_unsettled_terminal_jobs_before_limits() {
                 .unwrap()
                 .check()
                 .unwrap();
+            if n == 200 {
+                // Provider success is billable even after local cancellation.
+                db.a.client()
+                    .query(include_str!(
+                        "queries/local_cancellation_after_terminal_event.surql"
+                    ))
+                    .bind(("task", task_record_id(task.task_id)))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            }
             expected.push(job.job_id);
         }
         // Unsettled nonterminal, foreign-provider, inconsistent and orphaned jobs.
@@ -477,8 +637,23 @@ async fn billing_pages_select_unsettled_terminal_jobs_before_limits() {
                 403,
                 include_str!("queries/exclude_billing_inconsistent_prediction.surql"),
             ),
+            (
+                404,
+                include_str!("queries/exclude_billing_foreign_terminal_event.surql"),
+            ),
+            (
+                405,
+                include_str!("queries/exclude_billing_missing_observation_time.surql"),
+            ),
         ] {
-            let (task, job) = create(&tasks, &caller, n, &format!("excluded-{n}")).await;
+            let (task, job) = create_with_pin(
+                &tasks,
+                &caller,
+                n,
+                &format!("excluded-{n}"),
+                Some(&provider_pin),
+            )
+            .await;
             db.a.client()
                 .query(mutation)
                 .bind(("task", task_record_id(task.task_id)))
@@ -611,6 +786,17 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
 }
 
 async fn store_result(tasks: &TaskRuntime, task: TaskId, result: serde_json::Value) {
+    // Valid domain products use the same complete envelope as the producer;
+    // malformed contract fixtures stay malformed for read admission controls.
+    let result = result
+        .get("structuredContent")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<MediaGenerationResult>(value).ok())
+        .map(|generation| {
+            serde_json::to_value(task_results::generation_tool_result(generation).unwrap()).unwrap()
+        })
+        .unwrap_or(result);
+    let expected = OpenObject::new(result.as_object().unwrap().clone().into_iter().collect());
     let result = veoveo_platform_store::TaskResultRecord::new(result);
     tasks
         .platform_store()
@@ -618,6 +804,7 @@ async fn store_result(tasks: &TaskRuntime, task: TaskId, result: serde_json::Val
         .query(include_str!("queries/replace_task_result.surql"))
         .bind(("task", task_record_id(task)))
         .bind(("result", result))
+        .bind(("expected", expected))
         .await
         .unwrap()
         .check()
@@ -668,13 +855,15 @@ async fn current_generation_results_survive_cross_replica_reads_and_reconnects()
         writer
             .transition(
                 task.task_id,
-                veoveo_task_runtime::TaskTransition::Succeeded {
-                    message: task_results::GENERATION_COMPLETED.into(),
-                    result: stored.clone(),
-                },
+                veoveo_task_runtime::mcp_task_completion(
+                    task_results::GENERATION_COMPLETED,
+                    task_results::generation_tool_result(expected.clone()).unwrap(),
+                )
+                .unwrap(),
             )
             .await
             .unwrap();
+        store_result(&writer, task.task_id, stored.clone()).await;
         assert_eq!(
             reads
                 .generation_result(&caller, expected.result_uri())
@@ -857,7 +1046,63 @@ async fn generation_selection_excludes_denied_malformed_results_before_decoding(
                 .generation_result(&cleared, expected.result_uri())
                 .await
                 .unwrap(),
-            Some(expected)
+            None,
+            "Task-only owner mutation is rejected even for increased clearance"
+        );
+        // Current caller clearance can change while both persisted identities agree.
+        let high_owner = owner(
+            Some("tenant-a"),
+            "owner",
+            "operator",
+            &["mission", "secret"],
+        );
+        let (high_task, high_job) = create(&writer, &high_owner, 11, "high-clearance").await;
+        let high_result =
+            generation_fixture::generation(high_task.task_id, high_job.external_job_id);
+        store_result(
+            &writer,
+            high_task.task_id,
+            json!({"structuredContent": high_result}),
+        )
+        .await;
+        db.a.client()
+            .query(include_str!("queries/succeed_task.surql"))
+            .bind(("task", task_record_id(high_task.task_id)))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            reads
+                .generation_result(&caller, high_result.result_uri())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            reads
+                .generation_result(&cleared, high_result.result_uri())
+                .await
+                .unwrap(),
+            Some(high_result)
+        );
+        assert!(
+            reads
+                .usage(&caller, &MediaTaskUsageUri::new(high_task.task_id).unwrap())
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            reads
+                .usage(
+                    &cleared,
+                    &MediaTaskUsageUri::new(high_task.task_id).unwrap()
+                )
+                .await
+                .unwrap()
+                .len(),
+            2
         );
         let implicit = owner(None, "owner", "operator", &[]);
         let explicit = owner(Some("installation"), "owner", "operator", &[]);
@@ -926,6 +1171,8 @@ async fn generation_results_require_success_and_consistent_retained_parents() {
             include_str!("queries/cancel_task.surql"),
             include_str!("queries/error_task_result.surql"),
             include_str!("queries/corrupt_result_prediction.surql"),
+            include_str!("queries/corrupt_result_status_content.surql"),
+            include_str!("queries/corrupt_task_input.surql"),
             include_str!("queries/corrupt_task_profile_key.surql"),
             include_str!("queries/corrupt_task_tenant.surql"),
             include_str!("queries/corrupt_task_server.surql"),

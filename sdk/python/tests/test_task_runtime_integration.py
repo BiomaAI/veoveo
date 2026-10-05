@@ -126,7 +126,7 @@ async def test_create_claim_transition_succeed_roundtrip(runtime):
 
     done = await runtime.transition(
         str(snapshot.task_id),
-        TaskTransition.succeeded("done", {"content": [], "isError": False}),
+        TaskTransition.succeeded("done", {"content": [], "isError": False}, result_uri=None),
     )
     assert done.status == TaskStatus.SUCCEEDED
     assert done.progress == 1.0
@@ -151,7 +151,7 @@ async def test_native_changes_stream_committed_snapshots(runtime):
     created = await runtime.create(draft())
     task_id = str(created.snapshot.task_id)
     await runtime.claim(task_id, timedelta(seconds=30))
-    await runtime.transition(task_id, TaskTransition.succeeded("ok", {"value": 1}))
+    await runtime.transition(task_id, TaskTransition.succeeded("ok", {"value": 1}, result_uri=None))
 
     seen: list[TaskStatus] = []
 
@@ -196,7 +196,7 @@ async def test_results_preserve_json_shape_through_store_replay_and_mcp(
         assert "result" not in created.to_json()
         assert TaskSnapshot.from_json(created.to_json()).result is None
         await runtime.claim(task_id, timedelta(seconds=30))
-        done = await runtime.transition(task_id, TaskTransition.succeeded("done", payload))
+        done = await runtime.transition(task_id, TaskTransition.succeeded("done", payload, result_uri=None))
         expected = TaskResult(payload)
         assert done.result == expected
         assert done.to_json()["result"] == payload

@@ -193,3 +193,9 @@ capture and spoken replies require separate product work.
 ## Identity Declaration Mechanics
 
 Speech identity declarations use `Id` with owner UUID admission. Transcription accepts canonical RFC UUIDv7; dictation also admits canonical RFC UUIDv4 from browser generation. Their String wire behavior and declared version-specific schema patterns remain independent from native Task admission.
+
+## Task Completion Products
+
+Transcription publication returns a typed MCP result until Task completion admission.
+The completion stores the transcript's canonical `result_uri` alongside the complete
+MCP envelope, preserving its single resource link.

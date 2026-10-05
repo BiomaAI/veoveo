@@ -375,7 +375,8 @@ async fn exercise(import: bool) {
             id.parse().unwrap(),
             TaskTransition::Succeeded {
                 message: "File transferred".into(),
-                result: json!({"content":[],"structuredContent":result,"isError":false}),
+                result_uri: Some(veoveo_types::ResourceUri::new(&uri).unwrap()),
+                result: json!({"content":[{"type":"resource_link","name":"File result","uri":uri}],"structuredContent":result,"isError":false}),
             },
         )
         .await

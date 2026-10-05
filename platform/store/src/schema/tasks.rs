@@ -62,6 +62,50 @@ fn lifecycle_api() -> Result<KernelSqlApi, DeclarationError> {
     )
 }
 
+pub const PROVIDER_OBSERVATION_V1: &str =
+    include_str!("tasks/migrations/0000_provider_observation_v1.surql");
+fn provider_observation_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::tasks::provider_observation_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("job", SqlType::Record(TableName::new("provider_job")?))?,
+                SqlParameter::new("task", SqlType::Record(TableName::new("task")?))?,
+                SqlParameter::new("server", SqlType::Record(TableName::new("mcp_server")?))?,
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("task_types", SqlType::Array(Box::new(SqlType::String)))?,
+                SqlParameter::new("provider", SqlType::String)?,
+            ],
+            SqlType::Option(Box::new(SqlType::Object)),
+        )?,
+        SqlReadProfile::new(vec![
+            TableName::new("provider_job")?,
+            TableName::new("provider_event")?,
+            TableName::new("task")?,
+        ])?,
+        PROVIDER_OBSERVATION_V1,
+    )
+}
+
+pub const OWNER_CONTEXT_MATCHES_V1: &str =
+    include_str!("tasks/migrations/0000_owner_context_matches_v1.surql");
+fn owner_context_matches_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::tasks::owner_context_matches_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("task", SqlType::Record(TableName::new("task")?))?,
+                SqlParameter::new("expected_owner_context", SqlType::Object)?,
+            ],
+            SqlType::Bool,
+        )?,
+        SqlReadProfile::new(vec![TableName::new("task")?])?,
+        OWNER_CONTEXT_MATCHES_V1,
+    )
+}
+
 pub const INPUT_MATCHES_V1: &str = include_str!("tasks/migrations/0000_input_matches_v1.surql");
 fn input_matches_api() -> Result<KernelSqlApi, DeclarationError> {
     KernelSqlApi::new(
@@ -101,7 +145,9 @@ pub const CURRENT_SCHEMA: &str = concat!(
     include_str!("tasks/migrations/0000_admission_apis.surql"),
     include_str!("tasks/migrations/0000_lifecycle_v1.surql"),
     include_str!("tasks/migrations/0000_input_matches_v1.surql"),
-    include_str!("tasks/migrations/0000_exists_v1.surql")
+    include_str!("tasks/migrations/0000_exists_v1.surql"),
+    include_str!("tasks/migrations/0000_provider_observation_v1.surql"),
+    include_str!("tasks/migrations/0000_owner_context_matches_v1.surql")
 );
 
 fn release_retention_v1_api() -> Result<KernelSqlApi, DeclarationError> {
@@ -140,9 +186,15 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::input_matches_v1")?),
             OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::exists_v1")?),
             OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::tasks::provider_observation_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
                 "fn::kernel::tasks::release_retention_v1",
             )?),
             OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::lifecycle_v1")?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::tasks::owner_context_matches_v1",
+            )?),
             OwnershipClaim::Table(TableName::new("task")?),
             OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::selection_v1")?),
             OwnershipClaim::Table(TableName::new("task_input")?),
@@ -162,12 +214,16 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
                 include_str!("tasks/migrations/0000_admission_apis.surql"),
                 include_str!("tasks/migrations/0000_lifecycle_v1.surql"),
                 include_str!("tasks/migrations/0000_input_matches_v1.surql"),
-                include_str!("tasks/migrations/0000_exists_v1.surql")
+                include_str!("tasks/migrations/0000_exists_v1.surql"),
+                include_str!("tasks/migrations/0000_provider_observation_v1.surql"),
+                include_str!("tasks/migrations/0000_owner_context_matches_v1.surql")
             ),
         )?])?)
         .sql_apis(vec![
             selection_api()?,
             lifecycle_api()?,
+            provider_observation_api()?,
+            owner_context_matches_api()?,
             input_matches_api()?,
             exists_api()?,
             release_retention_v1_api()?,

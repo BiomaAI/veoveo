@@ -305,23 +305,18 @@ async fn run_capture_task_inner(
         return;
     }
     match result {
-        Ok(frame) => match frame_tool_result(&frame)
-            .and_then(|result| Ok(serde_json::to_value(result)?))
-        {
-            Ok(result) => {
+        Ok(frame) => match frame_tool_result(&frame).and_then(|result| {
+            Ok(veoveo_task_runtime::mcp_task_completion(
+                "Frame captured",
+                result,
+            )?)
+        }) {
+            Ok(transition) => {
                 state
                     .subscriptions
                     .notify_resource_updated(uris::FRAMES)
                     .await;
-                update_task(
-                    &state,
-                    task_id,
-                    TaskTransition::Succeeded {
-                        message: format!("captured {}", frame.record().frame_uri()),
-                        result,
-                    },
-                )
-                .await;
+                update_task(&state, task_id, transition).await;
             }
             Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
         },

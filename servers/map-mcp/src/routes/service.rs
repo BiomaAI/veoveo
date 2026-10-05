@@ -479,7 +479,6 @@ impl RouteService {
         self.catalog.persist_snapshot(scope, &snapshot).await?;
         let reachable_area_id = ReachableAreaId::new();
         Ok(ReachableArea {
-            reachable_area_uri: format!("map://reachable-area/{reachable_area_id}"),
             reachable_area_id,
             mobility_profile_id: request.mobility_profile_id,
             mobility_profile_version: request.mobility_profile_version,

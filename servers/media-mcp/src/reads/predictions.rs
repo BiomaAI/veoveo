@@ -6,7 +6,14 @@ use crate::{
     },
     provider::Prediction,
 };
+use surrealdb::types::SurrealValue;
 use veoveo_platform_store::OpenObject;
+
+#[derive(SurrealValue)]
+struct PredictionRow {
+    prediction: String,
+    payload: OpenObject,
+}
 use veoveo_task_runtime::TaskOwner;
 
 impl MediaReads<'_> {
@@ -57,13 +64,18 @@ impl MediaReads<'_> {
         .bind(("prediction", uri.id().to_string()))
         .await?
         .check()?;
-        let rows: Vec<OpenObject> = response.take(0)?;
+        let rows: Vec<PredictionRow> = response.take(0)?;
         rows.into_iter()
             .next()
-            .map(|payload| {
+            .map(|row| {
                 let prediction: Prediction = serde_json::from_value(serde_json::Value::Object(
-                    payload.into_map().into_iter().collect(),
+                    row.payload.into_map().into_iter().collect(),
                 ))?;
+                let selected = MediaPredictionId::new(row.prediction)?;
+                anyhow::ensure!(
+                    prediction.id == selected && &prediction.id == uri.id(),
+                    "stored prediction disagrees with its selected identity"
+                );
                 Ok(prediction.summary())
             })
             .transpose()

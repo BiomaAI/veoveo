@@ -3,6 +3,8 @@ use veoveo_modules::{ChangefeedRetention, ObservationReplay, ObservationTable, T
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum MediaObservationTable {
+    #[vocabulary(rename = "media_task")]
+    MediaTask,
     #[vocabulary(rename = "media_task_context")]
     MediaTaskContext,
     #[vocabulary(rename = "media_usage")]

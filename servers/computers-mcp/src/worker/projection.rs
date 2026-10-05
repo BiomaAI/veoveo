@@ -19,10 +19,7 @@ impl<G: Preflight> LifecycleWorker<G> {
                         uri, "Computer",
                     )),
                 ];
-                TaskTransition::Succeeded {
-                    message: "Computer operation completed".into(),
-                    result: serde_json::to_value(result).map_err(|_| WorkerError::Configuration)?,
-                }
+                veoveo_task_runtime::mcp_task_completion("Computer operation completed", result)?
             }
             OperationStage::Cancelled => TaskTransition::Cancelled,
             OperationStage::Failed => TaskTransition::Failed(TaskFailure {

@@ -81,9 +81,21 @@ fn decode(row: ResultRow) -> anyhow::Result<MediaGenerationResult> {
     };
     let task_id = TaskId::from_uuid(*id);
     let value = serde_json::Value::Object(row.result.into_map().into_iter().collect());
-    let generation: MediaGenerationResult = serde_json::from_value(value).map_err(|_| {
+    #[derive(serde::Deserialize)]
+    struct GenerationEnvelope {
+        #[serde(rename = "structuredContent")]
+        structured_content: MediaGenerationResult,
+        #[serde(rename = "isError", default)]
+        is_error: Option<bool>,
+    }
+    let envelope: GenerationEnvelope = serde_json::from_value(value).map_err(|_| {
         anyhow::anyhow!("stored Media generation result does not satisfy the current contract")
     })?;
+    anyhow::ensure!(
+        envelope.is_error != Some(true),
+        "successful generation has an error envelope"
+    );
+    let generation = envelope.structured_content;
     anyhow::ensure!(
         generation.task_id() == task_id,
         "stored Media generation result disagrees with its selected Task"

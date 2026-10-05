@@ -19,6 +19,7 @@ from pydantic import JsonValue
 from surrealdb import RecordID
 
 from ..contract.identity import InvocationAuthority
+from ..types import ResourceUri
 from .timestamp import TaskTimestamp
 
 PLATFORM_ID_NAMESPACE = uuid.UUID("7f7b11e2-3b9a-5c7a-9d51-2cf8e1bdfab4")
@@ -303,6 +304,7 @@ class TaskSnapshot:
     status_message: str | None
     progress: float
     result: TaskResult | None
+    result_uri: ResourceUri | None
     error: TaskFailure | None
     idempotency_key: str | None
     lease_owner: str | None
@@ -320,6 +322,8 @@ class TaskSnapshot:
     _updated_at_exact: TaskTimestamp = dataclass_field(kw_only=True, repr=False)
 
     def __post_init__(self) -> None:
+        if self.result_uri is not None and (not isinstance(self.result_uri, ResourceUri) or self.status != TaskStatus.SUCCEEDED or self.result is None):
+            raise InvalidRecord("Task product address requires a successful retained result")
         if not isinstance(self._created_at_exact, TaskTimestamp):
             raise InvalidRecord("Task snapshot requires a typed exact creation timestamp")
         if self._created_at_exact.as_datetime() != self.created_at:
@@ -355,6 +359,7 @@ class TaskSnapshot:
             "status_message": self.status_message,
             "progress": self.progress,
             **({"result": self.result.payload} if self.result is not None else {}),
+            "result_uri": str(self.result_uri) if self.result_uri is not None else None,
             "error": self.error.to_json() if self.error is not None else None,
             "idempotency_key": self.idempotency_key,
             "lease_owner": self.lease_owner,
@@ -388,6 +393,7 @@ class TaskSnapshot:
             status_message=value.get("status_message"),
             progress=value["progress"],
             result=TaskResult(value["result"]) if "result" in value else None,
+            result_uri=ResourceUri(value["result_uri"]) if value.get("result_uri") is not None else None,
             error=TaskFailure.from_json(error) if error is not None else None,
             idempotency_key=value.get("idempotency_key"),
             lease_owner=value.get("lease_owner"),
@@ -473,12 +479,18 @@ class TaskTransition:
         progress: float | None = None,
         result: JsonValue = None,
         failure: TaskFailure | None = None,
+        result_uri: ResourceUri | None = None,
     ) -> None:
         self._status = status
         self._message = message
         self._progress = progress
         self._result = TaskResult(result) if status == TaskStatus.SUCCEEDED else None
         self._failure = failure
+        if result_uri is not None and not isinstance(result_uri, ResourceUri):
+            raise InvalidRecord("Task completion requires a typed resource URI")
+        if result_uri is not None and status != TaskStatus.SUCCEEDED:
+            raise InvalidRecord("Task product address requires a successful retained result")
+        self._result_uri = result_uri
 
     @classmethod
     def running(cls, message: str, progress: float) -> "TaskTransition":
@@ -489,8 +501,8 @@ class TaskTransition:
         return cls(TaskStatus.WAITING, message, progress=progress)
 
     @classmethod
-    def succeeded(cls, message: str, result: JsonValue) -> "TaskTransition":
-        return cls(TaskStatus.SUCCEEDED, message, result=result)
+    def succeeded(cls, message: str, result: JsonValue, *, result_uri: ResourceUri | None) -> "TaskTransition":
+        return cls(TaskStatus.SUCCEEDED, message, result=result, result_uri=result_uri)
 
     @classmethod
     def failed(cls, failure: TaskFailure) -> "TaskTransition":
@@ -519,6 +531,9 @@ class TaskTransition:
 
     def result(self) -> TaskResult | None:
         return self._result
+
+    def result_uri(self) -> ResourceUri | None:
+        return self._result_uri
 
     def failure(self) -> TaskFailure | None:
         return self._failure

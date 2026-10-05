@@ -406,7 +406,6 @@ pub struct ReachableAreaRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ReachableArea {
     pub reachable_area_id: super::ReachableAreaId,
-    pub reachable_area_uri: String,
     pub mobility_profile_id: MobilityProfileId,
     pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub origin: Wgs84Position,

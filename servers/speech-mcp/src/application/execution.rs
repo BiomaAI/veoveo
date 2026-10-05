@@ -56,7 +56,9 @@ impl SpeechService {
         let transition = loop {
             tokio::select! {
                 result = &mut work => break match result {
-                    Ok(result) => TaskTransition::Succeeded { message: "Transcript ready".into(), result },
+                    Ok(result) => veoveo_task_runtime::mcp_task_completion("Transcript ready", result)
+                        .unwrap_or_else(|_| TaskTransition::Failed(TaskFailure::new("result_admission_failed",
+                            "Transcript completion could not be admitted."))),
                     Err(error) => {
                         // No provider exception or captured text belongs in public errors.
                         tracing::warn!(%task, error_type = %error.root_cause(), "speech transcription failed");
@@ -115,7 +117,7 @@ impl SpeechService {
         &self,
         task: TranscriptionId,
         request: DurableRequest,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<rmcp::model::CallToolResult> {
         let _slot = self.slots.acquire().await?;
         self.progress(task, "Reading authorized recording", 0.0)
             .await?;

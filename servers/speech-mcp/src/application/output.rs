@@ -30,7 +30,7 @@ impl SpeechService {
         source: ArtifactMetadata,
         digest: String,
         transcript: Transcript,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<CallToolResult> {
         let captions = transcript.webvtt()?.into_bytes();
         let duration_seconds = transcript.duration_seconds;
         let document = TranscriptDocument {
@@ -94,6 +94,6 @@ impl SpeechService {
             ),
         ]);
         result.structured_content = Some(serde_json::to_value(output)?);
-        Ok(serde_json::to_value(result)?)
+        Ok(result)
     }
 }

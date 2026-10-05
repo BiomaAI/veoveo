@@ -117,3 +117,32 @@ fn query_output_checks_row_shape_and_observed_count() {
         );
     }
 }
+
+#[test]
+fn export_product_address_and_closed_wire_are_admitted_together() {
+    let id = veoveo_artifact_contract::ArtifactId::new();
+    let artifact: veoveo_artifact_contract::ArtifactMetadata = serde_json::from_value(json!({
+        "artifact_id":id,"artifact_uri":id.plane_uri(),"byte_len":1,"created_at":"2026-09-29T00:00:00Z"
+    })).unwrap();
+    let output = DuckDbExportOutput::new("metrics".parse().unwrap(), 1, artifact);
+    let wire = serde_json::to_value(output).unwrap();
+    assert_eq!(wire["result_uri"], wire["artifact"]["artifact_uri"]);
+    assert!(serde_json::from_value::<DuckDbExportOutput>(wire.clone()).is_ok());
+    for field in ["missing", "null", "mismatch", "unknown"] {
+        let mut value = wire.clone();
+        match field {
+            "missing" => {
+                value.as_object_mut().unwrap().remove("result_uri");
+            }
+            "null" => value["result_uri"] = Value::Null,
+            "mismatch" => {
+                value["result_uri"] = json!(veoveo_artifact_contract::ArtifactId::new().plane_uri())
+            }
+            _ => value["unknown"] = json!(true),
+        }
+        assert!(
+            serde_json::from_value::<DuckDbExportOutput>(value).is_err(),
+            "{field}"
+        );
+    }
+}

@@ -98,6 +98,12 @@ DEFINE FIELD OVERWRITE tenant ON provider_job TYPE record<tenant> PERMISSIONS FU
 
 DEFINE FIELD OVERWRITE updated_at ON provider_job TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE cancellation_receipt ON provider_job TYPE option<object> FLEXIBLE PERMISSIONS FULL;
+
+DEFINE FIELD OVERWRITE terminal_event ON provider_job TYPE option<record<provider_event>> REFERENCE ON DELETE REJECT PERMISSIONS FULL;
+
+DEFINE FIELD OVERWRITE observed_at ON provider_job TYPE option<datetime> ASSERT ($value = NONE) = ($this.terminal_event = NONE) PERMISSIONS FULL;
+
 DEFINE INDEX provider_job_external_unique ON provider_job FIELDS tenant, provider, external_job_id UNIQUE;
 
 DEFINE INDEX provider_job_state_updated ON provider_job FIELDS state, updated_at;
@@ -211,6 +217,7 @@ DEFINE FIELD OVERWRITE request.poll_interval_ms ON task TYPE none | null | int |
 
 DEFINE FIELD OVERWRITE result ON task TYPE none | object FLEXIBLE ASSERT $value = NONE OR object::keys($value) = ['payload'] PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE result_uri ON task TYPE option<string> ASSERT $value = NONE OR ($this.status = 'succeeded' AND $this.result != NONE) PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE result_artifact ON task TYPE none | record<artifact_occurrence> PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE retention_expires_at ON task TYPE none | datetime PERMISSIONS FULL;
@@ -325,3 +332,5 @@ DEFINE FIELD OVERWRITE out ON task_used_artifact TYPE record<artifact_occurrence
 DEFINE INDEX artifact_consumers ON task_used_artifact FIELDS out;
 
 DEFINE INDEX task_used_artifact_unique ON task_used_artifact FIELDS in, out, name UNIQUE;
+
+DEFINE INDEX task_result_uri ON task FIELDS result_uri;

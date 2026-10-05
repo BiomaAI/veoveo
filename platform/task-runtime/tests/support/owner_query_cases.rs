@@ -133,7 +133,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
         switch.set_enabled(false).await;
         db.b.client().query(include_str!("../queries/support/owner_query_cases/operation_selection_survives_updates_and_store_reconnect_without_events/statement_2.surql"))
             .bind(("task", task_record_id(ids[1]))).await.unwrap().check().unwrap();
-        writer.transition(ids[2], TaskTransition::Succeeded { message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
+        writer.transition(ids[2], TaskTransition::Succeeded { result_uri: None, message: "finished".into(), result: json!({"answer":42}) }).await.unwrap();
 
         switch.set_enabled(true).await;
         loop {

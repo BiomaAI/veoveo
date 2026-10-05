@@ -216,7 +216,7 @@ impl FramesMcp {
     #[tool(
         title = "Batch transform",
         description = "Convert a batch of coordinates between frames and optionally save the JSON output as an artifact. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<BatchTransformOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -453,8 +453,8 @@ async fn resume_batch_task(state: Arc<AppState>, snapshot: TaskSnapshot) -> anyh
 
 async fn complete_tool_error(state: &AppState, task_id: TaskId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
-    let transition = match serde_json::to_value(result) {
-        Ok(result) => TaskTransition::Succeeded { message, result },
+    let transition = match veoveo_task_runtime::mcp_task_completion(message, result) {
+        Ok(transition) => transition,
         Err(error) => TaskTransition::Failed(TaskFailure::new(
             "result_serialization_failed",
             error.to_string(),
@@ -597,8 +597,11 @@ async fn run_task_inner(
         update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
-    let payload = match serde_json::to_value(&result) {
-        Ok(payload) => payload,
+    let transition = match veoveo_task_runtime::mcp_task_completion(
+        "batch coordinate transform completed",
+        result,
+    ) {
+        Ok(transition) => transition,
         Err(error) => {
             fail_task(
                 &state,
@@ -609,15 +612,7 @@ async fn run_task_inner(
             return;
         }
     };
-    update_task(
-        &state,
-        task_id,
-        TaskTransition::Succeeded {
-            message: "batch coordinate transform completed".to_owned(),
-            result: payload,
-        },
-    )
-    .await;
+    update_task(&state, task_id, transition).await;
 }
 
 #[tokio::main]
@@ -788,6 +783,63 @@ mod task_tests {
             result: replay,
             artifact: None,
         };
+        let inline = veoveo_frames_mcp::contract::BatchTransformTaskOutput::new(first.clone());
+        let wire = serde_json::to_value(inline).unwrap();
+        assert!(wire.get("result_uri").is_none());
+        assert!(
+            serde_json::from_value::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(
+                wire.clone()
+            )
+            .is_ok()
+        );
+        let mut null = wire;
+        null["result_uri"] = serde_json::Value::Null;
+        assert!(
+            serde_json::from_value::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(null)
+                .is_err()
+        );
+        let artifact: veoveo_artifact_contract::ArtifactMetadata =
+            serde_json::from_value(serde_json::json!({
+                "artifact_id":"01983da0-0000-7000-8000-000000000001",
+                "artifact_uri":"artifact://01983da0-0000-7000-8000-000000000001",
+                "byte_len":1,"created_at":"2026-09-29T00:00:00Z"
+            }))
+            .unwrap();
+        let mut published = first.clone();
+        published.artifact = Some(artifact);
+        let wire = serde_json::to_value(
+            veoveo_frames_mcp::contract::BatchTransformTaskOutput::new(published),
+        )
+        .unwrap();
+        assert!(
+            serde_json::from_value::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(
+                wire.clone()
+            )
+            .is_ok()
+        );
+        for invalid in [
+            None,
+            Some(serde_json::Value::Null),
+            Some(serde_json::json!(
+                "artifact://01983da0-0000-7000-8000-000000000099"
+            )),
+        ] {
+            let mut value = wire.clone();
+            match invalid {
+                Some(uri) => {
+                    value["result_uri"] = uri;
+                }
+                None => {
+                    value.as_object_mut().unwrap().remove("result_uri");
+                }
+            }
+            assert!(
+                serde_json::from_value::<veoveo_frames_mcp::contract::BatchTransformTaskOutput>(
+                    value
+                )
+                .is_err()
+            );
+        }
         assert_eq!(
             serde_json::to_vec_pretty(&first).unwrap(),
             serde_json::to_vec_pretty(&replay).unwrap()

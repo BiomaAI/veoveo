@@ -96,10 +96,10 @@ impl FileWorker {
     }
     pub(super) async fn project(&self, operation: &FileOperation) -> Result<()> {
         let transition = match operation.outcome().ok_or(FileWorkerError::Configuration)? {
-            FileOutcome::Completed(result) => TaskTransition::Succeeded {
-                message: "File transferred".into(),
-                result: completed_output(result)?,
-            },
+            FileOutcome::Completed(result) => veoveo_task_runtime::mcp_task_completion(
+                "File transferred",
+                completed_output(result)?,
+            )?,
             FileOutcome::Rejected(reason) => {
                 let code =
                     serde_json::to_value(reason).map_err(|_| FileWorkerError::Configuration)?;
@@ -158,7 +158,10 @@ impl FileWorker {
     }
     pub(super) async fn acknowledge(&self, operation: &FileOperation) -> Result<()> {
         let expected_output = match operation.outcome().ok_or(FileWorkerError::Configuration)? {
-            FileOutcome::Completed(result) => Some(completed_output(result)?),
+            FileOutcome::Completed(result) => Some(
+                serde_json::to_value(completed_output(result)?)
+                    .map_err(|_| FileWorkerError::Configuration)?,
+            ),
             _ => None,
         };
         self.store
@@ -221,7 +224,7 @@ fn reached(operation: &FileOperation, observation: Observation) -> ReachedState 
 
 fn completed_output(
     result: veoveo_computers::api::FileTransferResult,
-) -> Result<serde_json::Value> {
+) -> Result<rmcp::model::CallToolResult> {
     let uri = String::from(result.result_uri());
     let mut response = rmcp::model::CallToolResult::structured(
         serde_json::to_value(result).map_err(|_| FileWorkerError::Configuration)?,
@@ -235,5 +238,5 @@ fn completed_output(
         )),
     ];
 
-    serde_json::to_value(response).map_err(|_| FileWorkerError::Configuration)
+    Ok(response)
 }

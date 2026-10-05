@@ -140,10 +140,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             tasks
                 .transition(
                     task.task_id,
-                    veoveo_task_runtime::TaskTransition::Succeeded {
-                        message: "fixture".into(),
-                        result: serde_json::to_value(result).unwrap(),
-                    },
+                    veoveo_task_runtime::mcp_task_completion("fixture", result).unwrap(),
                 )
                 .await
                 .unwrap();

@@ -242,17 +242,9 @@ async fn execute_operation(
         return;
     }
     match result {
-        Ok(result) => match serde_json::to_value(result) {
-            Ok(result) => {
-                transition(
-                    &state,
-                    task_id,
-                    TaskTransition::Succeeded {
-                        message: "completed".to_owned(),
-                        result,
-                    },
-                )
-                .await;
+        Ok(result) => match veoveo_task_runtime::mcp_task_completion("completed", result) {
+            Ok(completion) => {
+                transition(&state, task_id, completion).await;
             }
             Err(error) => {
                 transition(
@@ -401,10 +393,7 @@ async fn run_offline(
         .map_err(|error| anyhow::anyhow!("artifact plane error: {error}"))?
         .without_download_url();
     let _ = tokio::fs::remove_dir_all(&task_dir).await;
-    Ok(OfflineOperationResult {
-        operation,
-        artifact,
-    })
+    Ok(OfflineOperationResult::new(operation, artifact))
 }
 
 async fn generate_network(
@@ -492,18 +481,15 @@ fn tool_result<T: Serialize>(message: String, value: &T) -> Result<CallToolResul
 }
 
 fn offline_tool_result(message: &str, value: &OfflineOperationResult) -> Result<CallToolResult> {
-    let mut resource = Resource::new(value.artifact.artifact_uri.clone(), message.to_owned())
+    let mut resource = Resource::new(value.result_uri().to_string(), message.to_owned())
         .with_title(message.to_owned())
         .with_description("Governed SUMO XML artifact.");
-    if let Some(mime_type) = &value.artifact.mime_type {
+    if let Some(mime_type) = &value.artifact().mime_type {
         resource = resource.with_mime_type(mime_type.clone());
     }
-    let mut result = CallToolResult::success(vec![
-        ContentBlock::text(format!("{message}: {}", value.artifact.artifact_uri)),
-        ContentBlock::ResourceLink(resource),
-    ]);
-    result.structured_content = Some(serde_json::to_value(value)?);
-    Ok(result)
+    Ok(veoveo_mcp_contract::hosting::product_result(
+        message, resource, value,
+    )?)
 }
 
 fn require_capability(
@@ -575,6 +561,83 @@ mod tests {
             OfflineOperation::GenerateNetwork.task_type(),
             SumoTaskKind::GenerateNetwork.name()
         );
+    }
+
+    #[test]
+    fn offline_products_admit_their_artifact_address_before_task_completion() {
+        let artifact_id = veoveo_artifact_contract::ArtifactId::new();
+        let artifact: veoveo_artifact_contract::ArtifactMetadata =
+            serde_json::from_value(serde_json::json!({
+                "artifact_id":artifact_id,"artifact_uri":artifact_id.plane_uri(),
+                "byte_len":1,"created_at":"2026-09-29T00:00:00Z"
+            }))
+            .unwrap();
+        for operation in [
+            OfflineOperation::GenerateNetwork,
+            OfflineOperation::ComputeRoutes,
+            OfflineOperation::OptimizeSignals,
+        ] {
+            let product = OfflineOperationResult::new(operation, artifact.clone());
+            let wire = serde_json::to_value(&product).unwrap();
+            assert_eq!(wire["result_uri"], wire["artifact"]["artifact_uri"]);
+            assert_eq!(
+                serde_json::from_value::<OfflineOperationResult>(wire.clone()).unwrap(),
+                product
+            );
+            let result = offline_tool_result("Offline operation completed", &product).unwrap();
+            let [ContentBlock::Text(status), ContentBlock::ResourceLink(link)] =
+                result.content.as_slice()
+            else {
+                panic!("expected one status and product link");
+            };
+            assert!(!status.text.contains(product.result_uri().as_str()));
+            assert_eq!(link.uri, product.result_uri().as_str());
+            for is_error in [false, true] {
+                let mut result = result.clone();
+                result.is_error = Some(is_error);
+                let TaskTransition::Succeeded { result_uri, .. } =
+                    veoveo_task_runtime::mcp_task_completion("completed", result).unwrap()
+                else {
+                    panic!("expected admitted completion");
+                };
+                assert_eq!(result_uri.unwrap().as_str(), product.result_uri().as_str());
+            }
+            for invalid in ["missing", "null", "mismatch", "unknown"] {
+                let mut value = wire.clone();
+                match invalid {
+                    "missing" => {
+                        value.as_object_mut().unwrap().remove("result_uri");
+                    }
+                    "null" => value["result_uri"] = serde_json::Value::Null,
+                    "mismatch" => {
+                        value["result_uri"] = serde_json::json!(
+                            veoveo_artifact_contract::ArtifactId::new().plane_uri()
+                        )
+                    }
+                    _ => value["unknown"] = serde_json::json!(true),
+                }
+                assert!(
+                    serde_json::from_value::<OfflineOperationResult>(value).is_err(),
+                    "{invalid}"
+                );
+            }
+        }
+        let inline = tool_result(
+            "Batch advanced".into(),
+            &RunBatchResult {
+                steps_advanced: 1,
+                final_simulation_time_s: 1.0,
+                minimum_mean_speed_mps: 0.0,
+                congestion_detected: true,
+            },
+        )
+        .unwrap();
+        let TaskTransition::Succeeded { result_uri, .. } =
+            veoveo_task_runtime::mcp_task_completion("completed", inline).unwrap()
+        else {
+            panic!("expected admitted completion");
+        };
+        assert!(result_uri.is_none());
     }
 
     #[tokio::test]

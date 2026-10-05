@@ -582,6 +582,7 @@ async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion
                 TaskTransition::Succeeded {
                     message: "settled concurrently".into(),
                     result: seed_snapshot.result.unwrap(),
+                    result_uri: seed_snapshot.result_uri,
                 },
             )
             .await

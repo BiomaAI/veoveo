@@ -398,10 +398,14 @@ pub(crate) fn frame_tool_result(
     frame: &crate::contract::CapturedFrame,
 ) -> anyhow::Result<CallToolResult> {
     let mut result = CallToolResult::success(vec![
-        ContentBlock::text(format!("captured {}", frame.record().frame_uri())),
+        ContentBlock::text("Frame captured"),
         ContentBlock::image(
             BASE64_STANDARD.encode(frame.bytes()),
             frame.record().mime_type(),
+        ),
+        ContentBlock::resource_link(
+            Resource::new(frame.record().frame_uri().to_string(), "Captured frame")
+                .with_mime_type(frame.record().mime_type()),
         ),
     ]);
     result.structured_content = Some(serde_json::to_value(frame.record())?);

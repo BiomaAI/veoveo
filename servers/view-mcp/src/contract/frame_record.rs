@@ -212,6 +212,7 @@ impl FrameCaptureBuilder<'_> {
             )
             .collect::<BTreeSet<_>>();
         let record = FrameRecord::try_from(FrameRecordWire {
+            result_uri: FrameUri::new(self.frame_id.clone()),
             frame_uri: FrameUri::new(self.frame_id.clone()),
             frame_id: self.frame_id,
             view_id: self.view.view_id().clone(),
@@ -253,7 +254,8 @@ impl veoveo_types::Check for FrameRecordWire {
     type Error = FrameRecordError;
     fn check(&self) -> Result<(), Self::Error> {
         let value = self;
-        if value.frame_uri != FrameUri::new(value.frame_id.clone())
+        if value.result_uri != value.frame_uri
+            || value.frame_uri != FrameUri::new(value.frame_id.clone())
             || value.composition_uri != CompositionUri::new(value.composition_id.clone())
         {
             return Err(FrameRecordError::Identity);
@@ -358,6 +360,7 @@ mod encoding_mime {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 struct FrameRecordWire {
     frame_id: FrameId,
+    result_uri: FrameUri,
     frame_uri: FrameUri,
     view_id: ViewId,
     view_revision: u64,

@@ -45,6 +45,16 @@ pub struct Prediction {
     pub input: Option<Value>,
 }
 
+/// A documented provider outcome, independent of webhook delivery success.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalOutcome {
+    Succeeded,
+    Failed,
+    Cancelled,
+    TimedOut,
+    Deleted,
+}
+
 impl Prediction {
     pub fn summary(&self) -> GenerationPredictionSummary {
         GenerationPredictionSummary {
@@ -59,8 +69,20 @@ impl Prediction {
         }
     }
 
+    /// Unknown statuses do not establish settlement.
+    pub fn terminal_outcome(&self) -> Option<TerminalOutcome> {
+        match self.status.as_str() {
+            "completed" => Some(TerminalOutcome::Succeeded),
+            "failed" => Some(TerminalOutcome::Failed),
+            "cancelled" => Some(TerminalOutcome::Cancelled),
+            "timeout" => Some(TerminalOutcome::TimedOut),
+            "deleted" => Some(TerminalOutcome::Deleted),
+            _ => None,
+        }
+    }
+
     pub fn is_terminal(&self) -> bool {
-        matches!(self.status.as_str(), "completed" | "failed")
+        self.terminal_outcome().is_some()
     }
 }
 
@@ -221,7 +243,7 @@ impl ProviderClient {
         if !status.is_success() {
             return Err(ProviderError::HttpStatus { status });
         }
-        let env: Envelope<T> = resp.json().await?;
+        let env: Envelope<T> = resp.json().await.map_err(|error| error.without_url())?;
         if env.code != 200 {
             return Err(ProviderError::Api { code: env.code });
         }
@@ -235,7 +257,8 @@ impl ProviderClient {
             .get(self.endpoint(["models"]))
             .bearer_auth(self.api_key.expose_secret())
             .send()
-            .await?;
+            .await
+            .map_err(|error| error.without_url())?;
         Self::unwrap_envelope(resp).await
     }
 
@@ -254,7 +277,8 @@ impl ProviderClient {
             .bearer_auth(self.api_key.expose_secret())
             .json(input)
             .send()
-            .await?;
+            .await
+            .map_err(|error| error.without_url())?;
         Self::unwrap_envelope(resp).await
     }
 
@@ -275,7 +299,8 @@ impl ProviderClient {
                 "sort": "created_at ASC",
             }))
             .send()
-            .await?;
+            .await
+            .map_err(|error| error.without_url())?;
         let result: BillingSearchResult = Self::unwrap_envelope(resp).await?;
         Ok(result.items)
     }
@@ -295,7 +320,8 @@ impl ProviderClient {
                 ids: [prediction_id],
             })
             .send()
-            .await?;
+            .await
+            .map_err(|error| error.without_url())?;
         Self::unwrap_envelope(resp).await
     }
 }
@@ -306,6 +332,111 @@ mod tests {
 
     fn install_rustls_provider() {
         let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+
+    #[test]
+    fn prediction_terminal_outcomes_follow_the_documented_statuses() {
+        for (status, outcome) in [
+            ("completed", Some(TerminalOutcome::Succeeded)),
+            ("failed", Some(TerminalOutcome::Failed)),
+            ("cancelled", Some(TerminalOutcome::Cancelled)),
+            ("timeout", Some(TerminalOutcome::TimedOut)),
+            ("deleted", Some(TerminalOutcome::Deleted)),
+            ("created", None),
+            ("processing", None),
+            ("future_status", None),
+            ("timed_out", None),
+            ("Completed", None),
+            ("", None),
+        ] {
+            let prediction: Prediction = serde_json::from_value(serde_json::json!({
+                "id": "prediction-1",
+                "model": "m/x",
+                "status": status,
+                "input": {"provider_specific": [1, {"nested": true}]},
+                "timings": {"provider_specific": "opaque"}
+            }))
+            .unwrap();
+            assert_eq!(prediction.terminal_outcome(), outcome, "{status}");
+            assert_eq!(prediction.is_terminal(), outcome.is_some(), "{status}");
+            assert_eq!(
+                prediction.input.as_ref().unwrap()["provider_specific"][1]["nested"],
+                true
+            );
+            assert_eq!(
+                prediction.timings.as_ref().unwrap()["provider_specific"],
+                "opaque"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_transport_and_decode_errors_redact_secret_callback_urls() {
+        use axum::{Router, routing::post};
+
+        install_rustls_provider();
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new().route("/api/v3/m/x", post(|| async { "not json" })),
+            )
+            .await
+            .unwrap();
+        });
+        let client = ProviderClient::new("request-secret")
+            .with_base(format!("http://{address}"))
+            .unwrap();
+        let model = "m/x".parse().unwrap();
+        let callback =
+            "https://callback.example/webhook-secret-sentinel?token=callback-secret-sentinel";
+        let input = serde_json::json!({});
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            client.submit(&model, &input, Some(callback)),
+        )
+        .await
+        .expect("loopback provider response within deadline")
+        .unwrap_err();
+        assert!(
+            matches!(&error, ProviderError::Http(inner) if inner.is_decode() && inner.url().is_none())
+        );
+        for rendered in [error.to_string(), format!("{error:?}")] {
+            assert!(!rendered.contains("webhook-secret-sentinel"));
+            assert!(!rendered.contains("callback-secret-sentinel"));
+            assert!(!rendered.contains("request-secret"));
+        }
+        server.abort();
+        let _ = server.await;
+
+        // A failed loopback connection carries the submission URL in reqwest.
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let client = ProviderClient::new("request-secret")
+            .with_base(format!("http://{address}"))
+            .unwrap();
+        let input = serde_json::json!({});
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            client.submit(&model, &input, Some(callback)),
+        )
+        .await
+        .expect("loopback provider response within deadline")
+        .unwrap_err();
+        assert!(
+            matches!(&error, ProviderError::Http(inner) if inner.is_connect() && inner.url().is_none())
+        );
+        for rendered in [error.to_string(), format!("{error:?}")] {
+            assert!(!rendered.contains("webhook-secret-sentinel"));
+            assert!(!rendered.contains("callback-secret-sentinel"));
+            assert!(!rendered.contains("request-secret"));
+        }
     }
 
     #[test]

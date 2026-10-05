@@ -61,6 +61,10 @@ mod task_result;
 #[cfg(feature = "runtime")]
 mod task_timestamp;
 #[cfg(feature = "runtime")]
+mod task_webhooks;
+#[cfg(feature = "runtime")]
+pub use task_webhooks::{ProviderEventKey, ProviderJobKey, ProviderKeyError, WebhookJobBinding};
+#[cfg(feature = "runtime")]
 mod usage;
 
 #[cfg(feature = "runtime")]

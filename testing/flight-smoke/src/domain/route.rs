@@ -1,9 +1,9 @@
 //! The Map server admits the route; the flight client checks its returned contract.
 use super::*;
 use veoveo_map_mcp::contract::{
-    MapFamily, MapRouteHandoff, PrepareRouteHandoffRequest, RouteConstraints, RouteDataPolicy,
-    RouteEndpoint, RouteObjective, RouteObjectiveKind, RoutePlan, RouteRequest, RouteStatus,
-    Wgs84Position as MapPosition,
+    MapFamily, MapRouteHandoff, MapTaskProduct, PrepareRouteHandoffRequest, RouteConstraints,
+    RouteDataPolicy, RouteEndpoint, RouteObjective, RouteObjectiveKind, RoutePlan, RouteRequest,
+    RouteStatus, Wgs84Position as MapPosition,
 };
 use veoveo_uav_sim_mcp::contract::{
     ExecuteVehicleMissionPlanRequest, MissionId, MissionLifecycle, MissionPlanLifecycle,
@@ -81,8 +81,9 @@ pub(super) async fn plan(
     let value = operator
         .task_tool("map__route", serde_json::to_value(&request)?, timeout)
         .await?;
-    let route: RoutePlan =
+    let product: MapTaskProduct<RoutePlan> =
         serde_json::from_value(value).context("decoding the Map-owned route result")?;
+    let route = product.into_output();
     ensure!(
         route.mobility_profile_id == request.mobility_profile_id
             && route.mobility_profile_version == request.mobility_profile_version

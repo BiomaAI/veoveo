@@ -1,18 +1,30 @@
 //! Media ledger writes, retention and SQL selection for billing recovery.
 use super::{
-    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, open_object, provider_job,
-    tenant_record,
+    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, open_object,
+    prediction_from_payload, record_uuid, tenant_record,
 };
 use crate::contract::MediaPredictionId;
+use crate::storage::{MediaUsageId, MediaUsageKind, MediaUsageRecord};
 use chrono::{DateTime, Utc};
+use surrealdb::types::SurrealValue;
 use uuid::Uuid;
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
 use veoveo_platform_store::{
-    MediaUsageId, MediaUsageKind, MediaUsageRecord, ProviderJobId, ProviderJobRecord, StoreError,
-    task_record_id,
+    OpenObject, ProviderJobId, ProviderJobState, RecordId, StoreError, task_record_id,
 };
-use veoveo_task_runtime::TaskSnapshot;
+use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot};
 use veoveo_types::TaskId;
+
+#[derive(SurrealValue)]
+struct BillingRow {
+    id: RecordId,
+    job_order: RecordId,
+    task: RecordId,
+    external_job_id: String,
+    state: ProviderJobState,
+    provider_payload: OpenObject,
+    updated_at: DateTime<Utc>,
+}
 
 pub struct MediaBillingPage {
     pub jobs: Vec<MediaProviderJob>,
@@ -109,6 +121,8 @@ impl MediaState {
         &self,
         after: Option<ProviderJobId>,
     ) -> Result<MediaBillingPage, StoreError> {
+        let provider_pin = TaskRetentionPin::new(format!("provider:{PROVIDER}:webhook"))
+            .expect("Media provider retention pin is valid");
         let mut response = self
             .store
             .client()
@@ -119,14 +133,41 @@ impl MediaState {
             })
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("after", after.map(|id| id.record_id())))
+            .bind(("provider_retention_pin", provider_pin.as_str().to_owned()))
             .await?
             .check()?;
-        let mut records: Vec<ProviderJobRecord> = response.take(0)?;
+        let mut records: Vec<BillingRow> = response.take(0)?;
         let has_more = records.len() > 100;
         records.truncate(100);
         let jobs = records
             .into_iter()
-            .map(provider_job)
+            .map(|row| {
+                if row.id != row.job_order {
+                    return Err(StoreError::MissingRecord {
+                        operation: "media billing job ordering identity",
+                    });
+                }
+                let prediction = prediction_from_payload(row.provider_payload)?;
+                let external_job_id =
+                    MediaPredictionId::new(row.external_job_id).map_err(|_| {
+                        StoreError::MissingRecord {
+                            operation: "media billing prediction identity",
+                        }
+                    })?;
+                if prediction.id != external_job_id || prediction.terminal_outcome().is_none() {
+                    return Err(StoreError::MissingRecord {
+                        operation: "media billing terminal observation",
+                    });
+                }
+                Ok(MediaProviderJob {
+                    job_id: ProviderJobId::from_uuid(record_uuid(&row.id)?),
+                    task_id: TaskId::from_uuid(record_uuid(&row.task)?),
+                    external_job_id,
+                    state: row.state,
+                    prediction,
+                    updated_at: row.updated_at,
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let next_job_id = has_more.then(|| jobs.last().expect("overfull page has jobs").job_id);
         Ok(MediaBillingPage { jobs, next_job_id })

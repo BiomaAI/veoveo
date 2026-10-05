@@ -433,8 +433,11 @@ async fn run_task_inner(
         }
     };
     notify_progress(&progress, 1.0, "completed").await;
-    let payload = match serde_json::to_value(result) {
-        Ok(payload) => payload,
+    let transition = match veoveo_task_runtime::mcp_task_completion(
+        veoveo_stream_mcp::task_product::RUN_COMPLETED,
+        result,
+    ) {
+        Ok(transition) => transition,
         Err(error) => {
             fail_task(
                 &state,
@@ -445,15 +448,7 @@ async fn run_task_inner(
             return;
         }
     };
-    update_task(
-        &state,
-        task_id,
-        TaskTransition::Succeeded {
-            message: veoveo_stream_mcp::task_product::RUN_COMPLETED.to_owned(),
-            result: payload,
-        },
-    )
-    .await;
+    update_task(&state, task_id, transition).await;
 }
 
 async fn set_progress(
@@ -487,8 +482,8 @@ async fn notify_progress(progress: &Option<TaskProgress>, value: f64, message: &
 
 async fn complete_tool_error(state: &AppState, task_id: RunId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
-    let transition = match serde_json::to_value(result) {
-        Ok(result) => TaskTransition::Succeeded { message, result },
+    let transition = match veoveo_task_runtime::mcp_task_completion(message, result) {
+        Ok(transition) => transition,
         Err(error) => TaskTransition::Failed(TaskFailure::new(
             "result_serialization_failed",
             error.to_string(),

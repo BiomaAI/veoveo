@@ -62,10 +62,7 @@ impl MaintenanceWorker {
                         uri, "Computer",
                     )),
                 ];
-                TaskTransition::Succeeded {
-                    message: "Environment updated".into(),
-                    result: serde_json::to_value(result).map_err(|_| WorkerError::Configuration)?,
-                }
+                veoveo_task_runtime::mcp_task_completion("Environment updated", result)?
             }
             MaintenanceStage::Cancelled => TaskTransition::Cancelled,
             _ => return Err(WorkerError::Configuration),

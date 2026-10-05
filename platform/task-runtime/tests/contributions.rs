@@ -268,7 +268,7 @@ async fn settlement_rolls_back_and_stale_or_expired_leases_cannot_write() {
             .await
             .unwrap()
             .snapshot;
-        let rejected = TaskTransition::Succeeded {
+        let rejected = TaskTransition::Succeeded { result_uri: Some(veoveo_types::ResourceUri::new("fixture://products/rejected").unwrap()),
             message: "rejected".into(),
             result: serde_json::json!({"reject":true}),
         };
@@ -282,6 +282,9 @@ async fn settlement_rolls_back_and_stale_or_expired_leases_cannot_write() {
             runtime.get(id).await.unwrap().unwrap().status,
             TaskStatus::Running
         );
+        let rolled_back = runtime.get(id).await.unwrap().unwrap();
+        assert_eq!(rolled_back.result, None);
+        assert_eq!(rolled_back.result_uri, None);
         db.b.client()
             .query(include_str!("queries/contributions/settlement_rolls_back_and_stale_or_expired_leases_cannot_write/statement_1.surql"))
             .bind(("row", RecordId::new("contribution_probe", id.to_string())))
@@ -335,7 +338,7 @@ async fn settlement_rolls_back_and_stale_or_expired_leases_cannot_write() {
             runtime
                 .transition_if_current(
                     &current,
-                    TaskTransition::Succeeded {
+                    TaskTransition::Succeeded { result_uri: None,
                         message: "late".into(),
                         result: serde_json::json!({})
                     }

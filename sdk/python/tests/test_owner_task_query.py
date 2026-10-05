@@ -133,7 +133,7 @@ async def test_notifications_read_current_state_and_exclude_revoked_malformed_ro
             await anext(subscription.updates)
             for snapshot in (a, b):
                 await runtime.claim(str(snapshot.task_id), timedelta(seconds=30))
-                await runtime.transition(str(snapshot.task_id), TaskTransition.succeeded("done", {"ok": True}))
+                await runtime.transition(str(snapshot.task_id), TaskTransition.succeeded("done", {"ok": True}, result_uri=None))
             await runtime.store.query(
                 test_query("test_owner_task_query/test_notifications_read_current_state_and_exclude_revoked_malformed_rows.surql"),
                 {"task": task_record(a.task_id)},
@@ -156,7 +156,7 @@ async def test_retained_event_gap_reconciles_and_new_subscription_uses_current_b
         try:
             await anext(subscription.updates)
             await runtime.claim(str(task.task_id), timedelta(seconds=30))
-            await runtime.transition(str(task.task_id), TaskTransition.succeeded("done", None))
+            await runtime.transition(str(task.task_id), TaskTransition.succeeded("done", None, result_uri=None))
             from veoveo_mcp.tasks import TaskUpdateCursor
             subscription.updates._cursor = TaskUpdateCursor(0)
             assert (await anext(subscription.updates)).snapshot.status == TaskStatus.SUCCEEDED

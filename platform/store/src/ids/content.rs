@@ -49,16 +49,5 @@ pub struct ArtifactWriteRedemptionId(Uuid);
 )]
 pub struct ArtifactAccessRequestId(Uuid);
 
-#[id(
-    uuid(PersistenceIds),
-    fresh,
-    const_uuid,
-    surreal = "media_task_context"
-)]
-pub struct MediaTaskContextId(Uuid);
-
-#[id(uuid(PersistenceIds), fresh, const_uuid, surreal = "media_usage")]
-pub struct MediaUsageId(Uuid);
-
 #[id(uuid(PersistenceIds), fresh, const_uuid, surreal = "domain_usage")]
 pub struct DomainUsageId(Uuid);

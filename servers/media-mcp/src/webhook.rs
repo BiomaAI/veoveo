@@ -5,6 +5,9 @@
 //! as the raw HMAC key — not base64-decoded). The signature arrives in the
 //! `webhook-signature` header as `v3,<hex>`.
 
+mod binding;
+pub use binding::CallbackBinding;
+
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
@@ -47,9 +50,11 @@ pub fn verify(
             .parse()
             .map_err(|_| VerifyError::BadSignatureFormat)?;
         let now = chrono::Utc::now().timestamp();
-        let skew = (now - ts).abs();
-        if skew > tolerance {
-            return Err(VerifyError::TimestampSkew { skew_secs: skew });
+        let skew = now.abs_diff(ts);
+        if tolerance < 0 || skew > tolerance as u64 {
+            return Err(VerifyError::TimestampSkew {
+                skew_secs: i64::try_from(skew).unwrap_or(i64::MAX),
+            });
         }
     }
 
@@ -106,6 +111,18 @@ mod tests {
             verify(SECRET, "msg_1", "1700000000", body, &sig, None),
             Ok(())
         );
+    }
+
+    #[test]
+    fn extreme_signed_timestamps_reject_without_overflow() {
+        for timestamp in [i64::MIN, i64::MAX] {
+            let timestamp = timestamp.to_string();
+            let signature = sign(SECRET, "event", &timestamp, b"{}");
+            assert!(matches!(
+                verify(SECRET, "event", &timestamp, b"{}", &signature, Some(300)),
+                Err(VerifyError::TimestampSkew { .. })
+            ));
+        }
     }
 
     #[test]

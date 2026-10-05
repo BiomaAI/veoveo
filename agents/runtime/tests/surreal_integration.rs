@@ -666,7 +666,9 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         .tasks
         .transition(
             task.task_id,
+            // Opaque runtime output does not publish an addressable MCP product.
             TaskTransition::Succeeded {
+                result_uri: None,
                 message: "done".to_owned(),
                 result: json!({"output": "done"}),
             },
@@ -732,6 +734,10 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         .await
         .unwrap()
         .expect("task remains pinned through delivery");
+    assert!(
+        canonical.result_uri.is_none(),
+        "opaque completion has no product address"
+    );
     assert!(canonical.retention_pins.is_empty());
     let mut response = fixture
         .root

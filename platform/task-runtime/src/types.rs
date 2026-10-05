@@ -236,6 +236,7 @@ pub struct CreateTaskResult {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "veoveo_types::Checked<TaskSnapshotWire>")]
 pub struct TaskSnapshot {
     pub task_id: TaskId,
     pub owner: TaskOwner,
@@ -246,12 +247,9 @@ pub struct TaskSnapshot {
     pub status: StoreTaskStatus,
     pub status_message: Option<String>,
     pub progress: f64,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_present_result"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    pub result_uri: Option<veoveo_types::ResourceUri>,
     pub error: Option<TaskFailure>,
     pub idempotency_key: Option<String>,
     pub lease_owner: Option<String>,
@@ -265,6 +263,84 @@ pub struct TaskSnapshot {
     pub retention_pins: BTreeSet<TaskRetentionPin>,
     pub ttl_ms: Option<u64>,
     pub poll_interval_ms: Option<u64>,
+}
+
+// Snapshots expose mutable execution progress; JSON admission still checks the
+// relationship between a product address and its retained terminal result.
+#[derive(Deserialize)]
+struct TaskSnapshotWire {
+    task_id: TaskId,
+    owner: TaskOwner,
+    server: String,
+    task_type: veoveo_types::TaskTypeName,
+    request: Value,
+    recovery_class: RecoveryClass,
+    status: StoreTaskStatus,
+    status_message: Option<String>,
+    progress: f64,
+    #[serde(default, deserialize_with = "deserialize_present_result")]
+    result: Option<Value>,
+    result_uri: Option<veoveo_types::ResourceUri>,
+    error: Option<TaskFailure>,
+    idempotency_key: Option<String>,
+    lease_owner: Option<String>,
+    lease_expires_at: Option<DateTime<Utc>>,
+    cancel_requested_at: Option<DateTime<Utc>>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    started_at: Option<DateTime<Utc>>,
+    completed_at: Option<DateTime<Utc>>,
+    retention_expires_at: Option<DateTime<Utc>>,
+    retention_pins: BTreeSet<TaskRetentionPin>,
+    ttl_ms: Option<u64>,
+    poll_interval_ms: Option<u64>,
+}
+
+impl veoveo_types::Check for TaskSnapshotWire {
+    type Error = TaskError;
+
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.result_uri.is_some()
+            && (self.status != StoreTaskStatus::Succeeded || self.result.is_none())
+        {
+            return Err(TaskError::InvalidRecord(
+                "Task product address requires a successful retained result".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl From<veoveo_types::Checked<TaskSnapshotWire>> for TaskSnapshot {
+    fn from(wire: veoveo_types::Checked<TaskSnapshotWire>) -> Self {
+        let wire = wire.into_inner();
+        Self {
+            task_id: wire.task_id,
+            owner: wire.owner,
+            server: wire.server,
+            task_type: wire.task_type,
+            request: wire.request,
+            recovery_class: wire.recovery_class,
+            status: wire.status,
+            status_message: wire.status_message,
+            progress: wire.progress,
+            result: wire.result,
+            result_uri: wire.result_uri,
+            error: wire.error,
+            idempotency_key: wire.idempotency_key,
+            lease_owner: wire.lease_owner,
+            lease_expires_at: wire.lease_expires_at,
+            cancel_requested_at: wire.cancel_requested_at,
+            created_at: wire.created_at,
+            updated_at: wire.updated_at,
+            started_at: wire.started_at,
+            completed_at: wire.completed_at,
+            retention_expires_at: wire.retention_expires_at,
+            retention_pins: wire.retention_pins,
+            ttl_ms: wire.ttl_ms,
+            poll_interval_ms: wire.poll_interval_ms,
+        }
+    }
 }
 
 /// A stable position in a caller-owned task collection, ordered by creation and ID.
@@ -366,9 +442,19 @@ impl TaskFailure {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TaskTransition {
-    Running { message: String, progress: f64 },
-    Waiting { message: String, progress: f64 },
-    Succeeded { message: String, result: Value },
+    Running {
+        message: String,
+        progress: f64,
+    },
+    Waiting {
+        message: String,
+        progress: f64,
+    },
+    Succeeded {
+        message: String,
+        result: Value,
+        result_uri: Option<veoveo_types::ResourceUri>,
+    },
     Failed(TaskFailure),
     CancelRequested,
     Cancelled,
@@ -408,6 +494,13 @@ impl TaskTransition {
     pub(crate) fn result(&self) -> Option<Value> {
         match self {
             Self::Succeeded { result, .. } => Some(result.clone()),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn result_uri(&self) -> Option<veoveo_types::ResourceUri> {
+        match self {
+            Self::Succeeded { result_uri, .. } => result_uri.clone(),
             _ => None,
         }
     }
@@ -556,6 +649,13 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
         .map(open_object_to_value)
         .map(serde_json::from_value)
         .transpose()?;
+    if record.result_uri.is_some()
+        && (record.status != StoreTaskStatus::Succeeded || record.result.is_none())
+    {
+        return Err(TaskError::InvalidRecord(
+            "Task product address requires a successful retained result".into(),
+        ));
+    }
     Ok(TaskSnapshot {
         task_id,
         owner,
@@ -569,6 +669,7 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
         result: record
             .result
             .map(veoveo_platform_store::TaskResultRecord::into_payload),
+        result_uri: record.result_uri,
         error,
         idempotency_key: record.idempotency_key,
         lease_owner: record.lease_owner,

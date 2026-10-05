@@ -187,8 +187,8 @@ pub(super) async fn resume_duckdb_task(
 
 async fn complete_tool_error(state: &AppState, task_id: TaskId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
-    let transition = match serde_json::to_value(result) {
-        Ok(result) => TaskTransition::Succeeded { message, result },
+    let transition = match veoveo_task_runtime::mcp_task_completion(message, result) {
+        Ok(transition) => transition,
         Err(error) => TaskTransition::Failed(TaskFailure::new(
             "result_serialization_failed",
             error.to_string(),
@@ -364,10 +364,10 @@ async fn run_task_inner(
                     if let Err(error) = outputs::record_op_usage(
                         &state,
                         task_id,
-                        output.rows_exported,
+                        output.rows_exported(),
                         DuckDbUsageDetails::Export {
-                            db: output.db.clone(),
-                            artifact: output.artifact.artifact_id(),
+                            db: output.db().clone(),
+                            artifact: output.artifact().artifact_id(),
                         },
                     )
                     .await
@@ -400,27 +400,20 @@ async fn run_task_inner(
         update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
-    let payload = match serde_json::to_value(&result) {
-        Ok(payload) => payload,
-        Err(error) => {
-            fail_task(
-                &state,
-                task_id,
-                format!("serializing result failed: {error}"),
-            )
-            .await;
-            return;
-        }
-    };
-    update_task(
-        &state,
-        task_id,
-        TaskTransition::Succeeded {
-            message: "DuckDB operation completed".to_owned(),
-            result: payload,
-        },
-    )
-    .await;
+    let transition =
+        match veoveo_task_runtime::mcp_task_completion("DuckDB operation completed", result) {
+            Ok(transition) => transition,
+            Err(error) => {
+                fail_task(
+                    &state,
+                    task_id,
+                    format!("serializing result failed: {error}"),
+                )
+                .await;
+                return;
+            }
+        };
+    update_task(&state, task_id, transition).await;
 }
 
 fn query_usage(output: &DuckDbQueryOutput) -> DuckDbQueryUsage {

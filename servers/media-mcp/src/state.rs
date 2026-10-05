@@ -1,5 +1,6 @@
 //! Durable media task state backed by the installation SurrealDB.
 
+use crate::storage::{MediaTaskContextId, MediaTaskContextRecord};
 mod usage;
 pub use usage::MediaBillingPage;
 
@@ -14,12 +15,11 @@ use veoveo_mcp_contract::{
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
 };
 use veoveo_platform_store::{
-    ArtifactWriteCapabilityId as StoreCapabilityId, MediaTaskContextId, MediaTaskContextRecord,
-    OpenObject, PlatformStore, ProviderEventId, ProviderEventRecord, ProviderJobId,
-    ProviderJobRecord, ProviderJobState, RecordId, RecordIdKey, RedactedSecret, StoreError,
-    TaskStatus,
+    ArtifactWriteCapabilityId as StoreCapabilityId, OpenObject, PlatformStore, ProviderEventId,
+    ProviderJobId, ProviderJobRecord, ProviderJobState, RecordId, RecordIdKey, RedactedSecret,
+    StoreError, TaskStatus,
 };
-use veoveo_task_runtime::{RecoveryClass, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
+use veoveo_task_runtime::{TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::DataLabelId;
 use veoveo_types::TaskId;
 
@@ -72,6 +72,8 @@ pub struct MediaProviderEvent {
     pub job: MediaProviderJob,
     pub prediction: Prediction,
     pub processed_at: Option<DateTime<Utc>>,
+    receipt: veoveo_task_runtime::AuthenticatedWebhookReceipt,
+    pub authoritative: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -87,17 +89,6 @@ pub enum ProviderCancellationOutcome {
     Accepted { deleted_count: u64 },
     NotDeleted { deleted_count: u64 },
     Failed { error: String },
-}
-
-impl ProviderCancellationOutcome {
-    fn job_state(&self) -> ProviderJobState {
-        match self {
-            Self::Accepted { .. } => ProviderJobState::Cancelled,
-            Self::Requested | Self::NotDeleted { .. } | Self::Failed { .. } => {
-                ProviderJobState::CancelRequested
-            }
-        }
-    }
 }
 
 impl MediaState {
@@ -210,97 +201,70 @@ impl MediaState {
         response.take(0).map_err(Into::into)
     }
 
+    fn journal(&self) -> Result<veoveo_task_runtime::WebhookJournal, StoreError> {
+        let runtime = crate::task_lookup::bind(TaskRuntime::new(
+            self.store.clone(),
+            "media",
+            "media-journal",
+        ))
+        .map_err(task_store_error)?;
+        Ok(runtime
+            .webhooks(veoveo_types::ExtensionName::parse(PROVIDER).expect("declared provider")))
+    }
+
+    async fn check_prediction_request(
+        &self,
+        runtime: &TaskRuntime,
+        task_id: TaskId,
+        prediction: &Prediction,
+    ) -> Result<(), StoreError> {
+        let current = runtime
+            .get(task_id)
+            .await
+            .map_err(task_store_error)?
+            .ok_or(StoreError::MissingRecord {
+                operation: "media prediction Task",
+            })?;
+        let request: crate::contract::RunArgs =
+            serde_json::from_value(current.request).map_err(|_| StoreError::MissingRecord {
+                operation: "media prediction request",
+            })?;
+        if request.model != prediction.model {
+            return Err(StoreError::ArtifactWriteConflict {
+                key: task_id.to_string(),
+            });
+        }
+        Ok(())
+    }
+
     pub async fn bind_submission_and_wait(
         &self,
         runtime: &TaskRuntime,
         task_id: TaskId,
         prediction: &Prediction,
     ) -> Result<MediaProviderJob, StoreError> {
-        let current = runtime
-            .get(task_id)
-            .await
-            .map_err(task_store_error)?
-            .ok_or(StoreError::MissingRecord {
-                operation: "media provider submission task",
+        self.check_prediction_request(runtime, task_id, prediction)
+            .await?;
+        let journal = runtime
+            .webhooks(veoveo_types::ExtensionName::parse(PROVIDER).expect("declared provider"));
+        let external = veoveo_platform_store::ProviderJobKey::parse(prediction.id.to_string())
+            .map_err(|_| StoreError::MissingRecord {
+                operation: "media provider identity",
             })?;
-        validate_webhook_task(&current)?;
-        let tenant = tenant_record(&current.owner)?;
-        if let Some(job) = self
-            .provider_job_for_external_in_tenant(&prediction.id, &tenant)
-            .await?
-        {
-            if job.task_id != current.task_id {
-                return Err(StoreError::ArtifactWriteConflict {
-                    key: prediction.id.to_string(),
-                });
-            }
-            self.ensure_task_waiting(runtime, task_id, &job).await?;
-            return Ok(job);
-        }
-        let job_id = ProviderJobId::new();
-        let now = Utc::now();
-        let job = ProviderJobRecord {
-            id: job_id.record_id(),
-            tenant: tenant.clone(),
-            task: task_record_id(current.task_id),
-            provider: PROVIDER.to_owned(),
-            external_job_id: prediction.id.to_string(),
-            state: ProviderJobState::Waiting,
-            provider_payload: prediction_payload(prediction)?,
-            submitted_at: now,
-            updated_at: now,
-            completed_at: None,
-        };
-        let waiting = waiting_snapshot(
-            &current,
-            format!(
-                "submitted; prediction {}; resource {}; waiting for signed provider webhook",
-                prediction.id,
-                MediaPredictionUri::new(prediction.id.clone())
-            ),
-            now,
-        );
-
-        let request = veoveo_platform_store::TaskRequestRecord::from(&waiting);
-        let result = self
-            .store
-            .client()
-            .query(include_str!("queries/bind_provider_job.surql"))
-            .bind(("job", job_id.record_id()))
-            .bind(("job_content", job))
-            .bind(("task", task_record_id(current.task_id)))
-            .bind(("request", request))
-            .bind(("progress", waiting.progress))
-            .bind(("now", now))
-            .bind(("expected_status", current.status))
-            .bind(("expected_updated", current.updated_at))
-            .bind((
-                "expected_request",
-                veoveo_platform_store::TaskRequestRecord::from(&current),
-            ))
-            .bind((
-                "expected_owner_context",
-                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
-                    .map_err(task_store_error)?,
-            ))
-            .bind(("worker", runtime.worker_id().to_owned()))
+        let record = journal
+            .bind_submission(
+                task_id,
+                external,
+                prediction_payload(prediction)?,
+                format!(
+                    "submitted; prediction {}; resource {}; waiting for signed provider webhook",
+                    prediction.id,
+                    MediaPredictionUri::new(prediction.id.clone())
+                ),
+            )
             .await
-            .and_then(|response| response.check());
-        if let Err(error) = result {
-            if let Some(existing) = self
-                .provider_job_for_external_in_tenant(&prediction.id, &tenant)
-                .await?
-                && existing.task_id == current.task_id
-            {
-                return Ok(existing);
-            }
-            return Err(error.into());
-        }
-        self.provider_job_for_external_in_tenant(&prediction.id, &tenant)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "media provider job readback",
-            })
+            .map_err(task_store_error)?;
+        provider_job(record)
     }
 
     pub async fn receive_webhook(
@@ -310,145 +274,47 @@ impl MediaState {
         webhook_id: &str,
         prediction: &Prediction,
     ) -> Result<WebhookReceipt, StoreError> {
-        if !prediction.is_terminal() {
-            return Err(StoreError::ArtifactWriteConflict {
-                key: webhook_id.to_owned(),
-            });
-        }
-        let current = runtime
-            .get(task_id)
-            .await
-            .map_err(task_store_error)?
-            .ok_or(StoreError::MissingRecord {
-                operation: "media webhook task",
-            })?;
-        validate_webhook_task(&current)?;
-        let tenant = tenant_record(&current.owner)?;
-        if let Some(event) = self.provider_event(&tenant, webhook_id).await? {
-            validate_webhook_replay(&event, &current, prediction)?;
-            return Ok(WebhookReceipt {
-                event,
-                inserted: false,
-            });
-        }
-        let existing_job = self
-            .provider_job_for_external_in_tenant(&prediction.id, &tenant)
+        self.check_prediction_request(runtime, task_id, prediction)
             .await?;
-        if existing_job
-            .as_ref()
-            .is_some_and(|job| job.task_id != current.task_id)
-        {
-            return Err(StoreError::ArtifactWriteConflict {
-                key: prediction.id.to_string(),
-            });
-        }
-        let job_id = existing_job
-            .as_ref()
-            .map_or_else(ProviderJobId::new, |job| job.job_id);
-        let event_id = provider_event_id(&current.owner, webhook_id);
-        let now = Utc::now();
-        // A cancellation acknowledgement is only best effort. A later signed
-        // provider webhook remains authoritative for the provider job's actual
-        // terminal state, while the locally cancelled task stays immutable.
-        let preserve_terminal_job = existing_job.as_ref().is_some_and(|job| {
-            matches!(
-                job.state,
-                ProviderJobState::Succeeded | ProviderJobState::Failed
-            )
-        });
-        let job_prediction = existing_job
-            .as_ref()
-            .filter(|_| preserve_terminal_job)
-            .map_or(prediction, |job| &job.prediction);
-        let job_state = existing_job
-            .as_ref()
-            .filter(|_| preserve_terminal_job)
-            .map_or_else(|| prediction_state(prediction), |job| job.state);
-        let job = ProviderJobRecord {
-            id: job_id.record_id(),
-            tenant: tenant.clone(),
-            task: task_record_id(current.task_id),
-            provider: PROVIDER.to_owned(),
-            external_job_id: prediction.id.to_string(),
-            state: job_state,
-            provider_payload: prediction_payload(job_prediction)?,
-            submitted_at: existing_job
-                .as_ref()
-                .map_or(current.created_at, |job| job.updated_at),
-            updated_at: now,
-            completed_at: Some(now),
-        };
-        let event = ProviderEventRecord {
-            id: event_id.record_id(),
-            tenant: tenant.clone(),
-            provider_job: job_id.record_id(),
-            provider: PROVIDER.to_owned(),
-            event_id: webhook_id.to_owned(),
-            signing_key_id: None,
-            payload: prediction_payload(prediction)?,
-            received_at: now,
-            processed_at: None,
-            processing_error: None,
-        };
-        let waiting = (!current.is_terminal() && current.status != TaskStatus::CancelRequested)
-            .then(|| {
-                waiting_snapshot(
-                    &current,
-                    format!("signed webhook received for prediction {}", prediction.id),
-                    now,
-                )
-            });
-
-        let request = waiting
-            .as_ref()
-            .map(veoveo_platform_store::TaskRequestRecord::from);
-        let result = self
-            .store
-            .client()
-            .query(include_str!("queries/record_provider_event.surql"))
-            .bind(("event", event_id.record_id()))
-            .bind(("event_content", event))
-            .bind(("job", job_id.record_id()))
-            .bind(("job_content", job))
-            .bind(("update_task", waiting.is_some()))
-            .bind(("task", task_record_id(current.task_id)))
-            .bind(("request", request))
-            .bind((
-                "progress",
-                waiting
-                    .as_ref()
-                    .map_or(current.progress, |task| task.progress),
-            ))
-            .bind(("now", now))
-            .bind(("expected_updated", current.updated_at))
-            .bind((
-                "expected_request",
-                veoveo_platform_store::TaskRequestRecord::from(&current),
-            ))
-            .bind((
-                "expected_owner_context",
-                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
-                    .map_err(task_store_error)?,
-            ))
-            .await
-            .and_then(|response| response.check());
-        if let Err(error) = result {
-            if let Some(event) = self.provider_event(&tenant, webhook_id).await? {
-                validate_webhook_replay(&event, &current, prediction)?;
-                return Ok(WebhookReceipt {
-                    event,
-                    inserted: false,
-                });
+        let terminal = match prediction.terminal_outcome() {
+            Some(crate::provider::TerminalOutcome::Succeeded) => {
+                Some(veoveo_task_runtime::WebhookTerminal::Succeeded)
             }
-            return Err(error.into());
-        }
+            Some(crate::provider::TerminalOutcome::Cancelled) => {
+                Some(veoveo_task_runtime::WebhookTerminal::Cancelled)
+            }
+            Some(
+                crate::provider::TerminalOutcome::Failed
+                | crate::provider::TerminalOutcome::TimedOut
+                | crate::provider::TerminalOutcome::Deleted,
+            ) => Some(veoveo_task_runtime::WebhookTerminal::Failed),
+            None => None,
+        };
+        let external = veoveo_platform_store::ProviderJobKey::parse(prediction.id.to_string())
+            .map_err(|_| StoreError::MissingRecord {
+                operation: "media provider identity",
+            })?;
+        let event = veoveo_platform_store::ProviderEventKey::parse(webhook_id).map_err(|_| {
+            StoreError::MissingRecord {
+                operation: "media provider event identity",
+            }
+        })?;
+        let receipt = runtime
+            .webhooks(veoveo_types::ExtensionName::parse(PROVIDER).expect("declared provider"))
+            .receive_authenticated(
+                task_id,
+                external,
+                event,
+                terminal,
+                prediction_payload(prediction)?,
+                None,
+            )
+            .await
+            .map_err(task_store_error)?;
+        let inserted = receipt.inserted;
         Ok(WebhookReceipt {
-            event: self.provider_event(&tenant, webhook_id).await?.ok_or(
-                StoreError::MissingRecord {
-                    operation: "media webhook event readback",
-                },
-            )?,
-            inserted: true,
+            event: media_event(receipt)?,
+            inserted,
         })
     }
 
@@ -456,20 +322,14 @@ impl MediaState {
         &self,
         limit: usize,
     ) -> Result<Vec<MediaProviderEvent>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(include_str!("queries/pending_provider_events.surql"))
-            .bind(("provider", PROVIDER.to_owned()))
-            .bind(("limit", i64::try_from(limit).unwrap_or(i64::MAX)))
-            .await?
-            .check()?;
-        let events: Vec<ProviderEventRecord> = response.take(0)?;
-        let mut result = Vec::with_capacity(events.len());
-        for event in events {
-            result.push(self.map_event(event).await?);
-        }
-        Ok(result)
+        use veoveo_types::TaskTypeDefinition;
+        self.journal()?
+            .pending(&[crate::contract::MediaTaskKind::Run.name()], limit)
+            .await
+            .map_err(task_store_error)?
+            .into_iter()
+            .map(media_event)
+            .collect()
     }
 
     pub async fn complete_event(
@@ -484,102 +344,29 @@ impl MediaState {
             .await
             .map_err(task_store_error)?
             .ok_or(StoreError::MissingRecord {
-                operation: "media webhook completion task",
+                operation: "media webhook Task",
             })?;
+        let journal = runtime
+            .webhooks(veoveo_types::ExtensionName::parse(PROVIDER).expect("declared provider"));
         if current.is_terminal() {
-            self.acknowledge_event(event, None).await?;
-            return Ok(current);
-        }
-        validate_webhook_task(&current)?;
-        let now = Utc::now();
-        let (status, result, error, progress) = match result {
-            Ok(result) => (
-                TaskStatus::Succeeded,
-                Some(veoveo_platform_store::TaskResultRecord::new(result)),
-                None,
-                1.0,
-            ),
-            Err(error) => (
-                TaskStatus::Failed,
-                None,
-                Some(open_object(
-                    serde_json::to_value(error).map_err(json_store_error)?,
-                )),
-                current.progress,
-            ),
-        };
-        let mut completed = current.clone();
-        completed.status = status;
-        completed.status_message = Some(message.clone());
-        completed.progress = progress;
-        completed.result = result
-            .clone()
-            .map(veoveo_platform_store::TaskResultRecord::into_payload);
-        completed.error = error
-            .clone()
-            .map(open_value)
-            .map(serde_json::from_value)
-            .transpose()
-            .map_err(json_store_error)?;
-        completed.completed_at = Some(now);
-        completed.updated_at = now;
-        completed.lease_owner = None;
-        completed.lease_expires_at = None;
-        let request = veoveo_platform_store::TaskRequestRecord::from(&completed);
-
-        let response = self
-            .store
-            .client()
-            .query(include_str!("queries/settle_provider_event.surql"))
-            .bind(("task", task_record_id(current.task_id)))
-            .bind(("status", status))
-            .bind(("request", request))
-            .bind(("progress", progress))
-            .bind(("result", result))
-            .bind(("error", error))
-            .bind(("now", now))
-            .bind(("expected_updated", current.updated_at))
-            .bind((
-                "expected_request",
-                veoveo_platform_store::TaskRequestRecord::from(&current),
-            ))
-            .bind((
-                "expected_owner_context",
-                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
-                    .map_err(task_store_error)?,
-            ))
-            .bind(("event", event.event_id.record_id()))
-            .bind(("job", event.job.job_id.record_id()))
-            .bind((
-                "job_state",
-                if status == TaskStatus::Succeeded {
-                    ProviderJobState::Succeeded
-                } else {
-                    ProviderJobState::Failed
-                },
-            ))
-            .await
-            .and_then(|response| response.check());
-        if let Err(error) = response {
-            let latest = runtime
-                .get(current.task_id)
+            journal
+                .acknowledge(&event.receipt)
                 .await
                 .map_err(task_store_error)?;
-            if let Some(latest) = latest
-                && latest.is_terminal()
-            {
-                self.acknowledge_event(event, None).await?;
-                return Ok(latest);
-            }
-            return Err(error.into());
+            return Ok(current);
         }
-        runtime
-            .get(current.task_id)
+        let transition = match result {
+            Ok(value) => veoveo_task_runtime::mcp_task_completion(
+                message,
+                serde_json::from_value(value).map_err(json_store_error)?,
+            )
+            .map_err(task_store_error)?,
+            Err(failure) => veoveo_task_runtime::TaskTransition::Failed(failure),
+        };
+        journal
+            .settle(&event.receipt, transition)
             .await
-            .map_err(task_store_error)?
-            .ok_or(StoreError::MissingRecord {
-                operation: "media completed task readback",
-            })
+            .map_err(task_store_error)
     }
 
     pub async fn acknowledge_cancelled_event(
@@ -592,7 +379,7 @@ impl MediaState {
             .await
             .map_err(task_store_error)?
             .ok_or(StoreError::MissingRecord {
-                operation: "media cancelled webhook task",
+                operation: "media cancelled webhook Task",
             })?;
         if !matches!(
             current.status,
@@ -602,8 +389,24 @@ impl MediaState {
                 key: current.task_id.to_string(),
             });
         }
-        self.acknowledge_event(event, None).await?;
-        Ok(current)
+        runtime
+            .webhooks(veoveo_types::ExtensionName::parse(PROVIDER).expect("declared provider"))
+            .settle(
+                &event.receipt,
+                veoveo_task_runtime::TaskTransition::Cancelled,
+            )
+            .await
+            .map_err(task_store_error)
+    }
+
+    pub async fn acknowledge_superseded_event(
+        &self,
+        event: &MediaProviderEvent,
+    ) -> Result<(), StoreError> {
+        self.journal()?
+            .acknowledge(&event.receipt)
+            .await
+            .map_err(task_store_error)
     }
 
     pub async fn record_processing_error(
@@ -611,32 +414,20 @@ impl MediaState {
         event: &MediaProviderEvent,
         error: &str,
     ) -> Result<(), StoreError> {
-        self.store
-            .client()
-            .query(include_str!("queries/record_event_error.surql"))
-            .bind(("event", event.event_id.record_id()))
-            .bind(("error", truncate(error, 2_000)))
-            .await?
-            .check()?;
-        Ok(())
+        self.journal()?
+            .processing_error(&event.receipt, truncate(error, 2000))
+            .await
+            .map_err(task_store_error)
     }
 
     pub async fn provider_job_for_task(
         &self,
-        task_id: TaskId,
+        task: TaskId,
     ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(include_str!("queries/task_provider_job.surql"))
-            .bind(("provider", PROVIDER.to_owned()))
-            .bind(("task", task_record_id(task_id)))
-            .await?
-            .check()?;
-        response
-            .take::<Vec<ProviderJobRecord>>(0)?
-            .into_iter()
-            .next()
+        self.journal()?
+            .job_for_task(task)
+            .await
+            .map_err(task_store_error)?
             .map(provider_job)
             .transpose()
     }
@@ -648,87 +439,26 @@ impl MediaState {
         outcome: ProviderCancellationOutcome,
     ) -> Result<MediaProviderJob, StoreError> {
         if job.task_id != task.task_id {
-            return Err(StoreError::MissingRecord {
-                operation: "media provider cancellation task binding",
+            return Err(StoreError::ArtifactWriteConflict {
+                key: task.task_id.to_string(),
             });
         }
-        let now = Utc::now();
-        let state = outcome.job_state();
-        let mut prediction = job.prediction.clone();
-        if state == ProviderJobState::Cancelled {
-            prediction.status = "cancelled".to_owned();
-        }
-        let mut payload = prediction_payload(&prediction)?.into_map();
-        payload.insert(
-            "cancellation".to_owned(),
-            serde_json::json!({
-                "recorded_at": now,
-                "result": &outcome,
-            }),
-        );
-
-        self.store
-            .client()
-            .query(include_str!("queries/update_provider_job.surql"))
-            .bind(("job", job.job_id.record_id()))
-            .bind(("state", state))
-            .bind(("payload", OpenObject::new(payload)))
-            .bind(("terminal", state == ProviderJobState::Cancelled))
-            .bind(("now", now))
-            .bind(("tenant", tenant_record(&task.owner)?))
-            .bind(("task", task_record_id(task.task_id)))
-            .bind(("provider", PROVIDER.to_owned()))
-            .await?
-            .check()?;
-        self.provider_job(job.job_id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "media provider cancellation readback",
-            })
+        let receipt = open_object(serde_json::json!({ "recorded_at":Utc::now(),"result":outcome }));
+        provider_job(
+            self.journal()?
+                .record_cancellation(task.task_id, receipt)
+                .await
+                .map_err(task_store_error)?,
+        )
     }
 
     pub async fn provider_job_for_task_prediction(
         &self,
-        task_id: TaskId,
-        prediction_id: &MediaPredictionId,
+        task: TaskId,
+        prediction: &MediaPredictionId,
     ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(include_str!("queries/linked_provider_job.surql"))
-            .bind(("provider", PROVIDER.to_owned()))
-            .bind(("task", task_record_id(task_id)))
-            .bind(("prediction", prediction_id.to_string()))
-            .await?
-            .check()?;
-        response
-            .take::<Vec<ProviderJobRecord>>(0)?
-            .into_iter()
-            .next()
-            .map(provider_job)
-            .transpose()
-    }
-
-    async fn provider_job_for_external_in_tenant(
-        &self,
-        external_job_id: &MediaPredictionId,
-        tenant: &RecordId,
-    ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(include_str!("queries/prediction_provider_job.surql"))
-            .bind(("tenant", tenant.clone()))
-            .bind(("provider", PROVIDER.to_owned()))
-            .bind(("external_job_id", external_job_id.to_string()))
-            .await?
-            .check()?;
-        response
-            .take::<Vec<ProviderJobRecord>>(0)?
-            .into_iter()
-            .next()
-            .map(provider_job)
-            .transpose()
+        let job = self.provider_job_for_task(task).await?;
+        Ok(job.filter(|job| &job.external_job_id == prediction))
     }
 
     pub async fn prune_task_contexts(&self) -> Result<u64, StoreError> {
@@ -740,133 +470,20 @@ impl MediaState {
             .check()?;
         Ok(response.take::<Vec<MediaTaskContextRecord>>(0)?.len() as u64)
     }
+}
 
-    async fn ensure_task_waiting(
-        &self,
-        runtime: &TaskRuntime,
-        task_id: TaskId,
-        job: &MediaProviderJob,
-    ) -> Result<(), StoreError> {
-        let Some(current) = runtime.get(task_id).await.map_err(task_store_error)? else {
-            return Err(StoreError::MissingRecord {
-                operation: "media waiting task",
-            });
-        };
-        if current.status == TaskStatus::Waiting || current.is_terminal() {
-            return Ok(());
-        }
-        let now = Utc::now();
-        let waiting = waiting_snapshot(
-            &current,
-            format!(
-                "submitted; prediction {}; resource {}; waiting for signed provider webhook",
-                job.external_job_id,
-                MediaPredictionUri::new(job.external_job_id.clone())
-            ),
-            now,
-        );
-
-        self.store
-            .client()
-            .query(include_str!("queries/wait_for_webhook.surql"))
-            .bind(("task", task_record_id(current.task_id)))
-            .bind((
-                "request",
-                veoveo_platform_store::TaskRequestRecord::from(&waiting),
-            ))
-            .bind(("progress", waiting.progress))
-            .bind(("now", now))
-            .bind(("expected_updated", current.updated_at))
-            .bind((
-                "expected_request",
-                veoveo_platform_store::TaskRequestRecord::from(&current),
-            ))
-            .bind((
-                "expected_owner_context",
-                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
-                    .map_err(task_store_error)?,
-            ))
-            .await?
-            .check()?;
-        Ok(())
-    }
-
-    async fn acknowledge_event(
-        &self,
-        event: &MediaProviderEvent,
-        error: Option<&str>,
-    ) -> Result<(), StoreError> {
-        self.store
-            .client()
-            .query(include_str!("queries/reject_provider_event.surql"))
-            .bind(("event", event.event_id.record_id()))
-            .bind(("error", error.map(|value| truncate(value, 2_000))))
-            .await?
-            .check()?;
-        Ok(())
-    }
-
-    async fn provider_event(
-        &self,
-        tenant: &RecordId,
-        webhook_id: &str,
-    ) -> Result<Option<MediaProviderEvent>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(include_str!("queries/provider_event_by_id.surql"))
-            .bind(("tenant", tenant.clone()))
-            .bind(("provider", PROVIDER.to_owned()))
-            .bind(("event_id", webhook_id.to_owned()))
-            .await?
-            .check()?;
-        let event = response
-            .take::<Vec<ProviderEventRecord>>(0)?
-            .into_iter()
-            .next();
-        match event {
-            Some(event) => self.map_event(event).await.map(Some),
-            None => Ok(None),
-        }
-    }
-
-    async fn map_event(
-        &self,
-        event: ProviderEventRecord,
-    ) -> Result<MediaProviderEvent, StoreError> {
-        let prediction = prediction_from_payload(event.payload.clone())?;
-        let job_id = ProviderJobId::from_uuid(record_uuid(&event.provider_job)?);
-        let job = self
-            .provider_job(job_id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "media provider event job",
-            })?;
-        Ok(MediaProviderEvent {
-            event_id: ProviderEventId::from_uuid(record_uuid(&event.id)?),
-            webhook_id: event.event_id,
-            job,
-            prediction,
-            processed_at: event.processed_at,
-        })
-    }
-
-    async fn provider_job(
-        &self,
-        job_id: ProviderJobId,
-    ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(include_str!("queries/read_provider_job.surql"))
-            .bind(("job", job_id.record_id()))
-            .await?
-            .check()?;
-        response
-            .take::<Option<ProviderJobRecord>>(0)?
-            .map(provider_job)
-            .transpose()
-    }
+fn media_event(
+    receipt: veoveo_task_runtime::AuthenticatedWebhookReceipt,
+) -> Result<MediaProviderEvent, StoreError> {
+    Ok(MediaProviderEvent {
+        event_id: ProviderEventId::from_uuid(record_uuid(&receipt.event.id)?),
+        webhook_id: receipt.event.event_id.clone(),
+        job: provider_job(receipt.job.clone())?,
+        prediction: prediction_from_payload(receipt.event.payload.clone())?,
+        processed_at: receipt.event.processed_at,
+        authoritative: receipt.authoritative,
+        receipt,
+    })
 }
 
 fn provider_job(record: ProviderJobRecord) -> Result<MediaProviderJob, StoreError> {
@@ -894,55 +511,6 @@ fn prediction_from_payload(payload: OpenObject) -> Result<Prediction, StoreError
     serde_json::from_value(open_value(payload)).map_err(json_store_error)
 }
 
-fn prediction_state(prediction: &Prediction) -> ProviderJobState {
-    if prediction.status == "completed" {
-        ProviderJobState::Succeeded
-    } else {
-        ProviderJobState::Failed
-    }
-}
-
-fn provider_event_id(owner: &TaskOwner, webhook_id: &str) -> ProviderEventId {
-    ProviderEventId::from_uuid(Uuid::new_v5(
-        &STATE_ID_NAMESPACE,
-        format!("{}:{PROVIDER}:{webhook_id}", owner.tenant_key()).as_bytes(),
-    ))
-}
-
-fn waiting_snapshot(current: &TaskSnapshot, message: String, now: DateTime<Utc>) -> TaskSnapshot {
-    let mut waiting = current.clone();
-    waiting.status = TaskStatus::Waiting;
-    waiting.status_message = Some(message);
-    waiting.progress = waiting.progress.max(0.3);
-    waiting.lease_owner = None;
-    waiting.lease_expires_at = None;
-    waiting.updated_at = now;
-    waiting
-}
-
-fn validate_webhook_task(snapshot: &TaskSnapshot) -> Result<(), StoreError> {
-    if snapshot.recovery_class != RecoveryClass::WebhookWait {
-        return Err(StoreError::ArtifactWriteConflict {
-            key: snapshot.task_id.to_string(),
-        });
-    }
-    Ok(())
-}
-
-fn validate_webhook_replay(
-    event: &MediaProviderEvent,
-    task: &TaskSnapshot,
-    prediction: &Prediction,
-) -> Result<(), StoreError> {
-    if event.job.task_id == task.task_id && event.job.external_job_id == prediction.id {
-        Ok(())
-    } else {
-        Err(StoreError::ArtifactWriteConflict {
-            key: event.webhook_id.clone(),
-        })
-    }
-}
-
 fn tenant_record(owner: &TaskOwner) -> Result<RecordId, StoreError> {
     veoveo_platform_store::deterministic_tenant_id(owner.tenant_key()).map(|id| id.record_id())
 }
@@ -968,10 +536,14 @@ fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {
 }
 
 fn task_store_error(error: veoveo_task_runtime::TaskError) -> StoreError {
-    StoreError::AdministrationFailed {
-        operation: match error {
-            veoveo_task_runtime::TaskError::NotFound(_) => "media task not found",
-            _ => "media durable task operation",
+    match error {
+        veoveo_task_runtime::TaskError::Database(error) => StoreError::Database(error),
+        veoveo_task_runtime::TaskError::Store(error) => error,
+        veoveo_task_runtime::TaskError::NotFound(_) => StoreError::AdministrationFailed {
+            operation: "media task not found",
+        },
+        _ => StoreError::AdministrationFailed {
+            operation: "media durable task operation",
         },
     }
 }

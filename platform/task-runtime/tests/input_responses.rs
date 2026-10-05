@@ -290,6 +290,7 @@ async fn cancelled_and_completed_tasks_reject_answers_without_changes() {
                     .transition(
                         task.task_id,
                         TaskTransition::Succeeded {
+                            result_uri: None,
                             message: "done".into(),
                             result: json!({"value": 42}),
                         },

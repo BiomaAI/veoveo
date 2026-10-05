@@ -219,9 +219,11 @@ async fn native_tasks_survive_restart_require_current_input_and_confirm_cancella
         assert_eq!(request(&app, "POST", &input_path, answer(2)).await.0, StatusCode::NO_CONTENT);
         assert_eq!(request(&app, "POST", &input_path, answer(2)).await.0, StatusCode::CONFLICT);
         let image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-        domain.runtime.transition(task.id.parse().unwrap(), TaskTransition::Succeeded { message: "fixture domain rejection".into(),
+        // An inline error image is content, without a retained product address.
+        let completed = domain.runtime.transition(task.id.parse().unwrap(), TaskTransition::Succeeded { result_uri: None, message: "fixture domain rejection".into(),
             result: serde_json::to_value(CallToolResult::error(vec![ContentBlock::text("Fixture rejected the requested action."),
                 serde_json::from_value(json!({"type":"image","mimeType":"image/png","data":image})).unwrap()])).unwrap() }).await.unwrap();
+        assert!(completed.result_uri.is_none(), "inline error content has no product address");
         let changed = tokio::time::timeout(Duration::from_secs(3), async {
             loop { let bytes = wakes.next().await.unwrap().unwrap(); if String::from_utf8_lossy(&bytes).contains("event: change") { break; } }
         }).await;

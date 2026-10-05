@@ -1024,3 +1024,11 @@ checkpoint behavior. Public DTO contract features do not activate observation so
 Managed-target invalidation reuses `AgentObservationTable` through Agents' schema-only
 feature. This dependency starts no Agent runtime service and grants no control over an
 Agent or vehicle. UAV owns its vehicle-control-grant and mission-plan sources.
+
+## Task Completion Products
+
+Scenario, mission and capture settlements report existing simulation/control state
+and zero or more typed Recording references. They publish no separate operation-result
+resource, so their Task completions omit `result_uri` and adjacent product links.
+Recording references remain structured provenance. MCP completion admission persists
+this no-product distinction independently of the tool's error flag.

@@ -106,10 +106,12 @@ pub(super) fn export_result(output: &DuckDbExportOutput) -> Result<CallToolResul
     let blocks = vec![
         ContentBlock::text(format!(
             "exported `{}` ({} row(s)) to {}",
-            output.db, output.rows_exported, output.artifact.artifact_uri
+            output.db(),
+            output.rows_exported(),
+            output.artifact().artifact_uri
         )),
         artifact_link(
-            &output.artifact,
+            output.artifact(),
             "export",
             "Immutable exported data artifact.",
         ),

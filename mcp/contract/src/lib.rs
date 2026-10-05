@@ -25,6 +25,7 @@ pub mod protocol;
 pub mod provider;
 pub mod server_contract;
 pub mod subscriptions;
+pub mod task_completion;
 pub mod tasks;
 pub mod telemetry;
 pub mod transport;

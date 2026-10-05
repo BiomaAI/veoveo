@@ -249,6 +249,7 @@ async fn completed_command_has_one_canonical_governed_result_resource() {
             claim.snapshot.task_id,
             veoveo_task_runtime::TaskTransition::Succeeded {
                 message: "Command completed".into(),
+                result_uri: Some(veoveo_types::ResourceUri::new(&uri).unwrap()),
                 result: json!({
                     "content": [{"type":"text","text":"Command exited with code 7"},
                         {"type":"resource_link","name":"Command result","uri":uri}],

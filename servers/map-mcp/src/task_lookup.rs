@@ -254,12 +254,13 @@ impl TaskContributions for Contributions {
             TaskSettlement::Succeeded { result } => {
                 let envelope: rmcp::model::CallToolResult = serde_json::from_value(result.clone())?;
                 if envelope.is_error != Some(true) {
-                    let record: TravelModelRecord =
+                    let product: crate::contract::MapTaskProduct<TravelModelRecord> =
                         serde_json::from_value(envelope.structured_content.ok_or_else(|| {
                             TaskError::InvalidRecord(
                                 "Map travel result has no structured content".into(),
                             )
                         })?)?;
+                    let record = product.into_output();
                     record
                         .validate_identity()
                         .map_err(|e| TaskError::InvalidRecord(e.to_string()))?;

@@ -55,10 +55,12 @@ runtime = [
     "contract",
     "dep:anyhow",
     "dep:reqwest",
+    "dep:rmcp",
     "dep:hex",
     "dep:hmac",
     "dep:secrecy",
     "dep:sha2",
+    "dep:subtle",
     "dep:surrealdb",
     "dep:tokio",
     "dep:tokio-util",
@@ -75,7 +77,6 @@ mcp = [
     "dep:futures",
     "dep:jsonschema",
     "dep:rustls",
-    "dep:rmcp",
     "dep:tower-http",
     "dep:tracing",
     "dep:veoveo-mcp-apps-extension",
@@ -106,6 +107,7 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 secrecy = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
+subtle = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 tokio-util = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }

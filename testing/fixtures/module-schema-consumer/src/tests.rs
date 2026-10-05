@@ -45,8 +45,8 @@ fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
 #[test]
 fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
     let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
-    assert_eq!(expected::TABLES.len(), 166);
-    assert_eq!(expected::FUNCTIONS.len(), 32);
+    assert_eq!(expected::TABLES.len(), 167);
+    assert_eq!(expected::FUNCTIONS.len(), 39);
     assert_eq!(expected::ANALYZERS.len(), 2);
     assert_eq!(
         registry

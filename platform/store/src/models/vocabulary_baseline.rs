@@ -231,24 +231,6 @@ enum ArtifactAccessRequestState {
     surrealdb::types::SurrealValue,
 )]
 #[surreal(untagged)]
-enum MediaUsageKind {
-    #[serde(rename = "estimate")]
-    #[surreal(value = "estimate")]
-    Estimate,
-    #[serde(rename = "actual")]
-    #[surreal(value = "actual")]
-    Actual,
-}
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    surrealdb::types::SurrealValue,
-)]
-#[surreal(untagged)]
 enum DomainUsageKind {
     #[serde(rename = "estimate")]
     #[surreal(value = "estimate")]
@@ -572,17 +554,6 @@ fn database_vocabulary_values_preserve_the_published_profile() {
         super::ArtifactAccessRequestState::Cancelled,
         ArtifactAccessRequestState::Cancelled,
         "cancelled",
-    );
-    assert_eq!(super::MediaUsageKind::kind_of(), MediaUsageKind::kind_of());
-    compare(
-        super::MediaUsageKind::Estimate,
-        MediaUsageKind::Estimate,
-        "estimate",
-    );
-    compare(
-        super::MediaUsageKind::Actual,
-        MediaUsageKind::Actual,
-        "actual",
     );
     assert_eq!(
         super::DomainUsageKind::kind_of(),

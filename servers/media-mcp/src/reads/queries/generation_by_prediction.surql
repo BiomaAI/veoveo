@@ -1,9 +1,16 @@
-SELECT task, task.result.payload.structuredContent AS result FROM provider_job
-             WHERE tenant = $tenant AND task.tenant = $tenant
-    AND task.server = $server AND task.owner = $owner AND task.profile = $profile
-    AND task.owner_context.principal_key = $principal_key
-    AND task.owner_context.profile = $profile_key
-    AND (task.owner_context.tenant_key ?? NONE) = $tenant_key
-    AND task.owner_context.data_labels ALLINSIDE $labels AND provider = $provider AND external_job_id = provider_payload.id AND external_job_id = $prediction
-               AND task.status = 'succeeded' AND (task.result.payload.isError ?? false) = false
-               AND task.result.payload.structuredContent.prediction.id = external_job_id LIMIT 1;
+SELECT task, admitted.result AS result FROM (
+SELECT task, task_type, created_at, identity, association, settlement,
+    fn::kernel::tasks::selection_v1(task, $server, $tenant, $owner, $profile, $principal_key, $profile_key, $tenant_key, $labels, ['run'], NONE, NONE, NONE) AS admitted,
+    fn::kernel::tasks::lifecycle_v1(task, $server, identity.tenant, ['run'], settlement.expected_result) AS lifecycle,
+    fn::kernel::tasks::provider_observation_v1(association.job, task, $server, identity.tenant, ['run'], $provider) AS observation
+FROM media_task
+WHERE identity.tenant = $tenant AND type::is_object(association) AND association.provider = $provider AND association.prediction = $prediction
+)
+WHERE type::is_object(admitted) AND admitted.task_type = task_type AND admitted.created_at = created_at
+    AND fn::kernel::tasks::input_matches_v1(task, identity.request)
+    AND fn::kernel::tasks::owner_context_matches_v1(task, identity.owner_context)
+    AND type::is_object(observation) AND observation.external_job_id = association.prediction
+    AND type::is_object(settlement) AND settlement.status = 'succeeded'
+    AND settlement.prediction = association.prediction
+    AND type::is_object(lifecycle) AND lifecycle.status = 'succeeded' AND lifecycle.result_matches = true
+LIMIT 1;

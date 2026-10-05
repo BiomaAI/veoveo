@@ -42,6 +42,7 @@ fn record() -> TaskRecord {
         owner_context: TaskOwnerRecord::try_from(&owner).unwrap(),
         progress: 0.0,
         result: None,
+        result_uri: None,
         error: None,
         result_artifact: None,
         idempotency_key: None,
@@ -105,4 +106,59 @@ fn driver_snapshot_rejects_wrong_tables_and_independent_authority_disagreement()
         record_to_snapshot(invalid),
         Err(TaskError::InvalidRecord(_))
     ));
+}
+
+#[test]
+fn snapshot_json_admits_product_only_with_successful_retained_result() {
+    let mut record = record();
+    record.status = StoreTaskStatus::Succeeded;
+    record.result = Some(veoveo_platform_store::TaskResultRecord::new(
+        serde_json::json!({"ok": true}),
+    ));
+    record.result_uri = Some(veoveo_types::ResourceUri::new("fixture://items/1").unwrap());
+    let snapshot = record_to_snapshot(record).unwrap();
+    let wire = serde_json::to_value(&snapshot).unwrap();
+    assert_eq!(
+        serde_json::from_value::<TaskSnapshot>(wire.clone()).unwrap(),
+        snapshot
+    );
+
+    for status in [
+        "queued",
+        "running",
+        "waiting",
+        "cancel_requested",
+        "failed",
+        "cancelled",
+    ] {
+        let mut invalid = wire.clone();
+        invalid["status"] = serde_json::json!(status);
+        assert!(
+            serde_json::from_value::<TaskSnapshot>(invalid).is_err(),
+            "{status} admitted a product address"
+        );
+    }
+    let mut absent = wire.clone();
+    absent.as_object_mut().unwrap().remove("result");
+    assert!(serde_json::from_value::<TaskSnapshot>(absent).is_err());
+    for address in [serde_json::json!("invalid URI"), serde_json::json!(42)] {
+        let mut invalid = wire.clone();
+        invalid["result_uri"] = address;
+        assert!(serde_json::from_value::<TaskSnapshot>(invalid).is_err());
+    }
+
+    // Present null is a retained generic core result, distinct from absence.
+    let mut retained_null = wire.clone();
+    retained_null["result"] = serde_json::Value::Null;
+    let decoded: TaskSnapshot = serde_json::from_value(retained_null.clone()).unwrap();
+    assert_eq!(decoded.result, Some(serde_json::Value::Null));
+    assert!(decoded.result_uri.is_some());
+    assert_eq!(serde_json::to_value(decoded).unwrap(), retained_null);
+
+    let mut no_product = wire;
+    no_product["status"] = serde_json::json!("running");
+    no_product.as_object_mut().unwrap().remove("result");
+    no_product.as_object_mut().unwrap().remove("result_uri");
+    let decoded: TaskSnapshot = serde_json::from_value(no_product).unwrap();
+    assert!(decoded.result.is_none() && decoded.result_uri.is_none());
 }

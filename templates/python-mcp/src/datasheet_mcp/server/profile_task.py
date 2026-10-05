@@ -21,8 +21,10 @@ from veoveo_mcp.contract import (
     PutArtifactRequest,
 )
 from veoveo_mcp.contract.identity import GatewayInternalIdentity
+from veoveo_mcp.types import ResourceUri
 from veoveo_mcp.tasks import (
     Conflict,
+    mcp_task_completion,
     CreateTask,
     LeaseHeld,
     RecoveryClass,
@@ -176,7 +178,7 @@ async def _complete_tool_error(state: AppState, task_id: str, message: str) -> N
         "content": [{"type": "text", "text": message}],
         "isError": True,
     }
-    await update_task(state, task_id, TaskTransition.succeeded(message, result))
+    await update_task(state, task_id, mcp_task_completion(message, result))
 
 
 async def _run_task_inner(
@@ -246,7 +248,10 @@ async def _run_task_inner(
         except Exception as error:  # noqa: BLE001 — plane errors are terminal here
             await fail(f"artifact write failed: {error}")
             return
-        output.artifact = metadata.without_download_url()
+        artifact = metadata.without_download_url()
+        output = ProfileDatasetOutput(
+            profile=profile, artifact=artifact, result_uri=ResourceUri(artifact.artifact_uri)
+        )
 
     try:
         await state.tasks.store.upsert_domain_usage(
@@ -297,5 +302,5 @@ async def _run_task_inner(
     await update_task(
         state,
         task_id,
-        TaskTransition.succeeded("dataset profile completed", result),
+        mcp_task_completion("dataset profile completed", result),
     )

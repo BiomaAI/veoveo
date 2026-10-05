@@ -1,3 +1,5 @@
+mod task_product;
+pub use task_product::{MapTaskProduct, MapTaskProductValue};
 mod task_kind;
 pub use task_kind::MapTaskKind;
 mod geodetic_ids;

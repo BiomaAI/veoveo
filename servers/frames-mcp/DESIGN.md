@@ -483,3 +483,10 @@ admits an identifier; it does not certify installed schema or grant read authori
 These owner tables declare 30-day changefeed retention matching the installed SQL.
 LIVE invalidation and changefeed recovery keep their existing reconciliation and
 checkpoint behavior. Public DTO contract features do not activate observation sources.
+
+## Task Completion Products
+
+`batch_transform` returns `BatchTransformTaskOutput`: inline conversion data has
+no product address. Materialized Artifact output carries that Artifact's typed URI as
+`result_uri` and one matching resource link. The decoder rejects absent or mismatched
+Artifact product addresses and present-null addresses.

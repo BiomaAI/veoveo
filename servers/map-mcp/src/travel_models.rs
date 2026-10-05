@@ -187,11 +187,12 @@ fn decode(row: crate::task_lookup::Row) -> Result<PageRow> {
         envelope.is_error != Some(true),
         "Map product is a tool error"
     );
-    let record: TravelModelRecord = serde_json::from_value(
+    let product: crate::contract::MapTaskProduct<TravelModelRecord> = serde_json::from_value(
         envelope
             .structured_content
             .context("Map product has no structured content")?,
     )?;
+    let record = product.into_output();
     record.validate_identity()?;
     ensure!(
         record.travel_model_id == row.identity.travel_model_id

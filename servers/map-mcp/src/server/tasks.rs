@@ -479,21 +479,21 @@ async fn run_map_task_inner(
         return;
     }
     let result = match request {
-        MapTaskRequest::Route(request) => {
-            match state.scope_from_task_owner(&owner).await {
-                Ok(scope) => state.routes.route(&scope, request).await.and_then(|route| {
-                    tool_result(format!("planned route {}", route.route_id), &route)
-                }),
-                Err(error) => Err(error),
-            }
-        }
+        MapTaskRequest::Route(request) => match state.scope_from_task_owner(&owner).await {
+            Ok(scope) => state
+                .routes
+                .route(&scope, request)
+                .await
+                .and_then(|route| product_result("Route planned", &route, "Route")),
+            Err(error) => Err(error),
+        },
         MapTaskRequest::RouteMatrix(request) => match state.scope_from_task_owner(&owner).await {
             Ok(scope) => state
                 .routes
                 .route_matrix(&scope, request)
                 .await
                 .and_then(|matrix| {
-                    tool_result(format!("calculated matrix {}", matrix.matrix_id), &matrix)
+                    product_result("Route matrix calculated", &matrix, "Route matrix")
                 }),
             Err(error) => Err(error),
         },
@@ -543,26 +543,23 @@ async fn run_map_task_inner(
         return;
     }
     match result {
-        Ok(tool_result) => match serde_json::to_value(tool_result) {
-            Ok(result) => {
-                update_task(
-                    &state,
-                    task_id,
-                    TaskTransition::Succeeded {
-                        message: "Map calculation completed".to_owned(),
-                        result,
-                    },
-                )
-                .await;
-                if publishes_travel_model {
-                    state
-                        .subscriptions
-                        .notify_resource_updated(crate::uris::TRAVEL_MODELS_URI)
-                        .await;
+        Ok(tool_result) => {
+            match veoveo_task_runtime::mcp_task_completion("Map calculation completed", tool_result)
+            {
+                Ok(transition) => {
+                    update_task(&state, task_id, transition).await;
+                    if publishes_travel_model {
+                        state
+                            .subscriptions
+                            .notify_resource_updated(crate::uris::TRAVEL_MODELS_URI)
+                            .await;
+                    }
+                }
+                Err(error) => {
+                    fail_task(&state, task_id, "result_serialization_failed", error).await
                 }
             }
-            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
-        },
+        }
         Err(error) => fail_task(&state, task_id, "map_calculation_failed", error).await,
     }
     if uses_task_directory {
@@ -617,27 +614,17 @@ fn tool_result<T: Serialize>(text: String, value: &T) -> anyhow::Result<CallTool
     Ok(result)
 }
 
-pub(super) fn tool_result_with_links<T, I, U, L>(
-    text: String,
+pub(super) fn product_result<T: Serialize + crate::contract::MapTaskProductValue>(
+    text: &str,
     value: &T,
-    links: I,
-) -> anyhow::Result<CallToolResult>
-where
-    T: Serialize,
-    I: IntoIterator<Item = (U, L)>,
-    U: Into<String>,
-    L: Into<String>,
-{
-    let mut result = tool_result(text, value)?;
-    result.content.extend(links.into_iter().map(|(uri, title)| {
-        let title = title.into();
-        ContentBlock::resource_link(
-            Resource::new(uri.into(), title.clone())
-                .with_title(title)
-                .with_mime_type("application/json"),
-        )
-    }));
-    Ok(result)
+    title: &str,
+) -> anyhow::Result<CallToolResult> {
+    let output = crate::contract::MapTaskProduct::new(value)?;
+    let resource =
+        Resource::new(output.result_uri().as_str(), title).with_mime_type("application/json");
+    Ok(veoveo_mcp_contract::hosting::product_result(
+        text, resource, &output,
+    )?)
 }
 
 async fn prepare_raster_request(
@@ -824,24 +811,11 @@ async fn run_raster_derivation_task(
         .subscriptions
         .notify_resource_updated(crate::uris::RASTER_DERIVATIONS_URI)
         .await;
-    let mut result = tool_result_with_links(
-        format!("created raster derivation {}", derivation.derivation_id),
+    product_result(
+        "Raster derivation created",
         &derivation,
-        [(
-            crate::contract::MapRasterDerivationUri::new(derivation.derivation_id.clone())
-                .to_string(),
-            "Raster derivation",
-        )],
-    )?;
-    result.content.push(ContentBlock::resource_link(
-        Resource::new(
-            derivation.output_artifact_uri.clone(),
-            "Derived raster artifact",
-        )
-        .with_title("Derived raster artifact")
-        .with_mime_type(derivation.output_mime_type.clone()),
-    ));
-    Ok(result)
+        "Raster derivation",
+    )
 }
 
 async fn prepare_import_request(
@@ -1016,17 +990,7 @@ async fn run_travel_model_task(
         created_at: request.created_at,
     };
     record.validate_identity()?;
-    tool_result_with_links(
-        format!(
-            "built travel model {} with {} locations and {} vehicle types",
-            record.travel_model_id, record.location_count, record.vehicle_type_count
-        ),
-        &record,
-        [
-            (travel_model_uri.to_string(), "cuOpt travel model"),
-            (artifact.artifact_uri.to_string(), "travel-model artifact"),
-        ],
-    )
+    product_result("Travel model built", &record, "Travel model")
 }
 
 async fn run_import_task(
@@ -1070,26 +1034,7 @@ async fn run_import_task(
         .subscriptions
         .notify_resource_updated(&crate::uris::features_uri(&output.changeset.layer_id))
         .await;
-    tool_result_with_links(
-        format!(
-            "imported {} authored features",
-            output.imported_feature_count
-        ),
-        &output,
-        [
-            (
-                crate::uris::feature_layer_uri(&output.changeset.layer_id),
-                "Authored feature layer",
-            ),
-            (
-                crate::uris::changeset_uri(
-                    &output.changeset.layer_id,
-                    &output.changeset.changeset_id,
-                ),
-                "Feature changeset",
-            ),
-        ],
-    )
+    product_result("Feature import completed", &output, "Feature changeset")
 }
 
 async fn run_export_task(
@@ -1123,17 +1068,8 @@ async fn run_export_task(
         generated,
     )
     .await?;
-    let product_uri = crate::uris::layer_product_uri(
-        &product.layer_id,
-        &product.publication_id,
-        &product.product_id,
-    );
     let output = ExportFeatureLayerOutput { product };
-    tool_result_with_links(
-        "exported published feature layer".to_owned(),
-        &output,
-        [(product_uri, "Feature layer product")],
-    )
+    product_result("Feature layer exported", &output, "Feature layer product")
 }
 
 async fn run_vector_tile_task(
@@ -1168,20 +1104,11 @@ async fn run_vector_tile_task(
         generated,
     )
     .await?;
-    let product_uri = crate::uris::layer_product_uri(
-        &product.layer_id,
-        &product.publication_id,
-        &product.product_id,
-    );
     let output = BuildVectorTilesOutput {
         product,
         tile_count,
     };
-    tool_result_with_links(
-        format!("built {tile_count} Mapbox Vector Tiles"),
-        &output,
-        [(product_uri, "Vector tile layer product")],
-    )
+    product_result("Vector tiles built", &output, "Vector tile layer product")
 }
 
 #[allow(clippy::too_many_arguments)]

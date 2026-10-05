@@ -136,11 +136,58 @@ pub struct OfflineOperationRequest {
     pub seed: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, JsonSchema)]
+#[serde(try_from = "OfflineOperationResultWire")]
+pub struct OfflineOperationResult(veoveo_types::Checked<OfflineOperationResultWire>);
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OfflineOperationResult {
-    pub operation: OfflineOperation,
-    pub artifact: veoveo_artifact_contract::ArtifactMetadata,
+struct OfflineOperationResultWire {
+    result_uri: veoveo_artifact_contract::ArtifactUri,
+    operation: OfflineOperation,
+    artifact: veoveo_artifact_contract::ArtifactMetadata,
+}
+impl OfflineOperationResult {
+    pub fn new(
+        operation: OfflineOperation,
+        artifact: veoveo_artifact_contract::ArtifactMetadata,
+    ) -> Self {
+        Self::try_from(OfflineOperationResultWire {
+            result_uri: artifact.artifact_uri.clone(),
+            operation,
+            artifact,
+        })
+        .expect("offline product address derives from its admitted Artifact")
+    }
+    pub fn operation(&self) -> OfflineOperation {
+        self.0.operation
+    }
+    pub fn result_uri(&self) -> &veoveo_artifact_contract::ArtifactUri {
+        &self.0.result_uri
+    }
+    pub fn artifact(&self) -> &veoveo_artifact_contract::ArtifactMetadata {
+        &self.0.artifact
+    }
+}
+impl veoveo_types::Check for OfflineOperationResultWire {
+    type Error = &'static str;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.result_uri != self.artifact.artifact_uri {
+            return Err("offline product address differs from its Artifact");
+        }
+        Ok(())
+    }
+}
+impl TryFrom<OfflineOperationResultWire> for OfflineOperationResult {
+    type Error = &'static str;
+    fn try_from(value: OfflineOperationResultWire) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl Serialize for OfflineOperationResult {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

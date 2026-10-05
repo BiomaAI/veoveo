@@ -4,6 +4,7 @@ SurrealDB is the sole task authority; the platform-store migrations owned by
 the Rust workspace define the schema this package reads and writes.
 """
 
+from .completion import mcp_task_completion
 from .runtime import TaskRuntime
 from .timestamp import TaskTimestamp
 from .owner_query import OwnerTaskQuery, TaskPage, TaskPageCursor
@@ -46,6 +47,7 @@ from .types import (
 )
 
 __all__ = [
+    "mcp_task_completion",
     "TaskRuntime",
     "TaskTimestamp",
     "OwnerTaskQuery",

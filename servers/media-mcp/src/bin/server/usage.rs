@@ -128,6 +128,11 @@ async fn reconcile_actual_usage_once(
         .has_actual_usage(task_id, &prediction.id)
         .await?
     {
+        state
+            .tasks
+            .webhooks(veoveo_types::ExtensionName::parse("media")?)
+            .release_retention_after_billing(task_id)
+            .await?;
         return Ok(true);
     }
     let task = state
@@ -161,11 +166,19 @@ async fn reconcile_actual_usage_once(
             .notify_resource_updated(MediaTaskUsageUri::new(task_id)?.to_string())
             .await;
     }
-    Ok(recorded > 0
+    let complete = recorded > 0
         || state
             .durable
             .has_actual_usage(task_id, &prediction.id)
-            .await?)
+            .await?;
+    if complete {
+        state
+            .tasks
+            .webhooks(veoveo_types::ExtensionName::parse("media")?)
+            .release_retention_after_billing(task_id)
+            .await?;
+    }
+    Ok(complete)
 }
 
 pub(super) fn spawn_actual_usage_reconciliation(

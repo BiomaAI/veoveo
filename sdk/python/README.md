@@ -36,7 +36,13 @@ sensitivity labels of the inputs they came from. The Artifact service adds these
 to every output and rejects a scope outside the caller's clearance. Work Context policy
 still chooses the owner and initial grants.
 
-`TaskTransition.succeeded(message, payload)` accepts the domain's JSON result.
+`TaskTransition.succeeded(message, payload, result_uri=uri_or_none)` accepts the
+domain's JSON result with an explicit typed `ResourceUri` or `None`. The address
+requires a successful retained result and commits in the same Task transaction.
+MCP producers use `mcp_task_completion(message, CallToolResult)` before storing
+opaque JSON. It admits one declared nonnull product address and one matching
+resource link, including addressable tool errors. No-product completions omit the
+MCP `result_uri` field and retain `None` in the Task snapshot.
 Snapshots expose it as `TaskResult`, whose `payload` may itself be `None` for JSON
 null. `snapshot.result is None` means that the Task has no result. Snapshot JSON omits
 an absent result and includes a completed null, following the shared

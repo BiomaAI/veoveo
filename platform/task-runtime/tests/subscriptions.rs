@@ -113,7 +113,7 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
         writer
             .transition(
                 id,
-                TaskTransition::Succeeded {
+                TaskTransition::Succeeded { result_uri: None,
                     message: "finished".into(),
                     result: json!({"value":42}),
                 },
@@ -505,7 +505,7 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_change_pages() 
                 .bind(("task", task_record_id(revoked.task_id))).bind(("ordinal", ordinal)).await.unwrap().check().unwrap();
         }
         writer.claim(target.task_id, Duration::from_secs(30)).await.unwrap();
-        writer.transition(target.task_id, TaskTransition::Succeeded { message: "finished".into(), result: json!({"value":42}) }).await.unwrap();
+        writer.transition(target.task_id, TaskTransition::Succeeded { result_uri: None, message: "finished".into(), result: json!({"value":42}) }).await.unwrap();
         loop {
             let update = stream.next().await.unwrap().unwrap();
             assert_eq!(update.task.task_id, target.task_id.to_string());

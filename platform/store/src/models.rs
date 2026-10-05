@@ -179,15 +179,6 @@ pub enum ArtifactAccessRequestState {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
 #[vocabulary(surreal)]
-pub enum MediaUsageKind {
-    #[vocabulary(rename = "estimate")]
-    Estimate,
-    #[vocabulary(rename = "actual")]
-    Actual,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
-#[vocabulary(surreal)]
 pub enum DomainUsageKind {
     #[vocabulary(rename = "estimate")]
     Estimate,
@@ -486,6 +477,8 @@ pub struct TaskRecord {
     pub owner_context: crate::TaskOwnerRecord,
     pub progress: f64,
     pub result: Option<crate::TaskResultRecord>,
+    #[surreal(wrap)]
+    pub result_uri: Option<veoveo_types::ResourceUri>,
     pub error: Option<OpenObject>,
     pub result_artifact: Option<RecordId>,
     pub idempotency_key: Option<String>,
@@ -538,6 +531,9 @@ pub struct ProviderJobRecord {
     pub submitted_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
+    pub cancellation_receipt: Option<OpenObject>,
+    pub terminal_event: Option<RecordId>,
+    pub observed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -673,35 +669,6 @@ pub struct ArtifactWriteRedemptionRecord {
     pub state: ArtifactWriteRedemptionState,
     pub reserved_at: DateTime<Utc>,
     pub finalized_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct MediaTaskContextRecord {
-    pub id: RecordId,
-    pub task: RecordId,
-    pub tenant: RecordId,
-    pub capability: RecordId,
-    pub capability_secret: RedactedSecret,
-    pub capability_expires_at: DateTime<Utc>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct MediaUsageRecord {
-    pub id: RecordId,
-    pub tenant: RecordId,
-    pub task: RecordId,
-    pub provider_job: Option<RecordId>,
-    pub source_id: Option<String>,
-    pub model_id: String,
-    pub kind: MediaUsageKind,
-    pub quantity: Option<f64>,
-    pub unit: Option<String>,
-    pub amount: Option<f64>,
-    pub currency: Option<String>,
-    pub metadata: OpenObject,
-    pub recorded_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

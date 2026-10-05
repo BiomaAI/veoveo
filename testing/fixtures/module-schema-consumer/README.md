@@ -2,7 +2,7 @@
 
 This independent Rust workspace composes all nineteen owner declarations through
 `schema` features with default features disabled. Native tests pin the current
-166 table names, 32 functions and two analyzers to their target owners,
+167 table names, 39 functions and two analyzers to their target owners,
 check the declared dependency order, and qualify optional selection through the
 shared registry. The generated plan fixture is compared with those actual owner
 exports. Declaration checks do not replace complete SQL admission or native execution
@@ -14,7 +14,7 @@ previously published reference image contains the new command. Locked installati
 compilation runs the exact newly published image. Every registered owner has a
 version-zero lane containing its current schema; kernel owners install their
 declared Identity, Task, Gateway and Artifact SQL APIs.
-Owner lookup tables belong to Map, UAV, Reason, Stream and Optimization.
+Owner lookup tables belong to Map, UAV, Reason, Stream, Optimization and Media.
 
 Run the consumer independently of workspace feature unification:
 

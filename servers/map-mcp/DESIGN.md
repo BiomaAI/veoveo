@@ -1072,3 +1072,13 @@ admission validates identifiers, not installed schema or read authority. Owner t
 declare the installed SQL's 30-day changefeed retention. LIVE invalidation and
 changefeed recovery preserve reconciliation and checkpoint behavior. Public DTO
 contract features do not activate observation sources.
+
+## Task Completion Products
+
+Task product output uses `MapTaskProduct<T>`. The owner type derives the canonical
+address for retained routes, matrices, travel models, raster derivations, imported
+changesets and published layer products. Decoding checks that address against the
+metadata. Each result has one product link; source and secondary Artifact references
+stay in structured output. Reachable areas return inline polygons and a calculation
+ID. GeoPackage inspection returns its typed source Artifact reference and manifest.
+Neither inline operation creates an addressable result resource.

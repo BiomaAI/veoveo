@@ -107,7 +107,7 @@ async def test_idle_subscription_issues_no_queries_and_observes_another_replica(
             update = await pending
             assert update.snapshot.status == TaskStatus.RUNNING
             terminal = asyncio.create_task(runtime.await_terminal(str(task.task_id)))
-            await writer.transition(str(task.task_id), TaskTransition.succeeded("done", None))
+            await writer.transition(str(task.task_id), TaskTransition.succeeded("done", None, result_uri=None))
             assert (await terminal).status == TaskStatus.SUCCEEDED
         finally:
             pending.cancel()

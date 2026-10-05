@@ -1,9 +1,10 @@
 use super::{MediaReads, bind_owner};
 use crate::contract::{MEDIA_USAGE_PAGE_SIZE, MediaTaskUsageUri, MediaUsageCursor, MediaUsagePage};
+use crate::storage::MediaUsageKind;
 use chrono::{DateTime, Utc};
 use surrealdb::types::SurrealValue;
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
-use veoveo_platform_store::{MediaUsageKind, OpenObject, RecordId, RecordIdKey, task_record_id};
+use veoveo_platform_store::{OpenObject, RecordId, RecordIdKey, task_record_id};
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::TaskId;
 

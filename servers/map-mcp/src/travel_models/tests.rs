@@ -283,18 +283,29 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
             work_context: context,
             created_at: now,
         };
-        let result = serde_json::to_value(rmcp::model::CallToolResult::structured(
-            serde_json::to_value(record).unwrap(),
-        ))
+        let uri = veoveo_types::ResourceAddress::to_uri(&record.travel_model_uri).unwrap();
+        let product = crate::contract::MapTaskProduct::new(record).unwrap();
+        let mut wrong = serde_json::to_value(&product).unwrap();
+        wrong["result_uri"] = serde_json::json!(crate::contract::MapTravelModelUri::new(
+            self::key(999).parse().unwrap()
+        ));
+        assert!(
+            serde_json::from_value::<
+                crate::contract::MapTaskProduct<crate::contract::TravelModelRecord>,
+            >(wrong)
+            .is_err()
+        );
+        let result = veoveo_mcp_contract::hosting::product_result(
+            "Travel model built",
+            rmcp::model::Resource::new(uri.as_str(), "Travel model"),
+            &product,
+        )
         .unwrap();
         runtime.claim(id, Duration::from_secs(30)).await.unwrap();
         runtime
             .transition(
                 id,
-                veoveo_task_runtime::TaskTransition::Succeeded {
-                    message: "fixture".into(),
-                    result,
-                },
+                veoveo_task_runtime::mcp_task_completion("fixture", result).unwrap(),
             )
             .await
             .unwrap();
@@ -604,6 +615,7 @@ async fn terminal_contributions_distinguish_tool_error_failure_and_cancellation(
                 veoveo_task_runtime::TaskTransition::Succeeded {
                     message: "tool error".into(),
                     result: serde_json::json!({"content":[],"isError":true}),
+                    result_uri: None,
                 },
                 crate::task_lookup::Outcome::ToolError,
             ),

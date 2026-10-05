@@ -109,13 +109,11 @@ impl Fixture {
         tasks
             .transition(
                 analysis.task_id(),
-                veoveo_task_runtime::TaskTransition::Succeeded {
-                    message: "fixture finding".into(),
-                    result: serde_json::to_value(
-                        veoveo_reason_mcp::task_product::analysis_tool_result(output).unwrap(),
-                    )
-                    .unwrap(),
-                },
+                veoveo_task_runtime::mcp_task_completion(
+                    "fixture finding",
+                    veoveo_reason_mcp::task_product::analysis_tool_result(output).unwrap(),
+                )
+                .unwrap(),
             )
             .await
             .unwrap();

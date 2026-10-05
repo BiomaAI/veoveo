@@ -2,7 +2,7 @@ use serde_json::json;
 use std::collections::BTreeSet;
 use veoveo_optimization_mcp::{contract::*, task_records::OptimizationTaskRequest};
 use veoveo_platform_store::task_record_id;
-use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
+use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
 
 pub fn owner(tenant: Option<&str>, principal: &str, context: &str, labels: &[&str]) -> TaskOwner {
@@ -88,7 +88,12 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
         "summary":{"family":"convex","quality":{"proven_optimal":true}},
         "problem_artifact":artifact,"solution_artifact":artifact
     })).unwrap();
-    let result = json!({"structuredContent":output,"isError":false});
+    let result = veoveo_mcp_contract::hosting::product_result(
+        "Fixture result ready",
+        rmcp::model::Resource::new(solution.as_str(), "Solution"),
+        &output,
+    )
+    .unwrap();
     runtime
         .claim(task, std::time::Duration::from_secs(60))
         .await
@@ -96,10 +101,7 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
     runtime
         .transition(
             task,
-            TaskTransition::Succeeded {
-                message: "fixture result".into(),
-                result,
-            },
+            veoveo_task_runtime::mcp_task_completion("fixture result", result).unwrap(),
         )
         .await
         .unwrap();

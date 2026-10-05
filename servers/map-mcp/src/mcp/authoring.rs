@@ -400,7 +400,7 @@ impl MapMcp {
     #[tool(
         title = "Import feature layer artifact",
         description = "Import up to 10,000 features from a GeoJSON FeatureCollection, an RFC 8142 GeoJSON text sequence, or a selected OGC GeoPackage vector table in an artifact you can read. Either every feature imports or none do. GeoPackage coordinates are converted to two-dimensional OGC:CRS84. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<ImportFeatureLayerOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<ImportFeatureLayerOutput>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn import_feature_layer(
@@ -434,7 +434,7 @@ impl MapMcp {
     #[tool(
         title = "Export published feature layer",
         description = "Export a layer publication as an RFC 8142 GeoJSON text sequence, GeoParquet 1.0 (WKB), or an OGC GeoPackage 1.4 vector table. The result is an artifact. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<ExportFeatureLayerOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<ExportFeatureLayerOutput>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn export_feature_layer(
@@ -451,7 +451,7 @@ impl MapMcp {
     #[tool(
         title = "Build published feature vector tiles",
         description = "Build Mapbox Vector Tile 2.1 tiles and a MapLibre style from a layer publication. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<BuildVectorTilesOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<BuildVectorTilesOutput>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn build_vector_tiles(

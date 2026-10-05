@@ -5,7 +5,9 @@
 //! against durable state. Native changefeeds record committed Task transitions.
 
 mod admission;
+mod associations;
 mod contributions;
+pub use associations::{DispatchPreparation, TaskAssociation, TaskDispatch};
 pub mod hosting;
 mod leases;
 mod mcp;
@@ -21,14 +23,14 @@ pub use contributions::{
     OwnedTaskTable, TaskContribution, TaskContributions, TaskCreation, TaskSettlement,
 };
 pub use hosting::{DurableListener, DurableTasks, TasksOnly, WithResources};
-pub use mcp::{project_snapshot, task_seed};
+pub use mcp::{mcp_task_completion, project_snapshot, task_seed};
 pub use provider_transaction::ProviderCommit;
 pub use resource_subscriptions::{
     TaskResourceSubscriptions, TaskResourceUpdate, TaskResourceUpdateStream,
 };
 pub use runtime::{
-    OwnerTaskQuery, OwnerTaskSubscription, TaskRuntime, TaskUpdateStream, TaskUsageAccess,
-    TaskUsagePage,
+    AuthenticatedWebhookReceipt, OwnerTaskQuery, OwnerTaskSubscription, TaskRuntime,
+    TaskUpdateStream, TaskUsageAccess, TaskUsagePage, WebhookJournal, WebhookTerminal,
 };
 pub use service::{
     DurableTaskService, DurableTaskSubscription, DurableTaskUpdateStream,

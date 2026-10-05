@@ -325,11 +325,8 @@ async fn execute_operation(
         .map_err(|error| error.to_string())
         .and_then(operation_tool_result)
     {
-        Ok(result) => match serde_json::to_value(result) {
-            Ok(result) => TaskTransition::Succeeded {
-                message: "completed".to_owned(),
-                result,
-            },
+        Ok(result) => match veoveo_task_runtime::mcp_task_completion("completed", result) {
+            Ok(transition) => transition,
             Err(error) => TaskTransition::Failed(TaskFailure::new(
                 "result_serialization_failed",
                 error.to_string(),

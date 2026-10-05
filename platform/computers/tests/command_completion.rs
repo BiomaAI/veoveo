@@ -74,6 +74,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(task.retention_pins.contains(&pin));
         tasks.transition(completed.task_id(), TaskTransition::Succeeded {
             message: "Command completed".into(),
+            result_uri: Some(veoveo_types::ResourceUri::new(result.result_uri().to_string()).unwrap()),
             result: serde_json::json!({"content":[], "structuredContent":result, "isError":code != 0}),
         }).await.unwrap();
         // Corrupt only the disposable fixture projection. Status alone cannot

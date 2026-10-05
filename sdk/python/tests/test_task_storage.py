@@ -143,7 +143,7 @@ async def test_native_request_input_stays_opaque(runtime, payload):
         assert created.request == payload
         claimed = (await runtime.claim(str(created.task_id), timedelta(seconds=30))).snapshot
         assert claimed.request == payload
-        result = await runtime.transition_if_current(claimed, TaskTransition.succeeded("Done", {"ok": True}))
+        result = await runtime.transition_if_current(claimed, TaskTransition.succeeded("Done", {"ok": True}, result_uri=None))
         assert result.request == payload
 
 
@@ -172,7 +172,7 @@ async def test_native_owner_change_without_timestamp_change_fails_cas(runtime, m
             if operation == "claim":
                 await runtime.claim(str(created.task_id), timedelta(seconds=30))
             elif operation == "transition":
-                await runtime.transition_if_current(created, TaskTransition.succeeded("Done", {"ok": True}))
+                await runtime.transition_if_current(created, TaskTransition.succeeded("Done", {"ok": True}, result_uri=None))
             elif operation == "request_input":
                 await runtime.request_input(str(created.task_id), "blocked", TaskInputRequest("elicitation/create", {}))
             elif operation == "recovery":
@@ -626,7 +626,7 @@ async def test_native_same_microsecond_timestamp_change_rejects_stale_cas(runtim
 
         monkeypatch.setattr(runtime.store, "query", race)
         with pytest.raises(Conflict):
-            await runtime.transition_if_current(snapshot, TaskTransition.succeeded("Done", {"ok": True}))
+            await runtime.transition_if_current(snapshot, TaskTransition.succeeded("Done", {"ok": True}, result_uri=None))
         assert raced
         current = await runtime.get(str(created.task_id))
         assert current.updated_at == snapshot.updated_at
@@ -683,3 +683,93 @@ def test_creation_timestamp_wire_and_page_cursor_are_lossless(stored_task):
     assert cursor.created_at.driver_value().dt == text
     with pytest.raises(TaskError, match="lossless typed timestamp"):
         TaskPageCursor(snapshot.created_at, snapshot.task_id)
+
+
+def test_mcp_completion_admits_product_plain_and_addressable_tool_error():
+    from veoveo_mcp.tasks import mcp_task_completion
+    from veoveo_mcp.types import ResourceUri
+
+    uri = ResourceUri("fixture://items/1")
+    product = {
+        "content": [{"type": "text", "text": "done"},
+                    {"type": "resource_link", "uri": str(uri), "name": "item"}],
+        "structuredContent": {"result_uri": str(uri)}, "isError": False,
+    }
+    assert mcp_task_completion("done", product).result_uri() == uri
+    assert mcp_task_completion("done", {**product, "isError": True}).result_uri() == uri
+    for error in [False, True]:
+        assert mcp_task_completion("done", {"content": [], "isError": error}).result_uri() is None
+    for malformed in [None, 42, "not a resource address", "fixture://items/2"]:
+        with pytest.raises(InvalidRecord):
+            mcp_task_completion("done", {**product, "structuredContent": {"result_uri": malformed}})
+    with pytest.raises(InvalidRecord):
+        mcp_task_completion("done", {**product, "content": []})
+    with pytest.raises(InvalidRecord):
+        mcp_task_completion("done", {**product, "content": product["content"] + [product["content"][1]]})
+
+
+def test_mcp_completion_preserves_open_nulls_and_rejects_explicit_null_addresses():
+    from mcp.types import CallToolResult
+    from veoveo_mcp.tasks import mcp_task_completion
+
+    for typed in [False, True]:
+        payload = {"content": [], "structuredContent": {"result_uri": None}, "isError": True}
+        result = CallToolResult.model_validate(payload) if typed else payload
+        with pytest.raises(InvalidRecord):
+            mcp_task_completion("done", result)
+        payload = {"content": [], "structuredContent": {"provider_field": None, "nested": {"null": None}}}
+        result = CallToolResult.model_validate(payload) if typed else payload
+        transition = mcp_task_completion("done", result)
+        assert transition.result_uri() is None
+        assert transition.result().payload["structuredContent"] == payload["structuredContent"]
+    with pytest.raises(InvalidRecord):
+        mcp_task_completion("done", {"content": [{"type": "resource_link", "name": "item", "uri": "fixture://items/1"}]})
+
+
+def test_task_completion_requires_explicit_typed_product_address(stored_task):
+    from veoveo_mcp.tasks import TaskSnapshot, TaskStatus
+    from veoveo_mcp.tasks.store import task_result_to_store
+    from veoveo_mcp.types import ResourceUri
+
+    with pytest.raises(TypeError):
+        TaskTransition.succeeded("done", {})
+    with pytest.raises(InvalidRecord):
+        TaskTransition.succeeded("done", {}, result_uri="fixture://items/1")
+    uri = ResourceUri("fixture://items/1")
+    with pytest.raises(InvalidRecord):
+        TaskTransition(TaskStatus.FAILED, "failed", result_uri=uri)
+    stored_task.update(status="succeeded", result=task_result_to_store(TaskTransition.succeeded("done", {"ok": True}, result_uri=uri).result()), result_uri=str(uri))
+    snapshot = _record_to_snapshot(stored_task)
+    assert snapshot.result_uri == uri
+    assert TaskSnapshot.from_json(snapshot.to_json()).result_uri == uri
+    assert _record_to_snapshot({**stored_task, "result_uri": None}).result_uri is None
+    for mutation in [{"status": "queued"}, {"result": None}, {"result_uri": "invalid URI"}, {"result_uri": 42}]:
+        with pytest.raises((InvalidRecord, TypeError, ValueError)):
+            _record_to_snapshot({**stored_task, **mutation})
+
+
+@pytest.mark.parametrize("selection", ["trusted", "owner", "context", "types", "context_types"])
+@pytest.mark.parametrize("is_error", [False, True])
+async def test_product_completion_persists_address_with_result_in_every_transition_profile(runtime, selection, is_error):
+    from veoveo_mcp.tasks import TaskSnapshot, TaskTypeName, mcp_task_completion
+    from veoveo_mcp.types import ResourceUri
+
+    async with asyncio.timeout(15):
+        request = draft()
+        created = (await runtime.create(request)).snapshot
+        claimed = (await runtime.claim(str(created.task_id), timedelta(seconds=30))).snapshot
+        query = None if selection == "trusted" else runtime.for_owner(request.owner)
+        if selection in ("context", "context_types"):
+            query = query.in_work_context()
+        if selection in ("types", "context_types"):
+            query = query.of_type(TaskTypeName(request.task_type))
+        uri = ResourceUri("fixture://items/1")
+        payload = {"content": [{"type": "resource_link", "uri": str(uri), "name": "item"}],
+                   "structuredContent": {"result_uri": str(uri), "metadata": {"null": None}}, "isError": is_error}
+        completed = await runtime.transition_if_current(claimed, mcp_task_completion("done", payload), owner_query=query)
+        retained = await runtime.get(str(created.task_id)) if query is None else await query.get(created.task_id)
+        assert completed.result_uri == retained.result_uri == uri
+        assert retained.result.payload["isError"] == is_error
+        assert retained.result.payload["structuredContent"] == payload["structuredContent"]
+        replay = TaskSnapshot.from_json(retained.to_json())
+        assert replay.result_uri == uri and replay.result == retained.result

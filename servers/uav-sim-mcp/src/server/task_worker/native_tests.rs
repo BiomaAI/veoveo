@@ -533,6 +533,7 @@ async fn native_cancellation_after_physical_completion_preserves_settlement() {
                     TaskTransition::Succeeded {
                         message: "completed".into(),
                         result: serde_json::json!({}),
+                        result_uri: None,
                     },
                 )
                 .await;

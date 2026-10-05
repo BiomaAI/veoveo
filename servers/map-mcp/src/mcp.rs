@@ -268,7 +268,7 @@ impl MapMcp {
     #[tool(
         title = "Derive a governed raster product",
         description = "Run one operation on a Map raster product: sample, terrain-corridor maximum, window, class mask, contour, polygonize, skeletonize, or line derivation. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RasterDerivation>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<RasterDerivation>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn derive_raster(
@@ -442,7 +442,7 @@ impl MapMcp {
     #[tool(
         title = "Calculate logistics route",
         description = "Calculate a route for one human or vehicle mobility profile. The result records the releases, restrictions, and snapshot it used, with costs and validation state. Where map coverage is missing, the route fails instead of drawing a straight line. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RoutePlan>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<RoutePlan>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route(
@@ -459,7 +459,7 @@ impl MapMcp {
     #[tool(
         title = "Calculate logistics route matrix",
         description = "Calculate a many-to-many route matrix for one mobility profile. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<RouteMatrix>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<RouteMatrix>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn route_matrix(
@@ -476,7 +476,7 @@ impl MapMcp {
     #[tool(
         title = "Build optimization travel model",
         description = "Build square cost and transit-time matrices for up to 128 locations and several cuOpt vehicle types, each tied to a Map mobility profile. Unreachable pairs stay marked as unreachable. The result is an artifact that Optimization MCP reads directly. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<TravelModelRecord>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MapTaskProduct<TravelModelRecord>>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn build_travel_model(

@@ -132,7 +132,7 @@ async fn task_lifecycle_is_durable_atomic_and_idempotent() {
         assert_eq!(claimed.lease_owner, "worker-a");
         let completed = runtime
             .transition(first.snapshot.task_id,
-                TaskTransition::Succeeded {
+                TaskTransition::Succeeded { result_uri: None,
                     message: "done".to_owned(),
                     result: json!({"answer": 42}),
                 },
@@ -509,6 +509,7 @@ async fn durable_cursor_replays_every_transition_after_live_disconnect() {
             .transition(
                 task.task_id,
                 TaskTransition::Succeeded {
+                    result_uri: None,
                     message: "complete".to_owned(),
                     result: json!({"answer": 42}),
                 },

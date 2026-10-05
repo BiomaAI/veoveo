@@ -215,6 +215,7 @@ pub struct GeoPackageManifest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct InspectGeoPackageOutput {
+    pub source_artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub manifest: GeoPackageManifest,
 }
 

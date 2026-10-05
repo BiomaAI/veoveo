@@ -157,7 +157,7 @@ across the full selected collection. Native subscription revocation and expiry c
 pass, including empty and explicit member selections; the move is committed as
 `eb4c9add3`.
 
-The Task and Media integration batch compiles across the affected packages. Task
+The Task and Media integration batch passes source qualification. Task
 storage, Rust and Python transitions carry a separate typed product URI; server
 completion writers and their output schemas are updated together. The 20 selected
 Task native tests, Python completion/template checks and all ten Python native
@@ -168,11 +168,13 @@ cancellation, billing recovery and SQL pagination. Expanded cases pass for concu
 provider associations and local publication failure after provider success, including
 an Artifact service rejection and absent private context. Focused Media and MCP
 completion library checks pass. Fresh Gateway schema and installation checks pass,
-and the four composed plans are regenerated from that Gateway. Independent schema
-consumer qualification and final lint/enforcement remain open before committing the
-Task and Media batch. The host tracing approval described in
-Phase 3 remains required before deployment; real provider generation is not part of
-this local acceptance.
+and the four composed plans are regenerated from that Gateway. The independent
+schema consumer, affected owner completion tests, strict lint across 21 packages,
+isolated Media contract and normal Store runtime builds, formatting and source-policy
+checks pass. The Map denial fixtures preserve their malformed result checks while
+clearing product URIs when forcing non-success states. The host tracing approval
+described in Phase 3 remains required before deployment; real provider generation
+is not part of this local acceptance.
 
 Computers' real provider
 process suites still require a configured, qualified native execution profile before

@@ -26,7 +26,7 @@ use veoveo_types::{TaskId, TaskTypeDefinition};
 
 use axum::{
     Router,
-    extract::{Path as AxumPath, State},
+    extract::{OriginalUri, Path as AxumPath, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
@@ -413,9 +413,16 @@ async fn start_media_task(
 // Webhook + HTTP plumbing
 // ---------------------------------------------------------------------------
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CallbackQuery {
+    binding: String,
+}
+
 async fn media_webhook(
     State(state): State<Arc<AppState>>,
     AxumPath(task_id): AxumPath<TaskId>,
+    OriginalUri(callback_uri): OriginalUri,
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
@@ -441,6 +448,19 @@ async fn media_webhook(
     ) {
         tracing::warn!("rejected webhook: {e}");
         return (StatusCode::UNAUTHORIZED, "invalid signature").into_response();
+    }
+    // Query admission follows provider authentication, preserving unsigned callback behavior.
+    let binding = match axum::extract::Query::<CallbackQuery>::try_from_uri(&callback_uri) {
+        Ok(axum::extract::Query(query)) => query.binding,
+        Err(_) => return (StatusCode::UNAUTHORIZED, "invalid binding").into_response(),
+    };
+    let persisted =
+        match veoveo_media_mcp::task_lookup::callback_digest(&state.tasks, task_id).await {
+            Ok(Some(digest)) => digest,
+            _ => return (StatusCode::UNAUTHORIZED, "invalid binding").into_response(),
+        };
+    if !webhook::CallbackBinding::verify(&persisted, &binding) {
+        return (StatusCode::UNAUTHORIZED, "invalid binding").into_response();
     }
     let prediction: Prediction = match serde_json::from_slice(&body) {
         Ok(p) => p,
@@ -496,6 +516,7 @@ async fn main() -> anyhow::Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
+    let tasks = veoveo_media_mcp::task_lookup::bind(tasks)?;
     let recovery = tasks.recover().await?;
     if !recovery.webhook_waiting.is_empty() {
         tracing::info!(

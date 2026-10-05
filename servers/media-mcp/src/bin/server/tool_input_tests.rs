@@ -1,4 +1,4 @@
-//! Protocol admission only; the provider endpoint is deliberately unavailable.
+//! Hosted protocol and callback admission with isolated Store and loopback billing fixtures.
 use super::*;
 use std::time::Duration;
 use veoveo_mcp_contract::hosting::testing::{self, TestGateway};
@@ -86,4 +86,223 @@ async fn unknown_tool_arguments_complete_without_provider_dispatch() {
     })
     .await
     .expect("Media argument admission exceeded 120 seconds");
+}
+
+// Aborting on unwind keeps this existing hosted test's only socket fixture owned.
+struct BillingServer(tokio::task::JoinHandle<()>);
+impl Drop for BillingServer {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+#[tokio::test]
+async fn signed_callback_requires_dispatch_binding_after_private_context_prune() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let db = fixture::TestDb::with_modules(vec![
+            veoveo_media_mcp::schema::module_setup(
+                fixture::module_lanes::execution("media").unwrap(),
+            ).unwrap(),
+        ]).await;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let billing_address = listener.local_addr().unwrap();
+        let publication_rejections = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let rejection_counter = publication_rejections.clone();
+        let billing_routes = Router::new().route("/api/v3/billings/search", post(|axum::Json(request): axum::Json<Value>| async move {
+            let prediction = request["prediction_uuids"][0].as_str().unwrap();
+            axum::Json(json!({"code":200,"message":"ok","data":{"items":[{
+                "uuid":format!("billing-{prediction}"),"billing_type":"deduct","price":0.25,
+                "prediction":{"uuid":prediction,"model_uuid":"fixture/image","status":if prediction == "callback-prediction" { "failed" } else { "completed" }}
+            }]}}))
+        })).route("/output", axum::routing::get(|| async {
+            ([("content-type", "image/png")], "fixture-output-bytes")
+        })).fallback(move || {
+            let counter = rejection_counter.clone();
+            async move {
+                counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                StatusCode::SERVICE_UNAVAILABLE
+            }
+        });
+        let billing_server = BillingServer(tokio::spawn(async move {
+            axum::serve(listener, billing_routes).await.unwrap();
+        }));
+        let args = config::Args::try_parse_from([
+            "server",
+            "--public-base-url",
+            "https://media.test",
+            "--api-key",
+            "fixture",
+            "--webhook-secret",
+            "fixture",
+            "--surreal-endpoint",
+            "ws://127.0.0.1:9/rpc",
+            "--surreal-namespace",
+            "fixture",
+            "--surreal-database",
+            "fixture",
+            "--surreal-auth-level",
+            "database",
+            "--surreal-username",
+            "fixture",
+            "--surreal-password",
+            "fixture",
+            "--internal-trust-jwks",
+            r#"{"keys":[]}"#,
+        ])
+        .unwrap();
+        let state = Arc::new(AppState {
+            provider: veoveo_media_mcp::provider::ProviderClient::new("fixture")
+                .with_base(format!("http://{billing_address}"))
+                .unwrap(),
+            http: reqwest::Client::new(),
+            public_endpoint: veoveo_mcp_contract::PublicDeployment::new("https://media.test")
+                .unwrap()
+                .server("media")
+                .unwrap(),
+            webhook_secret: secrecy::SecretString::from("fixture"),
+            registry: tokio::sync::RwLock::new(None),
+            tasks: veoveo_media_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(), "media", "callback-admission")).unwrap(),
+            durable: veoveo_media_mcp::state::MediaState::new(db.a.clone()),
+            artifacts: ArtifactRepository::new(format!("http://{billing_address}")),
+            retention: args.retention_policy(),
+            subscribers: SubscriptionHub::new(),
+        });
+
+        let handler = state.clone();
+        let gateway = TestGateway::new(testing::for_domain::<MediaMcp>()
+            .handler(move || Hosted::new(MediaMcp::new(handler.clone())))
+            .public_routes(Router::new().route("/webhooks/{task_id}", post(media_webhook)).with_state(state.clone()))
+            .build());
+        let principal = testing::principal();
+        let owner = veoveo_task_runtime::TaskOwner {
+            principal_key: principal.id.to_string(),
+            principal_kind: veoveo_task_runtime::PrincipalKind::User,
+            issuer: principal.issuer.to_string(), subject: principal.subject.to_string(),
+            profile: "operations".into(), tenant_key: Some("tenant-a".into()),
+            data_labels: Default::default(), authority: testing::authority(),
+        };
+        let provider = veoveo_types::ExtensionName::parse("media").unwrap();
+        let mut prepared = Vec::new();
+        for _ in 0..3 {
+            let task_id = TaskId::new();
+            let snapshot = state.tasks.create(DurableCreateTask {
+                task_id, owner: owner.clone(), server: "media".into(),
+                task_type: const { veoveo_types::TaskTypeName::from_static("run") },
+                request: json!({"model":"fixture/image","input":{}}),
+                recovery_class: RecoveryClass::WebhookWait, idempotency_key: None,
+                ttl_ms: Some(60_000), poll_interval_ms: Some(100), retention_pins: Default::default(),
+            }).await.unwrap().snapshot;
+            let capability = veoveo_mcp_contract::IssuedArtifactWriteCapability {
+                capability_id: veoveo_mcp_contract::ArtifactWriteCapabilityId::new(),
+                secret: veoveo_mcp_contract::ArtifactWriteCapabilitySecret::new("s".repeat(32)).unwrap(),
+                task_id: task_id.to_string(), expires_at: Utc::now() + TimeDelta::hours(1),
+            };
+            state.durable.persist_task_context(&snapshot, &capability).await.unwrap();
+            let binding = webhook::CallbackBinding::derive(&capability.secret, task_id, &owner.authority.tenant, &provider);
+            state.tasks.claim(task_id, Duration::from_secs(30)).await.unwrap();
+            let running = state.tasks.transition(task_id, TaskTransition::Running {
+                message: "prepared fixture".into(), progress: 0.0,
+            }).await.unwrap();
+            assert_eq!(state.tasks.webhooks(provider.clone()).prepare_dispatch(task_id,
+                veoveo_media_mcp::task_lookup::dispatch(&running, binding.digest()).unwrap()
+            ).await.unwrap(), veoveo_task_runtime::DispatchPreparation::NewlyPrepared);
+            assert!(state.durable.provider_job_for_task(task_id).await.unwrap().is_none());
+            prepared.push((task_id, binding));
+        }
+        assert_ne!(prepared[0].1.digest(), prepared[1].1.digest());
+        let body = serde_json::to_vec(&json!({"id":"callback-prediction","model":"fixture/image",
+            "status":"failed","outputs":[],"error":"fixture provider failed"})).unwrap();
+        let timestamp = Utc::now().timestamp().to_string();
+        let signature = webhook::sign("fixture", "callback-event", &timestamp, &body);
+        let callback_path = |task: TaskId, binding: &webhook::CallbackBinding| {
+            let mut uri = reqwest::Url::parse("https://media.test").unwrap();
+            uri.path_segments_mut().unwrap().extend(["webhooks", &task.to_string()]);
+            uri.query_pairs_mut().append_pair("binding", binding.expose_secret());
+            format!("{}?{}", uri.path(), uri.query().unwrap())
+        };
+        let signed = |path: &str| gateway.request(path).method("POST")
+            .header("webhook-id", "callback-event").header("webhook-timestamp", &timestamp)
+            .header("webhook-signature", &signature).body(axum::body::Body::from(body.clone())).unwrap();
+        let rejected = gateway.send(signed(&callback_path(prepared[1].0, &prepared[0].1))).await;
+        assert_eq!(rejected, (StatusCode::UNAUTHORIZED, "invalid binding".into()));
+        let mut response = state.tasks.platform_store().client().query(include_str!("queries/callback_unsettled.surql"))
+            .bind(("tasks", prepared.iter().map(|(task, _)| veoveo_platform_store::task_record_id(*task)).collect::<Vec<_>>()))
+            .await.unwrap().check().unwrap();
+        let changed = response.take::<Option<u64>>(0).unwrap().expect("callback mutation count");
+        assert_eq!(changed, 0, "rejected callback must not associate or settle either Task");
+        for (task, _) in &prepared {
+            let snapshot = state.tasks.get(*task).await.unwrap().unwrap();
+            assert_eq!(snapshot.status, veoveo_platform_store::TaskStatus::Waiting);
+            assert!(state.durable.provider_job_for_task(*task).await.unwrap().is_none());
+        }
+        let unsigned = gateway.send(gateway.request(&format!("/webhooks/{}", prepared[0].0))
+            .method("POST").body(axum::body::Body::from(body.clone())).unwrap()).await;
+        assert_eq!(unsigned, (StatusCode::UNAUTHORIZED, "invalid signature".into()));
+        state.tasks.platform_store().client().query(include_str!("queries/callback_expire_contexts.surql"))
+            .bind(("tasks", prepared.iter().take(2).map(|(task, _)| veoveo_platform_store::task_record_id(*task)).collect::<Vec<_>>()))
+            .await.unwrap().check().unwrap();
+        assert_eq!(state.durable.prune_task_contexts().await.unwrap(), 2);
+        for (task, _) in prepared.iter().take(2) {
+            assert!(state.durable.task_context(&state.tasks.get(*task).await.unwrap().unwrap()).await.unwrap().is_none());
+        }
+        let accepted = gateway.send(signed(&callback_path(prepared[0].0, &prepared[0].1))).await;
+        assert_eq!(accepted, (StatusCode::ACCEPTED, "accepted".into()));
+        let failed = state.tasks.get(prepared[0].0).await.unwrap().unwrap();
+        assert_eq!(failed.status, veoveo_platform_store::TaskStatus::Failed);
+        assert_eq!(failed.error.as_ref().unwrap().code, "provider_failed");
+        assert!(failed.result.is_none());
+        assert!(failed.result_uri.is_none());
+        assert!(state.durable.provider_job_for_task(prepared[0].0).await.unwrap().is_some());
+        // Wait for the unchanged production billing worker to finish before closing its socket.
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let pin = TaskRetentionPin::new("provider:media:webhook").unwrap();
+            loop {
+                if !state.tasks.get(prepared[0].0).await.unwrap().unwrap().retention_pins.contains(&pin) { break; }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }).await.expect("loopback billing did not release the provider pin");
+        assert!(state.durable.has_actual_usage(prepared[0].0, &"callback-prediction".parse().unwrap()).await.unwrap());
+        // A valid private context reaches the Artifact client and receives a deliberate rejection.
+        assert!(state.durable.task_context(&state.tasks.get(prepared[2].0).await.unwrap().unwrap()).await.unwrap().is_some());
+        let publish_body = serde_json::to_vec(&json!({"id":"callback-prediction-3","model":"fixture/image","status":"completed","outputs":[format!("http://{billing_address}/output")]})).unwrap();
+        let publish_signature = webhook::sign("fixture", "callback-publish", &timestamp, &publish_body);
+        let accepted = gateway.send(gateway.request(&callback_path(prepared[2].0, &prepared[2].1)).method("POST")
+            .header("webhook-id", "callback-publish").header("webhook-timestamp", &timestamp)
+            .header("webhook-signature", &publish_signature).body(axum::body::Body::from(publish_body)).unwrap()).await;
+        assert_eq!(accepted, (StatusCode::ACCEPTED, "accepted".into()));
+        assert!(publication_rejections.load(std::sync::atomic::Ordering::SeqCst) > 0, "valid-context completion must reach the deliberately rejecting Artifact service");
+        let failed = state.tasks.get(prepared[2].0).await.unwrap().unwrap();
+        assert_eq!(failed.status, veoveo_platform_store::TaskStatus::Failed);
+        assert_eq!(failed.error.unwrap().code, "artifact_publish_failed");
+        assert!(failed.result.is_none() && failed.result_uri.is_none());
+        assert_eq!(state.durable.provider_job_for_task(prepared[2].0).await.unwrap().unwrap().prediction.status, "completed");
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let pin = TaskRetentionPin::new("provider:media:webhook").unwrap();
+            while state.tasks.get(prepared[2].0).await.unwrap().unwrap().retention_pins.contains(&pin) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }).await.expect("provider success billing did not release pin after Artifact rejection");
+        assert!(state.durable.has_actual_usage(prepared[2].0, &"callback-prediction-3".parse().unwrap()).await.unwrap());
+        // The second authenticated provider success survives local publication failure.
+        let success_body = serde_json::to_vec(&json!({"id":"callback-prediction-2","model":"fixture/image","status":"completed","outputs":[]})).unwrap();
+        let success_signature = webhook::sign("fixture", "callback-success", &timestamp, &success_body);
+        let accepted = gateway.send(gateway.request(&callback_path(prepared[1].0, &prepared[1].1)).method("POST")
+            .header("webhook-id", "callback-success").header("webhook-timestamp", &timestamp)
+            .header("webhook-signature", &success_signature).body(axum::body::Body::from(success_body)).unwrap()).await;
+        assert_eq!(accepted, (StatusCode::ACCEPTED, "accepted".into()));
+        let local = state.tasks.get(prepared[1].0).await.unwrap().unwrap();
+        assert_eq!(local.status, veoveo_platform_store::TaskStatus::Failed, "missing private write context is a local publication failure");
+        assert_eq!(local.error.unwrap().code, "artifact_publish_failed");
+        let provider_job = state.durable.provider_job_for_task(prepared[1].0).await.unwrap().unwrap();
+        assert_eq!(provider_job.prediction.status, "completed", "local publication cannot replace authenticated provider success");
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let pin = TaskRetentionPin::new("provider:media:webhook").unwrap();
+            while state.tasks.get(prepared[1].0).await.unwrap().unwrap().retention_pins.contains(&pin) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        }).await.expect("successful provider billing did not release pin after local failure");
+        assert!(state.durable.has_actual_usage(prepared[1].0, &"callback-prediction-2".parse().unwrap()).await.unwrap());
+        billing_server.0.abort();
+    }).await.expect("Media callback admission exceeded 120 seconds");
 }

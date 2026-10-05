@@ -27,6 +27,7 @@ from .store import (
     task_result_from_store,
     task_result_to_store,
 )
+from ..types import ResourceUri
 from .types import (
     ClaimedTask,
     Conflict,
@@ -564,6 +565,7 @@ class TaskRuntime:
                 "request": envelope,
                 "progress": progress,
                 "result": task_result_to_store(result),
+                "result_uri": str(transition.result_uri()) if transition.result_uri() is not None else None,
                 "error": failure.to_json() if failure is not None else None,
                 "cancel_requested_at": (
                     now
@@ -854,6 +856,7 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
         status_message=envelope.status_message,
         progress=record["progress"],
         result=task_result_from_store(result_value),
+        result_uri=ResourceUri(record["result_uri"]) if record.get("result_uri") is not None else None,
         error=error,
         idempotency_key=record.get("idempotency_key"),
         lease_owner=record.get("lease_owner"),

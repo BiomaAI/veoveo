@@ -1000,3 +1000,9 @@ admits an identifier; it does not certify installed schema or grant read authori
 These owner tables declare 30-day changefeed retention matching the installed SQL.
 LIVE invalidation and changefeed recovery keep their existing reconciliation and
 checkpoint behavior. Public DTO contract features do not activate observation sources.
+
+## Task Completion Products
+
+Schedule expansion and timeline validation return inline calculations with their
+existing typed temporal provenance. These Task completions create no result resource
+and omit `result_uri`; MCP envelope admission records that distinction.

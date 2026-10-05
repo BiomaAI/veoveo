@@ -317,7 +317,7 @@ async fn trusted_lifecycle_selects_exact_identity_without_exposing_payloads() {
         let task = runtime.create(draft(serde_json::json!({"private":"input"}))).await.unwrap().snapshot;
         runtime.claim(task.task_id, Duration::from_secs(30)).await.unwrap();
         let result = serde_json::json!({"content":[],"structuredContent":{"opaque":[null,1,1.5]},"isError":true});
-        let finished = runtime.transition(task.task_id, veoveo_task_runtime::TaskTransition::Succeeded { message: "complete".into(), result: result.clone() }).await.unwrap();
+        let finished = runtime.transition(task.task_id, veoveo_task_runtime::TaskTransition::Succeeded { result_uri: None, message: "complete".into(), result: result.clone() }).await.unwrap();
         let tenant = veoveo_platform_store::deterministic_tenant_id("test").unwrap().record_id();
         #[derive(Debug, SurrealValue)]
         struct Plan {
@@ -429,4 +429,71 @@ async fn trusted_input_equality_and_presence_reveal_no_task_payload() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn retained_product_address_commits_with_opaque_result_and_survives_restart() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        for result in [
+            serde_json::json!({"product": true}),
+            serde_json::Value::Null,
+        ] {
+            let runtime = TaskRuntime::new(db.a.clone(), "storage-test", "writer");
+            let created = runtime
+                .create(draft(serde_json::json!({})))
+                .await
+                .unwrap()
+                .snapshot;
+            runtime
+                .claim(created.task_id, Duration::from_secs(60))
+                .await
+                .unwrap();
+            let before = row(&db.a, created.task_id).await;
+            let mut invalid = before.clone();
+            let Value::Object(ref mut fields) = invalid else {
+                unreachable!()
+            };
+            fields.insert("result_uri", "fixture://products/retained".into_value());
+            assert!(
+                db.a.client()
+                    .query(include_str!("queries/storage/write.surql"))
+                    .bind(("task", task_record_id(created.task_id)))
+                    .bind(("content", invalid))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err(),
+                "running Task cannot gain a product address"
+            );
+            assert_eq!(row(&db.a, created.task_id).await, before);
+            let uri = veoveo_types::ResourceUri::new("fixture://products/retained").unwrap();
+            let settled = runtime
+                .transition(
+                    created.task_id,
+                    veoveo_task_runtime::TaskTransition::Succeeded {
+                        message: "retained product".into(),
+                        result: result.clone(),
+                        result_uri: Some(uri.clone()),
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(settled.result, Some(result.clone()));
+            assert_eq!(settled.result_uri, Some(uri.clone()));
+            let restarted = TaskRuntime::new(db.b.clone(), "storage-test", "restarted");
+            let replay = restarted.get(created.task_id).await.unwrap().unwrap();
+            assert_eq!(replay.result, Some(result));
+            assert_eq!(replay.result_uri, Some(uri));
+            assert_eq!(
+                serde_json::from_value::<veoveo_task_runtime::TaskSnapshot>(
+                    serde_json::to_value(&replay).unwrap()
+                )
+                .unwrap(),
+                replay
+            );
+        }
+    })
+    .await
+    .expect("retained Task product qualification exceeded 180 seconds");
 }

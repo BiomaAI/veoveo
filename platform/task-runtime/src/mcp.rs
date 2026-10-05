@@ -103,3 +103,20 @@ fn task_status(status: TaskStatus) -> McpTaskStatus {
         TaskStatus::Cancelled => McpTaskStatus::Cancelled,
     }
 }
+
+/// Admits a complete MCP result before writing the kernel's product address.
+pub fn mcp_task_completion(
+    message: impl Into<String>,
+    result: rmcp::model::CallToolResult,
+) -> Result<crate::TaskTransition, TaskError> {
+    let result_uri = veoveo_mcp_contract::task_completion::result_uri(&result).map_err(|_| {
+        TaskError::InvalidRecord("invalid MCP Task completion product address".into())
+    })?;
+    let result = serde_json::to_value(result)
+        .map_err(|_| TaskError::InvalidRecord("MCP Task completion serialization failed".into()))?;
+    Ok(crate::TaskTransition::Succeeded {
+        message: message.into(),
+        result,
+        result_uri,
+    })
+}

@@ -278,20 +278,15 @@ async fn run_time_task_inner(
         return;
     }
     match result {
-        Ok(result) => match serde_json::to_value(result) {
-            Ok(result) => {
-                update_task(
-                    &state,
-                    task_id,
-                    TaskTransition::Succeeded {
-                        message: "Temporal calculation completed".to_owned(),
-                        result,
-                    },
-                )
-                .await
+        Ok(result) => {
+            match veoveo_task_runtime::mcp_task_completion("Temporal calculation completed", result)
+            {
+                Ok(transition) => update_task(&state, task_id, transition).await,
+                Err(error) => {
+                    fail_task(&state, task_id, "result_serialization_failed", error).await
+                }
             }
-            Err(error) => fail_task(&state, task_id, "result_serialization_failed", error).await,
-        },
+        }
         Err(error) => fail_task(&state, task_id, "temporal_calculation_failed", error).await,
     }
 }

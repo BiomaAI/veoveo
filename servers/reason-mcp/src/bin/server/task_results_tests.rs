@@ -5,7 +5,7 @@ use futures::StreamExt;
 use rmcp::model::{CallToolResult, ContentBlock, DetailedTask, GetTaskParams};
 use serde_json::{Value, json};
 use veoveo_reason_mcp::contract::AnalyzeRecordingOutput;
-use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskTransition};
+use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass};
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
     WorkContextId,
@@ -99,10 +99,11 @@ async fn finish(runtime: &TaskRuntime, id: TaskId, stored: Value) {
     runtime
         .transition(
             id,
-            TaskTransition::Succeeded {
-                message: ANALYSIS_COMPLETED.into(),
-                result: stored,
-            },
+            veoveo_task_runtime::mcp_task_completion(
+                ANALYSIS_COMPLETED,
+                serde_json::from_value(stored).unwrap(),
+            )
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -215,6 +216,10 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
             &expected,
         );
         let retained = reader.for_owner(&owner()).get(id).await.unwrap().unwrap();
+        assert_eq!(
+            retained.result_uri.as_ref().map(|uri| uri.as_str()),
+            expected["result_uri"].as_str()
+        );
         assert_eq!(retained.result, Some(stored));
         assert_eq!(
             serde_json::to_value(analysis_view(&retained).unwrap().output().unwrap()).unwrap(),

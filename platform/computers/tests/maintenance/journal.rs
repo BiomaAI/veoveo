@@ -210,6 +210,7 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
             complete.task_id(),
             veoveo_task_runtime::TaskTransition::Succeeded {
                 message: "isolated domain adoption proof".into(),
+                result_uri: None,
                 result: serde_json::json!({"maintenanceId":complete.operation_id}),
             },
         )

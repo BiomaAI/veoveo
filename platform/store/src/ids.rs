@@ -119,11 +119,6 @@ mod identity_profiles {
             "artifact_access_request",
             ArtifactAccessRequestId::from_uuid(uuid).record_id(),
         );
-        check::<MediaTaskContextId>(
-            "media_task_context",
-            MediaTaskContextId::from_uuid(uuid).record_id(),
-        );
-        check::<MediaUsageId>("media_usage", MediaUsageId::from_uuid(uuid).record_id());
         check::<DomainUsageId>("domain_usage", DomainUsageId::from_uuid(uuid).record_id());
     }
 }

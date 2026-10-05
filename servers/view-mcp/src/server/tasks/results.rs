@@ -81,7 +81,12 @@ fn validate_completed(snapshot: &TaskSnapshot) -> Result<(), CaptureResultError>
         .as_ref()
         .ok_or(CaptureResultError::Missing)?;
     let result = CallToolResult::deserialize(stored).map_err(|_| CaptureResultError::Envelope)?;
-    let [ContentBlock::Text(_), ContentBlock::Image(image)] = result.content.as_slice() else {
+    let [
+        ContentBlock::Text(_),
+        ContentBlock::Image(image),
+        ContentBlock::ResourceLink(_),
+    ] = result.content.as_slice()
+    else {
         return Err(CaptureResultError::Envelope);
     };
     let record = FrameRecord::deserialize(

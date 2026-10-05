@@ -103,10 +103,10 @@ impl CommandWorker {
             .outcome()
             .ok_or(CommandWorkerError::Configuration)?
         {
-            CommandOutcome::Completed(result) => TaskTransition::Succeeded {
-                message: "Command completed".into(),
-                result: completed_output(result)?,
-            },
+            CommandOutcome::Completed(result) => veoveo_task_runtime::mcp_task_completion(
+                "Command completed",
+                completed_output(result)?,
+            )?,
             CommandOutcome::Undispatched(CommandRefusal::CancelledBeforeDispatch)
             | CommandOutcome::Terminated(CommandInterruption::Cancelled) => {
                 TaskTransition::Cancelled
@@ -158,7 +158,10 @@ impl CommandWorker {
             .outcome()
             .ok_or(CommandWorkerError::Configuration)?
         {
-            CommandOutcome::Completed(result) => Some(completed_output(result)?),
+            CommandOutcome::Completed(result) => Some(
+                serde_json::to_value(completed_output(result)?)
+                    .map_err(|_| CommandWorkerError::Configuration)?,
+            ),
             _ => None,
         };
         self.store
@@ -214,7 +217,9 @@ fn reached(operation: &CommandOperation, observation: Observation) -> ReachedSta
     }
 }
 
-fn completed_output(result: veoveo_computers::api::ExecutionResult) -> Result<serde_json::Value> {
+fn completed_output(
+    result: veoveo_computers::api::ExecutionResult,
+) -> Result<rmcp::model::CallToolResult> {
     let mut response = rmcp::model::CallToolResult::structured(
         serde_json::to_value(result).map_err(|_| CommandWorkerError::Configuration)?,
     );
@@ -229,5 +234,5 @@ fn completed_output(result: veoveo_computers::api::ExecutionResult) -> Result<se
             rmcp::model::Resource::new(String::from(result.result_uri()), "Command result"),
         ));
 
-    serde_json::to_value(response).map_err(|_| CommandWorkerError::Configuration)
+    Ok(response)
 }

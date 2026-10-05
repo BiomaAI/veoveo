@@ -1,0 +1,1 @@
+DELETE ONLY $event RETURN NONE;

@@ -150,6 +150,10 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
             .unwrap();
         assert_eq!(blocking.structured_content.as_ref(), Some(&expected));
         let retained = reader.for_owner(&owner()).get(id).await.unwrap().unwrap();
+        assert_eq!(
+            retained.result_uri.as_ref().map(|uri| uri.as_str()),
+            expected["result_uri"].as_str()
+        );
         assert_eq!(retained.result, Some(stored));
         assert_eq!(
             serde_json::to_value(run_view(&retained).unwrap().output().unwrap()).unwrap(),

@@ -4,7 +4,7 @@ LET $updated = (
         status = $next,
         request = $request,
         progress = $progress,
-        result = $result,
+        result = $result, result_uri = $result_uri,
         error = $error,
         cancel_requested_at = $cancel_requested_at,
         completed_at = $completed_at,
