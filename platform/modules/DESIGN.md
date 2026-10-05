@@ -70,7 +70,15 @@ analyzer removal use the same ownership policy. Unsupported variants fail before
 
 Schema mutation and data writes require the current owner. Kernel reads may use declared
 dependencies; optional reads may use declared optional dependencies. Typed record links and analyzer references may use declared dependencies
-without granting data reads. Optional modules cannot directly read kernel data. Analyzer MAPPER filters are rejected because they load external files. The
+without granting data reads. Plain `DEFINE FIELD TYPE record<table>` declarations
+on owned tables may reference any selected kernel owner when the declaring owner is
+also a kernel. These schema links may cycle because selection includes every kernel;
+the migration execution graph stays acyclic. The visitor carries this permission
+through union, array and set field types and validates every static table claim.
+Fields with `REFERENCE` use declared dependencies, as do optional owners and
+`table<table>` types. Casts, variable and function types, record literals and every
+executable field child use the ordinary admission policy. Runner history tables
+cannot appear in either profile. Optional modules cannot directly read kernel data. Analyzer MAPPER filters are rejected because they load external files. The
 current adapter rejects custom calls until their stored bodies and versioned kernel API
 profiles are qualified. Its small builtin allowlist excludes network, file, scripting,
 provider and dynamic functions.
@@ -160,20 +168,29 @@ header and migration transaction. A current lane also verifies its key before re
 Absent or unfinished preparation may wait within the caller's deadline; malformed
 markers, conflicting identities and superseding generations fail admission.
 
-## Read-Only Kernel SQL APIs
+## Kernel SQL APIs
 
 `ModuleOwnership` checks owner identity, layer and object claims without an execution
 host. A runtime contribution binds its table against this declaration; that check
 neither installs the table nor proves registry agreement. `ModuleSetup` uses the same
 value and adds composition-supplied execution, dependencies and lane history.
 
-A kernel owner exports an exact versioned `KernelSqlApi`. The declaration names the
+A kernel owner exports an exact versioned `KernelSqlApi`. The default effect profile
+is read-only. An explicit `OwnedUpdate` profile names one owned table and its checked
+top-level fields. The declaration names the
 introducing migration, parameter and return types, owned read tables and complete
 function definition. Supported signatures use strings, booleans, objects, specific
 record tables, arrays and optional values. The private parser requires the definition
 once in its introducing entry and compares its full AST and signature. Declaring an
-export does not waive inspection of its body. Its read-only leaf profile rejects writes,
-DDL, custom calls, scripts, foreign reads and nondeterministic built-ins.
+export does not waive inspection of its body. Read-only leaves reject writes. Updating
+leaves admit only `UPDATE SET` assignments to their listed fields; whole-record changes,
+nested targets, creation, deletion and DDL fail admission. Both profiles reject custom
+calls, scripts, foreign reads and nondeterministic built-ins. A typed record parameter
+may supply a SELECT or UPDATE target inside a leaf when its table passes the declared
+read or update profile. Ordinary owner SQL cannot use a parameter as a dynamic target.
+Updating leaves run in their caller's transaction; they do not commit independently.
+Permission predicates and schema comments are read-only contexts in every owner. They
+reject direct mutation and calls to updating exports, even on an updating leaf.
 
 The visitor permits a single field on a local object only in a positive branch of
 `IF type::is_object($local)`. It inspects the guard argument and every branch. Proofs
@@ -188,7 +205,7 @@ of stored object shape.
 A migration calling an API must declare its owner's dependency and an explicit
 per-migration minimum covering introduction. Admission checks the exact API name,
 argument count and proven types, including specific record tables. It inspects every
-argument and rejects argument-side mutation. Private functions and undeclared versions
+argument and rejects argument-side mutation, including calls to updating exports. Private functions and undeclared versions
 cannot become callable through a namespace prefix. Runtime services bind admitted
 caller scope through their owner contracts; the SQL API does not authenticate an
 arbitrary supplied scope.

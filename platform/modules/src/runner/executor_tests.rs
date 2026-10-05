@@ -542,3 +542,98 @@ async fn native_preparation_generation_fences_delayed_rotation_and_conflicting_i
     .await
     .expect("preparation generation fixture exceeded 120 seconds");
 }
+
+#[tokio::test]
+#[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
+async fn native_reciprocal_kernel_field_types_allow_forward_definition_and_check_values() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        for reverse in [false, true] {
+            let (_fixture, db, _other) = fixture().await;
+            let left = module(
+                "left",
+                "fixture_left",
+                ModuleLayer::Kernel,
+                vec![migration(0, "initial", "DEFINE TABLE fixture_left SCHEMAFULL; DEFINE FIELD link ON fixture_left TYPE record<fixture_right>;", vec![])],
+                vec![],
+            );
+            let right = module(
+                "right",
+                "fixture_right",
+                ModuleLayer::Kernel,
+                vec![migration(0, "initial", "DEFINE TABLE fixture_right SCHEMAFULL; DEFINE FIELD link ON fixture_right TYPE record<fixture_left>;", vec![])],
+                vec![],
+            );
+            let registry = ModuleRegistry::new(if reverse { vec![right, left] } else { vec![left, right] }).unwrap();
+            let selection = registry.select(vec![]).unwrap();
+            assert_eq!(selection.ordered()[0].name().as_str(), if reverse { "right" } else { "left" });
+            prepare(selection).unwrap().apply(&db).await.unwrap();
+            db.query("CREATE fixture_left:one SET link = fixture_right:one; CREATE fixture_right:one SET link = fixture_left:one;")
+                .await.unwrap().check().unwrap();
+            assert_eq!(markers(&db, "fixture_left").await.len(), 1);
+            assert_eq!(markers(&db, "fixture_right").await.len(), 1);
+            assert!(db.query("CREATE fixture_left:wrong SET link = fixture_left:one;").await.unwrap().check().is_err());
+            assert!(db.query("CREATE fixture_right:wrong SET link = fixture_right:one;").await.unwrap().check().is_err());
+            assert_eq!(markers(&db, "fixture_left").await.len(), 1);
+            assert_eq!(markers(&db, "fixture_right").await.len(), 1);
+        }
+    }).await.expect("reciprocal field schema qualification exceeded 120 seconds");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
+async fn native_invalid_field_link_selection_has_no_bookkeeping_or_owner_effects() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let (_fixture, db, _other) = fixture().await;
+        let mut before = db.query("INFO FOR DB;").await.unwrap().check().unwrap();
+        let before: surrealdb::types::Value = before.take(0).unwrap();
+        let registry = ModuleRegistry::new(vec![
+            module("a_valid", "fixture_left", ModuleLayer::Kernel, vec![migration(0, "initial", "DEFINE TABLE fixture_left; CREATE fixture_left:one;", vec![])], vec![]),
+            module("z_invalid", "fixture_right", ModuleLayer::Kernel, vec![migration(0, "initial", "DEFINE TABLE fixture_right; DEFINE FIELD link ON fixture_right TYPE array<record<fixture_left> | record<unclaimed>>;", vec![])], vec![]),
+        ]).unwrap();
+        assert!(prepare(registry.select(vec![]).unwrap()).is_err());
+        let mut after = db.query("INFO FOR DB;").await.unwrap().check().unwrap();
+        let after: surrealdb::types::Value = after.take(0).unwrap();
+        assert_eq!(before, after);
+    }).await.expect("invalid field selection preflight exceeded 120 seconds");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
+async fn native_owned_update_api_and_caller_settle_or_roll_back_in_one_transaction() {
+    const API: &str = "DEFINE FUNCTION fn::kernel::store::update_v1($id: record<fixture_marker>, $value: string) -> bool { UPDATE ONLY $id SET value = $value RETURN NONE; RETURN true; } PERMISSIONS FULL;";
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let (_fixture, db, _other) = fixture().await;
+        let sql = Box::leak(format!("{BASE} {API}").into_boxed_str());
+        let owner = module("store", "fixture_marker", ModuleLayer::Kernel, vec![migration(0, "initial", sql, vec![])], vec![]);
+        let api = KernelSqlApi::new(
+            FunctionName::new("fn::kernel::store::update_v1").unwrap(), MigrationVersion::new(0),
+            SqlSignature::new(vec![SqlParameter::new("id", SqlType::Record(TableName::new("fixture_marker").unwrap())).unwrap(), SqlParameter::new("value", SqlType::String).unwrap()], SqlType::Bool).unwrap(),
+            SqlReadProfile::new(vec![TableName::new("fixture_marker").unwrap()]).unwrap(), API,
+        ).unwrap().with_effects(SqlEffectProfile::OwnedUpdate(SqlUpdateProfile::new(TableName::new("fixture_marker").unwrap(), vec![SqlFieldName::new("value").unwrap()]).unwrap()));
+        let owner = ModuleSetup::builder(owner.name().clone(), owner.layer())
+            .ownership(vec![OwnershipClaim::Table(TableName::new("fixture_marker").unwrap()), OwnershipClaim::Function(api.name().clone())])
+            .execution(owner.execution().clone()).lane(owner.lane().clone()).sql_apis(vec![api]).build().unwrap();
+        let prerequisite = LaneRequirement::AtLeast { module: name("store"), version: MigrationVersion::new(0) };
+        let failed = module("consumer", "fixture_optional", ModuleLayer::Optional,
+            vec![migration(0, "settle", "fn::kernel::store::update_v1(fixture_marker:base,'released'); DEFINE TABLE fixture_optional; CREATE fixture_optional:one SET value='settled'; THROW 'controlled failure';", vec![prerequisite.clone()])], vec![prerequisite.clone()]);
+        let registry = ModuleRegistry::new(vec![owner.clone(), failed]).unwrap();
+        let prepared = prepare(registry.select(vec![name("consumer")]).unwrap()).unwrap();
+        assert!(prepared.apply(&db).await.is_err());
+        let mut values = db.query("SELECT VALUE value FROM fixture_marker;").await.unwrap().check().unwrap();
+        let values: Vec<String> = values.take(0).unwrap();
+        assert_eq!(values, vec!["base"]);
+        let absent = db.query("SELECT * FROM fixture_optional;").await.unwrap().check().unwrap_err();
+        assert!(absent.to_string().contains("does not exist"));
+        assert_eq!(prepared.status(&db).await.unwrap().lane(&name("consumer")).unwrap().current, None);
+        let successful = module("consumer", "fixture_optional", ModuleLayer::Optional,
+            vec![migration(0, "settle", "fn::kernel::store::update_v1(fixture_marker:base,'released'); DEFINE TABLE fixture_optional; CREATE fixture_optional:one SET value='settled';", vec![prerequisite.clone()])], vec![prerequisite]);
+        let registry = ModuleRegistry::new(vec![owner, successful]).unwrap();
+        let prepared = prepare(registry.select(vec![name("consumer")]).unwrap()).unwrap();
+        prepared.apply(&db).await.unwrap();
+        let mut values = db.query("SELECT VALUE value FROM fixture_marker;").await.unwrap().check().unwrap();
+        let values: Vec<String> = values.take(0).unwrap();
+        assert_eq!(values, vec!["released"]);
+        assert_eq!(markers(&db, "fixture_optional").await.len(), 1);
+        assert_eq!(prepared.status(&db).await.unwrap().lane(&name("consumer")).unwrap().current, Some(MigrationVersion::new(0)));
+    }).await.expect("owned update API transaction qualification exceeded 120 seconds");
+}

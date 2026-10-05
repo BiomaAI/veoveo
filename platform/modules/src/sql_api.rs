@@ -1,4 +1,4 @@
-//! Explicit read-only kernel SQL exports; no parser or driver in declarations.
+//! Explicit leaf kernel SQL exports; no parser or driver in declarations.
 use crate::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,13 +73,54 @@ impl SqlReadProfile {
         &self.tables
     }
 }
-/// A versioned, read-only leaf function. The runner qualifies the full exact definition.
+/// One admitted top-level field; nested paths and whole-record changes are excluded.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SqlFieldName(String);
+impl SqlFieldName {
+    pub fn new(name: &str) -> Result<Self, DeclarationError> {
+        check_field(name)?;
+        Ok(Self(name.into()))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+/// The exact owned table and fields a leaf function may update through SET assignments.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SqlUpdateProfile {
+    table: TableName,
+    fields: Vec<SqlFieldName>,
+}
+impl SqlUpdateProfile {
+    pub fn new(table: TableName, fields: Vec<SqlFieldName>) -> Result<Self, DeclarationError> {
+        let mut unique = std::collections::BTreeSet::new();
+        if fields.is_empty() || fields.iter().any(|field| !unique.insert(field)) {
+            return Err(DeclarationError::new(
+                "SQL API update profile needs one or more unique fields",
+            ));
+        }
+        Ok(Self { table, fields })
+    }
+    pub fn table(&self) -> &TableName {
+        &self.table
+    }
+    pub fn fields(&self) -> &[SqlFieldName] {
+        &self.fields
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SqlEffectProfile {
+    ReadOnly,
+    OwnedUpdate(SqlUpdateProfile),
+}
+/// A versioned leaf function with a declared effect profile. The runner qualifies the full exact definition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KernelSqlApi {
     name: FunctionName,
     introduced: MigrationVersion,
     signature: SqlSignature,
     reads: SqlReadProfile,
+    effects: SqlEffectProfile,
     definition: &'static str,
 }
 impl KernelSqlApi {
@@ -108,8 +149,16 @@ impl KernelSqlApi {
             introduced,
             signature,
             reads,
+            effects: SqlEffectProfile::ReadOnly,
             definition,
         })
+    }
+    pub fn with_effects(mut self, effects: SqlEffectProfile) -> Self {
+        self.effects = effects;
+        self
+    }
+    pub fn effects(&self) -> &SqlEffectProfile {
+        &self.effects
     }
     pub fn name(&self) -> &FunctionName {
         &self.name

@@ -134,7 +134,7 @@ impl<'a> Visitor<'a> {
             self.expr(expr, depth + 1)?;
         }
         self.permission(&statement.permissions, depth + 1)?;
-        self.expr(&statement.comment, depth + 1)?;
+        self.readonly_expr(&statement.comment, depth + 1)?;
         self.api = None;
         self.parameters = parameters;
         self.objects = objects;
@@ -174,7 +174,7 @@ impl<'a> Visitor<'a> {
         // Leaf exports never call custom functions, including themselves or other declared exports.
         if self.api.is_some() {
             return Err(RunnerError::new(
-                "SQL API must be a read-only leaf; custom calls rejected",
+                "SQL API must be a leaf; custom calls rejected",
             ));
         }
         let name = FunctionName::new(format!("fn::{name}")).map_err(|_| unsupported())?;
@@ -187,6 +187,11 @@ impl<'a> Visitor<'a> {
             .iter()
             .find(|a| a.name() == &name)
             .ok_or_else(|| RunnerError::new("private or undeclared kernel SQL API"))?;
+        if self.argument_readonly && !matches!(api.effects(), SqlEffectProfile::ReadOnly) {
+            return Err(RunnerError::new(
+                "read-only SQL context cannot call an updating API",
+            ));
+        }
         let allowed = if owner.name() == self.module.name() {
             self.migration.version() >= api.introduced()
         } else {

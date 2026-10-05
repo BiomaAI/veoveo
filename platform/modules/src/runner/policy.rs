@@ -1,6 +1,7 @@
 //! Exact SurrealDB 3.3.0 AST adapter. Unsupported syntax always fails admission.
 use super::RunnerError;
 mod api;
+mod effects;
 mod index;
 use crate::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -9,6 +10,11 @@ use surrealdb_sql::statements::DefineStatement;
 use surrealdb_sql::{Expr, Kind, Literal, Part, Permission, Permissions};
 
 pub(super) fn admit(selection: &ModuleSelection<'_>) -> Result<(), RunnerError> {
+    let selected_modules: BTreeSet<_> = selection
+        .ordered()
+        .iter()
+        .map(|module| module.name().clone())
+        .collect();
     for module in selection.ordered() {
         api::check_exports(module)?;
         let mut object_fields = BTreeSet::new();
@@ -38,6 +44,7 @@ pub(super) fn admit(selection: &ModuleSelection<'_>) -> Result<(), RunnerError> 
             })?;
             let mut visitor = Visitor {
                 registry: selection.registry(),
+                selected_modules: &selected_modules,
                 module,
                 nodes: 0,
                 migration,
@@ -98,10 +105,12 @@ enum AccessMode {
     DataRead,
     DataWrite,
     TypedRecordLink,
+    FieldSchemaReference,
     AnalyzerReference,
 }
 struct Visitor<'a> {
     registry: &'a ModuleRegistry,
+    selected_modules: &'a BTreeSet<ModuleName>,
     module: &'a ModuleSetup,
     nodes: usize,
     migration: &'a Migration,
@@ -124,8 +133,16 @@ impl Visitor<'_> {
                     "SQL API read is outside its owned read profile",
                 ));
             }
-            if matches!(mode, AccessMode::SchemaMutation | AccessMode::DataWrite) {
-                return Err(RunnerError::new("SQL API is read-only"));
+            if mode == AccessMode::SchemaMutation {
+                return Err(RunnerError::new("SQL API cannot mutate schema"));
+            }
+            if mode == AccessMode::DataWrite
+                && !matches!(api.effects(), SqlEffectProfile::OwnedUpdate(profile)
+                    if kind == ObjectKind::Table && profile.table().as_str() == name)
+            {
+                return Err(RunnerError::new(
+                    "SQL API write is outside its owned update profile",
+                ));
             }
         }
         let valid = match kind {
@@ -150,9 +167,20 @@ impl Visitor<'_> {
         if owner.name() == self.module.name() {
             return Ok(());
         }
+        // Plain field record types describe schema links, not execution prerequisites.
+        // All selected kernels must be installed before runtime values are admitted.
+        if mode == AccessMode::FieldSchemaReference
+            && self.module.layer() == ModuleLayer::Kernel
+            && owner.layer() == ModuleLayer::Kernel
+            && self.selected_modules.contains(owner.name())
+        {
+            return Ok(());
+        }
         if self.registry.depends_on(self.module.name(), owner.name()) {
             match mode {
-                AccessMode::TypedRecordLink | AccessMode::AnalyzerReference => return Ok(()),
+                AccessMode::TypedRecordLink
+                | AccessMode::FieldSchemaReference
+                | AccessMode::AnalyzerReference => return Ok(()),
                 AccessMode::DataRead
                     if self.module.layer() == ModuleLayer::Kernel
                         || owner.layer() == ModuleLayer::Optional =>
@@ -180,6 +208,21 @@ impl Visitor<'_> {
     }
     fn target(&mut self, expr: &Expr, write: bool, depth: usize) -> Result<(), RunnerError> {
         match expr {
+            Expr::Param(parameter) if self.api.is_some() => {
+                let Some(Some(SqlType::Record(table))) = self.parameters.get(parameter.as_str())
+                else {
+                    return Err(unsupported());
+                };
+                self.object(
+                    ObjectKind::Table,
+                    table.as_str(),
+                    if write {
+                        AccessMode::DataWrite
+                    } else {
+                        AccessMode::DataRead
+                    },
+                )
+            }
             Expr::Literal(Literal::RecordId(record)) => {
                 // Only scalar keys are admitted; expression-bearing keys are rejected.
                 self.object(
@@ -223,8 +266,15 @@ impl Visitor<'_> {
     fn permission(&mut self, p: &Permission, depth: usize) -> Result<(), RunnerError> {
         match p {
             Permission::None | Permission::Full => Ok(()),
-            Permission::Specific(expr) => self.expr(expr, depth + 1),
+            Permission::Specific(expr) => self.readonly_expr(expr, depth + 1),
         }
+    }
+    fn readonly_expr(&mut self, expr: &Expr, depth: usize) -> Result<(), RunnerError> {
+        let readonly = self.argument_readonly;
+        self.argument_readonly = true;
+        let result = self.expr(expr, depth);
+        self.argument_readonly = readonly;
+        result
     }
     fn expr(&mut self, expr: &Expr, depth: usize) -> Result<(), RunnerError> {
         self.expr_inner(expr, depth)
@@ -235,19 +285,7 @@ impl Visitor<'_> {
         if depth > 64 || self.nodes > 100_000 {
             return Err(RunnerError::new("SQL admission complexity budget exceeded"));
         }
-        if (self.api.is_some() || self.argument_readonly)
-            && matches!(
-                expr,
-                Expr::Create(_)
-                    | Expr::Update(_)
-                    | Expr::Delete(_)
-                    | Expr::Define(_)
-                    | Expr::Alter(_)
-                    | Expr::Remove(_)
-            )
-        {
-            return Err(RunnerError::new("SQL API is read-only"));
-        }
+        self.check_effect(expr)?;
         match expr {
             Expr::Literal(literal) => self.literal(literal, depth),
             Expr::Param(p) if self.api.is_some() && !self.parameters.contains_key(p.as_str()) => {
@@ -359,6 +397,8 @@ impl Visitor<'_> {
                 for target in &statement.what {
                     self.target(target, true, depth + 1)?;
                 }
+                let row_scope = self.row_scope;
+                self.row_scope = true;
                 if let Some(data) = &statement.data {
                     self.data(data, depth + 1)?;
                 }
@@ -366,7 +406,9 @@ impl Visitor<'_> {
                     self.expr(&cond.0, depth + 1)?;
                 }
                 self.output(statement.output.as_ref(), depth + 1)?;
-                self.expr(&statement.timeout, depth + 1)
+                self.expr(&statement.timeout, depth + 1)?;
+                self.row_scope = row_scope;
+                Ok(())
             }
             Expr::Delete(statement) => {
                 if statement.with.is_some() || statement.explain.is_some() {
@@ -418,7 +460,7 @@ impl Visitor<'_> {
                     return Err(unsupported());
                 }
                 self.permissions(&s.permissions, depth)?;
-                self.expr(&s.comment, depth)
+                self.readonly_expr(&s.comment, depth)
             }
             DefineStatement::Field(s) => {
                 self.field_proof(s, depth)?;
@@ -437,7 +479,15 @@ impl Visitor<'_> {
                     return Err(unsupported());
                 }
                 if let Some(kind) = &s.field_kind {
-                    self.kind(kind, depth)?;
+                    self.kind_with_mode(
+                        kind,
+                        depth,
+                        if s.reference.is_none() {
+                            AccessMode::FieldSchemaReference
+                        } else {
+                            AccessMode::TypedRecordLink
+                        },
+                    )?;
                 }
                 if let Some(reference) = &s.reference {
                     match &reference.on_delete {
@@ -461,7 +511,7 @@ impl Visitor<'_> {
                     }
                 }
                 self.permissions(&s.permissions, depth)?;
-                self.expr(&s.comment, depth)
+                self.readonly_expr(&s.comment, depth)
             }
             DefineStatement::Index(s) => {
                 self.object(
@@ -490,7 +540,7 @@ impl Visitor<'_> {
                     }
                     _ => return Err(unsupported()),
                 }
-                self.expr(&s.comment, depth)
+                self.readonly_expr(&s.comment, depth)
             }
             DefineStatement::Analyzer(s) => {
                 self.object(
@@ -536,7 +586,7 @@ impl Visitor<'_> {
                         }
                     }
                 }
-                self.expr(&s.comment, depth)
+                self.readonly_expr(&s.comment, depth)
             }
             DefineStatement::Function(s) => {
                 if let Some(api) = self
@@ -565,7 +615,7 @@ impl Visitor<'_> {
                     self.expr(expr, depth + 1)?;
                 }
                 self.permission(&s.permissions, depth)?;
-                self.expr(&s.comment, depth)
+                self.readonly_expr(&s.comment, depth)
             }
             DefineStatement::Event(s) => {
                 self.object(
@@ -581,7 +631,7 @@ impl Visitor<'_> {
                 for expr in &s.then {
                     self.expr(expr, depth + 1)?;
                 }
-                self.expr(&s.comment, depth)
+                self.readonly_expr(&s.comment, depth)
             }
             _ => Err(unsupported()),
         }
@@ -700,6 +750,14 @@ impl Visitor<'_> {
         }
     }
     fn kind(&mut self, kind: &Kind, depth: usize) -> Result<(), RunnerError> {
+        self.kind_with_mode(kind, depth, AccessMode::TypedRecordLink)
+    }
+    fn kind_with_mode(
+        &mut self,
+        kind: &Kind,
+        depth: usize,
+        mode: AccessMode,
+    ) -> Result<(), RunnerError> {
         if depth > 64 {
             return Err(unsupported());
         }
@@ -712,18 +770,22 @@ impl Visitor<'_> {
                     self.object(
                         ObjectKind::Table,
                         table.as_str(),
-                        AccessMode::TypedRecordLink,
+                        if matches!(kind, Kind::Record(_)) {
+                            mode
+                        } else {
+                            AccessMode::TypedRecordLink
+                        },
                     )?;
                 }
                 Ok(())
             }
             Kind::Either(kinds) => {
                 for kind in kinds {
-                    self.kind(kind, depth + 1)?;
+                    self.kind_with_mode(kind, depth + 1, mode)?;
                 }
                 Ok(())
             }
-            Kind::Array(kind, _) | Kind::Set(kind, _) => self.kind(kind, depth + 1),
+            Kind::Array(kind, _) | Kind::Set(kind, _) => self.kind_with_mode(kind, depth + 1, mode),
             Kind::Any
             | Kind::None
             | Kind::Null

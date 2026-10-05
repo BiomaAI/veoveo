@@ -378,6 +378,7 @@ impl ModuleSetupBuilder {
                     .migrations()
                     .iter()
                     .any(|m| m.version() == api.introduced())
+                || matches!(api.effects(), SqlEffectProfile::OwnedUpdate(profile) if !self.ownership.iter().any(|c| c.matches(ObjectKind::Table, profile.table().as_str())))
                 || api.reads().tables().iter().any(|t| {
                     !self
                         .ownership
@@ -386,7 +387,7 @@ impl ModuleSetupBuilder {
                 })
             {
                 return Err(DeclarationError::new(
-                    "SQL API must be a unique kernel-owned export introduced in its lane with owned reads",
+                    "SQL API must be a unique kernel-owned export introduced in its lane with owned reads and updates",
                 ));
             }
         }

@@ -224,7 +224,11 @@ fn valid_nested_policy_failures_identify_the_offending_owner_object() {
             .unwrap_err()
             .to_string();
         assert!(!error.contains("invalid migration syntax"));
-        assert!(error.contains("foreign"), "{error}");
+        if sql.contains("PERMISSIONS") {
+            assert!(error.contains("read-only SQL context"), "{error}");
+        } else {
+            assert!(error.contains("foreign"), "{error}");
+        }
     }
 }
 
@@ -262,4 +266,116 @@ fn object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies
     ] {
         assert!(!admitted(sql), "{sql}");
     }
+}
+
+#[test]
+fn reciprocal_kernel_field_schema_links_do_not_order_execution() {
+    let left = module(
+        "left",
+        ModuleLayer::Kernel,
+        "DEFINE TABLE left; DEFINE FIELD link ON left TYPE option<array<set<record<right> | string>>>;",
+        vec![],
+    );
+    let right = module(
+        "right",
+        ModuleLayer::Kernel,
+        "DEFINE TABLE right; DEFINE FIELD link ON right TYPE record<left>;",
+        vec![],
+    );
+    for modules in [vec![left.clone(), right.clone()], vec![right, left]] {
+        let registry = ModuleRegistry::new(modules).unwrap();
+        prepare(registry.select(vec![]).unwrap()).unwrap();
+    }
+}
+
+#[test]
+fn field_schema_links_do_not_admit_foreign_executable_or_table_types() {
+    for sql in [
+        "DEFINE FIELD link ON own TYPE table<base>;",
+        "RETURN <record<base>> $value;",
+        "LET $link: record<base> = NONE;",
+        "DEFINE FUNCTION fn::own($link: record<base>) -> record<base> { RETURN $link; };",
+        "DEFINE FIELD link ON own TYPE record<base> DEFAULT base:one;",
+        "DEFINE FIELD link ON own TYPE record<base> VALUE (SELECT * FROM base);",
+        "DEFINE FIELD link ON own TYPE record<base> ASSERT (SELECT * FROM base);",
+        "DEFINE FIELD link ON own TYPE record<base> DEFAULT (CREATE base);",
+        "DEFINE FIELD link ON own TYPE record<base> COMPUTED (SELECT * FROM base);",
+        "DEFINE FIELD link ON own TYPE record<base> PERMISSIONS FOR select WHERE (SELECT * FROM base);",
+        "DEFINE FIELD link ON own TYPE record<base> COMMENT (DELETE base);",
+        "DEFINE FIELD link ON own TYPE record<own> REFERENCE ON DELETE THEN { DELETE base; };",
+        "DEFINE FIELD link ON own TYPE record<own> REFERENCE ON DELETE THEN { RETURN (SELECT * FROM base); };",
+        "DEFINE FIELD link ON own TYPE record<base> REFERENCE ON DELETE CASCADE;",
+        "DEFINE FIELD link ON base TYPE record<own>;",
+    ] {
+        assert_valid_syntax(sql);
+        let registry = ModuleRegistry::new(vec![
+            module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+            module("own", ModuleLayer::Kernel, sql, vec![]),
+        ])
+        .unwrap();
+        let error = prepare(registry.select(vec![]).unwrap())
+            .unwrap_err()
+            .to_string();
+        if sql.contains("COMMENT") {
+            assert!(error.contains("read-only SQL context"), "{sql}: {error}");
+        } else {
+            assert!(error.contains("base"), "{sql}: {error}");
+        }
+        assert!(
+            !error.contains("invalid migration syntax"),
+            "{sql}: {error}"
+        );
+    }
+}
+
+#[test]
+fn nested_field_schema_links_validate_every_owner_and_exclude_history() {
+    for sql in [
+        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<unclaimed>>>;",
+        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<optional>>>;",
+        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_lane>>>;",
+        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_migration>>>;",
+        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_installation>>>;",
+        "DEFINE FIELD link ON own TYPE record;",
+    ] {
+        assert_valid_syntax(sql);
+        let registry = ModuleRegistry::new(vec![
+            module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+            module("own", ModuleLayer::Kernel, sql, vec![]),
+            module(
+                "optional",
+                ModuleLayer::Optional,
+                "DEFINE TABLE optional;",
+                vec![],
+            ),
+        ])
+        .unwrap();
+        assert!(
+            prepare(
+                registry
+                    .select(vec![ModuleName::new("optional").unwrap()])
+                    .unwrap()
+            )
+            .is_err(),
+            "{sql}"
+        );
+    }
+    let registry = ModuleRegistry::new(vec![
+        module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+        module(
+            "own",
+            ModuleLayer::Optional,
+            "DEFINE FIELD link ON own TYPE record<base>;",
+            vec![],
+        ),
+    ])
+    .unwrap();
+    assert!(
+        prepare(
+            registry
+                .select(vec![ModuleName::new("own").unwrap()])
+                .unwrap()
+        )
+        .is_err()
+    );
 }
