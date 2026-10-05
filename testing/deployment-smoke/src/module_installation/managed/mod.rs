@@ -254,150 +254,125 @@ impl Managed {
         let mut renewals = Vec::new();
         let mut last_expiry = None;
         loop {
-            let agents = self.observe()?;
-            self.pods.advance()?;
-            self.deployments.advance()?;
             let instance = database(
                 &self.runtime,
                 self.store
                     .managed_agent(&self.provisioned.authority, "recovery"),
             )?;
+            let agents = self.observe()?;
+            self.pods.advance()?;
+            self.deployments.advance()?;
             ensure!(
-                instance.observed != ManagedAgentPhase::Failed,
-                "managed kernel provisioning failed"
+                started.elapsed() < Duration::from_secs(180),
+                "managed Ready observation deadline exceeded"
             );
-            if instance.observed == ManagedAgentPhase::Ready {
+            if let Some((agent, pod)) = select_readiness(&instance, &agents, &self.pods.pods)? {
+                let lease_owner = agent
+                    .lease_owner
+                    .clone()
+                    .context("managed Ready lease owner absent")?;
+                let expiry = agent
+                    .lease_expires_at
+                    .context("managed Ready lease expiry absent")?;
+                if owner.is_none() {
+                    owner = Some(lease_owner.clone());
+                    fence = Some(agent.fence);
+                    last_expiry = Some(expiry);
+                }
                 ensure!(
-                    agents.len() == 1,
-                    "managed Ready does not have exactly one runtime"
+                    owner.as_ref() == Some(&lease_owner) && fence == Some(agent.fence),
+                    "kernel lease ownership changed while qualifying renewals"
                 );
-                let agent = &agents[0];
-                let ready = agent
-                    .managed_ready
-                    .as_ref()
-                    .context("managed Ready has no kernel acknowledgment")?;
-                let pod = self
-                    .pods
-                    .pods
-                    .get(&ready.pod_uid)
-                    .context("managed Ready Pod UID was not observed")?;
-                ensure!(
-                    ready.generation == instance.generation
-                        && instance.active_generation == instance.generation,
-                    "managed Ready generation mismatch"
-                );
-                if pod.ready() {
+                if last_expiry.is_some_and(|previous| expiry > previous) {
+                    renewals.push(expiry);
+                    last_expiry = Some(expiry);
+                }
+                if renewals.len() >= 2 {
+                    let resources = &instance.resources;
+                    let deployment = observations::object(
+                        fixture,
+                        &resources.namespace,
+                        "deployment",
+                        &resources.workload,
+                    )?;
                     ensure!(
-                        self.pods.pods.len() == 1,
-                        "managed Ready has extra owned Pods"
+                        deployment.metadata.deletion_timestamp.is_none(),
+                        "ready Deployment is retiring"
                     );
-                    let lease_owner = agent
-                        .lease_owner
-                        .clone()
-                        .context("managed Ready lease owner absent")?;
-                    let expiry = agent
-                        .lease_expires_at
-                        .context("managed Ready lease expiry absent")?;
-                    if owner.is_none() {
-                        owner = Some(lease_owner.clone());
-                        fence = Some(agent.fence);
-                        last_expiry = Some(expiry);
-                    }
+                    let revision = pod.database_credential_revision()?.to_owned();
                     ensure!(
-                        owner.as_ref() == Some(&lease_owner) && fence == Some(agent.fence),
-                        "kernel lease ownership changed while qualifying renewals"
+                        revision
+                            == if initial {
+                                "fixture-runtime-1"
+                            } else {
+                                "fixture-runtime-2"
+                            },
+                        "managed Deployment uses another credential revision"
                     );
-                    if last_expiry.is_some_and(|previous| expiry > previous) {
-                        renewals.push(expiry);
-                        last_expiry = Some(expiry);
+                    let secret = observations::object(
+                        fixture,
+                        &resources.namespace,
+                        "secret",
+                        &resources.credential_secret,
+                    )?;
+                    let claim = observations::object(
+                        fixture,
+                        &resources.namespace,
+                        "pvc",
+                        &resources.volume_claim,
+                    )?;
+                    let registration = database(
+                        &self.runtime,
+                        self.store
+                            .managed_agent_registration(&instance.identity.client_id),
+                    )?
+                    .context("managed OAuth registration absent")?;
+                    ensure!(
+                        registration.enabled
+                            && registration.instance.id == instance.id
+                            && registration.instance.identity == instance.identity,
+                        "managed OAuth registration differs from active instance"
+                    );
+                    let snapshot = observations::Ready {
+                        registration: instance.id.clone(),
+                        revision: registration.revision.id.clone(),
+                        identity: instance.identity.clone(),
+                        instance_generation: instance.generation,
+                        active_generation: instance.active_generation,
+                        runtime_id: agent.id.clone(),
+                        deployment_uid: deployment.metadata.uid,
+                        pod_uid: pod.metadata.uid,
+                        signing_secret_uid: secret.metadata.uid,
+                        public_jwk: instance.public_key.context("managed public JWK absent")?,
+                        pvc_uid: claim.metadata.uid,
+                        content_sha256: observations::witness(
+                            fixture,
+                            &resources.namespace,
+                            &pod.metadata.name,
+                            initial,
+                        )?,
+                        lease_owner,
+                        lease_fence: agent.fence,
+                        renewals,
+                        database_credential_revision: revision,
+                        kernel_image_id: pod
+                            .status
+                            .container_statuses
+                            .first()
+                            .context("kernel image runtime status absent")?
+                            .image_id
+                            .clone(),
+                    };
+                    ensure!(
+                        !snapshot.kernel_image_id.is_empty(),
+                        "kernel runtime image identity absent"
+                    );
+                    if initial {
+                        self.before = Some(snapshot.clone());
+                    } else {
+                        self.after = Some(snapshot.clone());
                     }
-                    if renewals.len() >= 2 {
-                        let resources = &instance.resources;
-                        let deployment = observations::object(
-                            fixture,
-                            &resources.namespace,
-                            "deployment",
-                            &resources.workload,
-                        )?;
-                        ensure!(
-                            deployment.metadata.deletion_timestamp.is_none(),
-                            "ready Deployment is retiring"
-                        );
-                        let revision = pod.database_credential_revision()?.to_owned();
-                        ensure!(
-                            revision
-                                == if initial {
-                                    "fixture-runtime-1"
-                                } else {
-                                    "fixture-runtime-2"
-                                },
-                            "managed Deployment uses another credential revision"
-                        );
-                        let secret = observations::object(
-                            fixture,
-                            &resources.namespace,
-                            "secret",
-                            &resources.credential_secret,
-                        )?;
-                        let claim = observations::object(
-                            fixture,
-                            &resources.namespace,
-                            "pvc",
-                            &resources.volume_claim,
-                        )?;
-                        let registration = database(
-                            &self.runtime,
-                            self.store
-                                .managed_agent_registration(&instance.identity.client_id),
-                        )?
-                        .context("managed OAuth registration absent")?;
-                        ensure!(
-                            registration.enabled
-                                && registration.instance.id == instance.id
-                                && registration.instance.identity == instance.identity,
-                            "managed OAuth registration differs from active instance"
-                        );
-                        let snapshot = observations::Ready {
-                            registration: instance.id.clone(),
-                            revision: registration.revision.id.clone(),
-                            identity: instance.identity.clone(),
-                            instance_generation: instance.generation,
-                            active_generation: instance.active_generation,
-                            runtime_id: agent.id.clone(),
-                            deployment_uid: deployment.metadata.uid,
-                            pod_uid: pod.metadata.uid,
-                            signing_secret_uid: secret.metadata.uid,
-                            public_jwk: instance.public_key.context("managed public JWK absent")?,
-                            pvc_uid: claim.metadata.uid,
-                            content_sha256: observations::witness(
-                                fixture,
-                                &resources.namespace,
-                                &pod.metadata.name,
-                                initial,
-                            )?,
-                            lease_owner,
-                            lease_fence: agent.fence,
-                            renewals,
-                            database_credential_revision: revision,
-                            kernel_image_id: pod
-                                .status
-                                .container_statuses
-                                .first()
-                                .context("kernel image runtime status absent")?
-                                .image_id
-                                .clone(),
-                        };
-                        ensure!(
-                            !snapshot.kernel_image_id.is_empty(),
-                            "kernel runtime image identity absent"
-                        );
-                        if initial {
-                            self.before = Some(snapshot.clone());
-                        } else {
-                            self.after = Some(snapshot.clone());
-                        }
-                        return Ok(snapshot);
-                    }
+                    return Ok(snapshot);
                 }
             }
             ensure!(
@@ -610,6 +585,49 @@ impl Managed {
     pub fn close_live(&mut self) -> Result<()> {
         self.live.close()
     }
+}
+
+// A Ready write and independent DB/watch deliveries can be observed in different
+// samples. Missing healthy observations wait; contradictory observations fail.
+fn select_readiness<'a>(
+    instance: &veoveo_platform_store::agent_management::instances::ManagedAgentInstance,
+    agents: &'a [AgentRecord],
+    pods: &'a std::collections::BTreeMap<uuid::Uuid, observations::Pod>,
+) -> Result<Option<(&'a AgentRecord, &'a observations::Pod)>> {
+    ensure!(
+        instance.observed != ManagedAgentPhase::Failed,
+        "managed kernel provisioning failed"
+    );
+    ensure!(agents.len() <= 1, "managed Ready has duplicate runtimes");
+    ensure!(pods.len() <= 1, "managed Ready has extra owned Pods");
+    if instance.observed != ManagedAgentPhase::Ready {
+        return Ok(None);
+    }
+    let Some(agent) = agents.first() else {
+        return Ok(None);
+    };
+    ensure!(
+        agent.agent_key == instance.key
+            && agent.tenant == instance.tenant
+            && agent.work_context == instance.work_context,
+        "managed Ready runtime identity mismatch"
+    );
+    let Some(ready) = &agent.managed_ready else {
+        return Ok(None);
+    };
+    ensure!(
+        ready.generation == instance.generation
+            && instance.active_generation == instance.generation,
+        "managed Ready generation mismatch"
+    );
+    let Some(pod) = pods.get(&ready.pod_uid) else {
+        return Ok(None);
+    };
+    ensure!(
+        pod.metadata.uid == ready.pod_uid,
+        "managed Ready Pod identity mismatch"
+    );
+    Ok(pod.ready().then_some((agent, pod)))
 }
 
 pub(super) fn start(fixture: &mut Fixture) -> Result<()> {

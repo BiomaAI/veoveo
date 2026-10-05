@@ -762,8 +762,11 @@ directly; it does not qualify full Helm rollback, hosted workload startup or ref
 activation. The recovery extension starts a real gateway, manager and idle kernel
 and checks workload and lease replacement, retained signing identity and PVC content,
 unchanged-installation replay, and zero episodes through teardown. Its native
-configuration, signing-key, ordered-watch and observer-failure checks pass. The
-kernel's native admission check also proves episode persistence precedes dispatch.
+configuration, signing-key, ordered-watch and observer-failure checks pass. A native
+database check runs production control-plane publication through fixture definition
+creation, publication and managed provisioning without modifying the published Work
+Context. The kernel's native admission check also proves episode persistence precedes
+dispatch.
 Installed managed-agent credential recovery still needs qualification.
 Production SQL redistribution belongs to Phase 3.
 

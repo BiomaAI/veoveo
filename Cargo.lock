@@ -16590,6 +16590,7 @@ dependencies = [
  "tokio",
  "uuid",
  "veoveo-agent-runtime",
+ "veoveo-audit-contract",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
  "veoveo-gateway-catalog",

@@ -1,6 +1,6 @@
 //! Privileged fixture setup through the Store's production authoring APIs.
 use super::configuration::Configuration;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 use veoveo_agent_runtime::contract::authoring::runtime_template_revision;
@@ -17,10 +17,6 @@ pub(super) async fn provision(
     store: &PlatformStore,
     config: &Configuration,
 ) -> Result<Provisioned> {
-    use veoveo_platform_store::{
-        ArtifactGrantSubjectKind, WorkContextMembershipRuleRecord, WorkContextOutputPolicyRecord,
-        WorkContextRecord,
-    };
     let actor = store
         .ensure_identity(
             "fixture",
@@ -30,43 +26,34 @@ pub(super) async fn provision(
             veoveo_platform_store::PrincipalKind::User,
         )
         .await?;
-    let context = deterministic_work_context_id("fixture", "mission")?;
-    let now = chrono::Utc::now();
-    let record = WorkContextRecord {
-        id: context.record_id(),
-        tenant: actor.tenant_id.record_id(),
-        context_key: "mission".into(),
-        title: "Mission".into(),
-        policy_revision: "policy-fixture".into(),
-        output_policy: WorkContextOutputPolicyRecord {
-            owner_kind: ArtifactGrantSubjectKind::Group,
-            owner_key: "operations".into(),
-            initial_grants: vec![],
-            classification: None,
-            data_labels: vec![],
-        },
-        memberships: vec![WorkContextMembershipRuleRecord {
-            level: WorkContextMembershipLevel::Contributor,
-            principals: vec![],
-            groups: vec!["operations".into()],
-            roles: vec!["fixture-managed".into()],
-            oauth_clients: vec![],
-        }],
-        created_at: now,
-        updated_at: now,
-    };
-    store
-        .client()
-        .query("CREATE ONLY $context CONTENT $record;")
-        .bind(("context", context.record_id()))
-        .bind(("record", record))
+    let expected = config
+        .plane
+        .work_contexts
+        .iter()
+        .find(|context| context.tenant.as_str() == "fixture" && context.id.as_str() == "mission")
+        .context("fixture configuration has no mission Work Context")?;
+    let context = deterministic_work_context_id(expected.tenant.as_str(), expected.id.as_str())?;
+    let published = store
+        .work_context_by_key(actor.tenant_id, expected.id.as_str())
         .await?
-        .check()?;
-    let digest = store
-        .artifact_read_context_version("fixture", "mission")
+        .context("fixture Work Context was not published")?;
+    ensure!(
+        published.id == context.record_id()
+            && published.tenant == actor.tenant_id.record_id()
+            && published.context_key == expected.id.as_str()
+            && published.title == expected.title
+            && published.policy_revision == expected.policy_revision.as_str(),
+        "published fixture Work Context differs from installation configuration"
+    );
+    let version = store
+        .artifact_read_context_version(expected.tenant.as_str(), expected.id.as_str())
         .await?
-        .context("fixture Work Context version")?
-        .digest;
+        .context("published fixture Work Context version missing")?;
+    ensure!(
+        version.policy_revision == published.policy_revision,
+        "published fixture Work Context version changed during setup"
+    );
+    let digest = version.digest;
     let authority = AgentCatalogAuthority::new(
         actor.tenant_id,
         context,

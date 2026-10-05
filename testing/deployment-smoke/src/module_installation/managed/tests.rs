@@ -1,6 +1,7 @@
 //! Native fixture admission and key checks; no installed workload or provider calls.
 use super::super::Args;
 use super::Configuration;
+use anyhow::Context;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde_json::{Value, json};
@@ -220,4 +221,130 @@ fn sdk_live_teardown_outside_block_on_preserves_setup_errors() -> anyhow::Result
     drop(fixture);
     assert!(tokio::runtime::Handle::try_current().is_err());
     Ok(())
+}
+
+#[test]
+fn published_control_plane_supports_complete_fixture_provision() -> anyhow::Result<()> {
+    use sha2::{Digest, Sha256};
+    use veoveo_audit_contract::{AuditActor, AuditContext, AuditPrincipalKind, AuditRequest};
+    use veoveo_mcp_contract::{
+        GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+        GatewayControlPlaneRevisionSource,
+    };
+    use veoveo_mcp_gateway::GatewayControlStore;
+    let directory = tempfile::tempdir()?;
+    let image = "registry.invalid/fixture@sha256:".to_owned() + &"a".repeat(64);
+    let args = Args {
+        context: "native-unused".into(),
+        gateway_image: image.parse().unwrap(),
+        manager_image: image.parse().unwrap(),
+        kernel_image: image.parse().unwrap(),
+        evidence_output: directory.path().join("unused"),
+    };
+    let configuration = Configuration::create(&args, "fixture-recovery", directory.path())?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()?;
+    runtime.block_on(async {
+        tokio::time::timeout(std::time::Duration::from_secs(180), async {
+            let fixture = database::TestDb::new().await;
+            let store = fixture.admin().await;
+            let registry = veoveo_gateway_catalog::registry()?;
+            let publication = GatewayControlStore::from_platform_store(
+                store.clone(),
+                GatewayCatalogAdmission::unbound().bind(registry.clone())?,
+            );
+            let revision = GatewayControlPlaneRevision {
+                revision_id: GatewayControlPlaneRevisionId::parse("gcp-fixture-native")?,
+                sha256: hex::encode(Sha256::digest(serde_json::to_vec(&configuration.plane)?)),
+                source: GatewayControlPlaneRevisionSource::SeedFile,
+                applied_at: chrono::Utc::now(),
+                applied_by: veoveo_types::PrincipalId::parse("fixture-publisher")?,
+                tenant: None,
+                control_plane: configuration.plane.clone(),
+            };
+            let audit = AuditContext {
+                actor: AuditActor {
+                    principal: revision.applied_by.clone(),
+                    kind: AuditPrincipalKind::Service,
+                    tenant: None,
+                    oauth_client: None,
+                    session_family: None,
+                    delegating_principal: None,
+                    managed_agent: None,
+                },
+                authority: Default::default(),
+                request: AuditRequest::background(),
+            };
+            publication.record_revision(&revision, &audit).await?;
+            let published = publication
+                .load_active_revision()
+                .await?
+                .context("published fixture plane missing")?;
+            assert_eq!(published.control_plane, configuration.plane);
+            let facts = installation_facts(&published.control_plane, &registry)?;
+            wire::validate_model_connections(std::slice::from_ref(&configuration.model), &facts)?;
+            configuration.template.validate(&facts)?;
+            let tenant = veoveo_platform_store::deterministic_tenant_id("fixture")?;
+            let before = store
+                .work_context_by_key(tenant, "mission")
+                .await?
+                .context("published fixture Work Context missing")?;
+            let provisioned = super::provision::provision(&store, &configuration)
+                .await
+                .context("fixture create/publish/provision after production publication")?;
+            let after = store
+                .work_context_by_key(tenant, "mission")
+                .await?
+                .context("fixture removed published Work Context")?;
+            assert_eq!(after, before);
+            assert_eq!(provisioned.authority.work_context, before.id);
+            assert_eq!(provisioned.instance.generation, 1);
+            assert_eq!(
+                provisioned.instance.resources.namespace,
+                configuration.namespace
+            );
+            assert_eq!(
+                provisioned.instance.resources.image,
+                configuration.template.workload.image
+            );
+            assert!(super::observations::zero_episodes(&store).await?.is_empty());
+            // Real registered row; only the readiness samples below are synthetic.
+            // This qualifies selection timing, not installed kernel readiness.
+            let agent_runtime = veoveo_agent_runtime::AgentRuntime::register(fixture.a.clone(), veoveo_agent_runtime::AgentSpec {
+                tenant_key: "fixture".into(), agent_key: "recovery".into(), display_name: "Recovery".into(), profile: "operator".into(),
+                authority: veoveo_platform_store::InvocationAuthorityRecord {context_key: before.context_key.clone(), membership: veoveo_platform_store::WorkContextMembershipLevel::Contributor, policy_revision: before.policy_revision.clone(), owner_kind: before.output_policy.owner_kind, owner_key: before.output_policy.owner_key.clone(), initial_grants: before.output_policy.initial_grants.clone(), classification: before.output_policy.classification.clone(), data_labels: before.output_policy.data_labels.clone(), invocation_mode: veoveo_platform_store::InvocationMode::Automated, initiator_key: None, delegation_id: None},
+                manifest: veoveo_platform_store::OpenObject::default(), memory_database: "native-unused.duckdb".into(),
+            }, veoveo_agent_runtime::AgentInstanceId::new()).await?;
+            let mut agent = agent_runtime.agent_record().await?;
+            let mut instance = provisioned.instance.clone();
+            instance.observed = veoveo_platform_store::agent_management::instances::ManagedAgentPhase::Ready;
+            instance.active_generation = instance.generation;
+            let mut pods = std::collections::BTreeMap::new();
+            assert!(super::select_readiness(&instance, &[], &pods)?.is_none());
+            assert!(super::select_readiness(&instance, &[agent.clone()], &pods)?.is_none());
+            let uid = uuid::Uuid::now_v7();
+            agent.managed_ready = Some(veoveo_platform_store::agent_management::instances::ManagedKernelReady {generation: instance.generation, pod_uid: uid});
+            assert!(super::select_readiness(&instance, &[agent.clone()], &pods)?.is_none());
+            let mut pod: super::observations::Pod = serde_json::from_value(json!({"metadata":{"name":"native-kernel","uid":uid,"resourceVersion":"1","creationTimestamp":"2026-01-01T00:00:00Z"},"status":{"conditions":[{"type":"Ready","status":"False"}]}}))?;
+            pods.insert(uid, pod.clone());
+            assert!(super::select_readiness(&instance, &[agent.clone()], &pods)?.is_none());
+            pod.status.conditions[0].status = "True".into();
+            pods.insert(uid, pod);
+            assert!(super::select_readiness(&instance, &[agent.clone()], &pods)?.is_some());
+            assert!(super::select_readiness(&instance, &[agent.clone(), agent.clone()], &pods).is_err());
+            let mut wrong = agent.clone(); wrong.agent_key = "another".into();
+            assert!(super::select_readiness(&instance, &[wrong], &pods).is_err());
+            let mut wrong = agent.clone(); wrong.managed_ready.as_mut().unwrap().generation += 1;
+            assert!(super::select_readiness(&instance, &[wrong], &pods).is_err());
+            let mut extra = pods.get(&uid).unwrap().clone(); extra.metadata.uid = uuid::Uuid::now_v7();
+            pods.insert(extra.metadata.uid, extra);
+            assert!(super::select_readiness(&instance, &[agent], &pods).is_err());
+            instance.observed = veoveo_platform_store::agent_management::instances::ManagedAgentPhase::Failed;
+            assert!(super::select_readiness(&instance, &[], &std::collections::BTreeMap::new()).is_err());
+            Ok::<_, anyhow::Error>(())
+        })
+        .await?
+    })
 }

@@ -197,7 +197,10 @@ later Media enablement in generation 3. Current-publication replay after stale J
 checks the persisted revision, hash and counts. The initial owner lanes are empty;
 these checks establish initialized headers rather than fabricate migration bodies.
 The same chart starts a gateway and lifecycle manager. The fixture uses privileged
-Store authoring APIs to create, publish and provision one managed agent; this setup
+Store authoring APIs to create, publish and provision one managed agent. Setup
+reads and verifies the Work Context created by production control-plane publication;
+it does not create or overwrite installation policy. A native database test runs
+production publication before the complete fixture authoring/provision sequence. This setup
 does not qualify gateway authoring authorization. A real kernel authenticates
 through the gateway's OAuth and managed registration routes. No GPU or provider
 workload is selected.
@@ -212,7 +215,10 @@ generate these selections from owner schemas and render the actual fixture value
 the installed gateway producer supplies the complete composition catalog.
 
 Generation 1 requires persisted managed readiness correlated with the ready Pod UID
-and two advancing lease expiries under one owner and fence. The fixture writes a
+and two advancing lease expiries under one owner and fence. Healthy DB and watch
+samples can arrive separately; missing runtime acknowledgment or a pending Pod
+observation waits within the 180-second deadline. Duplicate or contradictory
+identities and watch errors fail qualification. The fixture writes a
 content witness to the retained PVC. Generation 2 rotates the actual database
 account and both owned runtime Secrets, verifies fresh connection rejection with
 the old credential, and observes foreground workload retirement. Pod and Deployment
