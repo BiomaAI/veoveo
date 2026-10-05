@@ -206,6 +206,11 @@ actions. Its discovery catalog is empty; the kernel has no subscriptions or
 pending tasks that require domain calls. Native setup checks keep capability
 admission strict and verify both generated signing keys through gateway APIs.
 
+All three installation generations select the Agents schema lane while Time is
+disabled in generation 2 and re-enabled with Media in generation 3. Native checks
+generate these selections from owner schemas and render the actual fixture values;
+the installed gateway producer supplies the complete composition catalog.
+
 Generation 1 requires persisted managed readiness correlated with the ready Pod UID
 and two advancing lease expiries under one owner and fence. The fixture writes a
 content witness to the retained PVC. Generation 2 rotates the actual database
@@ -248,7 +253,10 @@ transport budget, watches reject gaps, and background observers own their proces
 groups. Readiness, recovery and terminal archive each have a 180-second observation
 budget; individual native commands retain their own shorter deadlines.
 Commands have deadlines, file-backed output capped at 2 MiB and owned process-group
-cleanup on timeout; no blind mutation retries are added.
+cleanup on timeout; no blind mutation retries are added. Command failures identify
+the phase, program and exit status. The fixture-owned Helm render
+exposes stderr through the same secret replacement and 16 KiB cap as pod diagnostics.
+Other command output and argv stay private.
 
 The harness pins `oci-spec` 0.10.0 with only its distribution feature for maintained
 OCI reference admission. Its [upstream stable release](https://github.com/youki-dev/oci-spec-rs/releases/tag/v0.10.0)

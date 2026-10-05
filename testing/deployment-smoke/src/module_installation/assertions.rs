@@ -148,160 +148,98 @@ fn credential_confinement(render: &Render) -> Result<()> {
     Ok(())
 }
 
+pub(super) const GENERATIONS: [(u64, &[&str], &str); 3] = [
+    (1, &["agents", "time"], "fresh"),
+    (2, &["agents"], "rotate-disable"),
+    (3, &["agents", "time", "media"], "later-enable"),
+];
+
 pub(super) fn lifecycle(
     fixture: &mut Fixture,
     cases: &mut Vec<Case>,
     recovery: &mut Option<super::managed::Recovery>,
 ) -> Result<()> {
-    let first = fixture.generate(1, &["time"])?;
+    let first = fixture
+        .generate(GENERATIONS[0].0, GENERATIONS[0].1)
+        .context("generation 1 plan and chart")?;
     let mut prior: Option<Vec<Lane>> = None;
-    for (generation, enabled, name) in [
-        (1, &["time"][..], "fresh"),
-        (2, &[][..], "rotate-disable"),
-        (3, &["time", "media"][..], "later-enable"),
-    ] {
-        let render = if generation == 1 {
-            None
-        } else {
-            fixture.rotate_credentials()?;
-            Some(fixture.generate(generation, enabled)?)
-        };
-        let render = render.as_ref().unwrap_or(&first);
-        credential_confinement(render)?;
-        fixture.install(render)?;
-        if generation == 2 {
-            super::managed::recover(fixture)?;
-        }
-        let installed = status(fixture, render, generation)?;
-        if generation == 1 {
-            ensure!(
-                lane(&installed.lanes, "time")?.initialized,
-                "fresh Time lane missing"
-            );
-            ensure!(
-                !lane(&installed.lanes, "media")?.initialized,
-                "disabled Media lane was initialized"
-            );
-        } else {
-            let previous = prior.as_ref().context("previous installed status")?;
-            let before = lane(previous, "time")?;
-            let after = lane(&installed.lanes, "time")?;
-            ensure!(
-                before.initialized == after.initialized
-                    && before.current == after.current
-                    && before.latest == after.latest,
-                "disabled/re-enabled Time history changed"
-            );
+    for (generation, enabled, name) in GENERATIONS {
+        (|| -> Result<()> {
+            let render = if generation == 1 {
+                None
+            } else {
+                fixture
+                    .rotate_credentials()
+                    .with_context(|| format!("generation {generation} credential rotation"))?;
+                Some(
+                    fixture
+                        .generate(generation, enabled)
+                        .with_context(|| format!("generation {generation} plan and chart"))?,
+                )
+            };
+            let render = render.as_ref().unwrap_or(&first);
+            credential_confinement(render)?;
+            fixture
+                .install(render)
+                .with_context(|| format!("generation {generation} installation/replay"))?;
             if generation == 2 {
-                ensure!(
-                    !after.selected && !lane(&installed.lanes, "media")?.initialized,
-                    "disabled optional lane changed"
-                );
+                super::managed::recover(fixture).context("generation 2 managed recovery")?;
             }
-            if generation == 3 {
+            let installed = status(fixture, render, generation)
+                .with_context(|| format!("generation {generation} installed status"))?;
+            if generation == 1 {
                 ensure!(
-                    lane(&installed.lanes, "media")?.initialized
-                        && lane(&installed.lanes, "media")?.selected,
-                    "later-enabled Media lane not initialized"
+                    lane(&installed.lanes, "time")?.initialized,
+                    "fresh Time lane missing"
                 );
-            }
-        }
-        let published = publication(fixture, render)?;
-        let before = fixture.snapshot()?;
-        fixture.install(render)?;
-        if generation == 2 {
-            *recovery = Some(super::managed::replay_and_stop(fixture)?);
-        }
-        ensure!(
-            before == fixture.snapshot()?,
-            "unchanged installation recreated live Job/ConfigMap/database objects"
-        );
-        let replay_name = format!("publication-replay-{generation}");
-        let replay: Publication = serde_json::from_slice(&fixture.probe(
-            job(render, "control-plane-publication")?,
-            &replay_name,
-            &[
-                "control-plane-publish",
-                "--control-plane",
-                "/etc/veoveo/gateway/gateway.json",
-                "--applied-by",
-                "installation-bootstrap",
-                "--wait-seconds",
-                "60",
-            ],
-            true,
-        )?)?;
-        ensure!(
-            replay.status == "unchanged"
-                && replay.revision_id == published.revision_id
-                && replay.runtime_auth_verified,
-            "no-op publication replaced its persisted revision"
-        );
-        let mut rejected = Vec::new();
-        if generation == 2 {
-            for (kind, args) in [
-                (
-                    "installation-prepare",
-                    vec!["installation-prepare", "--wait-seconds", "5"],
-                ),
-                (
-                    "module-migration",
-                    vec!["module-migrate", "--module", "time", "--wait-seconds", "5"],
-                ),
-                (
-                    "control-plane-publication",
-                    vec![
-                        "control-plane-publish",
-                        "--control-plane",
-                        "/etc/veoveo/gateway/gateway.json",
-                        "--applied-by",
-                        "installation-bootstrap",
-                        "--wait-seconds",
-                        "5",
-                    ],
-                ),
-            ] {
-                let output =
-                    fixture.probe(job(&first, kind)?, &format!("stale-{kind}"), &args, false)?;
-                let text = String::from_utf8(output)?;
-                // Logs are not copied to evidence. The error must identify generation fencing,
-                // rather than an unrelated crash, image pull or timeout.
                 ensure!(
-                    text.contains("generation")
-                        && (text.contains("stale") || text.contains("newer")),
-                    "stale command failed outside generation fencing"
+                    !lane(&installed.lanes, "media")?.initialized,
+                    "disabled Media lane was initialized"
                 );
-                rejected.push(kind.into());
-            }
-            let mut old_auth = job(render, "control-plane-publication")?.clone();
-            for env in old_auth["spec"]["template"]["spec"]["containers"][0]["env"]
-                .as_array_mut()
-                .context("runtime probe env")?
-            {
-                if env["name"] == "VEOVEO_SURREAL_PASSWORD" {
-                    env["valueFrom"]["secretKeyRef"]["name"] = "fixture-old-runtime".into();
+            } else {
+                let previous = prior.as_ref().context("previous installed status")?;
+                let before = lane(previous, "time")?;
+                let after = lane(&installed.lanes, "time")?;
+                ensure!(
+                    before.initialized == after.initialized
+                        && before.current == after.current
+                        && before.latest == after.latest,
+                    "disabled/re-enabled Time history changed"
+                );
+                if generation == 2 {
+                    ensure!(
+                        !after.selected && !lane(&installed.lanes, "media")?.initialized,
+                        "disabled optional lane changed"
+                    );
+                }
+                if generation == 3 {
+                    ensure!(
+                        lane(&installed.lanes, "media")?.initialized
+                            && lane(&installed.lanes, "media")?.selected,
+                        "later-enabled Media lane not initialized"
+                    );
                 }
             }
-            let failed = fixture.probe(
-                &old_auth,
-                "old-runtime-rejected",
-                &["control-plane-validate"],
-                false,
-            )?;
-            let diagnostic = String::from_utf8(failed)?.to_ascii_lowercase();
+            let published = publication(fixture, render)
+                .with_context(|| format!("generation {generation} publication"))?;
+            let before = fixture.snapshot()?;
+            fixture
+                .install(render)
+                .with_context(|| format!("generation {generation} installation/replay"))?;
+            if generation == 2 {
+                *recovery = Some(
+                    super::managed::replay_and_stop(fixture)
+                        .context("generation 2 managed replay and terminal drain")?,
+                );
+            }
             ensure!(
-                diagnostic.contains("authentication") || diagnostic.contains("authenticate"),
-                "old runtime account failed outside authentication admission"
+                before == fixture.snapshot()?,
+                "unchanged installation recreated live Job/ConfigMap/database objects"
             );
-            rejected.push("old-runtime-authentication".into());
-            let after = status(fixture, render, 20)?; // Probe identity is independent of requested plan generation.
-            ensure!(
-                after.lanes == installed.lanes,
-                "stale Jobs altered current lane history"
-            );
-            let after_pub: Publication = serde_json::from_slice(&fixture.probe(
+            let replay_name = format!("publication-replay-{generation}");
+            let replay: Publication = serde_json::from_slice(&fixture.probe(
                 job(render, "control-plane-publication")?,
-                "publication-after-stale",
+                &replay_name,
                 &[
                     "control-plane-publish",
                     "--control-plane",
@@ -314,30 +252,119 @@ pub(super) fn lifecycle(
                 true,
             )?)?;
             ensure!(
-                after_pub.status == "unchanged"
-                    && after_pub.revision_id == published.revision_id
-                    && after_pub.sha256 == published.sha256
-                    && after_pub.revisions == published.revisions
-                    && after_pub.active_objects == published.active_objects,
-                "stale Jobs altered current persisted publication"
+                replay.status == "unchanged"
+                    && replay.revision_id == published.revision_id
+                    && replay.runtime_auth_verified,
+                "no-op publication replaced its persisted revision"
             );
-        }
-        cases.push(Case {
-            name: name.into(),
-            generation: generation.to_string(),
-            lanes: installed.lanes.clone(),
-            jobs: before,
-            runtime_auth_verified: published.runtime_auth_verified,
-            publication_revision: published.revision_id,
-            publication_sha256: published.sha256,
-            no_op_reused: true,
-            stale_commands_rejected: rejected,
-            observed_image_ids: fixture.image_ids()?,
-        });
-        prior = Some(installed.lanes);
-        if generation == 1 {
-            super::managed::start(fixture)?;
-        }
+            let mut rejected = Vec::new();
+            if generation == 2 {
+                for (kind, args) in [
+                    (
+                        "installation-prepare",
+                        vec!["installation-prepare", "--wait-seconds", "5"],
+                    ),
+                    (
+                        "module-migration",
+                        vec!["module-migrate", "--module", "time", "--wait-seconds", "5"],
+                    ),
+                    (
+                        "control-plane-publication",
+                        vec![
+                            "control-plane-publish",
+                            "--control-plane",
+                            "/etc/veoveo/gateway/gateway.json",
+                            "--applied-by",
+                            "installation-bootstrap",
+                            "--wait-seconds",
+                            "5",
+                        ],
+                    ),
+                ] {
+                    let output = fixture.probe(
+                        job(&first, kind)?,
+                        &format!("stale-{kind}"),
+                        &args,
+                        false,
+                    )?;
+                    let text = String::from_utf8(output)?;
+                    // Logs are not copied to evidence. The error must identify generation fencing,
+                    // rather than an unrelated crash, image pull or timeout.
+                    ensure!(
+                        text.contains("generation")
+                            && (text.contains("stale") || text.contains("newer")),
+                        "stale command failed outside generation fencing"
+                    );
+                    rejected.push(kind.into());
+                }
+                let mut old_auth = job(render, "control-plane-publication")?.clone();
+                for env in old_auth["spec"]["template"]["spec"]["containers"][0]["env"]
+                    .as_array_mut()
+                    .context("runtime probe env")?
+                {
+                    if env["name"] == "VEOVEO_SURREAL_PASSWORD" {
+                        env["valueFrom"]["secretKeyRef"]["name"] = "fixture-old-runtime".into();
+                    }
+                }
+                let failed = fixture.probe(
+                    &old_auth,
+                    "old-runtime-rejected",
+                    &["control-plane-validate"],
+                    false,
+                )?;
+                let diagnostic = String::from_utf8(failed)?.to_ascii_lowercase();
+                ensure!(
+                    diagnostic.contains("authentication") || diagnostic.contains("authenticate"),
+                    "old runtime account failed outside authentication admission"
+                );
+                rejected.push("old-runtime-authentication".into());
+                let after = status(fixture, render, 20)?; // Probe identity is independent of requested plan generation.
+                ensure!(
+                    after.lanes == installed.lanes,
+                    "stale Jobs altered current lane history"
+                );
+                let after_pub: Publication = serde_json::from_slice(&fixture.probe(
+                    job(render, "control-plane-publication")?,
+                    "publication-after-stale",
+                    &[
+                        "control-plane-publish",
+                        "--control-plane",
+                        "/etc/veoveo/gateway/gateway.json",
+                        "--applied-by",
+                        "installation-bootstrap",
+                        "--wait-seconds",
+                        "60",
+                    ],
+                    true,
+                )?)?;
+                ensure!(
+                    after_pub.status == "unchanged"
+                        && after_pub.revision_id == published.revision_id
+                        && after_pub.sha256 == published.sha256
+                        && after_pub.revisions == published.revisions
+                        && after_pub.active_objects == published.active_objects,
+                    "stale Jobs altered current persisted publication"
+                );
+            }
+            cases.push(Case {
+                name: name.into(),
+                generation: generation.to_string(),
+                lanes: installed.lanes.clone(),
+                jobs: before,
+                runtime_auth_verified: published.runtime_auth_verified,
+                publication_revision: published.revision_id,
+                publication_sha256: published.sha256,
+                no_op_reused: true,
+                stale_commands_rejected: rejected,
+                observed_image_ids: fixture.image_ids()?,
+            });
+            prior = Some(installed.lanes);
+            if generation == 1 {
+                super::managed::start(fixture)?;
+            }
+            Ok(())
+        })()
+        .with_context(|| format!("generation {generation} {name}"))?;
     }
     Ok(())
 }

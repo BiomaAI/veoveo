@@ -107,7 +107,7 @@ impl Configuration {
             "servers":[],"profiles":[{"id":"operator","identity_provider":"fixture-idp","authorization_server":"fixture-as","protected_resource":"https://gateway.invalid/mcp/operator","policy_version":"policy-fixture","auth_modes":["oauth_client_credentials"],"required_scopes":["operator:use"],"servers":[],"metadata":{}}],
             "tenants":[{"id":"fixture","metadata":{}}],"work_contexts":[{"id":"mission","tenant":"fixture","title":"Mission","policy_revision":"policy-fixture","output_policy":{"owner":{"kind":"group","id":"operations"},"initial_grants":[],"classification":null,"data_labels":[]},"memberships":[{"level":"contributor","groups":["operations"],"roles":["fixture-managed"]}]}],
             "policies":[{"version":"policy-fixture","rules":[],"metadata":{}}],"data_labels":[],"oidc_clients":[],
-            "secrets":[{"id":"fixture-signing","source":"env","purpose":"jwks_private_key","locator":"VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64","owner":{"kind":"gateway"},"metadata":{}},{"id":"fixture-model-key","source":"env","purpose":"provider_api_key","locator":"FIXTURE_MODEL_KEY","owner":{"kind":"gateway"},"metadata":{}}]
+            "secrets":[{"id":"fixture-signing","source":"env","purpose":"jwks_private_key","locator":"VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64","owner":{"kind":"gateway"},"metadata":{}},{"id":"fixture-model-key","source":"env","purpose":"provider_api_key","locator":"VEOVEO_AGENT_MODEL_FIXTURE_KEY","owner":{"kind":"gateway"},"metadata":{}}]
         }))?;
         Ok(Self {
             namespace: agent_namespace,

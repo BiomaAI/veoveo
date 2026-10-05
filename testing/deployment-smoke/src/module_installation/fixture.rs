@@ -320,10 +320,18 @@ impl Fixture {
             plan.selection()? == selection,
             "image producer changed installation selection"
         );
+        self.render(plan, &raw)
+    }
+    fn chart_values(&self, raw: &[u8]) -> Result<Value> {
         let config = &self.managed_config;
-        let values = json!({"installationPreset":"custom","components":["gateway","platform-store","agent-runtime-support"],"mcpServers":[],"global":{"production":true,"installationId":self.namespace,"publicBaseUrl":"https://gateway.invalid"},"gateway":{"image":{"repository":self.image.repository,"tag":"fixture","digest":self.image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","controlPlaneRevision":"1".repeat(64),"auditRetentionDays":1,"resources":{"requests":{"memory":"128Mi","cpu":"100m"},"limits":{"memory":"512Mi","cpu":"1"}},"agents":{"models":[config.model],"templates":[config.template],"modelSecrets":{"FIXTURE_MODEL_KEY":{"existingSecret":"fixture-model","key":"api-key"}}}},"agentManager":{"namespace":config.namespace,"image":{"repository":config.manager_image.repository,"tag":"fixture","digest":config.manager_image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","kubernetesApiEgress":config.api_egress,"modelEgress":[]},"surrealdb":{"namespace":"fixture","database":"installation"},"moduleInstallation":{"planJson":String::from_utf8(raw)?}});
+        Ok(
+            json!({"installationPreset":"custom","components":["gateway","platform-store","agent-runtime-support"],"mcpServers":[],"global":{"production":true,"installationId":self.namespace,"publicBaseUrl":"https://gateway.invalid"},"gateway":{"image":{"repository":self.image.repository,"tag":"fixture","digest":self.image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","controlPlaneRevision":"1".repeat(64),"auditRetentionDays":1,"resources":{"requests":{"memory":"128Mi","cpu":"100m"},"limits":{"memory":"512Mi","cpu":"1"}},"agents":{"models":[config.model],"templates":[config.template],"modelSecrets":{"VEOVEO_AGENT_MODEL_FIXTURE_KEY":{"existingSecret":"fixture-model","key":"api-key"}}}},"agentManager":{"namespace":config.namespace,"image":{"repository":config.manager_image.repository,"tag":"fixture","digest":config.manager_image.digest.as_str()},"existingControlPlaneConfigMap":"fixture-control-plane","kubernetesApiEgress":config.api_egress,"modelEgress":[]},"surrealdb":{"namespace":"fixture","database":"installation"},"moduleInstallation":{"planJson":std::str::from_utf8(raw)?}}),
+        )
+    }
+    fn render(&mut self, plan: ModulePlanDocument, raw: &[u8]) -> Result<Render> {
+        let values = self.chart_values(raw)?;
         let path = self.file(&values)?;
-        let rendered = process::checked(
+        let rendered = process::checked_redacted(
             Command::new("helm")
                 .args([
                     "template",
@@ -337,8 +345,11 @@ impl Fixture {
                     &self.namespace,
                     "--values",
                 ])
-                .arg(path),
+                .arg(path)
+                .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")),
             60,
+            "module installation chart render",
+            |stderr| self.redact_diagnostics(String::from_utf8_lossy(stderr).into_owned()),
         )?;
         let objects = serde_yaml_ng::Deserializer::from_slice(&rendered)
             .map(Value::deserialize)
@@ -635,11 +646,17 @@ impl Fixture {
                 break;
             }
         }
+        Ok(self.redact_diagnostics(output))
+    }
+    fn redact_diagnostics(&self, mut output: String) -> String {
         for secret in std::iter::once(&self.root_password)
             .chain(std::iter::once(&self.runtime_password))
             .chain(self.prior_passwords.iter())
+            .chain(self.managed_config.installation_secrets.values())
         {
-            output = output.replace(secret, "[REDACTED]");
+            if !secret.is_empty() {
+                output = output.replace(secret, "[REDACTED]");
+            }
         }
         let end = output
             .char_indices()
@@ -650,7 +667,7 @@ impl Fixture {
         if output.len() > 16384 {
             output.truncate(end);
         }
-        Ok(output)
+        output
     }
     pub fn image_ids(&self) -> Result<Vec<String>> {
         let bytes = process::checked(self.kubectl().args(["get", "pods", "--output=json"]), 30)?;
@@ -789,4 +806,178 @@ fn password() -> Result<String> {
     let mut bytes = [0_u8; 32];
     fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use veoveo_modules::{
+        CompositionIdentity, ExecutionCommand, ExecutionImage, LaneExecution, ModuleRegistry,
+        ModuleRuntimeBinding, RuntimeBindingKey,
+    };
+
+    #[test]
+    fn fixture_diagnostics_redact_every_owned_secret_before_capping() -> Result<()> {
+        let image = "registry.invalid/fixture@sha256:".to_owned() + &"a".repeat(64);
+        let args = Args {
+            context: "native-unused".into(),
+            gateway_image: image.parse().unwrap(),
+            manager_image: image.parse().unwrap(),
+            kernel_image: image.parse().unwrap(),
+            evidence_output: std::path::PathBuf::from("unused"),
+        };
+        let mut fixture = Fixture::create(&args)?;
+        fixture.prior_passwords.push("prior-test-password".into());
+        let secrets: Vec<_> = std::iter::once(&fixture.root_password)
+            .chain(std::iter::once(&fixture.runtime_password))
+            .chain(fixture.prior_passwords.iter())
+            .chain(fixture.managed_config.installation_secrets.values())
+            .collect();
+        let input = secrets
+            .iter()
+            .map(|secret| secret.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+            + &"é".repeat(20000);
+        let diagnostic = fixture.redact_diagnostics(input);
+        assert!(diagnostic.len() <= 16384);
+        assert!(diagnostic.contains("[REDACTED]"));
+        for secret in secrets {
+            assert!(!diagnostic.contains(secret));
+        }
+        Ok(())
+    }
+    #[test]
+    fn generated_fixture_plans_render_with_agents_selected_through_rotation() -> Result<()> {
+        let image = |name: &str, digest: char| {
+            format!(
+                "registry.invalid/{name}@sha256:{}",
+                digest.to_string().repeat(64)
+            )
+            .parse()
+            .unwrap()
+        };
+        let args = Args {
+            context: "native-unused".into(),
+            gateway_image: image("gateway", 'a'),
+            manager_image: image("manager", 'b'),
+            kernel_image: image("kernel", 'c'),
+            evidence_output: std::path::PathBuf::from("unused-evidence.json"),
+        };
+        let mut fixture = Fixture::create(&args)?;
+        fixture.kube_version = Some("v1.37.0".into());
+        // Installed setup observes this address from the selected Kubernetes
+        // Service. Native chart admission needs only its admitted network shape.
+        fixture.managed_config.api_egress = vec![json!({"cidr":"192.0.2.1/32","port":443})];
+        fn execution(name: &str) -> Result<LaneExecution> {
+            Ok(LaneExecution::new(
+                ExecutionImage::new("gateway")?,
+                ExecutionCommand::new(vec![
+                    "/usr/local/bin/gateway".into(),
+                    "module-migrate".into(),
+                    "--module".into(),
+                    name.into(),
+                ])?,
+            )?)
+        }
+        // Real owner declarations plus the public plan producer. Unselected
+        // composition modules remain the installed gateway producer's concern.
+        let registry = ModuleRegistry::new(vec![
+            veoveo_platform_store::schema::store::module_setup(execution("store")?)?,
+            veoveo_platform_store::schema::identity::module_setup(execution("identity")?)?,
+            veoveo_platform_store::schema::gateway::module_setup(execution("gateway")?)?,
+            veoveo_platform_store::schema::artifacts::module_setup(execution("artifacts")?)?,
+            veoveo_platform_store::schema::tasks::module_setup(execution("tasks")?)?,
+            veoveo_platform_store::schema::audit::module_setup(execution("audit")?)?,
+            veoveo_platform_store::schema::knowledge::module_setup(execution("knowledge")?)?,
+            veoveo_agent_runtime::schema::module_setup(execution("agents")?)?,
+            veoveo_time_mcp::schema::module_setup(execution("time")?)?,
+            veoveo_media_mcp::schema::module_setup(execution("media")?)?,
+        ])?;
+        let composition = CompositionIdentity::new(fixture.image.digest.as_str())?;
+        let produce = |generation, enabled: &[&str]| -> Result<ModulePlanDocument> {
+            let selection = ModuleSelectionDocument::new(
+                enabled
+                    .iter()
+                    .map(|name| ModuleName::new(*name))
+                    .collect::<Result<Vec<_>, _>>()?,
+                InstallationGeneration::new(generation)?,
+                CredentialRevision::new(format!("fixture-runtime-{generation}"))?,
+            )?;
+            Ok(ModulePlanDocument::generate(
+                &registry,
+                &selection,
+                composition.clone(),
+                vec![ModuleRuntimeBinding {
+                    module: ModuleName::new("agents")?,
+                    component: Some(RuntimeBindingKey::new("agent-runtime-support")?),
+                    mcp_server: None,
+                }],
+            )?)
+        };
+        let plans = super::super::assertions::GENERATIONS
+            .into_iter()
+            .map(|(generation, enabled, _)| produce(generation, enabled))
+            .collect::<Result<Vec<_>>>()?;
+        for (index, plan) in plans.into_iter().enumerate() {
+            let selection = plan.selection()?;
+            assert!(
+                selection
+                    .enabled()
+                    .iter()
+                    .any(|name| name.as_str() == "agents")
+            );
+            assert_eq!(
+                selection
+                    .enabled()
+                    .iter()
+                    .any(|name| name.as_str() == "time"),
+                index != 1
+            );
+            assert_eq!(
+                selection
+                    .enabled()
+                    .iter()
+                    .any(|name| name.as_str() == "media"),
+                index == 2
+            );
+            let raw = serde_json::to_vec(&plan)?;
+            let rendered = fixture
+                .render(plan, &raw)
+                .with_context(|| format!("native generation {} chart", index + 1))?;
+            assert!(
+                rendered
+                    .objects
+                    .iter()
+                    .any(|object| object["kind"] == "Deployment"
+                        && object["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"]
+                            == "agent-manager")
+            );
+            assert!(
+                !rendered
+                    .objects
+                    .iter()
+                    .any(|object| object["kind"] == "Deployment"
+                        && matches!(
+                            object["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"].as_str(),
+                            Some("time" | "media")
+                        ))
+            );
+        }
+        let invalid = produce(1, &["time"])?;
+        let error = fixture
+            .render(invalid.clone(), &serde_json::to_vec(&invalid)?)
+            .err()
+            .context("missing Agents must fail chart admission")?;
+        let diagnostic = format!("{error:#}");
+        assert!(
+            diagnostic.contains("helm failed (exit status: 1)"),
+            "{diagnostic}"
+        );
+        assert!(
+            diagnostic.contains("enabled runtime requires selected module agents"),
+            "{diagnostic}"
+        );
+        Ok(())
+    }
 }

@@ -8,7 +8,7 @@ use nix::{
 use std::os::unix::process::CommandExt;
 use std::{
     io::{Read, Seek, SeekFrom},
-    process::{Child, Command, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     thread,
     time::{Duration, Instant},
 };
@@ -34,9 +34,9 @@ impl Drop for OwnedChild {
     }
 }
 
-pub(super) fn output(command: &mut Command, seconds: u64) -> Result<(bool, Vec<u8>)> {
+fn captured(command: &mut Command, seconds: u64) -> Result<(ExitStatus, Vec<u8>, Vec<u8>)> {
     let mut stdout = tempfile::tempfile()?;
-    let stderr = tempfile::tempfile()?;
+    let mut stderr = tempfile::tempfile()?;
     command.process_group(0);
     let child = command
         .stdin(Stdio::null())
@@ -49,7 +49,7 @@ pub(super) fn output(command: &mut Command, seconds: u64) -> Result<(bool, Vec<u
         settled: false,
     };
     let started = Instant::now();
-    let success = loop {
+    let status = loop {
         // Observe without reaping: the child's PID keeps the owned group identity
         // reserved until descendants are killed, avoiding a PID-reuse signal race.
         let pid = Pid::from_raw(owned.child.id() as i32);
@@ -57,23 +57,14 @@ pub(super) fn output(command: &mut Command, seconds: u64) -> Result<(bool, Vec<u
             Id::Pid(pid),
             WaitPidFlag::WEXITED | WaitPidFlag::WNOHANG | WaitPidFlag::WNOWAIT,
         ) {
-            Ok(WaitStatus::Exited(_, code)) => {
+            Ok(WaitStatus::Exited(_, _)) | Ok(WaitStatus::Signaled(_, _, _)) => {
                 let _ = killpg(pid, Signal::SIGKILL);
-                ensure!(
-                    owned.child.try_wait()?.is_some(),
-                    "observed child settlement was lost"
-                );
+                let status = owned
+                    .child
+                    .try_wait()?
+                    .context("observed child settlement was lost")?;
                 owned.settled = true;
-                break code == 0;
-            }
-            Ok(WaitStatus::Signaled(_, _, _)) => {
-                let _ = killpg(pid, Signal::SIGKILL);
-                ensure!(
-                    owned.child.try_wait()?.is_some(),
-                    "observed child settlement was lost"
-                );
-                owned.settled = true;
-                break false;
+                break status;
             }
             Ok(WaitStatus::StillAlive) if started.elapsed() < Duration::from_secs(seconds) => {
                 thread::sleep(Duration::from_millis(30))
@@ -100,14 +91,67 @@ pub(super) fn output(command: &mut Command, seconds: u64) -> Result<(bool, Vec<u
         bytes.len() <= 2 * 1024 * 1024,
         "fixture output exceeded 2 MiB"
     );
-    Ok((success, bytes))
+    ensure!(
+        stderr.metadata()?.len() <= 2 * 1024 * 1024,
+        "fixture stderr exceeded 2 MiB"
+    );
+    stderr.seek(SeekFrom::Start(0))?;
+    let mut diagnostics = Vec::new();
+    stderr
+        .take(2 * 1024 * 1024 + 1)
+        .read_to_end(&mut diagnostics)?;
+    ensure!(
+        diagnostics.len() <= 2 * 1024 * 1024,
+        "fixture stderr exceeded 2 MiB"
+    );
+    Ok((status, bytes, diagnostics))
+}
+#[cfg(test)]
+fn output(command: &mut Command, seconds: u64) -> Result<(bool, Vec<u8>)> {
+    let (status, bytes, _) = captured(command, seconds)?;
+    Ok((status.success(), bytes))
 }
 pub(super) fn checked(command: &mut Command, seconds: u64) -> Result<Vec<u8>> {
-    let (success, bytes) = output(command, seconds)?;
+    checked_phase(command, seconds, "fixture command")
+}
+fn program(command: &Command) -> &str {
+    match command.get_program().to_str() {
+        Some("helm") => "helm",
+        Some("kubectl") => "kubectl",
+        Some("openssl") => "openssl",
+        _ => "fixture subprocess",
+    }
+}
+pub(super) fn checked_phase(command: &mut Command, seconds: u64, phase: &str) -> Result<Vec<u8>> {
+    checked_with_diagnostics(command, seconds, phase, |_| {
+        "stderr excluded to protect credentials".into()
+    })
+}
+/// Only the fixture-owned Helm values boundary opts into redacted stderr.
+pub(super) fn checked_redacted(
+    command: &mut Command,
+    seconds: u64,
+    phase: &str,
+    redact: impl FnOnce(&[u8]) -> String,
+) -> Result<Vec<u8>> {
     ensure!(
-        success,
-        "fixture command failed; child output is excluded to protect credential diagnostics"
+        program(command) == "helm",
+        "redacted command diagnostics require the fixture Helm boundary"
     );
+    checked_with_diagnostics(command, seconds, phase, redact)
+}
+fn checked_with_diagnostics(
+    command: &mut Command,
+    seconds: u64,
+    phase: &str,
+    redact: impl FnOnce(&[u8]) -> String,
+) -> Result<Vec<u8>> {
+    let label = program(command).to_owned();
+    let (status, bytes, stderr) =
+        captured(command, seconds).with_context(|| format!("{phase}: {label}"))?;
+    if !status.success() {
+        anyhow::bail!("{phase}: {label} failed ({status}); {}", redact(&stderr));
+    }
     Ok(bytes)
 }
 
@@ -175,6 +219,19 @@ impl Background {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn generic_command_diagnostics_suppress_child_secrets() {
+        let error = checked_phase(
+            Command::new("sh").args(["-c", "echo secret=password-123 >&2; exit 7"]),
+            2,
+            "native diagnostic",
+        )
+        .unwrap_err();
+        let diagnostic = format!("{error:#}");
+        assert!(diagnostic.contains("native diagnostic"));
+        assert!(diagnostic.contains("exit status: 7"));
+        assert!(!diagnostic.contains("password-123"));
+    }
     #[test]
     fn command_deadline_and_failure_are_distinct() {
         assert!(!output(Command::new("false").arg(""), 1).unwrap().0);
