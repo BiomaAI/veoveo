@@ -1442,11 +1442,12 @@ also pass. The other Phase 4 field families and installed acceptance remain open
 
 ### Opaque Payloads And Declared Lookups
 
-The other 60 FLEXIBLE fields hold opaque payloads and stay FLEXIBLE. Every value a
-query reads from inside one becomes a declared column. When the payload's table and
-the reading code share an owner, the column goes on that table. When an optional
-module reads a kernel payload, the module writes its own lookup table through the
-phase 2 task hooks.
+Keep genuinely opaque payloads FLEXIBLE. A stored JSON object is not necessarily an
+opaque payload: the bind audit also identifies controlled envelopes that need typed
+driver adapters. Every value a query reads from inside a FLEXIBLE field becomes a
+declared column. When the payload's table and the reading code share an owner, the
+column goes on that table. When an optional module reads a kernel payload, the module
+writes its own lookup table through the phase 2 task hooks.
 
 | Query today | Declared replacement | Owner |
 |---|---|---|
@@ -1504,6 +1505,22 @@ admission, canonical draft bytes and hashes; a target record reference alone can
 replace the current predicate. Qualify lookup agreement, filtered paging, view
 admission and transaction rollback without changing the frozen Audit wire format.
 
+Knowledge queries read `knowledge_collection.document.approval` and descriptor
+fields `requiredScopes`, `changeSignal` and `entityKind`. Both catalog writers must
+derive declared lookups from the validated `CollectionRegistration` in the same
+write. Update catalog, completion, observation, statistics and every search-depth
+query together. Preserve whole approval equality, current source leases and scope
+selection before ranking and limits. Search result hydration must use checked
+registration data without selecting nested fields from the FLEXIBLE document.
+
+Artifact upload admission also reads `policy_version` through an alias of a stored
+Gateway profile document in `fn::artifact_upload_profile_digest`. Gateway must write
+that relationship as declared metadata alongside the admitted profile. Select the
+policy through that field and continue hashing the complete profile and policy
+documents. Preserve revision scoping and rejection of missing or duplicate objects;
+qualify missing and inconsistent lookup metadata without constraining owner-defined
+catalog kinds.
+
 Computers maintenance settlement and resume compare `source.resource_id` and
 `source.process_id` inside the FLEXIBLE source snapshot. Move those queried values
 to declared fields with the typed maintenance adapter cut. Preserve the source
@@ -1528,9 +1545,8 @@ Keep that field extensible, validate the shared `ExtensionName` syntax, and qual
 an independent owner's kind. A kernel enum would require core edits for new owners.
 
 Code that binds a wire type into SurrealQL binds a store-owned record type instead.
-Known sites are the artifact upload descriptor, layout and manifest compared in the
-artifact upload queries, the gateway profile bound to
-`fn::artifact_upload_profile_digest` (migration `0050`), workspace operation commands
+The inventory includes the artifact upload descriptor, layout and manifest compared
+in the artifact upload queries, workspace operation commands
 (`$command.run_fence`, `app_uri`), time activation expectations and agent mutation
 plans. Computers' maintenance source and progress also still cross the driver
 through `OpenObject` despite having controlled Rust types. Their typed adapters
@@ -1543,6 +1559,19 @@ owners' driver records. Computers maintenance still converts its controlled sour
 and progress models through `OpenObject`; replace those adapters while preserving
 their comparisons. These source findings narrow the remaining work but do not
 close the complete bind audit.
+
+The following controlled adapters also remain in the production paths. They belong
+to the bind audit even where SQL compares only a whole object. Reuse owner codecs
+and declared fields; a generic JSON wrapper does not establish the known shape.
+
+| Adapter | Required cut and qualification |
+|---|---|
+| Gateway `state/auth_state.rs` and `state/subscriptions.rs` | Replace generic serialization of authorization requests/codes, JWT revocations and resource subscriptions with typed driver records. Subscription and revocation payloads duplicate their declared columns; use one representation. Preserve OAuth scope and PKCE data, checked Principal snapshots, expiry, atomic one-time consumption and record identity agreement. Store must not depend on MCP to obtain these types. |
+| Task Runtime `types.rs::failure_to_open_object` | Give the controlled failure envelope a driver record shared by transition and recovery writers and checked Rust/Python readers. Keep domain error codes extensible and failure details opaque. Preserve absent versus explicit-null details where the public contract distinguishes them. |
+| Frames `state/worlds.rs` and `state/operations.rs` | Bind typed world definitions and operation provenance rather than `OpenObject`. Preserve tree validation, immutable replay, digest and frame-index agreement, and SQL admission before decoding denied rows. |
+| Computers command output and file adapters | Replace generic object conversions for sealed output/file access, effective file limits and completed file results with owner adapters. Ciphertext remains opaque inside its typed envelope. Preserve full-value compare-and-set checks, nonce/key fields, capability deadlines and Task acknowledgement identity. |
+| Agent runtime and kernel wake producers | Model the five known `WakeKind` payload envelopes in the owning runtime and bind their driver records. Replace controlled string-key extraction in conversation and priority handling with checked variants. Preserve task-result and input-response payloads whose contents belong to a tool or model, wake deduplication, lineage, coalescing and recovery. |
+| Media `state.rs::prediction_payload` | Preserve the known prediction envelope through a typed owner driver adapter. Provider input and timing payloads remain open, and unrecognized provider statuses must remain nonterminal. Qualify stored prediction round trips without inventing a schema for model-specific data. |
 
 ### Migration And Gates
 
