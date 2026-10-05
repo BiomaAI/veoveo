@@ -8,6 +8,8 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 import json
+import math
+import struct
 
 ANNOTATIONS = {"$schema", "$id", "title", "description", "examples", "deprecated", "readOnly", "writeOnly", "discriminator"}
 ASSERTIONS = {"$ref", "$defs", "type", "const", "enum", "anyOf", "oneOf", "properties", "required", "additionalProperties", "propertyNames", "items", "prefixItems", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "format", "default"}
@@ -131,6 +133,12 @@ def _branches(schema: dict | bool, root: dict, path: str) -> list[dict | bool]:
 
 
 def _bounds(schema: dict, path: str) -> tuple[tuple[Decimal | None, bool], tuple[Decimal | None, bool]]:
+    for keyword in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
+        if keyword in schema and (type(schema[keyword]) not in (int, float) or not Decimal(str(schema[keyword])).is_finite()):
+            _error(path, f"{keyword} must be a finite JSON number")
+    for value in schema.get("enum", [schema["const"]] if "const" in schema else []):
+        if type(value) in (int, float) and not Decimal(str(value)).is_finite():
+            _error(path, "numeric constants must be finite JSON numbers")
     lower = (Decimal(str(schema["minimum"])), False) if "minimum" in schema else (None, False)
     upper = (Decimal(str(schema["maximum"])), False) if "maximum" in schema else (None, False)
     if "exclusiveMinimum" in schema:
@@ -186,6 +194,27 @@ def _scalar_values(schema: dict, path: str) -> list | None:
     return None
 
 
+def _bounded_f32_conversion(producer: dict, consumer: dict, path: str) -> bool:
+    # IEEE-754 rounding is monotone. Exactly representable inclusive endpoints
+    # keep every finite source value in the consumer interval after conversion.
+    if any(key in consumer for key in ("enum", "const")):
+        return False
+    if any(key in profile for profile in (producer, consumer) for key in ("exclusiveMinimum", "exclusiveMaximum")):
+        return False
+    p_bounds, c_bounds = _bounds(producer, path), _bounds(consumer, path)
+    for bound in (*p_bounds, *c_bounds):
+        if bound[0] is None or not bound[0].is_finite() or bound[1]:
+            return False
+    for value, _ in c_bounds:
+        try:
+            rounded = struct.unpack("!f", struct.pack("!f", float(value)))[0]
+        except (OverflowError, ValueError):
+            return False
+        if not math.isfinite(rounded) or Decimal.from_float(rounded) != value:
+            return False
+    return _included_bound(p_bounds[0], c_bounds[0], True) and _included_bound(p_bounds[1], c_bounds[1], False)
+
+
 def _compare_scalar(producer: dict, consumer: dict, path: str) -> None:
     p_values, c_values = _scalar_values(producer, path), _scalar_values(consumer, path)
     if c_values is not None and (p_values is None or any(value not in c_values for value in p_values)):
@@ -196,10 +225,10 @@ def _compare_scalar(producer: dict, consumer: dict, path: str) -> None:
         c_lower, c_upper = _bounds(consumer, path)
         if not _included_bound(p_lower, c_lower, True) or not _included_bound(p_upper, c_upper, False):
             _error(path, "producer numeric range exceeds consumer admission")
-        # JSON numbers are decoded as f64 in Python. Rust f32 production is
-        # admitted there; a generic f64 producer cannot promise an f32 consumer.
-        if consumer.get("format") == "float" and producer.get("format") != "float":
-            _error(path, "f64 producer lacks an f32 wire profile")
+        # Generic numbers need a qualified bounded conversion profile before
+        # a Rust f32 consumer can admit their rounded representation.
+        if consumer.get("format") == "float" and producer.get("format") != "float" and not _bounded_f32_conversion(producer, consumer, path):
+            _error(path, "f64 producer lacks a contained inclusive f32 interval")
     limits = (("minLength", "maxLength"),) if kind == "string" else (("minItems", "maxItems"),) if kind == "array" else ()
     for lower, upper in limits:
         if producer.get(lower, 0) < consumer.get(lower, 0) or producer.get(upper, float("inf")) > consumer.get(upper, float("inf")):

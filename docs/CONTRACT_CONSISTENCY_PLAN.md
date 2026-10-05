@@ -17,8 +17,10 @@ transfer conditions, and installed acceptance remain open. Phase 1 is active: th
 module declarations, native runner, execution commands and rendered installation Jobs
 pass their native checks. The staged gateway image passes isolated installed checks
 for fresh preparation, lane completion, publication, credential rotation, stale Job
-rejection and later module enablement. The managed-agent recovery fixture passes
-native checks; installed credential recovery and product activation remain open.
+rejection and later module enablement. Installed managed-agent replacement preserves
+identity and storage, advances the lease fence and survives replay. The extended
+lifecycle still fails its old-password probe on connection refusal before
+authentication; complete lifecycle acceptance and product activation remain open.
 Phase 2 Task contributions, versioned kernel SQL admission and
 Optimization's catalog reads pass their native checks. The gateway composition split
 and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
@@ -48,9 +50,9 @@ Affected native suites, Python peers, generated browser consumers and Stream's C
 build pass. Recording's sensor-stack loader now closes its flat variants and validates
 sensor IDs during decoding. UAV state, acknowledgements, completion results and events
 use typed Python output models. Authenticated native wire checks now cover unknown
-arguments on all sixteen Rust servers. Map, cuOpt, Reason and Speech compare their
-complete private protocol schemas across Rust and Python. Exhaustive controlled-variant
-coverage, UAV's complete private schema graph and installed process qualification remain open.
+arguments on all sixteen Rust servers. Map, cuOpt, Reason, Speech and UAV compare
+their complete private JSON protocol graphs across Rust and Python. Exhaustive
+controlled-variant coverage and installed process qualification remain open.
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -767,7 +769,12 @@ database check runs production control-plane publication through fixture definit
 creation, publication and managed provisioning without modifying the published Work
 Context. The kernel's native admission check also proves episode persistence precedes
 dispatch.
-Installed managed-agent credential recovery still needs qualification.
+Installed replacement and replay checks pass: the new kernel uses rotated credentials
+and a higher fence, preserves signing identity and PVC content, and drains without
+creating episodes. The extended lifecycle remains unqualified because its separate
+old-password probe fails to connect before authentication. The latest run also reports
+a cleanup-observation failure although a subsequent API query confirms namespace
+removal. Probe failures now retain their redacted diagnostics before bulk inventory.
 Production SQL redistribution belongs to Phase 3.
 
 | Work | Detail |
@@ -1193,8 +1200,8 @@ The UAV overlay validates typed state, acknowledgements, completion results and 
 events before HTTP or NDJSON serialization. Shared fixtures cover Python emission and
 Rust decoding, including all seven camera rigs. Output errors expose validation kinds
 without payload values; unresolved Recording keys stay separate from physical completion.
-The [Phase 6 schema comparisons](#phase-6-generated-cross-language-types) qualify four
-complete private protocol graphs. UAV's full private graph remains open. Stream's C++
+The [Phase 6 schema comparisons](#phase-6-generated-cross-language-types) qualify five
+complete private JSON protocol graphs. Stream's C++
 decoder passes its native build; installed runner checks remain open.
 `AccessSubject` now reports undeclared map keys through the shared HTTP extractor while
 preserving its adjacent-tag sequence profile. Native checks cover both subject kinds,
@@ -1238,17 +1245,20 @@ lightweight owners without copying enums or importing runtime dependencies into 
 browser contract. Broader Artifact/grant, Task, Agent and policy projections remain
 required. Python peers and MCP App assets also retain the work listed below.
 
-The UAV Python suite compares 21 shared output structures and seven camera-rig variants
-with the maintained Rust schema snapshot. It checks field sets, required and nullable
-values, enum spellings and numeric guarantees. Private Recording rows, lifecycle events
-and completion envelopes use shared decode fixtures and protocol tests; they do not yet
-have private Rust schema snapshots. These checks do not close protocol-wide equivalence.
+UAV's private snapshot derives eight endpoint roots from the actual Rust adapter types:
+world, command and operation requests, their responses, state and NDJSON events.
+Recursive comparison includes private Recording state, unresolved completion keys,
+seven command variants and three operation variants. Shared fixtures preserve omitted
+fields, explicit nulls, all camera rigs and physical-completion admission. Python's
+finite battery range and native Rust decoding qualify the bounded conversion to
+`f32`; schema annotations alone do not establish runtime range validation.
 
-Map normalization, cuOpt execution, Reason inference and Speech worker messages now
+Map normalization, cuOpt execution, Reason inference, Speech worker messages and UAV
 have complete private Rust schema snapshots. The shared Python checker follows their
 reachable graphs in each wire direction: Rust serialization to Python validation, and
-Python serialization to Rust deserialization. All four peer suites pass. The checker
-qualifies its supported structural subset, including finite enum-keyed maps, and rejects
+Python serialization to Rust deserialization. The checker
+qualifies its supported structural subset, including finite enum-keyed maps and bounded
+numeric conversion with exactly representable inclusive endpoints, and rejects
 unsupported assertions or compositions. It does not establish general schema equivalence.
 Owner types supply actual numeric admission: cuOpt's nonnegative scalar exposes its
 existing lower bound, and Reason's private limits use fixed-width integers. Contextual

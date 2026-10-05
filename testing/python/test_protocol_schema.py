@@ -102,3 +102,37 @@ class SchemaComparisonTests(unittest.TestCase):
         self.compatible(referenced, enumerated)
         self.rejects({**mapping, "propertyNames": {"enum": ["a", "b"], "pattern": "^a$"}}, enumerated)
         self.rejects(enumerated, {**mapping, "propertyNames": {"enum": ["a", "b"], "pattern": "^a$"}})
+
+    def test_bounded_f64_to_f32_conversion_profile(self):
+        producer = {"type": "number", "minimum": 0, "maximum": 100}
+        consumer = {**producer, "format": "float"}
+        self.compatible(producer, consumer)
+        self.compatible({**producer, "minimum": 10, "maximum": 90}, consumer)
+        self.compatible({**producer, "minimum": -100}, {**consumer, "minimum": -100})
+        for changed in [
+            {"type": "number"},
+            {**producer, "minimum": -1},
+            {**producer, "maximum": 101},
+            {**producer, "maximum": 1e100},
+            {**producer, "maximum": float("inf")},
+            {**producer, "minimum": float("nan")},
+            {**producer, "exclusiveMinimum": 0},
+        ]:
+            self.rejects(changed, consumer)
+        for changed in [
+            {"type": "number", "format": "float"},
+            {**consumer, "maximum": 0.1},
+            {**consumer, "maximum": 1e100},
+            {**consumer, "maximum": float("inf")},
+            {**consumer, "minimum": float("nan")},
+            {**consumer, "exclusiveMaximum": 100},
+            {**consumer, "enum": [0, 100]},
+        ]:
+            self.rejects({**producer, "maximum": changed.get("maximum", 100)}, changed)
+        self.compatible({**producer, "format": "double"}, consumer)
+        self.rejects({**producer, "maximum": 90}, {**consumer, "exclusiveMaximum": 100})
+        self.rejects({**producer, "minimum": 0.1}, {**consumer, "minimum": 0.1})
+        self.rejects({**producer, "const": 0}, {**consumer, "enum": [0, 100]})
+        self.rejects({**producer, "const": 100}, {**consumer, "const": 100})
+        # A zero-width representable interval is also safe without enum admission.
+        self.compatible({**producer, "minimum": 100}, {**consumer, "minimum": 100})

@@ -11,7 +11,7 @@ use crate::{adapter::Adapter, uris};
 const RUNTIME_EVENT_SCHEMA: &str = "veoveo.ai/uav-runtime-event/v2";
 const MAXIMUM_EVENT_BYTES: usize = 1_024;
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct RuntimeEvent {
     schema: String,
@@ -20,7 +20,7 @@ struct RuntimeEvent {
     generation: u64,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 enum RuntimeEventKind {
     AdapterReady,
@@ -156,6 +156,25 @@ fn parse(bytes: &[u8], expected_session: &LiveSessionId) -> anyhow::Result<Runti
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn private_protocol_schemas_preserve_endpoint_directions() {
+        let mut schemas = crate::adapter::private_protocol_schemas();
+        schemas.insert("GET /v1/events NDJSON".into(), serde_json::json!({
+            "direction": "python_to_rust",
+            "schema": schemars::generate::SchemaSettings::draft2020_12()
+                .for_deserialize().into_generator().into_root_schema_for::<super::RuntimeEvent>(),
+        }));
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/private-protocol.schema.json");
+        let value = serde_json::Value::Object(schemas);
+        if std::env::var_os("UPDATE_PRIVATE_PROTOCOL_SCHEMAS").is_some() {
+            std::fs::write(&path, serde_json::to_string_pretty(&value).unwrap() + "\n").unwrap();
+        }
+        let retained: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(value, retained, "private adapter endpoint schema drift");
+    }
+
     use super::*;
 
     #[test]
@@ -177,6 +196,14 @@ mod tests {
             RuntimeEventKind::AdapterReady
         );
         assert_eq!(event.generation, 2);
+        for invalid in [
+            br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"unknown","sessionId":"session-alpha","generation":2}"#.as_slice(),
+            br#"{"schema":"unsupported","event":"ready","sessionId":"session-alpha","generation":2}"#.as_slice(),
+            br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"ready","sessionId":"session-alpha","generation":0}"#.as_slice(),
+        ] {
+            assert!(parse(invalid, &expected).is_err());
+        }
+
         assert!(
             parse(
                 br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"ready","sessionId":"session-beta","generation":2}"#,

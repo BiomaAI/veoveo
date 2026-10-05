@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import json
+import math
+import struct
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -25,90 +27,32 @@ def outputs() -> dict:
 
 
 class AdapterOutputTests(unittest.TestCase):
-    def test_shared_output_schemas_satisfy_rust_field_enum_and_numeric_contracts(self) -> None:
-        from veoveo_uav_sim import outbound
-        snapshot = json.loads((Path(__file__).resolve().parents[4] / "servers/uav-sim-mcp/testdata/contract.schema.json").read_text())
-        pairs = [
-            (outbound.SimulationState, "SimulationState"),
-            (outbound.CommandAcknowledgement, "CommandAcknowledgement"),
-            (outbound.WorldAcknowledgement, "ConfigureWorldOutput"),
-            (outbound.EnuVector, "EnuVector"), (outbound.NedVector, "NedVector"),
-            (outbound.Quaternion, "QuaternionXyzw"), (outbound.Direction, "EnuDirection"),
-            (outbound.RenderPose, "CameraRenderPoseState"),
-            (outbound.TileFailure, "TileFailureState"), (outbound.TileState, "TileState"),
-            (outbound.CameraState, "CameraState"), (outbound.VehicleState, "VehicleState"),
-            (outbound.RuntimeTiming, "RuntimeTimingState"),
-            (outbound.Vector3, "LiveVector3"), (outbound.Pose, "LivePose"),
-            (outbound.Smoothing, "LiveCameraSmoothing"),
-            (outbound.LiveCamera, "LiveCameraDescriptor"),
-            (outbound.CameraRegion, "LiveCameraRegion"),
-            (outbound.StreamProduct, "LiveStreamProductState"),
-        ]
-        rig_schemas = {
-            variant["properties"]["kind"]["const"]: {**variant, "$defs": snapshot["LiveCameraRig"]["$defs"]}
-            for variant in snapshot["LiveCameraRig"]["oneOf"]
+    def test_complete_private_endpoint_schemas_are_directionally_compatible(self) -> None:
+        from testing.python.protocol_schema import assert_compatible
+        from veoveo_uav_sim.contracts import COMMAND_ADAPTER, OPERATION_ADAPTER
+        from veoveo_uav_sim.world_config import ConfigureWorldWire
+        snapshot = json.loads((Path(__file__).resolve().parents[4] / "servers/uav-sim-mcp/testdata/private-protocol.schema.json").read_text())
+        requests = {
+            "POST /v1/world request": ConfigureWorldWire,
+            "POST /v1/commands request": COMMAND_ADAPTER,
+            "POST /v1/operations request": OPERATION_ADAPTER,
         }
-        rig_models = [outbound.FixedRig, outbound.LookAtRig, outbound.OrbitRig, outbound.FollowRig,
-                      outbound.ChaseRig, outbound.MountedRig, outbound.FormationRig]
-        for model in rig_models:
-            kind = model.model_json_schema()["properties"]["kind"]["const"]
-            name = "LiveCameraRig/" + kind
-            snapshot[name] = rig_schemas[kind]
-            pairs.append((model, name))
-        state_defs = snapshot["SimulationState"]["$defs"]
-        pairs.extend([(outbound.Position, "Wgs84Position"), (outbound.WorldBinding, "SimulationWorldBinding")])
-
-        def resolve(field: dict, schema: dict) -> dict:
-            if "$ref" in field:
-                return schema["$defs"][field["$ref"].removeprefix("#/$defs/")]
-            return field
-
-        def kinds(field: dict, schema: dict) -> set:
-            field = resolve(field, schema)
-            for union in ("anyOf", "oneOf"):
-                if union in field:
-                    return set().union(*(kinds(branch, schema) for branch in field[union]))
-            declared = field.get("type")
-            return set(declared) if isinstance(declared, list) else {declared}
-
-        def alternatives(field: dict, schema: dict) -> list[dict]:
-            field = resolve(field, schema)
-            for union in ("anyOf", "oneOf"):
-                if union in field:
-                    return [variant for branch in field[union] for variant in alternatives(branch, schema)]
-            return [] if kinds(field, schema) == {"null"} else [field]
-
-        for model, name in pairs:
-            source = model.model_json_schema(mode="serialization")
-            target = snapshot.get(name, {**state_defs[name], "$defs": state_defs}) if name in state_defs else snapshot[name]
-            with self.subTest(model=name):
-                self.assertEqual(set(source["properties"]), set(target["properties"]))
-                self.assertEqual(set(source.get("required", [])), set(target.get("required", [])))
-                self.assertFalse(source["additionalProperties"])
-                if "additionalProperties" in target:
-                    self.assertFalse(target["additionalProperties"])
-                for key, target_field in target["properties"].items():
-                    source_field = source["properties"][key]
-                    self.assertEqual(kinds(source_field, source), kinds(target_field, target), key)
-                    source_field, target_field = resolve(source_field, source), resolve(target_field, target)
-                    if "enum" in target_field:
-                        self.assertEqual(set(source_field.get("enum", [source_field.get("const")])), set(target_field["enum"]), key)
-                    # Bounds can live on nullable scalar schemas or their anyOf
-                    # branches. Check every matching source alternative.
-                    for target_variant in alternatives(target_field, target):
-                        for source_variant in alternatives(source_field, source):
-                            if not (kinds(source_variant, source) & kinds(target_variant, target) - {"null"}):
-                                continue
-                            for constraint in ["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"]:
-                                if constraint in target_variant:
-                                    if constraint in {"minimum", "exclusiveMinimum"}:
-                                        self.assertGreaterEqual(source_variant[constraint], target_variant[constraint], key)
-                                    else:
-                                        self.assertLessEqual(source_variant[constraint], target_variant[constraint], key)
-                            if target_variant.get("format", "").startswith("uint"):
-                                bits = int(target_variant["format"].removeprefix("uint"))
-                                self.assertLessEqual(source_variant["maximum"], 2**bits - 1, key)
-
+        responses = {
+            "GET /v1/state response": SimulationState,
+            "POST /v1/world response": WorldAcknowledgement,
+            "POST /v1/commands response": CommandAcknowledgement,
+            "POST /v1/operations response": OPERATION_RESULT_ADAPTER,
+            "GET /v1/events NDJSON": RuntimeEventWire,
+        }
+        self.assertEqual(set(snapshot), set(requests) | set(responses))
+        for roots, direction, mode in [(requests, "rust_to_python", "validation"), (responses, "python_to_rust", "serialization")]:
+            for endpoint, model in roots.items():
+                with self.subTest(endpoint=endpoint):
+                    self.assertEqual(snapshot[endpoint]["direction"], direction)
+                    python = model.json_schema(mode=mode) if hasattr(model, "json_schema") else model.model_json_schema(mode=mode)
+                    rust = snapshot[endpoint]["schema"]
+                    producer, consumer = (rust, python) if direction == "rust_to_python" else (python, rust)
+                    assert_compatible(producer, consumer, context=endpoint)
 
     def test_rust_consumer_fixture_preserves_every_output_shape(self) -> None:
         fixture = outputs()
@@ -150,6 +94,26 @@ class AdapterOutputTests(unittest.TestCase):
                     admit_output(model, mutated)
                 self.assertIn("extra_forbidden", str(failure.exception))
                 self.assertNotIn("distinctive-secret", str(failure.exception))
+
+    def test_battery_output_is_finite_and_survives_native_f32_rounding(self) -> None:
+        preceding = struct.unpack("!f", struct.pack("!I", 0x42C7FFFF))[0]
+        for value in [0.0, math.nextafter(0.0, 1.0), 0.1, preceding,
+                      (preceding + 100.0) / 2.0, math.nextafter(100.0, 0.0), 100.0]:
+            with self.subTest(value=value):
+                payload = outputs()["state"]
+                payload["vehicles"][0]["battery_percent"] = value
+                admitted = admit_output(SimulationState, payload)
+                emitted = admitted["vehicles"][0]["battery_percent"]
+                self.assertEqual(emitted, value)
+                rounded = struct.unpack("!f", struct.pack("!f", emitted))[0]
+                self.assertTrue(math.isfinite(rounded))
+                self.assertGreaterEqual(rounded, 0)
+                self.assertLessEqual(rounded, 100)
+        for value in [True, -0.1, math.nextafter(100.0, math.inf), float("nan"), float("inf")]:
+            payload = outputs()["state"]
+            payload["vehicles"][0]["battery_percent"] = value
+            with self.subTest(value=value), self.assertRaises(OutputContractError):
+                admit_output(SimulationState, payload)
 
     def test_numeric_widths_enums_finiteness_and_bool_separation(self) -> None:
         invalid = [

@@ -10,7 +10,7 @@ use crate::contract::{
 
 // A malformed recording key cannot erase a correlated physical completion.
 // Admit these provider values only when projecting the settled result.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(transparent)]
 struct UnresolvedRecordingKey(String);
 
@@ -22,7 +22,7 @@ impl UnresolvedRecordingKey {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AdapterScenarioResult {
     session_id: SessionId,
@@ -32,7 +32,7 @@ pub(super) struct AdapterScenarioResult {
     recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AdapterMissionResult {
     mission_id: MissionId,
@@ -43,7 +43,7 @@ pub(super) struct AdapterMissionResult {
     recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct AdapterCaptureDatasetResult {
     session_id: SessionId,
@@ -51,7 +51,7 @@ pub(super) struct AdapterCaptureDatasetResult {
     recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(
     tag = "result",
     content = "output",

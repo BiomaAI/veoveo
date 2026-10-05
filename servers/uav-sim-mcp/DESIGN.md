@@ -203,8 +203,21 @@ its existing state representation. Models preserve omitted optional fields and e
 nulls, reject nonfinite numeric output, and report validation kinds without payload
 values. Completion output keeps unresolved Recording producer keys as strings until
 the Rust worker settles physical completion and resolves the catalog references.
-Shared fixtures exercise both decoders; protocol-wide schema equivalence and composed
-GPU acceptance have separate gates in the active plan.
+The [private schema snapshot](testdata/private-protocol.schema.json) names each HTTP request and response root separately,
+plus the NDJSON lifecycle event root. Rust tests derive requests in serialization
+mode and responses in deserialization mode from the actual adapter types. Python
+compares their complete reachable graphs through the shared directional checker.
+The scenario parameter map remains open to string keys and values; completion
+Recording keys remain unresolved strings while state keys use their admitted type.
+
+Shared fixtures qualify omitted fields, explicit nulls, controlled variants and
+actual decoder behavior. The finite battery interval 0–100 permits native `f32`
+rounding with exactly representable endpoints. Rust schema range annotations alone
+do not enforce numeric admission. Python output validation enforces its range
+before emission. Identity syntax, calendar parsing, camera geometry and physical
+completion correlation also require behavioral checks beyond schemas. These
+checks establish private JSON compatibility; installed GPU execution requires its
+separate hardware qualification.
 
 ```text
 gateway actor

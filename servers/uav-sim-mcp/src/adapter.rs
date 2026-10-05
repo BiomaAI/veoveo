@@ -34,7 +34,7 @@ const RECORDING_APPLICATION_ID: &str = "veoveo-uav-sim";
 const RECORDING_CATALOG_ATTEMPTS: usize = 100;
 const RECORDING_CATALOG_RETRY: Duration = Duration::from_millis(100);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AdapterRecordingState {
     application_id: String,
@@ -50,7 +50,7 @@ struct AdapterRecordingState {
     started_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AdapterSimulationState {
     session_id: SessionId,
@@ -66,6 +66,13 @@ struct AdapterSimulationState {
     vehicles: Vec<VehicleState>,
     recordings: Vec<AdapterRecordingState>,
     updated_at: DateTime<Utc>,
+}
+
+#[derive(serde::Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AdapterWorldRequest<'a> {
+    session_id: &'a SessionId,
+    world: &'a SimulationWorldBinding,
 }
 
 #[derive(Clone)]
@@ -201,11 +208,6 @@ impl HttpAdapter {
         session_id: &SessionId,
         world: &SimulationWorldBinding,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        #[derive(serde::Serialize)]
-        struct AdapterWorldRequest<'a> {
-            session_id: &'a SessionId,
-            world: &'a SimulationWorldBinding,
-        }
         self.post("v1/world", &AdapterWorldRequest { session_id, world })
             .await
     }
@@ -711,6 +713,32 @@ pub enum AdapterError {
     RecordingCatalogTimeout(String),
 }
 
+#[cfg(all(test, feature = "mcp"))]
+pub(crate) fn private_protocol_schemas() -> serde_json::Map<String, serde_json::Value> {
+    fn root<T: schemars::JsonSchema>(direction: &str) -> serde_json::Value {
+        let settings = schemars::generate::SchemaSettings::draft2020_12();
+        let generator = if direction == "rust_to_python" {
+            settings.for_serialize()
+        } else {
+            settings.for_deserialize()
+        }
+        .into_generator();
+        serde_json::json!({"direction": direction, "schema": generator.into_root_schema_for::<T>()})
+    }
+    serde_json::json!({
+        "POST /v1/world request": root::<AdapterWorldRequest<'static>>("rust_to_python"),
+        "POST /v1/commands request": root::<SimulationCommand>("rust_to_python"),
+        "POST /v1/operations request": root::<DurableOperation>("rust_to_python"),
+        "GET /v1/state response": root::<AdapterSimulationState>("python_to_rust"),
+        "POST /v1/world response": root::<ConfigureWorldOutput>("python_to_rust"),
+        "POST /v1/commands response": root::<CommandAcknowledgement>("python_to_rust"),
+        "POST /v1/operations response": root::<AdapterDurableOperationResult>("python_to_rust"),
+    })
+    .as_object()
+    .unwrap()
+    .clone()
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
@@ -892,6 +920,52 @@ mod tests {
             valid["updated_at"] = serde_json::json!(timestamp);
             assert!(serde_json::from_value::<AdapterSimulationState>(valid).is_ok());
         }
+    }
+
+    #[test]
+    fn private_battery_decoding_preserves_the_bounded_f32_interval() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../showcase/uav-sim/runtime/tests/fixtures/adapter_outputs.json"
+        ))
+        .unwrap();
+        let preceding = f32::from_bits(100.0_f32.to_bits() - 1) as f64;
+        let midpoint = (preceding + 100.0) / 2.0;
+        let mut previous = 0.0_f32;
+        for value in [
+            0.0,
+            f64::from_bits(1),
+            0.1,
+            preceding,
+            midpoint,
+            f64::from_bits(100.0_f64.to_bits() - 1),
+            100.0,
+        ] {
+            let mut payload = fixture["state"].clone();
+            payload["vehicles"][0]["battery_percent"] = serde_json::json!(value);
+            let bytes = serde_json::to_vec(&payload).unwrap();
+            let decoded: AdapterSimulationState = serde_json::from_slice(&bytes).unwrap();
+            let battery = decoded.vehicles[0].battery_percent;
+            // Compatibility promises interval admission, not bit equality with
+            // an in-memory f64 cast: decimal wire parsing can move a midpoint.
+            assert!(battery.is_finite() && (0.0..=100.0).contains(&battery));
+            assert!(battery >= previous);
+            previous = battery;
+            if value == 0.0 || value == 100.0 {
+                assert_eq!(battery as f64, value);
+            }
+        }
+        for value in [serde_json::json!(true), serde_json::json!("100")] {
+            let mut payload = fixture["state"].clone();
+            payload["vehicles"][0]["battery_percent"] = value;
+            assert!(
+                serde_json::from_slice::<AdapterSimulationState>(
+                    &serde_json::to_vec(&payload).unwrap()
+                )
+                .is_err()
+            );
+        }
+        // The schema's range describes the producer contract; plain f32 Serde
+        // does not enforce it. Runtime output admission owns that range check.
     }
 
     #[test]
