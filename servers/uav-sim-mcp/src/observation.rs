@@ -3,6 +3,8 @@ use veoveo_modules::{ChangefeedRetention, ObservationReplay, ObservationTable, T
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum UavObservationTable {
+    #[vocabulary(rename = "uav_task")]
+    UavTask,
     #[vocabulary(rename = "uav_vehicle_control_grant")]
     UavVehicleControlGrant,
     #[vocabulary(rename = "uav_vehicle_mission_plan")]

@@ -268,3 +268,8 @@ admission. Field/table
 removals, redefinitions and wildcard declarations invalidate the relevant proof;
 existing dependent indexes must be removed before a shape change. Redefining a parent
 object cannot silently certify its previously declared descendants.
+
+Leaf signatures also admit native `datetime` parameters and literals. A service
+query can obtain one database timestamp and pass it into a pure admission export;
+leaf bodies still reject `time::now()`. Pure `array::min` inspects every argument
+under the existing read-only argument rules, including nested expressions.

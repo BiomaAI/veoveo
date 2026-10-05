@@ -365,10 +365,15 @@ async fn native_cancellation_keeps_vehicle_fenced_after_provider_continues() {
             .await
             .unwrap();
         case.assert_fenced().await;
-        let recovered = TaskRuntime::new(db.b.clone(), "uav-sim", "replacement")
-            .recover()
-            .await
-            .unwrap();
+        let recovered = crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(
+            db.b.clone(),
+            "uav-sim",
+            "replacement",
+        ))
+        .unwrap()
+        .recover()
+        .await
+        .unwrap();
         assert!(recovered.resumable.is_empty());
         assert_eq!(case.http.state.calls.load(Ordering::SeqCst), 1);
     })
@@ -478,7 +483,7 @@ async fn native_task_lease_loss_cannot_release_vehicle_authority() {
         let task = case.wait().await;
         assert_eq!(task.status, TaskStatus::Running, "stale worker cannot settle the Task");
         case.assert_fenced().await;
-        let recovery = TaskRuntime::new(db.b.clone(), "uav-sim", "replacement").recover().await.unwrap();
+        let recovery = crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(db.b.clone(), "uav-sim", "replacement")).unwrap().recover().await.unwrap();
         assert_eq!(recovery.failed_indeterminate.len(), 1);
         case.assert_fenced().await;
         assert_eq!(case.http.state.calls.load(Ordering::SeqCst), 1);

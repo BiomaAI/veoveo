@@ -45,6 +45,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
+    let tasks = crate::server::task_catalog::UavTaskContributions::bind(tasks)?;
     let recovery = tasks.recover().await?;
     let control_authority = VehicleControlAuthority::new(tasks.platform_store().clone());
     let adapter = match args.adapter {

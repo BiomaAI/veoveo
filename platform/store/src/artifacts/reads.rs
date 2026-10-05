@@ -12,11 +12,6 @@ pub struct ArtifactReadScope {
 }
 
 impl ArtifactReadScope {
-    /// Artifact-owned SQL predicate for the `artifact_occurrence` row in scope.
-    /// Use inside that table's WHERE clause, before projection and pagination.
-    /// Bind its parameters with `bind`; consumers must not copy the policy.
-    pub const ADMISSION: &'static str = include_str!("../queries/artifacts/read_admission.surql");
-
     pub fn new(
         identity: &PlatformIdentity,
         groups: impl IntoIterator<Item = GroupKey>,
@@ -49,6 +44,22 @@ impl ArtifactReadScope {
         query
             .bind(("tenant", self.tenant.record_id()))
             .bind(("subjects", self.subjects.clone()))
+            .bind((
+                "principals",
+                self.subjects
+                    .iter()
+                    .filter(|id| id.table.as_str() == "principal")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "groups",
+                self.subjects
+                    .iter()
+                    .filter(|id| id.table.as_str() == "principal_group")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            ))
             .bind((
                 "clearance",
                 self.clearance
@@ -102,6 +113,6 @@ impl PlatformStore {
             .bind(("limit", i64::try_from(limit.min(101)).unwrap()))
             .await?
             .check()?;
-        Ok(response.take(0)?)
+        Ok(response.take(response.num_statements() - 1)?)
     }
 }

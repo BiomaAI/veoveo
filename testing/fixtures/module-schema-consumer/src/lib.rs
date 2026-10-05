@@ -13,6 +13,8 @@ pub fn declarations(
         veoveo_platform_store::schema::tasks::module_setup(execution("tasks")?)?,
         veoveo_platform_store::schema::audit::module_setup(execution("audit")?)?,
         veoveo_platform_store::schema::knowledge::module_setup(execution("knowledge")?)?,
+        veoveo_reason_mcp::schema::module_setup(execution("reason")?)?,
+        veoveo_stream_mcp::schema::module_setup(execution("stream")?)?,
         veoveo_computers::schema::module_setup(execution("computers")?)?,
         veoveo_agent_runtime::schema::module_setup(execution("agents")?)?,
         veoveo_workspace::schema::module_setup(execution("workspace")?)?,

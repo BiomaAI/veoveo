@@ -9,6 +9,7 @@ async fn unknown_tool_arguments_complete_before_recording_or_runner_access() {
     tokio::time::timeout(Duration::from_secs(120),async {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let db = crate::store_fixture::TestDb::new().await;
+        crate::store_fixture::module_lanes::install(&db.a, vec![veoveo_stream_mcp::schema::module_setup(crate::store_fixture::module_lanes::execution("stream").unwrap()).unwrap()]).await.unwrap();
         let root = tempfile::tempdir().unwrap();
         let catalog = Arc::new(PipelineCatalog::new(vec![],vec![veoveo_stream_mcp::catalog::PipelineConfig {
             id:"preview".parse().unwrap(),title:"Preview".into(),description:String::new(),
@@ -28,7 +29,7 @@ async fn unknown_tool_arguments_complete_before_recording_or_runner_access() {
                 veoveo_recording_reader::cache::LayerCacheLimits {managed_bytes:1024,minimum_free_bytes:1},artifacts).unwrap()).unwrap();
         let state = Arc::new(AppState {
             live_app:veoveo_mcp_apps_extension::AppHtml::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/live.html")).unwrap(),
-            tasks:TaskRuntime::new(db.a.clone(),"stream","strict-input"),
+            tasks:veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(),"stream","strict-input")).unwrap(),
             artifacts:ArtifactRepository::new("http://127.0.0.1:9"),recordings:Arc::new(recordings),catalog,
             executor:StreamExecutor::new(root.path().join("unavailable-runner"),Duration::from_secs(1),2,2,1024).unwrap(),
             source_limits:VideoSourceLimits {max_samples:2,max_encoded_bytes:1024,max_segment_bytes:1024},

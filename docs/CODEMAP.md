@@ -435,16 +435,17 @@ image to generate the locked plan. Its process adapter owns execution deadlines 
 container cleanup. `deploy/helm/veoveo/templates/_module-jobs.tpl` renders preparation,
 per-lane migration and control-plane publication Jobs from that plan.
 
-`platform/store/src/schema/tasks/migrations/` owns the versioned Task SQL selection
-API. It reads persisted caller policy and returns an admitted Task projection for
-module queries, with guarded access to open request and result objects.
+`platform/store/src/schema/tasks/migrations/` owns Task selection, lifecycle and
+retention SQL APIs. Selection applies persisted caller policy. Lifecycle exposes
+service metadata and optional whole-result equality without returning payloads;
+domain readers supply their separate caller or Artifact admission.
 
 ### `platform/workspace`
 
 The library owns Workspace application contracts, native App envelopes and gateway
 services through separate features. Its lightweight contract depends on Agents'
 contract. Schema declarations own Workspace tables and their target dependency on
-Agents; production persistence stays in Store pending Phase 3.
+Agents; its repositories and query assets own production persistence.
 
 ### `platform/http`
 
@@ -636,6 +637,7 @@ Domain runtimes can own private queries and driver records over these connection
 | File | Responsibility |
 |---|---|
 | `config.rs` | root/database auth configuration and validation |
+| `read_transaction.rs` | shared read snapshots for owner catalog selection and Task hydration, with deadlines and cancellation after caller drop |
 | [`schema/`](../platform/store/src/schema/DESIGN.md) | current SurrealDB 3.3.0 kernel lanes; composition selects and executes owner declarations through the module runner |
 | [`src/queries/`](../platform/store/src/queries/DESIGN.md) | complete Store persistence statements, finite query selections and narrowly typed native grammar substitutions |
 | `models.rs` | persisted Rust record and enum definitions |
@@ -657,7 +659,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, tenant-scoped principal summaries, enabled-human search and identity labels; Workspace owns its chat and invitation policy |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `artifacts/reads.rs`, `queries/artifacts/read_admission.surql` and `queries/artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission; shared predicate and scope bindings let domain readers join readable results before decoding and page limits |
+| `artifacts/reads.rs`, `queries/artifacts/read_page.surql` and `schema/artifacts/migrations/read_v1.surql` | typed Artifact scope bindings, exact and paged reads, and the kernel export for current read admission, observation facts and expiry deadlines |
 | `artifacts/publication.rs` and `queries/artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
@@ -1180,7 +1182,7 @@ domain vocabulary.
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
 | `servers/optimization-mcp/src/bin/server/setup.rs` | checked MCP startup and discovery, typed descriptors, App metadata and RFC 6570 templates |
 | `servers/optimization-mcp/src/reads.rs` | domain-owned SQL selection under matching owner envelopes and Work Context metadata, typed exact lookup, stable pagination and completion search |
-| `servers/optimization-mcp/src/reads/transaction.rs` | one native read transaction for catalog selection and Task hydration, with owned cancellation after caller drop |
+| `platform/store/src/read_transaction.rs` | shared transaction ownership for Optimization and UAV catalog selection and Task hydration |
 | `servers/optimization-mcp/src/schema.rs`, `migrations/` and `src/task_catalog.rs` | Optimization-owned Task catalog declaration, typed transactional contributions, immutable solve identity and terminal result agreement |
 | `servers/optimization-mcp/queries/` | catalog pages, exact reads and completion with kernel-authorized Task projection and domain filters before limits or grouping |
 | `servers/optimization-mcp/tests/reads.rs` | native SQL qualification of page and completion limits, denied malformed rows, current ownership, Work Context and clearance |
@@ -1293,6 +1295,7 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/adapter/completion.rs` | operation-correlated simulator receipts and independent recording-result resolution |
 | `servers/uav-sim-mcp/testdata/private-protocol.schema.json`, `showcase/uav-sim/runtime/tests/test_adapter_outputs.py` | eight private HTTP/NDJSON schema roots derived from Rust adapter and event types; directional comparison through `testing/python` and shared decoder fixtures |
 | `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | pinned Task creation before admission, dispatch guard consumption, interrupted Task handling, recovery without replay, settled-pin repair and native HTTP/Store failure qualification |
+| `servers/uav-sim-mcp/src/server/task_catalog.rs`, `src/schema/migrations/0000_task_catalog.surql` | UAV-owned Task lookup identities and terminal contributions, including typed mission-plan associations |
 | `servers/uav-sim-mcp/src/schema/migrations/0000_current.surql` | tenant/context/session/vehicle/state index for UAV execution exclusion, owned with its admission policy |
 | `servers/uav-sim-mcp/src/server/control_authority/lease_tests.rs` | native RocksDB contention across principals, obsolete-token rejection, expiry fencing, revision exhaustion and injected rollback failures |
 | `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV grant, advisory-route, ellipsoidal-height, freshness and motion policy over Map-owned checked handoffs |
@@ -1440,6 +1443,9 @@ dependencies, forces checked setup and starts the listener.
 | `src/bin/server/setup.rs` and `setup_tests.rs` | checked Stream MCP declarations, typed catalog descriptors and registration validation |
 | `src/bin/server/resources.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL |
 | `src/bin/server/task_results.rs`, `task_results_tests.rs` | typed tool-product handoffs and current Task result validation after SQL authorization; native cross-instance delivery and reconnect qualification |
+| `src/schema.rs`, `src/schema/migrations/`, `src/task_lookup.rs` | Stream-owned schema lane and transactional Task lookup contributions for run and output Artifact completion |
+| `src/task_request.rs` | persisted replay request and capability types shared by Task execution and lookup writers |
+| `src/task_product.rs` | Stream recording result construction and validation shared by publishers, retained readers and Task lookup settlement |
 | `src/contract/subscriptions.rs`, `src/bin/server/subscriptions.rs`, `subscriptions_tests.rs` | typed Task-backed run addresses and composition with authorized live-owner updates; reconnect, overflow and MCP cancellation qualification |
 | `src/bin/server/test_support.rs` | inert capabilities and current products shared by native Task delivery and subscription fixtures |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
@@ -1482,6 +1488,9 @@ depend on Recording Hub.
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
 | `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |
 | `src/bin/server/task_results.rs`, `task_results_tests.rs` | current Reason completion construction and owner-authorized Task read/subscription validation |
+| `src/schema.rs`, `src/schema/migrations/`, `src/task_lookup.rs` | Reason-owned analysis lookup lane, transactional finding and Artifact receipts, and retained-result integrity checks |
+| `src/task_request.rs` | persisted analysis request and capability types shared by Task execution and lookup writers |
+| `src/task_product.rs` | Reason result construction and validation shared by publishers, retained readers, findings and Task lookup settlement |
 | `src/bin/server/grounding_input.rs`, `grounding_input_tests.rs` | authorized grounding reads and input-label capture for output capabilities |
 | `src/bin/server/setup.rs` | checked MCP setup, immutable discovery declarations, templates and catalog descriptor validation |
 | `runner/` | Python world-model runner: typed protocol, GPU frame sampling, vLLM inference, and locked image assets outside Rust compilation |

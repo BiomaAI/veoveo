@@ -1,0 +1,6 @@
+BEGIN TRANSACTION;
+DELETE $first;
+DELETE $second;
+CREATE ONLY $first CONTENT $first_row;
+CREATE ONLY $second CONTENT $second_row;
+COMMIT TRANSACTION;

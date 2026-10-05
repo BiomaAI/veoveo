@@ -2,31 +2,24 @@ use std::collections::BTreeSet;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 use std::time::Duration;
-use veoveo_reason_mcp::contract::ReasonTaskKind;
-use veoveo_types::TaskTypeDefinition;
 
 use anyhow::{Result, ensure};
 use chrono::{TimeDelta, Utc};
 use rmcp::model::{CallToolResult, ContentBlock};
-use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     ArtifactReadAuthority, ArtifactTaskId, GatewayInternalIdentity,
-    IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller,
+    IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest, PlaneCaller,
 };
 use veoveo_reason_mcp::{
     annotation::write_annotation_rrd,
-    contract::{
-        AnalysisId, AnalyzeRecordingRequest, GroundingDetections, RecordingVideoSelection,
-        validate_decode, validate_reasoning_task, validate_sampling,
-    },
+    contract::{AnalysisId, validate_decode, validate_reasoning_task, validate_sampling},
 };
 use veoveo_recording_video::contract::validate_video_selection;
 use veoveo_recording_video::runtime::{materialize_video, timeline_kind};
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
-    TaskRetentionPin, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, TaskFailure, TaskPayloadState, TaskRetentionPin, TaskSnapshot,
+    TaskTransition,
 };
 use veoveo_types::TaskId;
 
@@ -44,49 +37,7 @@ const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 pub(super) const SERVER_SLUG: &str = "reason";
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "operation", rename_all = "snake_case")]
-pub(super) enum ReasonTaskInput {
-    Analyze(AnalyzeRecordingRequest),
-}
-
-impl ReasonTaskInput {
-    fn video(&self) -> &RecordingVideoSelection {
-        match self {
-            Self::Analyze(request) => &request.video,
-        }
-    }
-
-    fn task_type(&self) -> veoveo_types::TaskTypeName {
-        match self {
-            Self::Analyze(_) => ReasonTaskKind::AnalyzeRecording.name(),
-        }
-    }
-
-    fn artifact_count(&self) -> NonZeroU32 {
-        NonZeroU32::new(match self {
-            Self::Analyze(request) if request.include_source_clip => 3,
-            Self::Analyze(_) => 2,
-        })
-        .expect("reason tasks always publish an artifact")
-    }
-
-    fn recovery_class(&self) -> RecoveryClass {
-        RecoveryClass::Resume
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(super) struct DurableReasonRequest {
-    pub(super) input: ReasonTaskInput,
-    /// Bounded grounding subset resolved with the caller's authority at
-    /// submission time. Neither the caller's bearer nor an artifact URL is
-    /// ever persisted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) grounding: Option<GroundingDetections>,
-    pub(super) artifact_write_capability: IssuedArtifactWriteCapability,
-    pub(super) artifact_read_capability: IssuedArtifactReadCapability,
-}
+pub(super) use veoveo_reason_mcp::task_request::{DurableReasonRequest, ReasonTaskInput};
 
 pub(super) struct TaskProgress {
     pub(super) peer: rmcp::service::Peer<rmcp::RoleServer>,

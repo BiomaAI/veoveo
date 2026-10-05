@@ -182,15 +182,7 @@ fn analysis_output(
     };
     let result: CallToolResult =
         serde_json::from_value(stored.clone()).map_err(|_| retained_output_error())?;
-    if result.is_error == Some(true) {
-        return Ok(None);
-    }
-    let content = result
-        .structured_content
-        .ok_or_else(retained_output_error)?;
-    serde_json::from_value(content)
-        .map(Some)
-        .map_err(|_| retained_output_error())
+    veoveo_reason_mcp::task_product::validate(&result).map_err(|_| retained_output_error())
 }
 
 fn retained_output_error() -> McpError {

@@ -1,1 +1,4 @@
-SELECT VALUE candidate FROM (SELECT result.payload.structuredContent.results_artifact.artifact_id AS candidate FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (owner_context.tenant_key ?? NONE) = $tenant_key AND owner_context.data_labels ALLINSIDE $data_labels AND task_type = $task_type AND result.payload.structuredContent.results_artifact.artifact_id CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);
+SELECT VALUE candidate FROM (SELECT type::string(record::id(settlement.results)) AS candidate FROM reason_analysis
+WHERE task_type = $task_type AND settlement.results != NONE AND fn::kernel::tasks::selection_v1(task, $server, $tenant, $owner, $profile, $principal_key, $profile_key, $tenant_key, $data_labels, [$task_type], NONE, NONE, NONE) != NONE
+    AND type::string(record::id(settlement.results)) CONTAINS $needle
+GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);

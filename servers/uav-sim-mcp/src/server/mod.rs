@@ -13,6 +13,7 @@ mod runtime_events;
 mod service;
 mod setup;
 mod state;
+mod task_catalog;
 mod task_extension;
 mod task_index;
 mod task_worker;

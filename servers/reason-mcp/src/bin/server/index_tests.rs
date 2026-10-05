@@ -2,7 +2,6 @@ use std::{collections::BTreeSet, time::Duration};
 use veoveo_platform_store::task_record_id;
 use veoveo_types::TaskTypeDefinition;
 
-use serde_json::json;
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass};
 use veoveo_types::TaskId;
 use veoveo_types::{
@@ -45,14 +44,47 @@ fn owner() -> TaskOwner {
 #[tokio::test]
 async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
     let db = fixture::TestDb::new().await;
+    fixture::module_lanes::install(
+        &db.a,
+        vec![
+            veoveo_reason_mcp::schema::module_setup(
+                fixture::module_lanes::execution("reason").unwrap(),
+            )
+            .unwrap(),
+        ],
+    )
+    .await
+    .unwrap();
     tokio::time::timeout(Duration::from_secs(90), async {
-        let tasks = TaskRuntime::new(db.a.clone(), "reason", "index-test");
+        let tasks = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "reason",
+            "index-test",
+        ))
+        .unwrap();
         let mut expected_tasks = Vec::new();
         let mut expected_artifacts = Vec::new();
         for index in 0..103 {
             let mut owner = owner();
             if index == 0 {
                 owner.data_labels.insert("restricted".into());
+            }
+            let mut request: serde_json::Value = serde_json::from_str(include_str!(
+                "../../../testdata/task-request.json"
+            )).unwrap();
+            let variant = match index {
+                2 | 3 => Some(("describe_segment", "description")),
+                4 | 5 => Some(("detect_events", "events")),
+                6 | 7 => Some(("answer_question", "answer")),
+                _ => None,
+            };
+            if let Some((kind, _)) = variant {
+                request["input"]["task"] = match kind {
+                    "describe_segment" if index == 2 => serde_json::json!({"kind": kind}),
+                    "describe_segment" | "detect_events" => serde_json::json!({"kind": kind, "prompt": "Observe traffic"}),
+                    "answer_question" => serde_json::json!({"kind": kind, "question": "What happened?"}),
+                    _ => unreachable!(),
+                };
             }
             let task = tasks
                 .create(CreateTask {
@@ -64,7 +96,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                     } else {
                         veoveo_reason_mcp::contract::ReasonTaskKind::AnalyzeRecording.name()
                     },
-                    request: json!({}),
+                    request: request.clone(),
                     recovery_class: RecoveryClass::Resume,
                     idempotency_key: None,
                     ttl_ms: None,
@@ -75,20 +107,63 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap()
                 .snapshot;
             let artifact = uuid::Uuid::now_v7().to_string();
-            let result = veoveo_platform_store::TaskResultRecord::new(json!({
-                "structuredContent": {
-                    "results_artifact": {"artifact_id": artifact},
-                    "annotations_artifact": {"artifact_id": artifact},
-                    "source_clip_artifact": {"artifact_id": artifact},
+            let mut output: serde_json::Value =
+                serde_json::from_str(include_str!("../../../testdata/analysis-output-v1.json"))
+                    .unwrap();
+            if let Some((kind, answer)) = variant {
+                output["finding"]["task"] = request["input"]["task"].clone();
+                if answer != "events" {
+                    output["finding"]["answer"] = serde_json::json!({
+                        "kind": answer,
+                        "excerpt": {"text": "A vehicle entered.", "truncated": false}
+                    });
+                    output["summary"]["event_count"] = 0.into();
                 }
-            }));
-            db.b.client()
-                .query(include_str!("../../../queries/bin/server/index_tests/native_completion_filters_before_limits_and_deduplicates_artifacts.surql"))
-                .bind(("id", task_record_id(task.task_id)))
-                .bind(("result", result))
+                output["finding"]["decode"] = if index % 2 == 0 {
+                    serde_json::json!({"mode": "greedy"})
+                } else {
+                    serde_json::json!({"mode": "sampled", "temperature": 0.5, "top_p": 0.75, "seed": 7})
+                };
+                output["results_artifact"]["metadata"]["provenance"]["task_kind"] = kind.into();
+                if index == 2 {
+                    output["finding"]["model_digest"] = serde_json::Value::Null;
+                } else if index == 3 {
+                    output["finding"].as_object_mut().unwrap().remove("model_digest");
+                }
+            }
+            let analysis = veoveo_reason_mcp::contract::AnalysisId::try_from(task.task_id).unwrap();
+            output["analysis_uri"] =
+                serde_json::to_value(veoveo_reason_mcp::contract::AnalysisUri::new(analysis))
+                    .unwrap();
+            output["result_uri"] =
+                serde_json::to_value(veoveo_reason_mcp::contract::ResultsUri::new(analysis))
+                    .unwrap();
+            output["results_artifact"]["metadata"]["provenance"]["analysis_id"] =
+                task.task_id.to_string().into();
+            for field in ["results_artifact", "annotations_artifact"] {
+                output[field]["artifact_id"] = artifact.clone().into();
+                output[field]["artifact_uri"] = format!("reason://artifact/{artifact}").into();
+            }
+            output["source_clip_artifact"] = output["results_artifact"].clone();
+            let output: veoveo_reason_mcp::contract::AnalyzeRecordingOutput =
+                serde_json::from_value(output).unwrap();
+            let result = serde_json::to_value(
+                super::super::task_results::analysis_tool_result(output).unwrap(),
+            )
+            .unwrap();
+            tasks
+                .claim(task.task_id, Duration::from_secs(30))
                 .await
-                .unwrap()
-                .check()
+                .unwrap();
+            tasks
+                .transition(
+                    task.task_id,
+                    veoveo_task_runtime::TaskTransition::Succeeded {
+                        message: "fixture".into(),
+                        result,
+                    },
+                )
+                .await
                 .unwrap();
             if index >= 2 {
                 expected_tasks.push(task.task_id.to_string());
@@ -130,15 +205,26 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
     use veoveo_reason_mcp::{contract::AnalysisId, uris};
 
     let db = fixture::TestDb::new().await;
+    fixture::module_lanes::install(
+        &db.a,
+        vec![
+            veoveo_reason_mcp::schema::module_setup(
+                fixture::module_lanes::execution("reason").unwrap(),
+            )
+            .unwrap(),
+        ],
+    )
+    .await
+    .unwrap();
     tokio::time::timeout(Duration::from_secs(90), async {
-        let reader = TaskRuntime::new(db.a.clone(), "reason", "resource-reader");
-        let writer = TaskRuntime::new(db.b.clone(), "reason", "resource-writer");
+        let reader = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(), "reason", "resource-reader")).unwrap();
+        let writer = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(db.b.clone(), "reason", "resource-writer")).unwrap();
         let draft = || CreateTask {
             task_id: TaskId::new(),
             owner: owner(),
             server: "reason".into(),
             task_type: const { veoveo_types::TaskTypeName::from_static("analyze_recording") },
-            request: json!({}),
+            request: serde_json::from_str(include_str!("../../../testdata/task-request.json")).unwrap(),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,
             ttl_ms: None,

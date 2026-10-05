@@ -1,3 +1,8 @@
+LET $lookup = (SELECT * FROM ONLY $catalog WHERE task = $task
+    AND task_type = $expected_uav_type AND created_at = $expected_uav_created
+    AND identity = $expected_uav_identity AND settlement = NONE);
+IF type::is_object($lookup) = false { THROW 'uav_execution_conflict'; };
+
 LET $previous_lease = (
   SELECT *
   FROM ONLY $lease

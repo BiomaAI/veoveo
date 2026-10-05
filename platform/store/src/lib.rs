@@ -29,6 +29,8 @@ mod gateway_runtime;
 #[cfg(feature = "runtime")]
 mod governance;
 #[cfg(feature = "runtime")]
+pub mod read_transaction;
+#[cfg(feature = "runtime")]
 pub use governance::WorkContextSnapshot;
 #[cfg(feature = "runtime")]
 mod identity;

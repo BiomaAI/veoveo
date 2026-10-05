@@ -12,6 +12,8 @@ mod fixture;
 fn optional_modules() -> Vec<ModuleSetup> {
     let execution = |name| fixture::module_lanes::execution(name).unwrap();
     vec![
+        veoveo_reason_mcp::schema::module_setup(execution("reason")).unwrap(),
+        veoveo_stream_mcp::schema::module_setup(execution("stream")).unwrap(),
         veoveo_agent_runtime::schema::module_setup(execution("agents")).unwrap(),
         veoveo_workspace::schema::module_setup(execution("workspace")).unwrap(),
         veoveo_recording_mcp::schema::module_setup(execution("recordings")).unwrap(),
@@ -172,6 +174,9 @@ async fn fresh_selected_lanes_exclude_disabled_owners_and_replay_without_reapply
                 ("workspace", "workspace_chat"),
                 ("map", "map_feature_layer"),
                 ("recordings", "recording"),
+                ("reason", "reason_analysis"),
+                ("stream", "stream_run"),
+                ("uav", "uav_task"),
             ] {
                 let selected = status
                     .lanes
@@ -213,6 +218,8 @@ async fn fresh_selected_lanes_exclude_disabled_owners_and_replay_without_reapply
                 assert_eq!(
                     originals,
                     BTreeSet::from([
+                        "reason_analysis",
+                        "stream_run",
                         "principal",
                         "task",
                         "artifact_blob",

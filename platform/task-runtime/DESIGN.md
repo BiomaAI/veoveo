@@ -495,3 +495,13 @@ revocation after admission and a full replay page of denied malformed events.
 `tests/support/owner_query_cases.rs` adds owner-visible malformed rows of excluded
 operation types. It checks exact reads, limits, multiple selected types, subscription
 admission, operation changes during delivery and Store reconnect after event removal.
+
+## Trusted Lifecycle Reads
+
+The Tasks schema exports `fn::kernel::tasks::lifecycle_v1` for owner maintenance.
+It selects an exact Task identity with server, tenant and operation constraints.
+The returned object includes lifecycle dates, status, recovery and retention data,
+and typed ownership links. A supplied complete result payload yields only a
+`result_matches` boolean. This function supplies no caller authorization and
+returns no input, result or provider payload. `tests/task_storage.rs` qualifies
+wrong identities and whole-result agreement on fresh kernel lanes.

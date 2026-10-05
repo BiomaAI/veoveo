@@ -14,6 +14,8 @@ pub(crate) fn registry() -> anyhow::Result<ModuleRegistry> {
     }
     let mut modules = veoveo_platform_store::schema::kernel_modules(execution)?;
     modules.extend(vec![
+        veoveo_reason_mcp::schema::module_setup(execution("reason")?)?,
+        veoveo_stream_mcp::schema::module_setup(execution("stream")?)?,
         veoveo_computers::schema::module_setup(execution("computers")?)?,
         veoveo_agent_runtime::schema::module_setup(execution("agents")?)?,
         veoveo_workspace::schema::module_setup(execution("workspace")?)?,
@@ -29,6 +31,8 @@ pub(crate) fn registry() -> anyhow::Result<ModuleRegistry> {
 }
 pub(super) fn bindings() -> anyhow::Result<Vec<ModuleRuntimeBinding>> {
     [
+        ("reason", None, Some("reason")),
+        ("stream", None, Some("stream")),
         ("agents", Some("agent-runtime-support"), None),
         ("recordings", Some("recording-data-plane"), None),
         ("recordings", None, Some("recording")),

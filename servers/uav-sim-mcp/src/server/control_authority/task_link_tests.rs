@@ -248,6 +248,68 @@ async fn native_cancelled_task_and_link_failure_cannot_partially_admit_a_mission
             plan
         );
         let (tasks, task) = execution_test_support::task(&authority, &pilot, &plan).await;
+        let catalog = RecordId::new("uav_task", task.task_id.to_string());
+        let original: surrealdb::types::Value =
+            db.b.client()
+                .query(include_str!("../queries/task_catalog/tests/row.surql"))
+                .bind(("catalog", catalog.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap()
+                .take(0)
+                .unwrap();
+        for remove in [false, true] {
+            db.b.client()
+                .query(include_str!("queries/tests/damage_lookup.surql"))
+                .bind(("catalog", catalog.clone()))
+                .bind(("remove", remove))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let draft = authority
+                .prepare_execution(&pilot, &plan.plan_id, 0)
+                .await
+                .unwrap();
+            assert!(
+                authority
+                    .admit_execution(draft, &tasks, &task)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(
+                authority
+                    .visible_plan(&pilot, false, &plan.plan_id)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                plan
+            );
+            assert_eq!(tasks.get(task.task_id).await.unwrap().unwrap(), task);
+            let mut empty =
+                db.b.client()
+                    .query(include_str!("queries/tests/execution_and_lease_ids.surql"))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            assert!(empty.take::<Vec<RecordId>>(0).unwrap().is_empty());
+            assert!(empty.take::<Vec<RecordId>>(1).unwrap().is_empty());
+            let sql = if remove {
+                include_str!("../queries/task_catalog/tests/create.surql")
+            } else {
+                include_str!("../queries/task_catalog/tests/replace.surql")
+            };
+            db.b.client()
+                .query(sql)
+                .bind(("catalog", catalog.clone()))
+                .bind(("row", original.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
         db.b.client()
             .query(include_str!("queries/tests/reject_execution_link.surql"))
             .await

@@ -28,6 +28,7 @@ name = "gateway_source_conformance"
 required-features = ["mcp"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:veoveo-recording-mcp",
@@ -57,6 +58,8 @@ runtime = [
     "dep:veoveo-mcp-contract",
 ]
 mcp = [
+    "schema",
+    "dep:surrealdb",
     "runtime",
     "knowledge",
     "veoveo-mcp-knowledge-extension/mcp",
@@ -76,6 +79,8 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, optional = true }
+surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 veoveo-recording-mcp = { path = "../recording-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-stream-mcp = { path = "../stream-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }

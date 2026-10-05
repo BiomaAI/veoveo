@@ -4,13 +4,12 @@
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 
-use serde_json::json;
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
 use veoveo_platform_store::{
     ArtifactGrantDraft, ArtifactGrantSubjectKind, ArtifactOccurrenceDraft, ArtifactReadScope,
     GrantPermission, InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind,
-    TaskResultRecord, task_record_id,
+    task_record_id,
 };
 use veoveo_reason_mcp::{
     contract::{AnalysisId, AnalysisUri, AnalyzeRecordingOutput, ReasonTaskKind},
@@ -89,7 +88,7 @@ async fn finding(
             owner: owner.clone(),
             server: "reason".into(),
             task_type: ReasonTaskKind::AnalyzeRecording.name(),
-            request: json!({}),
+            request: serde_json::from_str(include_str!("../testdata/task-request.json")).unwrap(),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,
             ttl_ms: None,
@@ -98,8 +97,13 @@ async fn finding(
         })
         .await
         .unwrap();
+    let mut output: AnalyzeRecordingOutput =
+        serde_json::from_str(include_str!("../testdata/analysis-output-v1.json")).unwrap();
+    output.analysis_uri = AnalysisUri::new(id);
+    let mut metadata = output.results_artifact.metadata.clone();
+    metadata["provenance"]["analysis_id"] = id.to_string().into();
     let artifact = ArtifactId::new();
-    store
+    let receipt = store
         .create_artifact_occurrence(ArtifactOccurrenceDraft {
             artifact_id: veoveo_platform_store::ArtifactId::from_uuid(artifact.as_uuid()),
             identity: actor.clone(),
@@ -126,27 +130,29 @@ async fn finding(
             classification: String::new(),
             labels: vec![],
             retention_expires_at: None,
-            metadata: [(
-                "provenance".into(),
-                json!({"kind":"reason_results", "analysis_id":id}),
-            )]
-            .into(),
+            metadata: serde_json::from_value(metadata.clone()).unwrap(),
         })
         .await
         .unwrap();
-    let mut output: AnalyzeRecordingOutput =
-        serde_json::from_str(include_str!("../testdata/analysis-output-v1.json")).unwrap();
-    output.analysis_uri = AnalysisUri::new(id);
     output.results_artifact.artifact_uri = ArtifactUri::plane(artifact);
-    let result = TaskResultRecord::new(json!({"structuredContent":output, "isError":false}));
-    store
-        .client()
-        .query(include_str!("queries/knowledge/finding.surql"))
-        .bind(("task", task_record_id(id.task_id())))
-        .bind(("result", result))
+    output.results_artifact.created_at = receipt.occurrence.created_at;
+    output.results_artifact.metadata = serde_json::to_value(&receipt.occurrence.metadata).unwrap();
+    tasks
+        .claim(id.task_id(), Duration::from_secs(30))
         .await
-        .unwrap()
-        .check()
+        .unwrap();
+    tasks
+        .transition(
+            id.task_id(),
+            veoveo_task_runtime::TaskTransition::Succeeded {
+                message: "fixture finding".into(),
+                result: serde_json::to_value(
+                    veoveo_reason_mcp::task_product::analysis_tool_result(output).unwrap(),
+                )
+                .unwrap(),
+            },
+        )
+        .await
         .unwrap();
     (id, artifact)
 }
@@ -155,7 +161,8 @@ async fn finding(
 async fn findings_apply_artifact_access_and_success_before_decode_and_pagination() {
     tokio::time::timeout(Duration::from_secs(240), async {
         let db = fixture::TestDb::new().await;
-        let tasks = TaskRuntime::new(db.a.clone(), "reason", "findings-writer");
+        fixture::module_lanes::install(&db.a, vec![veoveo_reason_mcp::schema::module_setup(fixture::module_lanes::execution("reason").unwrap()).unwrap()]).await.unwrap();
+        let tasks = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(), "reason", "findings-writer")).unwrap();
         let bob = identity(&db.a, "bob", "findings").await;
         let alice = identity(&db.a, "alice", "findings").await;
         let reader = scope(&bob, Some("operations"));
@@ -251,4 +258,261 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
             .bind(("task",task_record_id(id.task_id()))).await.unwrap().check().unwrap();
         assert!(readable_findings(&db.a, &reader, FindingSelection::Member(id)).await.is_err());
     }).await.expect("Reason findings SQL qualification exceeded 240 seconds");
+}
+
+#[tokio::test]
+async fn lookup_admission_rejects_closed_corruption_and_observes_owner_changes() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        use surrealdb::types::{RecordId, SurrealValue, Value};
+        let db = fixture::TestDb::new().await;
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_reason_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("reason").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let tasks = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "reason",
+            "lookup-writer",
+        ))
+        .unwrap();
+        let actor = identity(&db.a, "alice", "findings").await;
+        let reader = scope(&actor, Some("operations"));
+        let (id, _) = finding(&db.a, &tasks, owner("alice", "findings")).await;
+        let lookup = RecordId::new("reason_analysis", id.task_id().to_string());
+        let before: Value =
+            db.a.client()
+                .query(include_str!("queries/knowledge/lookup_controls/read.surql"))
+                .bind(("lookup", lookup.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap()
+                .take(0)
+                .unwrap();
+        for case in 0..12 {
+            let Value::Object(mut row) = before.clone() else {
+                panic!("lookup missing");
+            };
+            let Value::Object(identity) = row.get_mut("identity").unwrap() else {
+                panic!("identity missing");
+            };
+            match case {
+                0 => {
+                    identity.insert("unexpected", true.into_value());
+                }
+                1 => {
+                    identity.remove("tenant");
+                }
+                2..=7 => {
+                    let Value::Object(settlement) = row.get_mut("settlement").unwrap() else {
+                        panic!("settlement missing");
+                    };
+                    match case {
+                        2 => {
+                            settlement.remove("completed_at");
+                        }
+                        3 => {
+                            let Value::Object(finding) = settlement.get_mut("finding").unwrap()
+                            else {
+                                panic!("finding missing");
+                            };
+                            finding.insert("unexpected", true.into_value());
+                        }
+                        4 => {
+                            settlement.insert("status", Value::None);
+                        }
+                        5 => {
+                            settlement.insert("completed_at", Value::None);
+                        }
+                        6 => {
+                            settlement.insert("status", "failed".into_value());
+                        }
+                        7 => {
+                            settlement.insert("status", "cancelled".into_value());
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                8..=11 => {
+                    let Value::Object(settlement) = row.get_mut("settlement").unwrap() else {
+                        panic!("settlement missing");
+                    };
+                    if case == 8 {
+                        let Value::Object(metadata) =
+                            settlement.get_mut("expected_metadata").unwrap()
+                        else {
+                            panic!("metadata missing");
+                        };
+                        let Value::Object(provenance) = metadata.get_mut("provenance").unwrap()
+                        else {
+                            panic!("provenance missing");
+                        };
+                        provenance.remove("pipeline_id");
+                    } else {
+                        let Value::Object(finding) = settlement.get_mut("finding").unwrap() else {
+                            panic!("finding missing");
+                        };
+                        let Value::Object(answer) = finding.get_mut("answer").unwrap() else {
+                            panic!("answer missing");
+                        };
+                        if case == 11 {
+                            answer.remove("events");
+                        } else {
+                            let Value::Array(events) = answer.get_mut("events").unwrap() else {
+                                panic!("events missing");
+                            };
+                            let Value::Object(event) = events.first_mut().unwrap() else {
+                                panic!("event missing");
+                            };
+                            let Value::Object(nested) = event
+                                .get_mut(if case == 9 { "label" } else { "range" })
+                                .unwrap()
+                            else {
+                                panic!("event detail missing");
+                            };
+                            nested.remove(if case == 9 { "text" } else { "start" });
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                db.b.client()
+                    .query(include_str!(
+                        "queries/knowledge/lookup_controls/replace.surql"
+                    ))
+                    .bind(("lookup", lookup.clone()))
+                    .bind(("row", Value::Object(row)))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err(),
+                "malformed controlled lookup case {case} was admitted"
+            );
+            let after: Value =
+                db.a.client()
+                    .query(include_str!("queries/knowledge/lookup_controls/read.surql"))
+                    .bind(("lookup", lookup.clone()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap()
+                    .take(0)
+                    .unwrap();
+            assert_eq!(before, after);
+        }
+        let changes = observe::FindingChanges::new(db.a.clone());
+        let mut updates = changes.subscribe();
+        tokio::time::timeout(Duration::from_secs(15), async {
+            while updates.borrow_and_update().is_none() {
+                updates.changed().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
+        updates.borrow_and_update();
+        db.b.client()
+            .query(include_str!(
+                "queries/knowledge/lookup_controls/copied_finding.surql"
+            ))
+            .bind(("lookup", lookup.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(15), updates.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            readable_findings(&db.a, &reader, FindingSelection::Member(id))
+                .await
+                .is_err(),
+            "copied finding differs from complete retained result"
+        );
+        db.b.client()
+            .query(include_str!(
+                "queries/knowledge/lookup_controls/replace.surql"
+            ))
+            .bind(("lookup", lookup.clone()))
+            .bind(("row", before.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert_eq!(
+            readable_findings(&db.a, &reader, FindingSelection::Member(id))
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        tokio::time::timeout(Duration::from_secs(15), updates.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        updates.borrow_and_update();
+        db.b.client()
+            .query(include_str!(
+                "queries/knowledge/lookup_controls/delete.surql"
+            ))
+            .bind(("lookup", lookup.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(15), updates.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            readable_findings(&db.a, &reader, FindingSelection::Member(id))
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        drop(changes);
+        let reconnected = db.connect_at(db.a.config().endpoint().as_str()).await;
+        let reconnected_changes = observe::FindingChanges::new(reconnected.clone());
+        let mut updates = reconnected_changes.subscribe();
+        tokio::time::timeout(Duration::from_secs(15), async {
+            while updates.borrow_and_update().is_none() {
+                updates.changed().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
+        updates.borrow_and_update();
+        db.b.client()
+            .query(include_str!(
+                "queries/knowledge/lookup_controls/create.surql"
+            ))
+            .bind(("lookup", lookup))
+            .bind(("row", before))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(15), updates.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            readable_findings(&reconnected, &reader, FindingSelection::Member(id))
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        drop(reconnected_changes);
+    })
+    .await
+    .expect("Reason lookup admission exceeded 180 seconds");
 }

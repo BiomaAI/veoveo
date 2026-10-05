@@ -1,41 +1,18 @@
-RETURN (SELECT id, created_at, updated_at, retention_expires_at,
-    result.payload.structuredContent AS output
-FROM task
-WHERE tenant = $tenant
-    AND server = $reason_server
-    AND task_type = $reason_task_type
-    AND status = 'succeeded'
-    AND (retention_expires_at = NONE OR retention_expires_at > time::now())
-    AND (result.payload.isError ?? false) = false
-    AND result.payload.structuredContent.results_artifact.artifact_id IN (
-        SELECT VALUE type::string(record::id(id)) FROM artifact_occurrence
-        WHERE tenant = $tenant
-AND labels ALLINSIDE $clearance
-AND (classification = '' OR classification IN $clearance)
-AND (retention_expires_at = NONE OR retention_expires_at > time::now())
-AND (
-    ($context != NONE AND work_context = $context AND authority.context_key = $context_key)
-    OR id IN (
-        SELECT VALUE in FROM artifact_grant
-        WHERE out IN $subjects
-            AND permission IN ['read', 'write', 'admin']
-            AND (expires_at = NONE OR expires_at > time::now())
-    )
-)
-
-            AND metadata.provenance.kind = 'reason_results'
-            AND metadata.provenance.analysis_id = type::string(record::id($parent.id))
-    )
-
-    AND ($analysis = NONE OR id = $analysis)
-    AND ($after_id = NONE OR created_at < $after_created_at
-        OR (created_at = $after_created_at AND id < $after_id))
-    AND ($prefix = NONE OR string::starts_with(type::string(record::id(id)), $prefix))
-ORDER BY created_at DESC, id DESC
-LIMIT $limit TIMEOUT 10s).map(|$task| [
-    type::string(record::id($task.id)),
-    $task.created_at,
-    $task.updated_at,
-    $task.output,
-    $task.retention_expires_at
-]);
+LET $at = time::now();
+SELECT id, task, task_type, created_at, identity, settlement,
+    fn::kernel::tasks::lifecycle_v1(task, $reason_server, $tenant, [$reason_task_type], settlement.expected_result) AS lifecycle
+FROM reason_analysis
+WHERE identity.tenant = $tenant AND task_type = $reason_task_type AND settlement.status = 'succeeded' AND settlement.outcome = 'product'
+    AND ($analysis = NONE OR task = $analysis)
+    AND ($after_id = NONE OR created_at < $after_created_at OR (created_at = $after_created_at AND task < $after_id))
+    AND ($prefix = NONE OR string::starts_with(type::string(record::id(task)), $prefix))
+    AND {
+        LET $lifecycle = fn::kernel::tasks::lifecycle_v1(task, $reason_server, $tenant, [$reason_task_type], settlement.expected_result);
+        IF type::is_object($lifecycle) THEN {
+            IF $lifecycle.status = 'succeeded' AND ($lifecycle.retention_expires_at = NONE OR $lifecycle.retention_expires_at > $at) THEN {
+                LET $artifact = fn::kernel::artifacts::read_v1(settlement.results, $tenant, $principals, $groups, $clearance, $context, $context_key, $at);
+                IF type::is_object($artifact) THEN $artifact.metadata = settlement.expected_metadata ELSE false END;
+            } ELSE false END;
+        } ELSE false END;
+    }
+ORDER BY created_at DESC, task DESC LIMIT $limit TIMEOUT 10s;

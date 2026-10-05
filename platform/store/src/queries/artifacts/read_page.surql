@@ -1,18 +1,6 @@
+LET $at = time::now();
 RETURN (SELECT * FROM artifact_occurrence
-WHERE tenant = $tenant
-AND labels ALLINSIDE $clearance
-AND (classification = '' OR classification IN $clearance)
-AND (retention_expires_at = NONE OR retention_expires_at > time::now())
-AND (
-    ($context != NONE AND work_context = $context AND authority.context_key = $context_key)
-    OR id IN (
-        SELECT VALUE in FROM artifact_grant
-        WHERE out IN $subjects
-            AND permission IN ['read', 'write', 'admin']
-            AND (expires_at = NONE OR expires_at > time::now())
-    )
-)
-
+WHERE tenant = $tenant AND fn::kernel::artifacts::read_v1(id, $tenant, $principals, $groups, $clearance, $context, $context_key, $at) != NONE
     AND ($artifact = NONE OR id = $artifact)
     AND ($cursor = NONE OR id < $cursor)
 ORDER BY id DESC

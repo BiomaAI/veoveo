@@ -4,14 +4,9 @@ use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock, GetTaskParams, GetTaskResult, Resource, TaskPayload},
 };
-use veoveo_mcp_contract::set_related_task_meta;
 use veoveo_stream_mcp::contract::StreamTaskKind;
-use veoveo_stream_mcp::{
-    annotation::RESULTS_MIME_TYPE,
-    contract::{
-        RunDetails, RunId, RunRecordingOutput, RunView, StartLiveSessionOutput,
-        StopLiveSessionOutput,
-    },
+use veoveo_stream_mcp::contract::{
+    RunDetails, RunId, RunRecordingOutput, RunView, StartLiveSessionOutput, StopLiveSessionOutput,
 };
 use veoveo_task_runtime::{
     DurableTaskSubscription, TaskOwner, TaskPayloadState, TaskRuntime, TaskSnapshot, TaskStatus,
@@ -24,8 +19,6 @@ use super::{
     internal,
     tasks::{DurableStreamRequest, StreamTaskInput},
 };
-
-pub(super) const RUN_COMPLETED: &str = "Recording run completed.";
 
 fn product_result(
     status: &'static str,
@@ -46,18 +39,9 @@ fn product_result(
     Ok(result)
 }
 
-pub(super) fn recording_result(output: RunRecordingOutput) -> anyhow::Result<CallToolResult> {
-    let id = output.run_id();
-    let mut result = product_result(
-        RUN_COMPLETED,
-        output.result_uri().to_uri(),
-        "Stream recording results",
-        RESULTS_MIME_TYPE,
-        output,
-    )?;
-    set_related_task_meta(&mut result.meta, id.to_string());
-    Ok(result)
-}
+#[cfg(test)]
+pub(super) use veoveo_stream_mcp::task_product::RUN_COMPLETED;
+pub(super) use veoveo_stream_mcp::task_product::recording_result;
 
 pub(super) fn live_started_result(
     output: StartLiveSessionOutput,
@@ -185,21 +169,7 @@ fn retained_result(snapshot: &TaskSnapshot) -> Result<Option<CallToolResult>, Mc
 }
 
 fn run_output(result: &CallToolResult) -> Result<Option<RunRecordingOutput>, McpError> {
-    if result.is_error == Some(true) {
-        return Ok(None);
-    }
-    let output: RunRecordingOutput = serde_json::from_value(
-        result
-            .structured_content
-            .clone()
-            .ok_or_else(retained_output_error)?,
-    )
-    .map_err(|_| retained_output_error())?;
-    let expected = recording_result(output.clone()).map_err(|_| retained_output_error())?;
-    if result.content != expected.content {
-        return Err(retained_output_error());
-    }
-    Ok(Some(output))
+    veoveo_stream_mcp::task_product::validate(result).map_err(|_| retained_output_error())
 }
 
 fn retained_output_error() -> McpError {

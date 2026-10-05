@@ -8,6 +8,8 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+veoveo-reason-mcp = { path = "../../../servers/reason-mcp", default-features = false, features = ["schema"] }
+veoveo-stream-mcp = { path = "../../../servers/stream-mcp", default-features = false, features = ["schema"] }
 veoveo-recording-store = { workspace = true }
 veoveo-http.workspace = true
 veoveo-recording-contract.workspace = true

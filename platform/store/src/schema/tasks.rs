@@ -38,9 +38,34 @@ fn selection_api() -> Result<KernelSqlApi, DeclarationError> {
     )
 }
 
+pub const LIFECYCLE_V1: &str = include_str!("tasks/migrations/0000_lifecycle_v1.surql");
+
+fn lifecycle_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::tasks::lifecycle_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("task", SqlType::Record(TableName::new("task")?))?,
+                SqlParameter::new("server", SqlType::Record(TableName::new("mcp_server")?))?,
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("task_types", SqlType::Array(Box::new(SqlType::String)))?,
+                SqlParameter::new(
+                    "expected_result",
+                    SqlType::Option(Box::new(SqlType::Object)),
+                )?,
+            ],
+            SqlType::Option(Box::new(SqlType::Object)),
+        )?,
+        SqlReadProfile::new(vec![TableName::new("task")?])?,
+        LIFECYCLE_V1,
+    )
+}
+
 pub const CURRENT_SCHEMA: &str = concat!(
     include_str!("tasks/migrations/0000_current.surql"),
-    include_str!("tasks/migrations/0000_admission_apis.surql")
+    include_str!("tasks/migrations/0000_admission_apis.surql"),
+    include_str!("tasks/migrations/0000_lifecycle_v1.surql")
 );
 
 fn release_retention_v1_api() -> Result<KernelSqlApi, DeclarationError> {
@@ -79,6 +104,7 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Function(FunctionName::new(
                 "fn::kernel::tasks::release_retention_v1",
             )?),
+            OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::lifecycle_v1")?),
             OwnershipClaim::Table(TableName::new("task")?),
             OwnershipClaim::Function(FunctionName::new("fn::kernel::tasks::selection_v1")?),
             OwnershipClaim::Table(TableName::new("task_input")?),
@@ -95,10 +121,15 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             concat!(
                 include_str!("tasks/migrations/0000_current.surql"),
                 include_str!("tasks/migrations/0000_selection_v1.surql"),
-                include_str!("tasks/migrations/0000_admission_apis.surql")
+                include_str!("tasks/migrations/0000_admission_apis.surql"),
+                include_str!("tasks/migrations/0000_lifecycle_v1.surql")
             ),
         )?])?)
-        .sql_apis(vec![selection_api()?, release_retention_v1_api()?])
+        .sql_apis(vec![
+            selection_api()?,
+            lifecycle_api()?,
+            release_retention_v1_api()?,
+        ])
         .execution(execution)
         .requires(vec![LaneRequirement::Satisfied(ModuleName::new(
             "artifacts",

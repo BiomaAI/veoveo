@@ -1,5 +1,4 @@
 use std::{collections::BTreeSet, time::Duration};
-use veoveo_platform_store::task_record_id;
 use veoveo_types::TaskTypeDefinition;
 
 use serde_json::json;
@@ -69,7 +68,23 @@ fn request() -> serde_json::Value {
 async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
-        let tasks = TaskRuntime::new(db.a.clone(), "stream", "index-test");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let tasks = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "index-test",
+        ))
+        .unwrap();
         let mut expected_tasks = Vec::new();
         let mut expected_artifacts = Vec::new();
         for index in 0..103 {
@@ -87,11 +102,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                     } else {
                         veoveo_stream_mcp::contract::StreamTaskKind::RunRecording.name()
                     },
-                    request: if index < 2 {
-                        json!({"malformed": true})
-                    } else {
-                        request()
-                    },
+                    request: request(),
                     recovery_class: RecoveryClass::Resume,
                     idempotency_key: None,
                     ttl_ms: None,
@@ -122,15 +133,19 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 serde_json::from_value(output).unwrap(),
             )
             .unwrap();
-            let result =
-                veoveo_platform_store::TaskResultRecord::new(serde_json::to_value(result).unwrap());
-            db.b.client()
-                .query(include_str!("../../../queries/bin/server/index_tests/native_completion_filters_before_limits_and_deduplicates_artifacts.surql"))
-                .bind(("id", task_record_id(task.task_id)))
-                .bind(("result", result))
+            tasks
+                .claim(task.task_id, Duration::from_secs(30))
                 .await
-                .unwrap()
-                .check()
+                .unwrap();
+            tasks
+                .transition(
+                    task.task_id,
+                    veoveo_task_runtime::TaskTransition::Succeeded {
+                        message: "fixture".into(),
+                        result: serde_json::to_value(result).unwrap(),
+                    },
+                )
+                .await
                 .unwrap();
             if index <= 2 {
                 let id = RunId::try_from(task.task_id).unwrap();

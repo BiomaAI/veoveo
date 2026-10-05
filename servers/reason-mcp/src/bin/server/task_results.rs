@@ -2,10 +2,8 @@
 use futures::StreamExt;
 use rmcp::{
     ErrorData as McpError,
-    model::{CallToolResult, ContentBlock, GetTaskParams, GetTaskResult, Resource, TaskPayload},
+    model::{GetTaskParams, GetTaskResult, TaskPayload},
 };
-use veoveo_mcp_contract::set_related_task_meta;
-use veoveo_reason_mcp::contract::AnalyzeRecordingOutput;
 use veoveo_reason_mcp::contract::ReasonTaskKind;
 use veoveo_task_runtime::{
     DurableTaskSubscription, TaskOwner, TaskRuntime, TaskSnapshot, TaskStatus, authorized_snapshot,
@@ -15,23 +13,9 @@ use veoveo_types::TaskTypeDefinition;
 
 use super::{internal, resources::analysis_view};
 
-pub(super) const ANALYSIS_COMPLETED: &str = "Analysis completed.";
-
-pub(super) fn analysis_tool_result(
-    output: AnalyzeRecordingOutput,
-) -> anyhow::Result<CallToolResult> {
-    let mut result = CallToolResult::success(vec![
-        ContentBlock::text(ANALYSIS_COMPLETED),
-        ContentBlock::ResourceLink(
-            Resource::new(output.result_uri().to_string(), "analysis_result")
-                .with_title("Reason analysis result")
-                .with_mime_type("application/vnd.veoveo.reason-results+json"),
-        ),
-    ]);
-    set_related_task_meta(&mut result.meta, output.analysis_id().to_string());
-    result.structured_content = Some(serde_json::to_value(output)?);
-    Ok(result)
-}
+#[cfg(test)]
+pub(super) use veoveo_reason_mcp::task_product::ANALYSIS_COMPLETED;
+pub(super) use veoveo_reason_mcp::task_product::analysis_tool_result;
 
 pub(super) async fn get_task(
     runtime: &TaskRuntime,

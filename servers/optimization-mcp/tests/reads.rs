@@ -501,8 +501,7 @@ async fn malformed_canonical_catalog_and_present_wrong_uri_fail_selected_reads()
     .expect("Optimization canonical catalog corruption qualification exceeded 90 seconds");
 }
 
-#[path = "../src/reads/transaction.rs"]
-mod read_transaction;
+use veoveo_platform_store::read_transaction;
 
 #[tokio::test]
 async fn native_read_snapshot_survives_settlement_revocation_and_parent_deletion() {
@@ -687,7 +686,7 @@ async fn native_read_worker_finishes_cleanup_after_timeout_or_dropped_awaiter() 
         .await;
         assert_eq!(
             result.unwrap_err().to_string(),
-            "catalog read transaction timed out"
+            "owned read transaction timed out"
         );
         let mut response =
             db.a.client()

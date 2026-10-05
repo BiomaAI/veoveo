@@ -16862,10 +16862,12 @@ dependencies = [
  "veoveo-optimization-mcp",
  "veoveo-platform-store",
  "veoveo-policy",
+ "veoveo-reason-mcp",
  "veoveo-recording-contract",
  "veoveo-recording-mcp",
  "veoveo-recording-store",
  "veoveo-speech-mcp",
+ "veoveo-stream-mcp",
  "veoveo-task-runtime",
  "veoveo-time-mcp",
  "veoveo-types",
@@ -17359,6 +17361,7 @@ dependencies = [
 name = "veoveo-platform-store"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-stream",
  "chrono",
  "futures",
@@ -17422,6 +17425,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "surrealdb",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -17880,6 +17884,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "surrealdb",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

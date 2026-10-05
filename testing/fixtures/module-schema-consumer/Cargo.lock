@@ -684,7 +684,9 @@ dependencies = [
  "veoveo-modules",
  "veoveo-optimization-mcp",
  "veoveo-platform-store",
+ "veoveo-reason-mcp",
  "veoveo-recording-mcp",
+ "veoveo-stream-mcp",
  "veoveo-time-mcp",
  "veoveo-uav-sim-mcp",
  "veoveo-workspace",
@@ -713,6 +715,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-reason-mcp"
+version = "0.1.0"
+dependencies = [
+ "veoveo-modules",
+]
+
+[[package]]
 name = "veoveo-recording-mcp"
 version = "0.1.0"
 dependencies = [
@@ -731,6 +740,13 @@ dependencies = [
  "serde",
  "veoveo-modules",
  "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-stream-mcp"
+version = "0.1.0"
+dependencies = [
+ "veoveo-modules",
 ]
 
 [[package]]

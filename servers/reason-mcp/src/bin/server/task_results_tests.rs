@@ -1,8 +1,10 @@
 use std::{collections::BTreeSet, time::Duration};
+use surrealdb::types::SurrealValue;
 
 use futures::StreamExt;
-use rmcp::model::{DetailedTask, GetTaskParams};
+use rmcp::model::{CallToolResult, ContentBlock, DetailedTask, GetTaskParams};
 use serde_json::{Value, json};
+use veoveo_reason_mcp::contract::AnalyzeRecordingOutput;
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskTransition};
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
@@ -47,6 +49,7 @@ fn current_output(id: TaskId) -> Value {
         serde_json::from_str(include_str!("../../../testdata/analysis-output-v1.json")).unwrap();
     value["analysis_uri"] = format!("reason://analysis/{id}").into();
     value["result_uri"] = format!("reason://analysis/{id}/results").into();
+    value["results_artifact"]["metadata"]["provenance"]["analysis_id"] = id.to_string().into();
     value
 }
 
@@ -104,6 +107,26 @@ async fn finish(runtime: &TaskRuntime, id: TaskId, stored: Value) {
         .await
         .unwrap();
 }
+async fn corrupt_result(runtime: &TaskRuntime, id: TaskId, stored: Value) {
+    let canonical =
+        analysis_tool_result(serde_json::from_value(current_output(id)).unwrap()).unwrap();
+    finish(runtime, id, serde_json::to_value(canonical).unwrap()).await;
+    runtime
+        .platform_store()
+        .client()
+        .query(include_str!(
+            "../../../queries/bin/server/test_support/corrupt_result.surql"
+        ))
+        .bind(("task", veoveo_platform_store::task_record_id(id)))
+        .bind((
+            "result",
+            veoveo_platform_store::TaskResultRecord::new(stored),
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+}
 
 fn assert_handoff(task: DetailedTask, expected: &Value) {
     assert_eq!(
@@ -131,8 +154,29 @@ fn assert_handoff(task: DetailedTask, expected: &Value) {
 async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "reason", "result-writer");
-        let reader = TaskRuntime::new(db.b.clone(), "reason", "result-reader");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_reason_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("reason").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "reason",
+            "result-writer",
+        ))
+        .unwrap();
+        let reader = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "reason",
+            "result-reader",
+        ))
+        .unwrap();
         let id = TaskId::new();
         create(&writer, owner(), id).await;
         let canonical: AnalyzeRecordingOutput = serde_json::from_value(current_output(id)).unwrap();
@@ -185,8 +229,29 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
 async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "reason", "invalid-writer");
-        let reader = TaskRuntime::new(db.b.clone(), "reason", "invalid-reader");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_reason_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("reason").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "reason",
+            "invalid-writer",
+        ))
+        .unwrap();
+        let reader = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "reason",
+            "invalid-reader",
+        ))
+        .unwrap();
         for corruption in [
             "unknown-schema",
             "unversioned",
@@ -212,7 +277,7 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
                 "missing-product" => value = Value::Null,
                 _ => unreachable!(),
             }
-            finish(
+            corrupt_result(
                 &writer,
                 id,
                 json!({"content": [], "structuredContent": value}),
@@ -254,7 +319,23 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
 async fn explicit_tool_error_keeps_its_no_product_envelope() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
-        let tasks = TaskRuntime::new(db.a.clone(), "reason", "tool-error-reader");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_reason_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("reason").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let tasks = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "reason",
+            "tool-error-reader",
+        ))
+        .unwrap();
         let id = TaskId::new();
         create(&tasks, owner(), id).await;
         let stored = serde_json::to_value(CallToolResult::error(vec![ContentBlock::text(
@@ -269,6 +350,68 @@ async fn explicit_tool_error_keeps_its_no_product_envelope() {
             panic!("expected tool result")
         };
         assert_eq!(Value::Object(result), stored);
+        #[derive(surrealdb::types::SurrealValue)]
+        struct NoProduct {
+            outcome: String,
+            no_product: bool,
+        }
+        let mut row = tasks
+            .platform_store()
+            .client()
+            .query(include_str!(
+                "../../../queries/bin/server/task_results_tests/no_product_settlement.surql"
+            ))
+            .bind((
+                "lookup",
+                surrealdb::types::RecordId::new("reason_analysis", id.to_string()),
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let row: NoProduct = row.take::<Option<NoProduct>>(0).unwrap().unwrap();
+        assert_eq!(row.outcome, "tool_error");
+        assert!(row.no_product);
+        let artifacts = crate::index::complete(
+            &tasks,
+            &owner(),
+            crate::index::CompletionDomain::Artifacts,
+            "",
+        )
+        .await
+        .unwrap();
+        assert!(artifacts.values.is_empty());
+        let actor = owner();
+        let identity = tasks
+            .platform_store()
+            .ensure_identity(
+                actor.tenant_key(),
+                &actor.principal_key,
+                &actor.issuer,
+                &actor.subject,
+                actor.principal_kind,
+            )
+            .await
+            .unwrap();
+        let scope = veoveo_platform_store::ArtifactReadScope::new(
+            &identity,
+            [],
+            std::collections::BTreeSet::new(),
+            None,
+        )
+        .unwrap();
+        assert!(
+            veoveo_reason_mcp::knowledge::readable_findings(
+                tasks.platform_store(),
+                &scope,
+                veoveo_reason_mcp::knowledge::FindingSelection::Member(
+                    veoveo_reason_mcp::contract::AnalysisId::try_from(id).unwrap()
+                )
+            )
+            .await
+            .unwrap()
+            .is_empty()
+        );
     })
     .await
     .expect("Reason tool error qualification exceeded 60 seconds");
@@ -278,8 +421,9 @@ async fn explicit_tool_error_keeps_its_no_product_envelope() {
 async fn unrelated_malformed_operation_is_excluded_before_task_and_resource_decode() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "reason", "writer");
-        let reader = TaskRuntime::new(db.b.clone(), "reason", "reader");
+        fixture::module_lanes::install(&db.a, vec![veoveo_reason_mcp::schema::module_setup(fixture::module_lanes::execution("reason").unwrap()).unwrap()]).await.unwrap();
+        let writer = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(), "reason", "writer")).unwrap();
+        let reader = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(db.b.clone(), "reason", "reader")).unwrap();
         let id = TaskId::new();
         create(&writer, owner(), id).await;
         db.b.client().query(include_str!("../../../queries/bin/server/task_results_tests/unrelated_malformed_operation_is_excluded_before_task_and_resource_decode.surql"))

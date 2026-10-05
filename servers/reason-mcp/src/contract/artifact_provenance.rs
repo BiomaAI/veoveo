@@ -36,7 +36,7 @@ pub struct ReasonArtifactMetadata {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReasonArtifactProvenance {
     #[serde(rename = "reason_results")]
     Results {

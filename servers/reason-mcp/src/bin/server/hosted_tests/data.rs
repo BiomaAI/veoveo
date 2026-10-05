@@ -2,7 +2,6 @@ use super::{fixture::Fixture, result_fixture};
 use anyhow::Result;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
 use veoveo_mcp_contract::{ArtifactPlane, PutArtifactRequest};
-use veoveo_platform_store::{TaskResultRecord, task_record_id};
 use veoveo_reason_mcp::contract::*;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRuntime};
 use veoveo_types::{AccessLevel, AccessSubject, TaskId, TaskTypeDefinition};
@@ -19,14 +18,26 @@ impl Fixture {
     pub async fn finding_with_results(&self, results: ReasoningResults) -> Finding {
         let data = FindingData::from_results(&results).unwrap();
         let analysis = AnalysisId::try_from(TaskId::new()).unwrap();
-        let tasks = TaskRuntime::new(self.store.clone(), "reason", "fixture-publisher");
+        let tasks = veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
+            self.store.clone(),
+            "reason",
+            "fixture-publisher",
+        ))
+        .unwrap();
         tasks
             .create(CreateTask {
                 task_id: analysis.task_id(),
                 owner: crate::ownership::runtime_owner(&self.owner.identity),
                 server: "reason".into(),
                 task_type: ReasonTaskKind::AnalyzeRecording.name(),
-                request: serde_json::json!({}),
+                request: {
+                    let mut request: serde_json::Value = serde_json::from_str(include_str!(
+                        "../../../../testdata/task-request.json"
+                    ))
+                    .unwrap();
+                    request["input"]["pipeline_id"] = results.pipeline_id.to_string().into();
+                    request
+                },
                 recovery_class: RecoveryClass::Resume,
                 idempotency_key: None,
                 ttl_ms: None,
@@ -91,18 +102,22 @@ impl Fixture {
             result,
             annotation,
         );
-        let result =
-            TaskResultRecord::new(serde_json::json!({"structuredContent":output,"isError":false}));
-        self.store
-            .client()
-            .query(include_str!(
-                "../../../../queries/bin/server/hosted_tests/data/finding_with_results.surql"
-            ))
-            .bind(("task", task_record_id(analysis.task_id())))
-            .bind(("result", result))
+        tasks
+            .claim(analysis.task_id(), std::time::Duration::from_secs(30))
             .await
-            .unwrap()
-            .check()
+            .unwrap();
+        tasks
+            .transition(
+                analysis.task_id(),
+                veoveo_task_runtime::TaskTransition::Succeeded {
+                    message: "fixture finding".into(),
+                    result: serde_json::to_value(
+                        veoveo_reason_mcp::task_product::analysis_tool_result(output).unwrap(),
+                    )
+                    .unwrap(),
+                },
+            )
+            .await
             .unwrap();
         finding
     }

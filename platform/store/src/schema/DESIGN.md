@@ -21,8 +21,8 @@ its predecessor, and the registry resolves transitive requirements before effect
 | Store | `changefeed_checkpoint`, `platform_module_lane`, `platform_module_migration`, `platform_module_installation` | None |
 | Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `membership`, `work_context`, `oauth_client` | `fn::kernel::identity::actor_admitted_v1`, `fn::kernel::identity::identity_enabled_v1`, `fn::kernel::identity::principal_summaries_v1`, `fn::kernel::identity::search_enabled_users_v1`, `fn::kernel::identity::enabled_user_v1`, `fn::kernel::identity::identity_labels_v1` |
 | Gateway | `gateway_*`, `policy_revision`, `profile`, `profile_server`, `mcp_server`, `mcp_interaction` | `fn::kernel::gateway::task_retention_route_v1` |
-| Artifacts | `artifact_*`, `share_link` | `fn::artifact_upload_profile_digest`, `fn::artifact_upload_authority_matches` |
-| Tasks | `task`, `task_input`, `task_idempotency`, `task_produced_artifact`, `task_used_artifact`, `provider_job`, `provider_event`, `domain_usage` | `fn::kernel::tasks::selection_v1`, `fn::kernel::tasks::release_retention_v1` |
+| Artifacts | `artifact_*`, `share_link` | `fn::artifact_upload_profile_digest`, `fn::artifact_upload_authority_matches`, `fn::kernel::artifacts::read_v1` |
+| Tasks | `task`, `task_input`, `task_idempotency`, `task_produced_artifact`, `task_used_artifact`, `provider_job`, `provider_event`, `domain_usage` | `fn::kernel::tasks::selection_v1`, `fn::kernel::tasks::lifecycle_v1`, `fn::kernel::tasks::release_retention_v1` |
 | Audit | `audit_*` | `fn::append_audit`, `fn::append_audit_indexing` |
 | Knowledge | `knowledge_*` | None |
 
@@ -88,7 +88,9 @@ covering introduction; callers inspect every argument under the read-only profil
 | `fn::kernel::identity::enabled_user_v1` | Reads `principal`; returns whether one supplied principal is an enabled human in the supplied tenant |
 | `fn::kernel::identity::identity_labels_v1` | Reads `tenant`, `work_context` and `principal`; returns person, tenant name and context title when both records belong to that tenant, otherwise `NONE` |
 | `fn::kernel::gateway::task_retention_route_v1` | Reads one `gateway_task_route` and returns its source Task and server; missing route throws |
+| `fn::kernel::artifacts::read_v1` | Reads one `artifact_occurrence` and its `artifact_grant` edges; applies current scope and a supplied database timestamp, returning admitted opaque metadata, observation material and the next future expiry |
 | `fn::kernel::tasks::selection_v1` | Reads one `task`; returns the admitted object or `NONE` |
+| `fn::kernel::tasks::lifecycle_v1` | Trusted service selection of one Task by exact record, server, tenant and operation; returns lifecycle and typed ownership metadata plus whole-result agreement, without payloads or caller authorization |
 | `fn::kernel::tasks::release_retention_v1` | Reads one `task` and updates only its `retention_pins`; checks expected server and existing pin |
 
 Identity's metadata leaves use specific tenant, principal and Work Context record
@@ -122,3 +124,20 @@ Agents first reads the Gateway leaf and then calls the Task leaf for a present s
 Task, within its existing result-consumption transaction. The leaves neither call
 foreign private functions nor commit independently. Supplied scope originates in
 service admission; these functions do not authenticate arbitrary caller values.
+
+Artifacts exports `fn::kernel::artifacts::read_v1` for exact occurrence admission.
+Its typed inputs separate principal and group subjects and include one database
+query timestamp. The leaf owns tenant, labels, classification, context, current
+grants and retention checks. Denial returns NONE; admitted reads return opaque
+metadata, grant-sensitive observation material and the earliest future expiry.
+Ordinary Artifact exact/page reads use this same admission before pagination.
+Optional owners compare whole metadata receipts without importing their provenance
+vocabulary into the kernel or querying paths inside opaque metadata.
+
+## Closed Object Assertions
+
+SurrealDB optional child declarations can materialize absent fields as `NONE`
+before validating their parent object. Closed objects reject unknown keys and
+check each required value against `NONE`; key presence alone does not prove a
+required value exists. Tagged objects permit declared inactive children only
+when their values are `NONE`, while requiring the active variant's fields.

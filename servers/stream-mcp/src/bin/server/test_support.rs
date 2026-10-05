@@ -103,3 +103,24 @@ pub(super) async fn finish(runtime: &TaskRuntime, id: TaskId, stored: Value) {
         .await
         .unwrap();
 }
+pub(super) async fn corrupt_result(runtime: &TaskRuntime, id: TaskId, stored: Value) {
+    let canonical =
+        super::task_results::recording_result(serde_json::from_value(current_output(id)).unwrap())
+            .unwrap();
+    finish(runtime, id, serde_json::to_value(canonical).unwrap()).await;
+    runtime
+        .platform_store()
+        .client()
+        .query(include_str!(
+            "../../../queries/bin/server/test_support/corrupt_result.surql"
+        ))
+        .bind(("task", veoveo_platform_store::task_record_id(id)))
+        .bind((
+            "result",
+            veoveo_platform_store::TaskResultRecord::new(stored),
+        ))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+}

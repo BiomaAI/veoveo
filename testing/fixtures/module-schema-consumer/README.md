@@ -1,8 +1,8 @@
 # Module Schema Consumer
 
-This independent Rust workspace composes all seventeen owner declarations through
+This independent Rust workspace composes all nineteen owner declarations through
 `schema` features with default features disabled. Native tests pin the current
-163 table names, 23 functions and two analyzers to their target owners,
+166 table names, 25 functions and two analyzers to their target owners,
 check the declared dependency order, and qualify optional selection through the
 shared registry. The generated plan fixture is compared with those actual owner
 exports. Declaration checks do not replace complete SQL admission or native execution
@@ -12,8 +12,9 @@ The gateway source producer generates the plan fixtures from the selection input
 Their reference image binding qualifies source rendering; it does not attest that the
 previously published reference image contains the new command. Locked installation
 compilation runs the exact newly published image. Every registered owner has a
-version-zero lane containing its current schema; the Tasks and Optimization lanes
-also install their declared selection functions.
+version-zero lane containing its current schema; kernel owners install their
+declared Identity, Task, Gateway and Artifact SQL APIs.
+Owner lookup tables belong to UAV, Reason, Stream and Optimization.
 
 Run the consumer independently of workspace feature unification:
 

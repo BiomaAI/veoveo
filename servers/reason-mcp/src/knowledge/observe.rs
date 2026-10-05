@@ -53,7 +53,18 @@ impl FindingChanges {
         let sender = changes.clone();
         let worker = tokio::spawn(async move {
             use PlatformTable::*;
-            let mut source = store.resource_changes(vec![Task, ArtifactOccurrence, ArtifactGrant]);
+            let mut source = store.resource_changes(vec![
+                Task.into(),
+                ArtifactOccurrence.into(),
+                ArtifactGrant.into(),
+                veoveo_modules::ObservationTable::new(
+                    veoveo_modules::TableName::new("reason_analysis").expect("Reason lookup table"),
+                    veoveo_modules::ObservationReplay::Changefeed(
+                        veoveo_modules::ChangefeedRetention::from_days(1)
+                            .expect("Reason lookup retention"),
+                    ),
+                ),
+            ]);
             while let Some(value) = source.next().await {
                 sender.send_replace(Some(value));
             }

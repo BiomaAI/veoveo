@@ -146,11 +146,12 @@ impl Fixture {
         ))
         .unwrap();
         Arc::new(AppState {
-            tasks: TaskRuntime::new(
+            tasks: veoveo_reason_mcp::task_lookup::bind(TaskRuntime::new(
                 self.store.clone(),
                 "reason",
                 uuid::Uuid::now_v7().to_string(),
-            ),
+            ))
+            .unwrap(),
             finding_changes: veoveo_reason_mcp::knowledge::observe::FindingChanges::new(
                 self.store.clone(),
             ),

@@ -8,7 +8,12 @@ pub(super) async fn task(
     identity: &GatewayInternalIdentity,
     plan: &VehicleMissionPlan,
 ) -> (TaskRuntime, TaskSnapshot) {
-    let tasks = TaskRuntime::new(authority.store.clone(), "uav-sim", "native-admission");
+    let tasks = crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(
+        authority.store.clone(),
+        "uav-sim",
+        "native-admission",
+    ))
+    .unwrap();
     let task =
         tasks
             .create(CreateTask {

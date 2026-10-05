@@ -588,3 +588,55 @@ fn ordinary_schema_permissions_and_comments_cannot_call_updating_exports() {
         assert!(error.contains("read-only SQL context"), "{sql}: {error}");
     }
 }
+
+fn datetime_api(sql: &'static str) -> ModuleSetup {
+    let api = KernelSqlApi::new(
+        FunctionName::new("fn::kernel::own::at_v1").unwrap(),
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![SqlParameter::new("at", SqlType::Datetime).unwrap()],
+            SqlType::Object,
+        )
+        .unwrap(),
+        SqlReadProfile::new(vec![TableName::new("own").unwrap()]).unwrap(),
+        sql,
+    )
+    .unwrap();
+    ModuleSetup::builder(ModuleName::new("own").unwrap(), ModuleLayer::Kernel)
+        .ownership(vec![
+            OwnershipClaim::Table(TableName::new("own").unwrap()),
+            OwnershipClaim::Function(api.name().clone()),
+        ])
+        .execution(host())
+        .lane(
+            MigrationLane::new(vec![
+                Migration::new(
+                    MigrationVersion::new(0),
+                    MigrationName::new("at").unwrap(),
+                    sql,
+                )
+                .unwrap(),
+            ])
+            .unwrap(),
+        )
+        .sql_apis(vec![api])
+        .build()
+        .unwrap()
+}
+#[test]
+fn injected_datetime_and_pure_min_preserve_complete_child_checks() {
+    let valid = include_str!("queries/sql_api/datetime_min.surql");
+    let admit = |sql| {
+        let registry = ModuleRegistry::new(vec![datetime_api(sql)]).unwrap();
+        prepare(registry.select(vec![]).unwrap()).map(|_| ())
+    };
+    let result = admit(valid);
+    assert!(result.is_ok(), "{result:?}");
+    for invalid in [
+        include_str!("queries/sql_api/datetime_min_wrong_signature.surql"),
+        include_str!("queries/sql_api/datetime_min_argument_write.surql"),
+        include_str!("queries/sql_api/datetime_min_clock.surql"),
+    ] {
+        assert!(admit(invalid).is_err());
+    }
+}

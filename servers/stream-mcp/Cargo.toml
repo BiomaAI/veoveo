@@ -20,6 +20,7 @@ name = "contract"
 required-features = ["contract"]
 
 [features]
+schema = ["dep:veoveo-modules"]
 default = ["mcp"]
 contract = [
     "dep:thiserror",
@@ -48,6 +49,8 @@ runtime = [
     "dep:veoveo-mcp-contract",
 ]
 mcp = [
+    "schema",
+    "dep:surrealdb",
     "runtime",
     "dep:clap",
     "dep:dotenvy",
@@ -64,6 +67,8 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-modules = { workspace = true, optional = true }
+surrealdb = { version = "=3.3.0", default-features = false, optional = true }
 thiserror = { workspace = true, optional = true }
 veoveo-recording-mcp = { path = "../recording-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }

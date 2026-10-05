@@ -173,9 +173,33 @@ fn selections_bound_the_whole_request_and_keep_the_sources_distinct() {
 async fn mixed_sources_deliver_cross_instance_runs_live_updates_and_reconnect_baselines() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "stream", "writer");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "writer",
+        ))
+        .unwrap();
         let (live, session, hub) = subscription_fixture::new(owner()).await;
-        let service = Service::new(TaskRuntime::new(db.b.clone(), "stream", "reader"), live);
+        let service = Service::new(
+            veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+                db.b.clone(),
+                "stream",
+                "reader",
+            ))
+            .unwrap(),
+            live,
+        );
         let first = TaskId::new();
         let second = TaskId::new();
         for id in [first, second] {
@@ -272,7 +296,8 @@ async fn mixed_sources_deliver_cross_instance_runs_live_updates_and_reconnect_ba
 async fn denied_resources_and_lost_live_sessions_never_emit_updates() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
-        let runtime = TaskRuntime::new(db.a.clone(), "stream", "reader");
+        fixture::module_lanes::install(&db.a, vec![veoveo_stream_mcp::schema::module_setup(fixture::module_lanes::execution("stream").unwrap()).unwrap()]).await.unwrap();
+        let runtime = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(), "stream", "reader")).unwrap();
         let (live, session, hub) = subscription_fixture::new(owner()).await;
         let service = Service::new(runtime.clone(), live.clone());
         let id = TaskId::new();
@@ -299,6 +324,17 @@ async fn denied_resources_and_lost_live_sessions_never_emit_updates() {
 async fn store_reconnect_reconciles_runs_without_interrupting_live_updates() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
         let endpoint = db.a.config().endpoint();
         let switch = connection_switch::ConnectionSwitch::start(
             endpoint.host_str().unwrap().to_owned(),
@@ -306,9 +342,18 @@ async fn store_reconnect_reconciles_runs_without_interrupting_live_updates() {
         )
         .await;
         let reader = db.connect_via(&switch.endpoint).await;
-        let writer = TaskRuntime::new(db.a.clone(), "stream", "writer");
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "writer",
+        ))
+        .unwrap();
         let (live, session, hub) = subscription_fixture::new(owner()).await;
-        let service = Service::new(TaskRuntime::new(reader, "stream", "reader"), live);
+        let service = Service::new(
+            veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(reader, "stream", "reader"))
+                .unwrap(),
+            live,
+        );
         let id = TaskId::new();
         create(&writer, owner(), id).await;
         let filter = SubscriptionFilter::builder()
@@ -349,7 +394,23 @@ async fn store_reconnect_reconciles_runs_without_interrupting_live_updates() {
 async fn official_listener_acknowledges_mixed_filters_and_cancels() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
-        let runtime = TaskRuntime::new(db.a.clone(), "stream", "listener");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let runtime = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "listener",
+        ))
+        .unwrap();
         let (live, session, _) = subscription_fixture::new(owner()).await;
         let service = Service::new(runtime.clone(), live);
         let id = TaskId::new();

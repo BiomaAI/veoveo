@@ -4,7 +4,7 @@ use anyhow::Result;
 use surrealdb::types::SurrealValue;
 use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{
-    PlatformStore, RecordId, TaskRecord, deterministic_principal_id, deterministic_tenant_id,
+    PlatformStore, RecordId, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id,
 };
 use veoveo_task_runtime::{TaskPageCursor, TaskRuntime, TaskSnapshot};
@@ -24,10 +24,22 @@ struct Scope {
     owner: RecordId,
     profile: RecordId,
     context: RecordId,
-    tenant_key: Option<String>,
-    principal_key: String,
-    data_labels: Vec<String>,
-    mission_task_type: String,
+    #[surreal(wrap)]
+    tenant_key: Option<veoveo_types::TenantId>,
+    #[surreal(wrap)]
+    principal_key: veoveo_types::PrincipalId,
+    #[surreal(wrap)]
+    profile_key: veoveo_types::GatewayProfileId,
+    #[surreal(wrap)]
+    context_key: veoveo_types::WorkContextId,
+    #[surreal(wrap)]
+    authority_tenant: veoveo_types::TenantId,
+    #[surreal(wrap)]
+    data_labels: Vec<veoveo_types::DataLabelId>,
+    #[surreal(wrap)]
+    mission_task_type: veoveo_types::TaskTypeName,
+    #[surreal(wrap)]
+    types: Vec<veoveo_types::TaskTypeName>,
 }
 
 fn scope(identity: &GatewayInternalIdentity) -> Result<Scope> {
@@ -42,10 +54,18 @@ fn scope(identity: &GatewayInternalIdentity) -> Result<Scope> {
             identity.authority.work_context.as_str(),
         )?
         .record_id(),
-        tenant_key: owner.tenant_key,
-        principal_key: owner.principal_key,
-        data_labels: owner.data_labels.into_iter().collect(),
-        mission_task_type: UavTaskKind::ExecuteMission.name().to_string(),
+        tenant_key: owner.tenant_key.map(|key| key.parse()).transpose()?,
+        principal_key: owner.principal_key.parse()?,
+        profile_key: owner.profile.parse()?,
+        context_key: identity.authority.work_context.clone(),
+        authority_tenant: identity.authority.tenant.clone(),
+        data_labels: owner
+            .data_labels
+            .into_iter()
+            .map(|label| label.parse())
+            .collect::<Result<_, _>>()?,
+        mission_task_type: UavTaskKind::ExecuteMission.name(),
+        types: UavTaskKind::ALL.iter().map(|kind| kind.name()).collect(),
     })
 }
 
@@ -94,45 +114,55 @@ pub(super) async fn task(
     identity: &GatewayInternalIdentity,
     id: TaskId,
 ) -> Result<Option<TaskSnapshot>> {
-    let mut response = store
-        .client()
-        .query(include_str!("queries/task_index/task.surql"))
-        .bind(("task", veoveo_platform_store::task_record_id(id)))
-        .bind(scope(identity)?)
-        .bind((
-            "types",
-            UavTaskKind::ALL
-                .iter()
-                .map(|kind| kind.name().to_string())
-                .collect::<Vec<_>>(),
-        ))
-        .await?
-        .check()?;
-    response
-        .take::<Option<TaskRecord>>(0)?
-        .map(TaskSnapshot::try_from)
-        .transpose()
-        .map_err(Into::into)
+    selected_task(store, identity, Some(id), None).await
 }
-
 pub(super) async fn mission(
     store: &PlatformStore,
     identity: &GatewayInternalIdentity,
     id: &MissionId,
 ) -> Result<Option<TaskSnapshot>> {
-    let mut response = store
-        .client()
-        .query(include_str!("queries/task_index/mission.surql"))
-        .bind(scope(identity)?)
-        .bind(("mission", id.to_string()))
-        .await?
-        .check()?;
-    let rows: Vec<TaskRecord> = response.take(2)?;
-    rows.into_iter()
-        .next()
-        .map(TaskSnapshot::try_from)
-        .transpose()
-        .map_err(Into::into)
+    selected_task(store, identity, None, Some(id.clone())).await
+}
+async fn selected_task(
+    store: &PlatformStore,
+    identity: &GatewayInternalIdentity,
+    task: Option<TaskId>,
+    mission: Option<MissionId>,
+) -> Result<Option<TaskSnapshot>> {
+    let identity = identity.clone();
+    let runtime = TaskRuntime::new(store.clone(), "uav-sim", "catalog-read");
+    veoveo_platform_store::read_transaction::read(store.client(), move |transaction| {
+        Box::pin(async move {
+            let sql = if task.is_some() {
+                include_str!("queries/task_index/task.surql")
+            } else {
+                include_str!("queries/task_index/mission.surql")
+            };
+            let mut response = transaction
+                .query(sql)
+                .bind(scope(&identity)?)
+                .bind(("task", task.map(veoveo_platform_store::task_record_id)))
+                .bind(("mission", mission.map(|id| id.to_string())))
+                .await?
+                .check()?;
+            let rows: Vec<super::task_catalog::CatalogRow> =
+                response.take(if task.is_some() { 0 } else { 2 })?;
+            let Some(row) = rows.into_iter().next() else {
+                return Ok(None);
+            };
+            let mut tasks = runtime
+                .for_owner(&runtime_owner(&identity))
+                .of_types(UavTaskKind::ALL.iter().map(|kind| kind.name()))?
+                .get_many_in(transaction, &[row.task_id()?])
+                .await?;
+            let Some(task) = tasks.pop() else {
+                return Ok(None);
+            };
+            row.check(&task)?;
+            Ok(Some(task))
+        })
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -183,31 +213,92 @@ pub(super) async fn missions_page(
     identity: &GatewayInternalIdentity,
     after: Option<&MissionId>,
 ) -> Result<CollectionPage<String>> {
-    let mut response = store
-        .client()
-        .query(include_str!("queries/task_index/missions_page.surql"))
-        .bind(scope(identity)?)
-        .bind(("after", after.map(ToString::to_string)))
-        .bind(("limit", index::PAGE_SIZE + 1))
-        .await?
-        .check()?;
-    let rows: Vec<Mission> = response.take(0)?;
-    index::page(
-        rows,
-        |row| {
-            Ok(
-                UavMissionCursor::new(MissionId::parse(row.mission_id.clone())?)?
-                    .as_str()
-                    .to_owned(),
+    let identity = identity.clone();
+    let after = after.map(ToString::to_string);
+    let runtime = TaskRuntime::new(store.clone(), "uav-sim", "catalog-read");
+    veoveo_platform_store::read_transaction::read(store.client(), move |transaction| {
+        Box::pin(async move {
+            let mut response = transaction
+                .query(include_str!("queries/task_index/mission_candidates.surql"))
+                .query(include_str!("queries/task_index/missions_page.surql"))
+                .bind(scope(&identity)?)
+                .bind(("after", after))
+                .bind(("limit", index::PAGE_SIZE + 1))
+                .await?
+                .check()?;
+            let rows: Vec<Mission> = response.take(3)?;
+            validate_missions(transaction, &runtime, &identity, &rows).await?;
+            index::page(
+                rows,
+                |row| {
+                    Ok(UavMissionCursor::new(row.mission_id.clone())?
+                        .as_str()
+                        .to_owned())
+                },
+                |row| Ok(uris::mission(&row.mission_id).into()),
             )
-        },
-        |row| Ok(uris::mission(&MissionId::parse(row.mission_id)?).into()),
-    )
+        })
+    })
+    .await
 }
 
 #[derive(SurrealValue)]
 struct Mission {
-    mission_id: String,
+    #[surreal(wrap)]
+    mission_id: MissionId,
+    #[surreal(wrap)]
+    plan_ids: Vec<crate::contract::MissionPlanId>,
+}
+
+async fn validate_missions<C: surrealdb::Connection>(
+    transaction: &surrealdb::method::Transaction<C>,
+    runtime: &TaskRuntime,
+    identity: &GatewayInternalIdentity,
+    missions: &[Mission],
+) -> Result<()> {
+    if missions.is_empty() {
+        return Ok(());
+    }
+    let plans = missions
+        .iter()
+        .flat_map(|row| row.plan_ids.iter().map(ToString::to_string))
+        .collect::<Vec<_>>();
+    let mut response = transaction
+        .query(include_str!("queries/task_index/mission_candidates.surql"))
+        .query(include_str!("queries/task_index/validate_missions.surql"))
+        .bind(scope(identity)?)
+        .bind(("plan_ids", plans))
+        .await?
+        .check()?;
+    let rows: Vec<super::task_catalog::CatalogRow> = response.take(3)?;
+    let ids = rows
+        .iter()
+        .map(|row| row.task_id())
+        .collect::<Result<Vec<_>>>()?;
+    let tasks = runtime
+        .for_owner(&runtime_owner(identity))
+        .of_types(UavTaskKind::ALL.iter().map(|kind| kind.name()))?
+        .get_many_in(transaction, &ids)
+        .await?;
+    for row in &rows {
+        let id = row.task_id()?;
+        let task = tasks
+            .iter()
+            .find(|task| task.task_id == id)
+            .ok_or_else(|| anyhow::anyhow!("selected UAV lookup lost its authorized Task"))?;
+        row.check(task)?;
+    }
+    for mission in missions {
+        anyhow::ensure!(
+            rows.iter().any(|row| row
+                .identity
+                .plan_id
+                .as_ref()
+                .is_some_and(|plan| mission.plan_ids.contains(plan))),
+            "selected mission has no validated Task lookup"
+        );
+    }
+    Ok(())
 }
 
 pub(super) enum CompletionDomain {
@@ -221,29 +312,48 @@ pub(super) async fn complete(
     domain: CompletionDomain,
     needle: &str,
 ) -> Result<Vec<String>> {
-    let sql = match domain {
-        CompletionDomain::Tasks => include_str!("queries/task_index/complete_tasks.surql"),
-        CompletionDomain::Missions => include_str!("queries/task_index/complete_missions.surql"),
-    };
-    #[derive(SurrealValue)]
-    struct Completion {
-        value: String,
-    }
-    let mut response = store
-        .client()
-        .query(sql)
-        .bind(scope(identity)?)
-        .bind((
-            "types",
-            UavTaskKind::ALL
-                .iter()
-                .map(|kind| kind.name().to_string())
-                .collect::<Vec<_>>(),
-        ))
-        .bind(("needle", needle.to_lowercase()))
-        .bind(("limit", index::PAGE_SIZE + 1))
-        .await?
-        .check()?;
-    let rows: Vec<Completion> = response.take(0)?;
-    Ok(rows.into_iter().map(|row| row.value).collect())
+    let identity = identity.clone();
+    let needle = needle.to_lowercase();
+    let runtime = TaskRuntime::new(store.clone(), "uav-sim", "catalog-read");
+    veoveo_platform_store::read_transaction::read(store.client(), move |transaction| {
+        Box::pin(async move {
+            let sql = match domain {
+                CompletionDomain::Tasks => include_str!("queries/task_index/complete_tasks.surql"),
+                CompletionDomain::Missions => {
+                    include_str!("queries/task_index/complete_missions.surql")
+                }
+            };
+            let query = match domain {
+                CompletionDomain::Tasks => transaction.query(sql),
+                CompletionDomain::Missions => transaction
+                    .query(include_str!("queries/task_index/mission_candidates.surql"))
+                    .query(sql),
+            };
+            let mut response = query
+                .bind(scope(&identity)?)
+                .bind(("needle", needle))
+                .bind(("limit", index::PAGE_SIZE + 1))
+                .await?
+                .check()?;
+            match domain {
+                CompletionDomain::Tasks => {
+                    #[derive(SurrealValue)]
+                    struct Completion {
+                        value: String,
+                    }
+                    let rows: Vec<Completion> = response.take(0)?;
+                    Ok(rows.into_iter().map(|row| row.value).collect())
+                }
+                CompletionDomain::Missions => {
+                    let rows: Vec<Mission> = response.take(3)?;
+                    validate_missions(transaction, &runtime, &identity, &rows).await?;
+                    Ok(rows
+                        .into_iter()
+                        .map(|row| row.mission_id.to_string())
+                        .collect())
+                }
+            }
+        })
+    })
+    .await
 }

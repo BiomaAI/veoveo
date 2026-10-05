@@ -20,6 +20,7 @@ type Client = RunningService<rmcp::RoleClient, ClientConfig>;
 async fn unknown_tool_arguments_complete_before_analysis_admission() {
     tokio::time::timeout(Duration::from_secs(120), async {
         let db = crate::store_fixture::TestDb::new().await;
+        crate::store_fixture::module_lanes::install(&db.a, vec![veoveo_reason_mcp::schema::module_setup(crate::store_fixture::module_lanes::execution("reason").unwrap()).unwrap()]).await.unwrap();
         let fixture = Fixture::new(db.a.clone()).await;
         let server = fixture.reason(None).await;
         let client = fixture.sdk(server.address, &fixture.owner).await;
@@ -33,7 +34,7 @@ async fn unknown_tool_arguments_complete_before_analysis_admission() {
         validate_reasoning_task(&valid.task).unwrap();
         validate_sampling(valid.sampling).unwrap();
         validate_decode(valid.decode).unwrap();
-        let tasks = veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "reason", "strict-input");
+        let tasks = veoveo_reason_mcp::task_lookup::bind(veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "reason", "strict-input")).unwrap();
         assert!(tasks.list().await.unwrap().is_empty());
         arguments["undeclared"] = true.into();
         let response = client.call_tool_once(CallToolRequestParams::new("analyze_recording").with_arguments(arguments.as_object().unwrap().clone())).await.unwrap();
@@ -94,6 +95,7 @@ async fn updates(subscription: &mut rmcp::service::Subscription, expected: &[Res
 async fn findings_conform_across_service_restarts_and_artifact_grant_revocation() {
     tokio::time::timeout(Duration::from_secs(300), async {
         let db = crate::store_fixture::TestDb::new().await;
+        crate::store_fixture::module_lanes::install(&db.a, vec![veoveo_reason_mcp::schema::module_setup(crate::store_fixture::module_lanes::execution("reason").unwrap()).unwrap()]).await.unwrap();
         let fixture = Fixture::new(db.a.clone()).await;
         let finding = fixture.finding().await;
         let server = fixture.reason(None).await;

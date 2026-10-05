@@ -474,6 +474,7 @@ pub(in crate::server) async fn observe(
     let mut changes = store.resource_changes(vec![
         veoveo_modules::ObservationTable::from(crate::UavObservationTable::UavVehicleControlGrant),
         crate::UavObservationTable::UavVehicleMissionPlan.into(),
+        crate::UavObservationTable::UavTask.into(),
         PlatformTable::Task.into(),
     ]);
     loop {

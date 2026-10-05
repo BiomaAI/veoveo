@@ -25,6 +25,7 @@ contract = [
     "dep:sha2",
 ]
 runtime = [
+    "dep:veoveo-recording-store",
     "contract",
     "dep:tokio",
     "dep:veoveo-mcp-contract",
@@ -34,7 +35,7 @@ runtime = [
 ]
 
 [dependencies]
-veoveo-recording-store = { workspace = true }
+veoveo-recording-store = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 # Match the qualified workspace release; public snapshots need date/time values only.

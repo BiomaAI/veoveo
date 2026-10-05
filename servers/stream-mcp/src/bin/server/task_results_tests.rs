@@ -1,4 +1,5 @@
 use std::time::Duration;
+use surrealdb::types::SurrealValue;
 
 use futures::StreamExt;
 use rmcp::model::{DetailedTask, GetTaskParams};
@@ -84,8 +85,29 @@ fn assert_handoff(task: DetailedTask, expected: &Value) {
 async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "stream", "result-writer");
-        let reader = TaskRuntime::new(db.b.clone(), "stream", "result-reader");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "result-writer",
+        ))
+        .unwrap();
+        let reader = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "stream",
+            "result-reader",
+        ))
+        .unwrap();
         let id = TaskId::new();
         create(&writer, owner(), id).await;
         let canonical: RunRecordingOutput = serde_json::from_value(current_output(id)).unwrap();
@@ -142,8 +164,29 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
 async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "stream", "invalid-writer");
-        let reader = TaskRuntime::new(db.b.clone(), "stream", "invalid-reader");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "invalid-writer",
+        ))
+        .unwrap();
+        let reader = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.b.clone(),
+            "stream",
+            "invalid-reader",
+        ))
+        .unwrap();
         for corruption in [
             "wrong-pipeline",
             "wrong-task",
@@ -178,7 +221,8 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
                 _ => unreachable!(),
             }
             result.structured_content = Some(value);
-            finish(&writer, id, serde_json::to_value(result).unwrap()).await;
+            crate::test_support::corrupt_result(&writer, id, serde_json::to_value(result).unwrap())
+                .await;
             let error = get_task(&reader, &owner(), GetTaskParams::new(id.to_string()))
                 .await
                 .unwrap_err();
@@ -220,7 +264,23 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
 async fn explicit_tool_error_keeps_its_no_product_envelope() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
-        let tasks = TaskRuntime::new(db.a.clone(), "stream", "tool-error-reader");
+        fixture::module_lanes::install(
+            &db.a,
+            vec![
+                veoveo_stream_mcp::schema::module_setup(
+                    fixture::module_lanes::execution("stream").unwrap(),
+                )
+                .unwrap(),
+            ],
+        )
+        .await
+        .unwrap();
+        let tasks = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(
+            db.a.clone(),
+            "stream",
+            "tool-error-reader",
+        ))
+        .unwrap();
         let id = TaskId::new();
         create(&tasks, owner(), id).await;
         let stored = serde_json::to_value(CallToolResult::error(vec![ContentBlock::text(
@@ -235,6 +295,37 @@ async fn explicit_tool_error_keeps_its_no_product_envelope() {
             panic!("expected tool result")
         };
         assert_eq!(Value::Object(result), stored);
+        #[derive(surrealdb::types::SurrealValue)]
+        struct NoProduct {
+            outcome: String,
+            no_product: bool,
+        }
+        let mut row = tasks
+            .platform_store()
+            .client()
+            .query(include_str!(
+                "../../../queries/bin/server/task_results_tests/no_product_settlement.surql"
+            ))
+            .bind((
+                "lookup",
+                surrealdb::types::RecordId::new("stream_run", id.to_string()),
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let row: NoProduct = row.take::<Option<NoProduct>>(0).unwrap().unwrap();
+        assert_eq!(row.outcome, "tool_error");
+        assert!(row.no_product);
+        let artifacts = crate::index::complete(
+            &tasks,
+            &owner(),
+            crate::index::CompletionDomain::Artifacts,
+            "",
+        )
+        .await
+        .unwrap();
+        assert!(artifacts.values.is_empty());
     })
     .await
     .expect("Stream tool error qualification exceeded 60 seconds");
@@ -244,8 +335,9 @@ async fn explicit_tool_error_keeps_its_no_product_envelope() {
 async fn unrelated_malformed_operation_is_excluded_before_task_and_resource_decode() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = fixture::TestDb::new().await;
-        let writer = TaskRuntime::new(db.a.clone(), "stream", "writer");
-        let reader = TaskRuntime::new(db.b.clone(), "stream", "reader");
+        fixture::module_lanes::install(&db.a, vec![veoveo_stream_mcp::schema::module_setup(fixture::module_lanes::execution("stream").unwrap()).unwrap()]).await.unwrap();
+        let writer = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(db.a.clone(), "stream", "writer")).unwrap();
+        let reader = veoveo_stream_mcp::task_lookup::bind(TaskRuntime::new(db.b.clone(), "stream", "reader")).unwrap();
         let id = TaskId::new();
         create(&writer, owner(), id).await;
         db.b.client().query(include_str!("../../../queries/bin/server/task_results_tests/unrelated_malformed_operation_is_excluded_before_task_and_resource_decode.surql"))

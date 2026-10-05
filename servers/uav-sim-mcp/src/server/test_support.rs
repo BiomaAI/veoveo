@@ -93,7 +93,12 @@ pub(super) fn state(
     Arc::new(super::state::AppState {
         session_id: SessionId::parse("native-session").unwrap(),
         adapter,
-        tasks: TaskRuntime::new(store.clone(), "uav-sim", worker),
+        tasks: crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(
+            store.clone(),
+            "uav-sim",
+            worker,
+        ))
+        .unwrap(),
         control_authority: VehicleControlAuthority::new(store.clone()),
         subscribers: Arc::new(SubscriptionHub::new()),
         live_views,

@@ -596,3 +596,34 @@ Complete persistence statements live in `queries/`, grouped by source responsibi
 Completion selects one static statement for each admitted Task or Artifact field.
 Native query fixtures live in `tests/queries/`; finite corruption cases select complete
 statements and preserve SQL admission before decoding. Runtime values use bindings.
+
+## Task Lookup Persistence
+
+The schema-only `schema` feature declares `reason_analysis`; Gateway composition
+registers its fresh owner lane. The hosted runtime requires `task_lookup` contributions
+for analysis creation and terminal settlement. Creation stores the typed Task link,
+tenant and requested pipeline. A successful settlement validates the complete MCP
+output against its Task and pipeline, then validates the Results publication receipt
+against the finding's recording, model, prompt, task kind and source digest. Both
+mutations commit inside the kernel Task transaction. Explicit MCP tool errors retain successful Task completion with a distinct no-product
+settlement. Failure and cancellation retain explicit terminal settlements without output links.
+
+The lookup declares the finding and Results provenance fields. Nominal driver
+adapters decode them through the checked public contracts. The complete MCP result
+is an opaque integrity snapshot: its extensible contents and metadata are never
+queried by nested SQL paths. Its native representation uses the same
+`TaskResultRecord` conversion as the canonical Task payload.
+
+Finding selection applies tenant, keyset and search predicates to the owner table.
+Tasks' versioned lifecycle export supplies current success, timestamps, retention
+and whole-result equality without returning a Task payload. Artifacts' versioned
+read export applies current grants, clearance, classification, context and expiry
+before the page limit. Reason compares the entire admitted current metadata value
+against its typed publication receipt. Selected rows then undergo complete output,
+lookup identity and copied-field checks; visible corruption is an error. Artifact
+sharing can admit another Task owner's finding without granting Task control.
+
+Observation listens to the Reason lookup through its owner-declared one-day
+changefeed as well as kernel Task and Artifact changes. Fingerprints cover the
+complete admitted collection and its integrity material. Task retention, Artifact
+retention and future grant expiries determine the next recheck deadline.

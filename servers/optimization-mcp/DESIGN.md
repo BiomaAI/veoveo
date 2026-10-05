@@ -429,7 +429,7 @@ at most two rows. Missing and denied identities both return no row.
 
 Each page, exact read and completion holds one snapshot across catalog selection
 and Task hydration. Authorization changes after that snapshot apply to the next
-request. An owned worker keeps transaction cleanup alive when its caller disappears;
+request. Store's `read_transaction` worker keeps transaction cleanup alive when its caller disappears;
 reads allow 30 seconds and cancellation allows 10 seconds. Unknown begin or
 cancellation outcomes report that database session cleanup may be required.
 The worker performs no mutation and never retries a failed read transaction.

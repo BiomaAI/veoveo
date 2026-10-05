@@ -1,4 +1,4 @@
-//! Reviewed current catalog object expectations; no runtime SQL ownership inference.
+//! Reviewed complete catalog objects, including names owned through prefix claims.
 
 pub(super) const TABLES: &[(&str, &str)] = &[
     ("agent", "agents"),
@@ -125,6 +125,7 @@ pub(super) const TABLES: &[(&str, &str)] = &[
     ("profile_server", "gateway"),
     ("provider_event", "tasks"),
     ("provider_job", "tasks"),
+    ("reason_analysis", "reason"),
     ("recording", "recordings"),
     ("recording_blueprint", "recordings"),
     ("recording_dataset", "recordings"),
@@ -135,6 +136,7 @@ pub(super) const TABLES: &[(&str, &str)] = &[
     ("recording_projection_receipt", "recordings"),
     ("recording_read_grant", "recordings"),
     ("share_link", "artifacts"),
+    ("stream_run", "stream"),
     ("task", "tasks"),
     ("task_idempotency", "tasks"),
     ("task_input", "tasks"),
@@ -151,6 +153,7 @@ pub(super) const TABLES: &[(&str, &str)] = &[
     ("time_temporal_event", "time"),
     ("uav_mission_execution", "uav"),
     ("uav_vehicle_command_lease", "uav"),
+    ("uav_task", "uav"),
     ("uav_vehicle_control_grant", "uav"),
     ("uav_vehicle_mission_plan", "uav"),
     ("wake", "agents"),
@@ -175,6 +178,7 @@ pub(super) const FUNCTIONS: &[(&str, &str)] = &[
     ("fn::append_audit_indexing", "audit"),
     ("fn::artifact_upload_authority_matches", "artifacts"),
     ("fn::artifact_upload_profile_digest", "artifacts"),
+    ("fn::kernel::artifacts::read_v1", "artifacts"),
     ("fn::kernel::gateway::task_retention_route_v1", "gateway"),
     ("fn::kernel::identity::actor_admitted_v1", "identity"),
     ("fn::kernel::identity::enabled_user_v1", "identity"),
@@ -182,6 +186,7 @@ pub(super) const FUNCTIONS: &[(&str, &str)] = &[
     ("fn::kernel::identity::identity_labels_v1", "identity"),
     ("fn::kernel::identity::principal_summaries_v1", "identity"),
     ("fn::kernel::identity::search_enabled_users_v1", "identity"),
+    ("fn::kernel::tasks::lifecycle_v1", "tasks"),
     ("fn::kernel::tasks::release_retention_v1", "tasks"),
     ("fn::kernel::tasks::selection_v1", "tasks"),
     ("fn::managed_agent_claim", "agents"),

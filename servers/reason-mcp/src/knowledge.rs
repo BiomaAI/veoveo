@@ -4,11 +4,11 @@ use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_platform_store::{
-    ArtifactReadScope, OpenObject, PlatformStore, RecordId, task_record_id,
+    ArtifactReadScope, PlatformStore, RecordId, TaskResultRecord, task_record_id,
 };
 use veoveo_types::TaskTypeDefinition;
 
-use crate::contract::{AnalysisId, AnalyzeRecordingOutput, FindingData, ReasonTaskKind};
+use crate::contract::{AnalysisId, FindingData, ReasonTaskKind};
 pub mod observe;
 pub mod summary;
 
@@ -73,36 +73,88 @@ pub async fn readable_findings(
         .bind(("limit", limit as i64))
         .await?
         .check()?;
-    type Row = (
-        String,
-        DateTime<Utc>,
-        DateTime<Utc>,
-        OpenObject,
-        Option<DateTime<Utc>>,
-    );
-    let rows: Vec<Row> = response.take(0)?;
+    let rows: Vec<crate::task_lookup::FindingRow> = response.take(response.num_statements() - 1)?;
     rows.into_iter()
-        .map(|(id, created_at, updated_at, output, expires_at)| {
-            let analysis = AnalysisId::parse(&id)?;
-            let output: AnalyzeRecordingOutput =
-                serde_json::from_value(serde_json::to_value(output)?)?;
+        .map(|row| {
+            let surrealdb::types::RecordIdKey::Uuid(uuid) = row.task.key.clone() else {
+                anyhow::bail!("Reason lookup Task key is not a UUID");
+            };
+            let analysis = AnalysisId::try_from(veoveo_types::TaskId::from_uuid(uuid.into()))?;
             ensure!(
-                output.analysis_id() == analysis,
-                "Reason finding does not match its Task"
+                row.task == task_record_id(analysis.task_id())
+                    && row.id == RecordId::new("reason_analysis", analysis.task_id().to_string())
+                    && row.lifecycle.id == row.task
+                    && row.lifecycle.tenant == row.identity.tenant
+                    && row.lifecycle.task_type == row.task_type
+                    && row.lifecycle.created_at == row.created_at
+                    && row.lifecycle.completed_at == Some(row.settlement.completed_at)
+                    && row.lifecycle.updated_at >= row.created_at
+                    && row.settlement.status == crate::task_lookup::Terminal::Succeeded
+                    && row.settlement.outcome == crate::task_lookup::Outcome::Product,
+                "Reason lookup identity or settlement disagrees with its Task"
             );
             ensure!(
-                updated_at >= created_at,
-                "Reason finding timestamps are inconsistent"
+                row.lifecycle.result_matches,
+                "Reason finding does not match its current Task result"
+            );
+            let result = row
+                .settlement
+                .expected_result
+                .ok_or_else(|| anyhow::anyhow!("Reason integrity snapshot missing"))?;
+            let mut wrapper = surrealdb::types::Object::new();
+            wrapper.insert("payload", result);
+            let payload = <TaskResultRecord as surrealdb::types::SurrealValue>::from_value(
+                surrealdb::types::Value::Object(wrapper),
+            )?
+            .into_payload();
+            let envelope: rmcp::model::CallToolResult = serde_json::from_value(payload)?;
+            let output = crate::task_product::validate(&envelope)?.ok_or_else(|| {
+                anyhow::anyhow!("Reason product lookup has a no-product integrity snapshot")
+            })?;
+            let data = row
+                .settlement
+                .finding
+                .ok_or_else(|| anyhow::anyhow!("Reason finding missing"))?
+                .0;
+            let metadata = row
+                .settlement
+                .expected_metadata
+                .ok_or_else(|| anyhow::anyhow!("Reason publication receipt missing"))?
+                .0;
+            let results = row
+                .settlement
+                .results
+                .ok_or_else(|| anyhow::anyhow!("Reason results link missing"))?;
+            let link = |id: ArtifactId| {
+                RecordId::new(
+                    "artifact_occurrence",
+                    surrealdb::types::Uuid::from(id.as_uuid()),
+                )
+            };
+            ensure!(
+                output.analysis_id() == analysis
+                    && *output.pipeline_uri.id() == row.identity.pipeline_id
+                    && output.finding == data
+                    && link(output.results_artifact.artifact_id()) == results
+                    && row.settlement.annotations
+                        == Some(link(output.annotations_artifact.artifact_id()))
+                    && row.settlement.source_clip
+                        == output
+                            .source_clip_artifact
+                            .as_ref()
+                            .map(|a| link(a.artifact_id()))
+                    && output.results_artifact.metadata == serde_json::to_value(metadata)?,
+                "Reason finding lookup disagrees with its publication receipt"
             );
             Ok(AdmittedFinding {
                 position: FindingPosition {
-                    created_at,
+                    created_at: row.created_at,
                     analysis,
                 },
-                updated_at,
-                data: output.finding,
+                updated_at: row.lifecycle.updated_at,
+                data,
                 results: output.results_artifact.artifact_id(),
-                expires_at,
+                expires_at: row.lifecycle.retention_expires_at,
             })
         })
         .collect()

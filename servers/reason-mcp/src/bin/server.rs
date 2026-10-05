@@ -366,6 +366,7 @@ async fn main() -> anyhow::Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
+    let tasks = veoveo_reason_mcp::task_lookup::bind(tasks)?;
     let recovery = tasks.recover().await?;
     let spool_dir = if args.spool_dir.is_absolute() {
         args.spool_dir.clone()

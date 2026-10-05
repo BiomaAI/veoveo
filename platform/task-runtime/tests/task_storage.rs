@@ -308,3 +308,59 @@ async fn scaled_timing_decimals_decode_exactly_and_nested_native_input_fails_clo
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn trusted_lifecycle_selects_exact_identity_without_exposing_payloads() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let runtime = TaskRuntime::new(db.a.clone(), "storage-test", "lifecycle");
+        let task = runtime.create(draft(serde_json::json!({"private":"input"}))).await.unwrap().snapshot;
+        runtime.claim(task.task_id, Duration::from_secs(30)).await.unwrap();
+        let result = serde_json::json!({"content":[],"structuredContent":{"opaque":[null,1,1.5]},"isError":true});
+        let finished = runtime.transition(task.task_id, veoveo_task_runtime::TaskTransition::Succeeded { message: "complete".into(), result: result.clone() }).await.unwrap();
+        let tenant = veoveo_platform_store::deterministic_tenant_id("test").unwrap().record_id();
+        #[derive(Debug, SurrealValue)]
+        struct Plan {
+            operator: String,
+            #[surreal(default)]
+            children: Vec<Plan>,
+        }
+        impl Plan {
+            fn contains(&self, predicate: impl Fn(&str) -> bool + Copy) -> bool {
+                predicate(&self.operator) || self.children.iter().any(|child| child.contains(predicate))
+            }
+        }
+        let mut explained = db.a.client()
+            .query(include_str!("queries/storage/lifecycle_explain.surql"))
+            .bind(("task", task_record_id(task.task_id)))
+            .bind(("server", veoveo_platform_store::RecordId::new("mcp_server", "storage-test")))
+            .bind(("tenant", tenant.clone()))
+            .bind(("types", vec!["native".to_owned()]))
+            .await.unwrap().check().unwrap();
+        let plan = Plan::from_value(explained.take::<Value>(0).unwrap()).unwrap();
+        assert!(!plan.contains(|operator| operator == "TableScan" || operator == "IndexScan"), "direct lifecycle record read scanned: {plan:?}");
+        assert!(plan.contains(|operator| operator == "RecordIdScan"), "direct lifecycle record fetch missing: {plan:?}");
+        for case in 0..7 {
+            let mut response = db.a.client().query(include_str!("queries/storage/lifecycle.surql"))
+                .bind(("task", task_record_id(if case == 1 { TaskId::new() } else { task.task_id })))
+                .bind(("server", veoveo_platform_store::RecordId::new("mcp_server", if case == 2 { "other" } else { "storage-test" })))
+                .bind(("tenant", if case == 3 { veoveo_platform_store::deterministic_tenant_id("other").unwrap().record_id() } else { tenant.clone() }))
+                .bind(("types", vec![if case == 4 { "other" } else { "native" }.to_owned()]))
+                .bind(("expected_result", if case == 6 { Value::None } else {
+                    let record = veoveo_platform_store::TaskRequestRecord {
+                        input: if case == 5 { serde_json::json!({"content":[],"structuredContent":{"opaque":[null,1,2]},"isError":true}) } else { result.clone() },
+                        status_message: None, ttl_ms: None, poll_interval_ms: None,
+                    }.into_value();
+                    let Value::Object(mut fields) = record else { unreachable!() };
+                    fields.remove("input").unwrap()
+                }))
+                .await.unwrap().check().unwrap();
+            let value: Value = response.take(0).unwrap();
+            if (1..=4).contains(&case) { assert_eq!(value, Value::None); continue; }
+            let Value::Object(metadata) = value else { panic!("lifecycle metadata missing"); };
+            assert_eq!(metadata.get("result_matches"), Some(&Value::Bool(case != 5 && case != 6)));
+            assert_eq!(metadata.get("status"), Some(&finished.status.into_value()));
+            for key in ["input","request","owner_context","result","provider_job","provider_event"] { assert!(!metadata.contains_key(key), "lifecycle leaked {key}"); }
+        }
+    }).await.unwrap();
+}

@@ -754,8 +754,12 @@ impl TaskRuntime {
                 &current.task_type,
                 current.created_at,
             )
-            .await?
-            .check()?;
+            .await?;
+        if let Some(error) =
+            veoveo_platform_store::primary_transaction_error(response.take_errors())
+        {
+            return Err(TaskError::Database(error));
+        }
         let updated: Option<TaskRecord> = response.take(3)?;
         let snapshot = updated
             .map(record_to_snapshot)

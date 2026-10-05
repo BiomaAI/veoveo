@@ -549,3 +549,20 @@ Complete persistence statements live in `queries/`, grouped by source responsibi
 Completion selects one static statement for each admitted Task or Artifact field.
 Native query fixtures live in `tests/queries/`; finite corruption cases select complete
 statements and preserve SQL admission before decoding. Runtime values use bindings.
+
+## Task Lookup Persistence
+
+The schema-only `schema` feature declares `stream_run`; Gateway composition
+registers its fresh owner lane. The hosted runtime requires owner contributions for
+recording-run creation and terminal settlement. Creation retains a typed Task link,
+tenant and pipeline. Successful settlement checks the complete recording output
+against that Task and pipeline and records typed Results, annotations and optional
+source-clip occurrence links in the same transaction as Task success. Explicit MCP tool errors record successful completion with a distinct no-product outcome.
+Failure and cancellation record terminal state without output links. Known lookup fields
+are schema-declared and checked at the native driver boundary.
+
+Run and Artifact completion queries read these owner columns. The existing
+versioned Task selection export applies current caller identity, profile, operation
+and clearance before each 101-candidate SQL limit. Stream merges and sorts the
+three Artifact-link selections, removes duplicates and emits at most 100 values.
+`hasMore` and the optional `total` preserve the existing completion contract.

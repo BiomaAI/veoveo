@@ -93,8 +93,22 @@ impl super::VehicleControlAuthority {
             .bind(("principal", task.owner.principal_key.clone()))
             .bind(("task", veoveo_platform_store::task_record_id(task.task_id)))
             .bind(("execution", record(task.task_id)))
+            .bind((
+                "catalog",
+                RecordId::new("uav_task", task.task_id.to_string()),
+            ))
             .await?
             .check()?;
+        let contribution = response
+            .take::<Option<super::super::task_catalog::CatalogRow>>(2)?
+            .ok_or_else(|| {
+                ControlAuthorityError::Invalid(
+                    "retained mission Task has no UAV lookup contribution".into(),
+                )
+            })?;
+        contribution
+            .check(task)
+            .map_err(|error| ControlAuthorityError::Invalid(error.to_string()))?;
         let Some(row) = response.take::<Option<PlanRecord>>(0)? else {
             return Ok(false);
         };

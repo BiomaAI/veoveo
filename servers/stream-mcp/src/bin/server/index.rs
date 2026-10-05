@@ -112,6 +112,8 @@ pub(super) async fn complete(
             ))
             .bind(("profile", RecordId::new("profile", owner.profile.clone())))
             .bind(("tenant_key", owner.tenant_key.clone()))
+            .bind(("principal_key", owner.principal_key.clone()))
+            .bind(("profile_key", owner.profile.clone()))
             .bind(("data_labels", owner.data_labels.clone()))
             .bind(("needle", needle.to_ascii_lowercase()))
             .bind(("limit", CompletionInfo::MAX_VALUES + 1))

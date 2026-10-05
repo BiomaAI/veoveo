@@ -121,13 +121,19 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 ## Current Status
 
 The consolidation is closing Phase 3 ownership and implementing Phase 4 storage
-types. Persistence ownership is committed at `706f6bc0d`; runner and acceptance SQL
-placement is committed at `dbcfdbae8`. Both are pushed to `main` with their native
-checks. Workspace's Identity APIs, Frames' Task selections and the Rust/Python Task
-storage cut pass their native and consumer checks. Cross-language claims, lossless
-timestamp replay and pagination pass. UAV, Reason and Stream
-kernel access, the other Phase 4 field families and phases 5–10 still have required
-work. The cluster stays stopped during this development batch.
+types. Persistence ownership, query placement and typed Rust/Python Task storage
+are committed through `7b050d4f8` and pushed to `main`. The UAV, Reason and Stream
+lookup batch now passes native qualification with the shared Task lifecycle and
+Artifact admission APIs. Checks cover atomic contributions, policy before paging,
+mission associations, retained products, grant revocation and subscription recovery.
+The composed nineteen-owner schema, installation commands and independent schema
+consumer pass. Affected compilation, strict lint and isolated contract/runtime builds
+pass, including correction of Recording Video's runtime dependency gate. Independent
+review found no remaining definite issue in this source batch.
+
+Map and Computers still need their remaining kernel-query cuts. Other Phase 4 field
+families and phases 5–10 also have required work. This source checkpoint does not
+qualify the installation cut. The cluster stays stopped during development.
 
 The following installed checkpoints establish the accepted Foundations baseline.
 They do not qualify the subsequent consolidation changes.
@@ -1101,6 +1107,34 @@ writers and queries. Kernel exports own Task and Artifact admission; Reason keep
 result interpretation and provenance checks. Apply the combined policy before page
 limits, and preserve observation digests, expiry deadlines and rollback. These
 owner chains qualify together before closing either phase's affected gates.
+
+The UAV, Reason and Stream batch writes typed lookup rows through Task creation
+and settlement contributions. Caller reads use Task selection; maintenance and
+Artifact-shared findings use a separate Task lifecycle export that returns no
+request or result payload. Its optional whole-result comparison lets Reason reject
+a changed retained result after admitting the reader. Reason stores that validated
+MCP envelope as an integrity snapshot and queries only its declared finding and
+provenance fields. Artifact owns current read admission and observation facts.
+Reason compares the complete admitted Artifact metadata with its typed publication
+receipt before pagination, preserving provenance checks without querying inside
+Artifact's opaque metadata. Time-dependent kernel leaves accept a native database
+timestamp supplied once by the enclosing query. Native qualification passes for
+cross-owner grants, revocation, selected corruption, expiry, atomic contributions
+and UAV's indexed execution and unresolved-retention fences. Mission paging and
+completion reject crossed execution/plan associations even when both missions
+belong to the same caller. Read transaction cleanup passes for timeouts and dropped
+request awaiters.
+Task completion and domain product success have distinct meanings. Reason and
+Stream can complete a Task with an MCP tool-error envelope. Their typed lookup
+settlement must represent that outcome without product links, while preserving
+the completed Task and its error envelope. Positive fixtures must use the real
+transition; deliberate corruption fixtures use an explicit separate write.
+Reason and Stream add optional schema lanes to the composition. The independent
+schema consumer composes nineteen owners; all four plan fixtures come from the
+current Gateway producer. Fresh lane execution, disabled-owner absence, replay and
+the installation command lifecycle pass. The final installation cut must update
+the reference selection and generate its plan from the published image. Keep the
+installed image's existing plan intact until that coordinated cut.
 
 Computers owns its changefeed decoder in `platform/computers`. Store consumes checked
 owner observation declarations and enumerates kernel tables only. Native checks cover

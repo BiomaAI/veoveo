@@ -335,8 +335,16 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .is_empty()
         );
 
-        let tasks = TaskRuntime::new(db.a.clone(), "uav-sim", "catalog-writer");
-        let task_reader = TaskRuntime::new(db.b.clone(), "uav-sim", "catalog-reader");
+        let tasks = crate::server::task_catalog::UavTaskContributions::bind(TaskRuntime::new(
+            db.a.clone(),
+            "uav-sim",
+            "catalog-writer",
+        ))
+        .unwrap();
+        let task_reader = crate::server::task_catalog::UavTaskContributions::bind(
+            TaskRuntime::new(db.b.clone(), "uav-sim", "catalog-reader"),
+        )
+        .unwrap();
         let mut plans = Vec::new();
         let mut snapshots = Vec::new();
         for i in 0..103 {
@@ -531,6 +539,90 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 || r.uri.starts_with("uav-sim://mission-plan/")
                 || r.uri.starts_with("uav-sim://usage/task/"))
         );
+        // Two admitted missions share this actor and context. Swapping only their
+        // execution parents must not combine otherwise authorized associations.
+        let first = veoveo_platform_store::RecordId::new(
+            "uav_mission_execution",
+            veoveo_platform_store::task_record_id(snapshots[101].task_id).key,
+        );
+        let second = veoveo_platform_store::RecordId::new(
+            "uav_mission_execution",
+            veoveo_platform_store::task_record_id(snapshots[102].task_id).key,
+        );
+        let mut pair =
+            db.a.client()
+                .query(include_str!("queries/catalog_tests/execution_pair.surql"))
+                .bind(("first", first.clone()))
+                .bind(("second", second.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let first_row: surrealdb::types::Value = pair.take(0).unwrap();
+        let second_row: surrealdb::types::Value = pair.take(1).unwrap();
+        let surrealdb::types::Value::Object(mut swapped_first) = first_row.clone() else {
+            panic!("first execution missing");
+        };
+        let surrealdb::types::Value::Object(mut swapped_second) = second_row.clone() else {
+            panic!("second execution missing");
+        };
+        let first_plan = swapped_first.get("plan").unwrap().clone();
+        let second_plan = swapped_second.get("plan").unwrap().clone();
+        swapped_first.insert("plan", second_plan);
+        swapped_second.insert("plan", first_plan);
+        db.a.client()
+            .query(include_str!(
+                "queries/catalog_tests/replace_execution_pair.surql"
+            ))
+            .bind(("first", first.clone()))
+            .bind(("second", second.clone()))
+            .bind(("first_row", surrealdb::types::Value::Object(swapped_first)))
+            .bind((
+                "second_row",
+                surrealdb::types::Value::Object(swapped_second),
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            task_index::missions_page(&db.b, &pilot, Some(&plans[100].mission_id))
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        assert_eq!(
+            task_index::complete(
+                &db.b,
+                &pilot,
+                task_index::CompletionDomain::Missions,
+                "mission-010"
+            )
+            .await
+            .unwrap(),
+            ["mission-0100"]
+        );
+        for plan in [&plans[101], &plans[102]] {
+            assert!(
+                task_index::mission(&db.b, &pilot, &plan.mission_id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        db.a.client()
+            .query(include_str!(
+                "queries/catalog_tests/replace_execution_pair.surql"
+            ))
+            .bind(("first", first))
+            .bind(("second", second))
+            .bind(("first_row", first_row))
+            .bind(("second_row", second_row))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         let explain = task_index::explain_mission(&db.b, &pilot, &plans[102].mission_id)
             .await
             .unwrap();
@@ -551,12 +643,8 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             explain.summary
         );
         assert!(
-            explain.tasks.any(|node| {
-                node.operator == "SourceExpr"
-                    && node.attributes.get("expr")
-                        == Some(&format!("[task:u'{}']", snapshots[102].task_id))
-            }),
-            "Task lookup has no direct record iteration: {}",
+            explain.tasks.any(|node| node.operator == "SourceExpr"),
+            "catalog candidates did not use direct expression iteration: {}",
             explain.summary
         );
         let hub = Arc::new(SubscriptionHub::new());

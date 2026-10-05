@@ -1,0 +1,1 @@
+SELECT settlement.outcome AS outcome, settlement.results = NONE AND settlement.annotations = NONE AND settlement.source_clip = NONE AND settlement.finding = NONE AND settlement.expected_metadata = NONE AND settlement.expected_result = NONE AS no_product FROM ONLY $lookup;

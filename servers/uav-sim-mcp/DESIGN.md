@@ -974,7 +974,7 @@ The independent `schema` feature exports `schema::module_setup(execution)` for t
 vocabulary, Serde and schema dependencies used by owner table declarations. MCP,
 Store and asynchronous runtime dependencies require their own features. Default
 runtime behavior is unchanged. The declaration claims `uav_*`.
-It requires Agents and its earlier kernel requirements.
+It requires Agents and the Tasks version-zero lane.
 
 The version-zero lane installs the current UAV schema from
 `servers/uav-sim-mcp/src/schema/migrations/0000_current.surql`. The composition root supplies
@@ -987,6 +987,23 @@ Installed image and Job qualification is tracked separately in the active contra
 read-only `fn::managed_agent_enabled`, establishing the Agents dependency and
 introducing minimum. `uav_mission_execution` owns the unique plan index; its typed
 Task link preserves admission lookup without defining a foreign index on `task`.
+
+`uav_task` stores the typed mission plan and revision, tenant, principal, profile
+and Work Context associated with each durable Task. Task contribution hooks create
+and settle this row in the kernel transaction. The unique Task link and indexed
+plan lookup supply catalog candidates without reading opaque Task input in SQL.
+Caller selection uses `fn::kernel::tasks::selection_v1` before limits. Exact mission
+reads hydrate the authorized Task in the same read transaction and compare the
+lookup identity and terminal settlement with the retained Task. Missing lookup
+rows do not establish mission admission or permission.
+
+Retention maintenance calls the trusted-service `fn::kernel::tasks::lifecycle_v1`
+for each linked Task. This profile returns lifecycle metadata without input,
+result or provider payloads and does not grant caller access. Pin release still
+validates the retained typed request and physical mission state; uncertain outcomes
+keep the fence. Native catalog and task-link suites exercise these checks without
+starting the simulator. `server/task_catalog.rs` qualifies closed lookup writes and
+transaction rollback on a conflicting contribution.
 
 Control-authority statements live in `src/server/control_authority/queries`.
 Admission and settlement embed complete fixed statements from `queries/execution`;

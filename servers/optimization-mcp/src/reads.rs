@@ -1,5 +1,4 @@
 //! Current owner and Work Context selection before limits, grouping or decoding.
-mod transaction;
 use crate::task_catalog::{CatalogRow, SOLVE_KINDS};
 use surrealdb::{
     Connection,
@@ -59,13 +58,16 @@ impl<'a> OptimizationReads<'a> {
         let tasks = self.tasks.clone();
         let owner = owner.clone();
         let request = request.clone();
-        transaction::read(self.tasks.platform_store().client(), move |transaction| {
-            Box::pin(async move {
-                OptimizationReads::new(&tasks)?
-                    .page_in(transaction, &owner, &request)
-                    .await
-            })
-        })
+        veoveo_platform_store::read_transaction::read(
+            self.tasks.platform_store().client(),
+            move |transaction| {
+                Box::pin(async move {
+                    OptimizationReads::new(&tasks)?
+                        .page_in(transaction, &owner, &request)
+                        .await
+                })
+            },
+        )
         .await
     }
 
@@ -156,13 +158,16 @@ impl<'a> OptimizationReads<'a> {
     ) -> anyhow::Result<Option<VisibleOptimizationTask>> {
         let tasks = self.tasks.clone();
         let owner = owner.clone();
-        transaction::read(self.tasks.platform_store().client(), move |transaction| {
-            Box::pin(async move {
-                OptimizationReads::new(&tasks)?
-                    .find_in(transaction, &owner, selection)
-                    .await
-            })
-        })
+        veoveo_platform_store::read_transaction::read(
+            self.tasks.platform_store().client(),
+            move |transaction| {
+                Box::pin(async move {
+                    OptimizationReads::new(&tasks)?
+                        .find_in(transaction, &owner, selection)
+                        .await
+                })
+            },
+        )
         .await
     }
 
@@ -254,13 +259,16 @@ impl<'a> OptimizationReads<'a> {
         let tasks = self.tasks.clone();
         let owner = owner.clone();
         let needle = needle.to_owned();
-        transaction::read(self.tasks.platform_store().client(), move |transaction| {
-            Box::pin(async move {
-                OptimizationReads::new(&tasks)?
-                    .complete_in(transaction, &owner, collection, &needle, limit, parse)
-                    .await
-            })
-        })
+        veoveo_platform_store::read_transaction::read(
+            self.tasks.platform_store().client(),
+            move |transaction| {
+                Box::pin(async move {
+                    OptimizationReads::new(&tasks)?
+                        .complete_in(transaction, &owner, collection, &needle, limit, parse)
+                        .await
+                })
+            },
+        )
         .await
     }
 

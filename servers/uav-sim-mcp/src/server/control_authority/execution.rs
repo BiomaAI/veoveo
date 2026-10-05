@@ -201,6 +201,16 @@ impl VehicleControlAuthority {
                         veoveo_platform_store::task_record_id(task.task_id).into_value(),
                     ),
                     ("execution", task_link::record(task.task_id).into_value()),
+                    (
+                        "catalog",
+                        RecordId::new("uav_task", task.task_id.to_string()).into_value(),
+                    ),
+                    (
+                        "expected_uav_identity",
+                        super::super::task_catalog::expected_identity(task)?.into_value(),
+                    ),
+                    ("expected_uav_created", task.created_at.into_value()),
+                    ("expected_uav_type", task.task_type.to_string().into_value()),
                 ],
             )
             .await

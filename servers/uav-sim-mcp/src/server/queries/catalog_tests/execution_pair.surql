@@ -1,0 +1,2 @@
+SELECT * FROM ONLY $first;
+SELECT * FROM ONLY $second;

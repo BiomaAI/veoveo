@@ -3,7 +3,7 @@ use std::{future::Future, pin::Pin, time::Duration};
 use surrealdb::{Connection, Surreal, method::Transaction};
 use tokio::sync::oneshot;
 
-pub(super) type ReadFuture<'a, T> = Pin<Box<dyn Future<Output = anyhow::Result<T>> + Send + 'a>>;
+pub type ReadFuture<'a, T> = Pin<Box<dyn Future<Output = anyhow::Result<T>> + Send + 'a>>;
 struct CancelOnDrop(Option<oneshot::Sender<()>>);
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
@@ -13,7 +13,7 @@ impl Drop for CancelOnDrop {
     }
 }
 
-pub(super) async fn read<T: Send + 'static, C: Connection>(
+pub async fn read<T: Send + 'static, C: Connection>(
     db: &Surreal<C>,
     operation: impl for<'a> FnOnce(&'a Transaction<C>) -> ReadFuture<'a, T> + Send + 'static,
 ) -> anyhow::Result<T> {
@@ -27,25 +27,25 @@ pub(super) async fn read<T: Send + 'static, C: Connection>(
             .await
             .map_err(|_| {
                 anyhow::anyhow!(
-                    "catalog read begin timed out; database session cleanup may be required"
+                    "owned read begin timed out; database session cleanup may be required"
                 )
             })??;
         let result = tokio::select! {
-            _ = &mut receiver => Err(anyhow::anyhow!("catalog read request was cancelled")),
+            _ = &mut receiver => Err(anyhow::anyhow!("owned read request was cancelled")),
             result = tokio::time::timeout(Duration::from_secs(30), operation(&transaction)) => {
-                result.map_err(|_| anyhow::anyhow!("catalog read transaction timed out")).and_then(|result| result)
+                result.map_err(|_| anyhow::anyhow!("owned read transaction timed out")).and_then(|result| result)
             }
         };
         let cleanup = tokio::time::timeout(Duration::from_secs(10), transaction.cancel())
             .await
             .map_err(|_| {
                 anyhow::anyhow!(
-                    "catalog read cancellation timed out; database session cleanup may be required"
+                    "owned read cancellation timed out; database session cleanup may be required"
                 )
             })
             .and_then(|result| result.map_err(anyhow::Error::from));
         if let Err(error) = &cleanup {
-            tracing::warn!("Optimization catalog read cleanup failed: {error}");
+            tracing::warn!("owned read cleanup failed: {error}");
         }
         match (result, cleanup) {
             (Ok(value), Ok(_)) => Ok(value),

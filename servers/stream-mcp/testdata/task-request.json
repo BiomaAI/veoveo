@@ -1,0 +1,27 @@
+{
+  "input": {
+    "operation": "run_recording",
+    "pipeline_id": "fixture",
+    "video": {
+      "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000001",
+      "entity_path": "/camera/front",
+      "timeline": "sensor_time",
+      "range": {
+        "start": 10,
+        "end": 20
+      }
+    }
+  },
+  "artifact_write_capability": {
+    "capability_id": "01983da0-0000-7000-8000-000000000004",
+    "secret": "inert_fixture_capability_not_issued_0000",
+    "task_id": "01983da0-0000-7000-8000-000000000001",
+    "expires_at": "2030-01-01T00:00:00Z"
+  },
+  "artifact_read_capability": {
+    "capability_id": "01983da0-0000-7000-8000-000000000004",
+    "secret": "inert_fixture_capability_not_issued_0000",
+    "task_id": "01983da0-0000-7000-8000-000000000001",
+    "expires_at": "2030-01-01T00:00:00Z"
+  }
+}

@@ -6,6 +6,7 @@ pub(super) fn sql_type(kind: &Kind) -> Option<SqlType> {
     Some(match kind {
         Kind::Bool => SqlType::Bool,
         Kind::String => SqlType::String,
+        Kind::Datetime => SqlType::Datetime,
         Kind::Object => SqlType::Object,
         Kind::Record(tables) if tables.len() == 1 => {
             SqlType::Record(TableName::new(tables[0].as_str()).ok()?)
@@ -202,6 +203,7 @@ impl<'a> Visitor<'a> {
         match (expr, kind) {
             (Expr::Literal(Literal::Bool(_)), SqlType::Bool)
             | (Expr::Literal(Literal::String(_)), SqlType::String)
+            | (Expr::Literal(Literal::Datetime(_)), SqlType::Datetime)
             | (Expr::Literal(Literal::Object(_)), SqlType::Object) => true,
             (Expr::Literal(Literal::RecordId(r)), SqlType::Record(t)) => {
                 r.table.as_str() == t.as_str()

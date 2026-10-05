@@ -446,6 +446,7 @@ impl<'a> Visitor<'a> {
                             "count",
                             "crypto::sha256",
                             "array::first",
+                            "array::min",
                             "type::is_object",
                             "type::is_array",
                             "string::len",

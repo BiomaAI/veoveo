@@ -23,7 +23,7 @@ fn execution(name: &str) -> Result<LaneExecution, DeclarationError> {
 #[test]
 fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
     let owners = declarations(execution).unwrap();
-    assert_eq!(owners.len(), 17);
+    assert_eq!(owners.len(), 19);
     assert_eq!(
         owners
             .iter()
@@ -45,8 +45,8 @@ fn every_owner_exports_an_independent_lane_and_keeps_supplied_execution() {
 #[test]
 fn reviewed_catalog_objects_resolve_to_their_declaring_owners() {
     let registry = ModuleRegistry::new(declarations(execution).unwrap()).unwrap();
-    assert_eq!(expected::TABLES.len(), 163);
-    assert_eq!(expected::FUNCTIONS.len(), 23);
+    assert_eq!(expected::TABLES.len(), 166);
+    assert_eq!(expected::FUNCTIONS.len(), 25);
     assert_eq!(expected::ANALYZERS.len(), 2);
     assert_eq!(
         registry
@@ -134,7 +134,7 @@ fn target_dependencies_order_regardless_of_declaration_order() {
     owners.reverse();
     let registry = ModuleRegistry::new(owners).unwrap();
     let ordered = registry.ordered();
-    assert_eq!(ordered.len(), 17);
+    assert_eq!(ordered.len(), 19);
     for (position, owner) in ordered.iter().enumerate() {
         for requirement in owner.requires() {
             let prerequisite = ordered

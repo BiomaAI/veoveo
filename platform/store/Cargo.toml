@@ -12,6 +12,7 @@ default = ["runtime"]
 schema = ["dep:veoveo-modules"]
 runtime = [
     "schema",
+    "dep:anyhow",
     "dep:tracing",
     "dep:veoveo-modules",
     "dep:schemars",
@@ -37,6 +38,7 @@ runtime = [
 ]
 
 [dependencies]
+anyhow = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 schemars = { workspace = true, optional = true }

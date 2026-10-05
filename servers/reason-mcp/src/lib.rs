@@ -17,3 +17,14 @@ pub mod grounding;
 pub mod knowledge;
 #[cfg(feature = "contract")]
 pub mod uris;
+
+#[cfg(feature = "schema")]
+pub mod schema;
+#[cfg(feature = "mcp")]
+pub mod task_lookup;
+
+#[cfg(feature = "mcp")]
+pub mod task_request;
+
+#[cfg(feature = "mcp")]
+pub mod task_product;

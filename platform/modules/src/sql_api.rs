@@ -5,6 +5,7 @@ use crate::*;
 pub enum SqlType {
     Bool,
     String,
+    Datetime,
     Object,
     Record(TableName),
     Option(Box<SqlType>),
