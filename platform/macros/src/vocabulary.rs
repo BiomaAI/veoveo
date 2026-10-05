@@ -131,7 +131,7 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         }
         impl ::std::convert::TryFrom<&::veoveo_types::ScopeName> for #name {
             type Error = ::veoveo_types::IdentifierError;
-            fn try_from(name: &::veoveo_types::ScopeName) -> Result<Self, Self::Error> {
+            fn try_from(name: &::veoveo_types::ScopeName) -> ::core::result::Result<Self, Self::Error> {
                 <Self as ::veoveo_types::Vocabulary>::from_wire(name.as_str()).ok_or_else(||
                     ::veoveo_types::IdentifierError::new(name.as_str(), concat!("unknown ", #name_text, " scope")))
             }
@@ -153,12 +153,12 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             quote! { Self::try_from(&::veoveo_types::ScopeName::parse(value)?) },
             quote! {
                 impl ::serde::Serialize for #name {
-                    fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                    fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error> {
                         ::serde::Serialize::serialize(::veoveo_types::ScopeDefinition::name(*self), serializer)
                     }
                 }
                 impl<'de> ::serde::Deserialize<'de> for #name {
-                    fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                    fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> ::core::result::Result<Self, D::Error> {
                         let name = <::veoveo_types::ScopeName as ::serde::Deserialize>::deserialize(deserializer)?;
                         Self::try_from(&name).map_err(::serde::de::Error::custom)
                     }
@@ -183,13 +183,13 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                         #(#(#variant_attrs)* #[serde(rename = #spellings)] #variants),*
                     }
                     impl ::serde::Serialize for #name {
-                        fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                        fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error> {
                             let wire = match *self { #(Self::#variants => Wire::#variants),* };
                             ::serde::Serialize::serialize(&wire, serializer)
                         }
                     }
                     impl<'de> ::serde::Deserialize<'de> for #name {
-                        fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                        fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> ::core::result::Result<Self, D::Error> {
                             Ok(match <Wire as ::serde::Deserialize>::deserialize(deserializer)? { #(Wire::#variants => Self::#variants),* })
                         }
                     }
@@ -216,7 +216,7 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                     let wire = match self { #(Self::#variants => DatabaseWire::#variants),* };
                     ::surrealdb::types::SurrealValue::into_value(wire)
                 }
-                fn from_value(value: ::surrealdb::types::Value) -> Result<Self, ::surrealdb::types::Error> {
+                fn from_value(value: ::surrealdb::types::Value) -> ::core::result::Result<Self, ::surrealdb::types::Error> {
                     Ok(match <DatabaseWire as ::surrealdb::types::SurrealValue>::from_value(value)? { #(DatabaseWire::#variants => Self::#variants),* })
                 }
             }
@@ -246,7 +246,7 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
         }
         impl ::std::str::FromStr for #name {
             type Err = ::veoveo_types::IdentifierError;
-            fn from_str(value: &str) -> Result<Self, Self::Err> { #parse }
+            fn from_str(value: &str) -> ::core::result::Result<Self, Self::Err> { #parse }
         }
         #scope_hook #task_hook #wire #surreal_hook
     })

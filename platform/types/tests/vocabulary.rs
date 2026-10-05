@@ -1,6 +1,35 @@
 use schemars::JsonSchema;
 use veoveo_types::{TaskTypeDefinition, Vocabulary};
 
+mod owner_result_alias {
+    type Result<T> = std::result::Result<T, &'static str>;
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+    #[vocabulary(scope)]
+    enum Permission {
+        #[vocabulary(rename = "owner:read")]
+        Read,
+    }
+
+    #[test]
+    fn generated_results_do_not_resolve_to_the_owner_alias() {
+        let result: Result<Permission> = Ok("owner:read".parse().unwrap());
+        let permission = result.unwrap();
+        assert_eq!(
+            serde_json::to_string(&permission).unwrap(),
+            "\"owner:read\""
+        );
+        assert_eq!(
+            serde_json::from_str::<Permission>("\"owner:read\"").unwrap(),
+            permission
+        );
+        assert_eq!(
+            Permission::try_from(&veoveo_types::ScopeName::parse("owner:read").unwrap()).unwrap(),
+            permission
+        );
+    }
+}
+
 /// States described by an independent owner.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Vocabulary)]
 #[schemars(

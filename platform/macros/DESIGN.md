@@ -167,6 +167,8 @@ discriminants. A variant uses snake_case unless `#[vocabulary(rename = "…")]`
 specifies its spelling. Empty and duplicate spellings fail compilation. The derive
 implements the public `Vocabulary` trait, `ALL`, `as_str`, `Display`, `FromStr`,
 Serde and JSON Schema. Owners continue to choose other standard derives themselves.
+Generated return types use fully qualified `core::result::Result`; an owner's local
+error alias cannot change the trait signatures.
 
 `#[vocabulary(scope)]` also implements `ScopeDefinition`, conversion from a checked
 `ScopeName`, and conversion back to that name. It applies the ordinary foundation's
