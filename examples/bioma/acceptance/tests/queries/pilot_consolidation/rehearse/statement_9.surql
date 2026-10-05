@@ -1,1 +1,0 @@
-UPDATE agent SET lease_expires_at = NONE;

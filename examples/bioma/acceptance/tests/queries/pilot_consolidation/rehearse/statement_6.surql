@@ -1,1 +1,0 @@
-UPDATE ONLY $id SET name = 'concurrent edit';

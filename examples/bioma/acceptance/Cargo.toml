@@ -23,5 +23,4 @@ veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["gateway"] }
 veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["gateway"] }
 veoveo-types.workspace = true
-tar = "=0.4.46"
 tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread"] }

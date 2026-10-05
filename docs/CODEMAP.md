@@ -155,7 +155,7 @@ material they operate:
 | [`showcase/README.md`](../showcase/README.md) | reference integrations and the pattern for connecting robots and simulators |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
 | [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Newton/Warp/PX4 UAV simulation integration and operations |
-| [`showcase/uav-sim/agents/DESIGN.md`](../showcase/uav-sim/agents/DESIGN.md) | reviewed managed pilot template, seed instructions, retained identity and volume transfer |
+| [`showcase/uav-sim/agents/DESIGN.md`](../showcase/uav-sim/agents/DESIGN.md) | reviewed managed pilot template, seed instructions and per-instance retained identity and storage |
 | [`showcase/uav-sim/ACCEPTANCE.md`](../showcase/uav-sim/ACCEPTANCE.md) | deployed UAV acceptance catalog and the repeatable per-agent named-location mission E2E runbook |
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | Python MCP server template |
 | [`templates/rust-mcp/README.md`](../templates/rust-mcp/README.md) | Rust MCP server template on the shared host |
@@ -361,12 +361,11 @@ designs above.
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Newton, Warp, and PX4 |
-| `examples/bioma/acceptance/src/pilot_consolidation.rs` | installation-only shared UAV definition cutover, with atomic drain checks and retained identity and memory acceptance |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | pinned Flux controller fixture for the local Bioma cluster; it is installed before the installation's desired state, and Veoveo's runtime does not own it |
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and workload Helm releases, and installation-owned edge resources |
 | `examples/bioma/gateway.json` | the reference installation's complete control plane: 16-server MCP catalog, OAuth clients, policy rules, and routes |
-| [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks and the retained-pilot ownership migration; native record and volume recovery rehearsals |
+| [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks; `tests/record_restore.rs` and `tests/queries/record_restore/` qualify bound record insertion and atomic restoration |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | Python server template (`datasheet`) |
 | `templates/rust-mcp/` | Rust server template (`glossary`): a library with isolated `contract` and `runtime` features, and a binary built on `veoveo_mcp_contract::hosting` with in-process gateway tests |

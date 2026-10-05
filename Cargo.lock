@@ -16232,7 +16232,6 @@ dependencies = [
  "serde",
  "serde_json",
  "surrealdb",
- "tar",
  "tokio",
  "uuid",
  "veoveo-agent-runtime",

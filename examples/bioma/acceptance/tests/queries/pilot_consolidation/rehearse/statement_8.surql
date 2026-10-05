@@ -1,1 +1,0 @@
-UPDATE agent SET lease_expires_at = time::now() + 1h WHERE agent_key = 'uav-4-pilot';

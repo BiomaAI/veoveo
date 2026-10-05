@@ -1,1 +1,0 @@
-UPDATE ONLY $id SET lease_expires_at = time::now() + 1h;

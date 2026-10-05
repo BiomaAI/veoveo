@@ -20,29 +20,17 @@ instance's identity, credentials and retained volume.
 does not reconcile over edits made through the API or Console. The session comes from the reviewed runtime context. Authored content
 receives no environment interpolation in the kernel.
 
-## Installation And Cutover
+## Installation
 
 The [UAV chart](../deploy/helm/DESIGN.md) installs an immutable ConfigMap with `manifest.json` and `0001_mission_state.sql` as
 data keys. Calculate its revision with `runtime_config_revision` and place that
 exact name and digest in the approved runtime template. Bioma's installation values
 bind its kernel image, model connection, namespace and resource ceilings.
 
-Managed provisioning must pass before transferring existing pilots. Drain their
-old workloads, prove their exact runtime and OAuth identities, retain their physical
-volumes and transfer the existing signing keys. Never attach a fresh volume to an
-adopted pilot or run the old and managed workers together. The migration removes
-per-pilot Helm ownership after the transfer.
-
-Bioma's explicit `pilot_recovery` Rust test verifies the four drained memory
-archives against their SHA-256 manifest, restores them into separate temporary node
-directories and compares contents and filesystem metadata with the original
-archives. `VEOVEO_PILOT_EXPORT_DIRECTORY` selects the private export directory and
-`VEOVEO_PILOT_EXPORT_NODE` selects the Docker node. It removes its temporary
-directories without mounting or writing a live claim. Record restoration is a
-separate prerequisite to the registry adoption transaction.
-The check uses the existing `tar` parser at exactly 0.4.46, verified against its
-upstream release on September 19, 2026. Entry contents, links, ownership, mode and
-modification time are compared independently of filesystem enumeration order.
+The manager provisions each pilot's workload, identity, signing key and memory
+claim. Resuming an existing instance preserves its retained identity and storage.
+The lifecycle controller drains its writer before replacing a running generation;
+missing retained storage requires recovery instead of a fresh volume.
 
 ## Shared Pilot Definition
 
@@ -60,5 +48,5 @@ A vehicle change made by another controller becomes visible on the pilot’s nex
 domain read. Continuous vehicle telemetry does not drive model episodes. Grant
 changes and mission-plan events keep their existing subscriptions.
 
-The installation-only consolidation procedure lives in
+Installation composition and native record-restoration checks live in
 [`examples/bioma/acceptance`](../../../examples/bioma/acceptance/DESIGN.md).

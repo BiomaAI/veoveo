@@ -34,9 +34,7 @@ async fn restore_records() -> Result<()> {
     let before: Vec<Value> = source
         .a
         .client()
-        .query(include_str!(
-            "queries/pilot_cutover/records/statement_3.surql"
-        ))
+        .query(include_str!("queries/record_restore/select.surql"))
         .bind(("records", ids.clone()))
         .await?
         .check()?
@@ -48,9 +46,7 @@ async fn restore_records() -> Result<()> {
     restored
         .a
         .client()
-        .query(include_str!(
-            "queries/pilot_consolidation/rehearse/statement_1.surql"
-        ))
+        .query(include_str!("queries/record_restore/restore_one.surql"))
         .bind(("id", fields.get("id").unwrap().clone()))
         .bind(("record", before[0].clone()))
         .await?
@@ -58,9 +54,7 @@ async fn restore_records() -> Result<()> {
     let single: Vec<Value> = restored
         .a
         .client()
-        .query(include_str!(
-            "queries/pilot_cutover/records/statement_3.surql"
-        ))
+        .query(include_str!("queries/record_restore/select.surql"))
         .bind(("records", ids.clone()))
         .await?
         .check()?
@@ -75,16 +69,14 @@ async fn restore_records() -> Result<()> {
     restored
         .a
         .client()
-        .query(include_str!("queries/pilot_cutover/restore_records.surql"))
+        .query(include_str!("queries/record_restore/restore_batch.surql"))
         .bind(("records", before.clone()))
         .await?
         .check()?;
     let after: Vec<Value> = restored
         .a
         .client()
-        .query(include_str!(
-            "queries/pilot_cutover/records/statement_3.surql"
-        ))
+        .query(include_str!("queries/record_restore/select.surql"))
         .bind(("records", ids.clone()))
         .await?
         .check()?
@@ -106,7 +98,7 @@ async fn restore_records() -> Result<()> {
         restored
             .a
             .client()
-            .query(include_str!("queries/pilot_cutover/restore_records.surql"))
+            .query(include_str!("queries/record_restore/restore_batch.surql"))
             .bind(("records", before.clone()))
             .await?
             .check()
@@ -116,9 +108,7 @@ async fn restore_records() -> Result<()> {
     let retained: Vec<Value> = restored
         .a
         .client()
-        .query(include_str!(
-            "queries/pilot_cutover/records/statement_3.surql"
-        ))
+        .query(include_str!("queries/record_restore/select.surql"))
         .bind(("records", ids))
         .await?
         .check()?

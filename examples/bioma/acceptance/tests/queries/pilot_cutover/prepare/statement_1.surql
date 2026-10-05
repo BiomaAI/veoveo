@@ -1,1 +1,0 @@
-SELECT * FROM agent WHERE tenant = $tenant AND agent_key = $key;

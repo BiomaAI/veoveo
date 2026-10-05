@@ -1,1 +1,0 @@
-SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND work_context = $context AND principal_key IN $keys;

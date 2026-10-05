@@ -1,1 +1,0 @@
-RETURN [array::len((SELECT id FROM managed_agent)), array::len((SELECT id FROM managed_agent_capacity))];
