@@ -207,7 +207,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 FileTransferResultUri::new(completed.transfer_id())
             );
             assert_eq!(result.direction(), payload.transfer().direction());
-            tasks.transition(completed.task_id(), TaskTransition::Succeeded {message:"File transferred".into(),result_uri:Some(veoveo_types::ResourceUri::new(result.result_uri().to_string()).unwrap()),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
+            tasks.transition(completed.task_id(), TaskTransition::Succeeded {message:"File transferred".into(),result_uri:Some(result.result_uri().to_uri()),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
             db.a.client()
                 .query(include_str!("queries/file_journal/known_import_export_and_rejection_release_the_slot_and_preserve_exact_results/statement_1.surql"))
                 .bind(("task", task_record_id(completed.task_id())))

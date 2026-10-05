@@ -417,6 +417,7 @@ mod tests {
                         "veoveo-computers-mcp",
                         "veoveo-speech-mcp",
                         "veoveo-artifact-contract",
+                        "veoveo-audit-contract",
                         "veoveo-computers-contract",
                         "veoveo-speech-contract",
                         "veoveo-frames-mcp",

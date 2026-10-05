@@ -217,7 +217,7 @@ designs above.
 | `platform/runtimes/computers/provider-patches/Dockerfile` | standalone OpenShell OCI build, verified upstream/patch trees and pinned provider toolchain; compute-host topology is separate |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
-| `platform/store/src/audit/` | partition-selected audit reads, transaction append, leased block sealing, export receipts and whole-block retention |
+| `platform/store/src/audit/` | partition-selected audit reads, transaction append, checked profile/target/detail lookups, leased block sealing, export receipts and whole-block retention |
 | `platform/artifacts/contract/src/ledger.rs` | Artifact access-request and capability IDs and the shared private ledger address builder |
 | `platform/gateway/src/audit.rs` | typed request attribution and conversion of gateway policy targets to audit records |
 | `platform/policy/src/resource_policy.rs` | typed resource/template ownership and shared lexical exposure checks |
@@ -238,7 +238,8 @@ designs above.
 | `platform/computers/tests/journal_cost.rs` | encrypted command admission, metadata-update feed volume and container-attributed writes; [separated-payload measurement](../platform/store/measurements/journal-separated-2026-10-01.md) |
 | `platform/computers/tests/journal_payloads.rs` | private command/file payload lifetime, atomic admission failure, read-only enforcement, metadata-only feeds and missing-input fencing |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |
-| `platform/computers/src/storage_codec.rs` | controlled JSON storage adapters for accepted authority, dispatch decisions and command/file bindings; shared encoding for writes and whole-value comparisons |
+| `platform/computers/src/storage_codec.rs` | controlled JSON storage adapters for accepted authority, dispatch decisions, command/file bindings and maintenance receipts; shared encoding for writes and whole-value comparisons |
+| `platform/computers/src/schema/migrations/0000_maintenance_fields.surql` | declared maintenance source, progress and resume fields, including nested step authority and immutable source identity lookups |
 | `platform/computers/src/control_session.rs` | signed browser session-family read and shared binding decision; logout and family expiry stop new control without cancelling accepted work |
 | `platform/computers/` | Computer records, tenant/principal/Work Context ownership across clients, immutable creation and encryption bindings, capacity and fence admission, Task linking, dispatch receipts, observation budgets and settlement; `tests/{resource_ownership,cross_client_effects}.rs` cover client isolation; worker integration lives in `servers/computers-mcp` |
 | `platform/computers/src/session_grants/` and `queries/*session_grant*` | browser tickets, owner inventory, installation grant limits, one-use redemption, renewal against the current session family, policy and run, and parent-bound revocation; terminal composition lives in `servers/computers-mcp`; named automation grants have a separate ledger |

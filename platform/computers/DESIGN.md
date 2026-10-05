@@ -717,8 +717,16 @@ must have that key. The envelope has a closed object schema and is read-only.
 Its Rust persistence field uses `SealedCommand` or `SealedFileTransfer` through the
 driver's serde adapter, preserving the crypto codec's types and wire representation.
 
-Accepted authority, dispatch decisions and command/file bindings use the Computers
-storage codec. It preserves public JSON nulls and omits database NONE object fields,
+Accepted authority, dispatch decisions, command/file bindings and maintenance
+source/progress/resume receipts use the Computers storage codec. Maintenance driver
+fields keep the owner types through binding and decoding. The source kind and
+resource/process lookups are derived from the same source at admission; stored reads
+check their agreement. Commit and resume compare the whole source and progress while
+using declared resource/process columns for physical fences. Source variants, step
+histories, evidence and recovery state have closed declared fields. JSON UUID/date
+spellings and explicit nulls preserve whole-value comparisons.
+
+The storage codec preserves public JSON nulls and omits database NONE object fields,
 but rejects native record references, dates and absent array members in these JSON
 contracts. Authority writers materialize default arrays and nullable classification
 before persistence. Expected-value comparisons use the same encoder, so schema

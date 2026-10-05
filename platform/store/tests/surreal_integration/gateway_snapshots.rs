@@ -163,6 +163,7 @@ async fn independent_control_object_kinds_follow_shared_extension_name_syntax() 
                 revision: revision.clone(),
                 tenant: None,
                 object_kind: kind.clone(),
+                profile_policy_version: None,
                 object_id: "qualification".into(),
                 document: Default::default(),
             };

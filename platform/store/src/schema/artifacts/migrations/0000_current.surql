@@ -41,12 +41,14 @@ DEFINE FUNCTION fn::artifact_upload_authority_matches($upload: object) -> bool {
 DEFINE FUNCTION fn::artifact_upload_profile_digest($profile_key: string) -> none | string {
     LET $active = (SELECT * FROM ONLY gateway_control_active:current);
     IF type::is_object($active) THEN {
-        LET $profiles = (SELECT VALUE document FROM gateway_control_object
+        LET $profiles = (SELECT document, profile_policy_version FROM gateway_control_object
             WHERE revision = $active.revision AND object_kind = 'profile' AND object_id = $profile_key);
         IF array::len($profiles) != 1 { RETURN NONE };
-        LET $profile: object = array::first($profiles);
+        LET $profile_row: object = array::first($profiles);
+        IF $profile_row.profile_policy_version = NONE { RETURN NONE };
+        LET $profile: object = $profile_row.document;
         LET $policies = (SELECT VALUE document FROM gateway_control_object
-            WHERE revision = $active.revision AND object_kind = 'policy' AND object_id = $profile.policy_version);
+            WHERE revision = $active.revision AND object_kind = 'policy' AND object_id = $profile_row.profile_policy_version);
         IF array::len($policies) != 1 { RETURN NONE };
         LET $policy: object = array::first($policies);
         RETURN crypto::sha256(<string> [$profile, $policy]);

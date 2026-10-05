@@ -404,7 +404,7 @@ DEFINE FIELD OVERWRITE provider_instance_id ON computer_maintenance TYPE uuid PE
 
 DEFINE FIELD OVERWRITE request_id ON computer_maintenance TYPE uuid PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE source ON computer_maintenance TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE source ON computer_maintenance TYPE object READONLY PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE source_kind ON computer_maintenance TYPE 'ready' | 'stopped' | 'initial_failure' PERMISSIONS FULL;
 

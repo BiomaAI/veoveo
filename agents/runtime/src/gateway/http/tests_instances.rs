@@ -263,6 +263,78 @@ async fn instance_routes_reserve_capacity_recover_retries_and_keep_owner_control
         StatusCode::TOO_MANY_REQUESTS
     );
     let (_, instance) = request(&alice, "GET", "agent-instances/worker-one", Value::Null).await;
+
+    let mut retained =
+        db.a.client()
+            .query(include_str!(
+                "../../queries/gateway/http/tests_instances/projection_revision.surql"
+            ))
+            .bind((
+                "digest",
+                serde_json::from_value::<veoveo_types::Sha256Digest>(
+                    instance["requestedRevision"].clone(),
+                )
+                .unwrap()
+                .hex()
+                .to_owned(),
+            ))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    let retained: Vec<surrealdb::types::Value> = retained.take(0).unwrap();
+    assert_eq!(retained.len(), 1);
+    let original = retained.into_iter().next().unwrap();
+    let surrealdb::types::Value::Object(original_fields) = &original else {
+        panic!("retained revision object")
+    };
+    let revision = original_fields.get("id").unwrap().clone();
+    for field in ["definition", "execution"] {
+        let mut corrupt = original_fields.clone();
+        use surrealdb::types::SurrealValue;
+        if field == "definition" {
+            corrupt.insert(
+                field,
+                surrealdb::types::RecordId::new("agent_definition", "unrelated").into_value(),
+            );
+        } else {
+            corrupt.insert(field, crate::persistence::AgentExecution::Chat.into_value());
+        }
+        db.a.client()
+            .query(include_str!(
+                "../../queries/gateway/http/tests_instances/projection_replace_revision.surql"
+            ))
+            .bind(("revision", revision.clone()))
+            .bind(("content", corrupt.into_value()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert_eq!(
+            request(&alice, "GET", "agent-instances/worker-one", Value::Null)
+                .await
+                .0,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "instance projection must reject {field} disagreement"
+        );
+        assert_eq!(
+            request(&bob, "GET", "agent-instances/worker-one", Value::Null)
+                .await
+                .0,
+            StatusCode::NOT_FOUND,
+            "private instance authorization precedes revision decoding"
+        );
+        db.a.client()
+            .query(include_str!(
+                "../../queries/gateway/http/tests_instances/projection_replace_revision.surql"
+            ))
+            .bind(("revision", revision.clone()))
+            .bind(("content", original.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    }
     assert_eq!(instance["desired"], "running");
     assert_eq!(instance["observed"], "queued");
     assert_eq!(instance["activeGeneration"], 0);

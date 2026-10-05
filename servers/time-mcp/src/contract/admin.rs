@@ -88,13 +88,32 @@ pub enum TimeAcquisitionStatus {
     Cancelled,
 }
 
+/// Progress vocabulary emitted by the acquisition worker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum TimeAcquisitionPhase {
+    #[vocabulary(rename = "queued")]
+    Queued,
+    #[vocabulary(rename = "downloading")]
+    Downloading,
+    #[vocabulary(rename = "validating")]
+    Validating,
+    #[vocabulary(rename = "complete")]
+    Complete,
+    #[vocabulary(rename = "cancelling")]
+    Cancelling,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
+    #[vocabulary(rename = "failed")]
+    Failed,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeAcquisition {
     pub acquisition_id: TimeAcquisitionId,
     pub source_id: TimeSourceId,
     pub expected_source_digest_sha256: Option<super::AuthoritySourceDigest>,
     pub status: TimeAcquisitionStatus,
-    pub phase: String,
+    pub phase: TimeAcquisitionPhase,
     pub staged_release_id: Option<AuthorityReleaseId>,
     pub message: String,
     pub created_at: DateTime<Utc>,

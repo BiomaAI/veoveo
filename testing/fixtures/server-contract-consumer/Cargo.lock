@@ -1541,6 +1541,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-audit-contract"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+ "veoveo-artifact-contract",
+ "veoveo-mcp-knowledge-extension",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-computers-contract"
 version = "0.1.0"
 dependencies = [
@@ -1551,6 +1566,7 @@ dependencies = [
  "thiserror",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-audit-contract",
  "veoveo-gateway-contract",
  "veoveo-types",
 ]

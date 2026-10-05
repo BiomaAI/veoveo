@@ -577,3 +577,47 @@ async fn upload_ownership_filters_foreign_malformed_rows_before_decoding() {
         database.finish();
     }).await.expect("upload ownership qualification exceeded 90 seconds");
 }
+
+#[tokio::test]
+#[ignore = "requires VEOVEO_SURREAL_BINARY; owns an isolated SurrealDB 3.3.0 process"]
+async fn upload_checks_profile_lookup_before_initial_admission_and_retained_access() {
+    use platform::Value;
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let mut database = Database::start();
+        let store = database.connect().await;
+        let actor = caller("alice", "acme", &[]);
+        let verified = fixture(&store, &actor).await;
+        let service = UploadService::new(store.clone(), ArtifactObjectStore::with_multipart(Arc::new(object_store::memory::InMemory::new())));
+        let (session, _) = service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
+        let mut response = store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_read.surql")).await.unwrap().check().unwrap();
+        let rows: Vec<Value> = response.take(0).unwrap();
+        assert_eq!(rows.len(), 1);
+        let Value::Object(original) = rows.into_iter().next().unwrap() else { panic!("profile object") };
+        let id = original.get("id").unwrap().clone();
+        for lookup in [Value::None, Value::Null, Value::String("invalid policy".to_owned())] {
+            let mut bad = original.clone();
+            bad.insert("profile_policy_version", lookup);
+            assert!(store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_replace.surql")).bind(("id", id.clone())).bind(("row", Value::Object(bad))).await.unwrap().check().is_err(), "missing/malformed profile lookup must reject atomically");
+            assert!(service.policy(&verified).await.unwrap().allowed);
+        }
+
+        let revision = match original.get("revision").unwrap() { Value::RecordId(revision) => revision.clone(), _ => panic!("profile revision reference") };
+        let other_policy = platform::GatewayControlObjectContent {
+            revision, tenant: None, object_kind: "policy".into(), object_id: "different-valid-policy".into(), profile_policy_version: None,
+            document: platform::OpenObject::new(std::collections::BTreeMap::from([("version".into(), serde_json::json!("different-valid-policy"))])),
+        };
+        store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_other_policy.surql"))
+            .bind(("policy", other_policy)).await.unwrap().check().unwrap();
+        let mut inconsistent = original.clone();
+        inconsistent.insert("profile_policy_version", Value::String("different-valid-policy".to_owned()));
+        store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_replace.surql")).bind(("id", id.clone())).bind(("row", Value::Object(inconsistent))).await.unwrap().check().unwrap();
+        assert!(store.artifact_upload_authority_version("acme", verified.identity.authority.work_context.as_str(), "fixture").await.unwrap().unwrap().profile_policy_digest.is_some(), "a different valid policy still produces a digest; initial admission must check document agreement");
+        for result in [service.policy(&verified).await.map(|_| ()), service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.map(|_| ()), service.status(&verified, session.upload_id, 0).await.map(|_| ())] {
+            assert!(matches!(result, Err(crate::uploads::UploadFault(contract::UploadErrorCode::Unavailable))), "inconsistent metadata must fail before new admission and retained access");
+        }
+        store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_replace.surql")).bind(("id", id)).bind(("row", Value::Object(original))).await.unwrap().check().unwrap();
+        assert!(service.policy(&verified).await.unwrap().allowed);
+        service.status(&verified, session.upload_id, 0).await.unwrap();
+        database.finish();
+    }).await.expect("profile lookup admission exceeded 90 seconds");
+}

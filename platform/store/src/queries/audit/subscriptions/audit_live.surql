@@ -1,1 +1,1 @@
-LIVE SELECT id, partition, draft, target_ref, recorded_at FROM audit_record WHERE partition = $partition;
+LIVE SELECT id, partition, draft, target_ref, profile_lookup, target_lookup, detail_lookup, recorded_at FROM audit_record WHERE partition = $partition;

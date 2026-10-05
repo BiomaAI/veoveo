@@ -119,8 +119,12 @@ schema.
 
 Store extracts unadmitted driver values privately and decodes them with its configured
 registry. Every returned row, including pagination's extra row, validates its record
-identity, partition and lookup reference. Queries validate target registry identity
-before executing SQL and match the entire `draft.target` object. Transaction writes
+identity, partition, lookup reference and the whole target/detail receipts. Store
+projects the admitted draft’s profile, target and detail into read-only columns in
+the append transaction. Target lookup keeps registered owner extensions as whole
+JSON objects; its decoder uses the same target registry as the frozen draft. Queries
+validate registry identity before SQL and compare the whole target lookup object.
+Page, LIVE, replay, seal/export and view readers reject disagreement with the draft. Transaction writes
 receive the same registry and append alongside the caller's domain write.
 
 ## Audit Target Codec

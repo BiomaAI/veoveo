@@ -95,7 +95,7 @@ impl AcquisitionService {
             source_id: source.source_id.clone(),
             expected_source_digest_sha256: expected_digest.clone(),
             status: TimeAcquisitionStatus::Queued,
-            phase: "queued".to_owned(),
+            phase: crate::TimeAcquisitionPhase::Queued,
             staged_release_id: None,
             message: "authority acquisition queued".to_owned(),
             created_at: now,
@@ -146,7 +146,11 @@ impl AcquisitionService {
                     } else {
                         TimeAcquisitionStatus::Failed
                     };
-                    job.phase = if cancelled { "cancelled" } else { "failed" }.to_owned();
+                    job.phase = if cancelled {
+                        crate::TimeAcquisitionPhase::Cancelled
+                    } else {
+                        crate::TimeAcquisitionPhase::Failed
+                    };
                     job.message = if cancelled {
                         "authority acquisition cancelled".to_owned()
                     } else {
@@ -185,7 +189,7 @@ impl AcquisitionService {
                 | TimeAcquisitionStatus::CancelRequested
         ) {
             acquisition.status = TimeAcquisitionStatus::CancelRequested;
-            acquisition.phase = "cancelling".to_owned();
+            acquisition.phase = crate::TimeAcquisitionPhase::Cancelling;
             acquisition.message = "cancellation requested".to_owned();
             acquisition = self.catalog.update_acquisition(scope, acquisition).await?;
             if let Some(token) = self.cancellation.lock().await.get(id.as_str()) {
@@ -207,7 +211,7 @@ impl AcquisitionService {
             &scope,
             &acquisition_id,
             TimeAcquisitionStatus::Running,
-            "downloading",
+            crate::TimeAcquisitionPhase::Downloading,
             "downloading authoritative source",
             None,
         )
@@ -227,7 +231,7 @@ impl AcquisitionService {
             &scope,
             &acquisition_id,
             TimeAcquisitionStatus::Running,
-            "validating",
+            crate::TimeAcquisitionPhase::Validating,
             "validating authority data",
             None,
         )
@@ -272,7 +276,7 @@ impl AcquisitionService {
             &scope,
             &acquisition_id,
             TimeAcquisitionStatus::Succeeded,
-            "complete",
+            crate::TimeAcquisitionPhase::Complete,
             "authority release staged",
             Some(release_id),
         )
@@ -390,7 +394,7 @@ impl AcquisitionService {
         scope: &TimeAccessContext,
         id: &TimeAcquisitionId,
         status: TimeAcquisitionStatus,
-        phase: &str,
+        phase: crate::TimeAcquisitionPhase,
         message: &str,
         staged_release_id: Option<AuthorityReleaseId>,
     ) -> Result<TimeAcquisition> {
@@ -400,7 +404,7 @@ impl AcquisitionService {
             .await?
             .context("time acquisition disappeared")?;
         job.status = status;
-        job.phase = phase.to_owned();
+        job.phase = phase;
         job.message = message.to_owned();
         job.staged_release_id = staged_release_id;
         self.catalog.update_acquisition(scope, job).await

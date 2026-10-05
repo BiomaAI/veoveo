@@ -14,6 +14,7 @@ pub(super) struct Authority {
 
 #[derive(Deserialize)]
 struct ProfileUploadPolicy {
+    policy_version: veoveo_types::PolicyVersion,
     artifact_upload: Option<contract::ArtifactUploadPolicy>,
 }
 
@@ -45,13 +46,17 @@ impl UploadService {
         }
         let profile = self
             .database
-            .artifact_upload_profile(identity.profile.as_str())
+            .artifact_upload_profile(&identity.profile)
             .await?
             .ok_or(denied)?;
+        let profile_policy_version = profile.profile_policy_version;
         let profile: ProfileUploadPolicy = serde_json::from_value(
-            serde_json::to_value(profile).map_err(|_| UploadFault::unavailable())?,
+            serde_json::to_value(profile.document).map_err(|_| UploadFault::unavailable())?,
         )
         .map_err(|_| UploadFault::unavailable())?;
+        if profile.policy_version != profile_policy_version {
+            return Err(UploadFault::unavailable());
+        }
         let policy = profile.artifact_upload.ok_or(denied)?;
         policy.validate().map_err(|_| UploadFault::unavailable())?;
         let version = self

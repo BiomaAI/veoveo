@@ -8,6 +8,7 @@ use veoveo_modules::{
 pub const CURRENT_SCHEMA: &str = concat!(
     include_str!("schema/migrations/0000_current.surql"),
     include_str!("schema/migrations/0000_controlled_fields.surql"),
+    include_str!("schema/migrations/0000_maintenance_fields.surql"),
     include_str!("schema/migrations/0000_indexes.surql"),
 );
 

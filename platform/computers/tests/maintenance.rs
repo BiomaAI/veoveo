@@ -67,6 +67,99 @@ async fn maintenance_source_projection_mismatch_rejects_reads_and_worker_claims(
             .claim_observation(operation.task_id(), Duration::from_secs(60))
             .await
             .unwrap();
+
+        use surrealdb::types::{SurrealValue, Value};
+        let record = RecordId::new(
+            "computer_maintenance",
+            StoreUuid::from(operation.operation_id.as_uuid()),
+        );
+        let mut retained =
+            db.a.client()
+                .query(include_str!("queries/maintenance/controlled_read.surql"))
+                .bind(("record", record.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let retained: Option<Value> = retained.take(0).unwrap();
+        let Value::Object(original) = retained.unwrap() else {
+            panic!("maintenance object")
+        };
+        let Value::Object(source) = original.get("source").unwrap() else {
+            panic!("maintenance source")
+        };
+        let mut unknown_source = source.clone();
+        unknown_source.insert("undeclared", true.into_value());
+        let mut missing_source = source.clone();
+        missing_source.insert("resource_id", Value::None);
+        let mut inactive_source = source.clone();
+        inactive_source.insert("operation_id", operation.task_id().to_string().into_value());
+        let mut unknown_progress = surrealdb::types::Object::new();
+        unknown_progress.insert("steps", Vec::<Value>::new().into_value());
+        unknown_progress.insert("recovery", Value::Null);
+        unknown_progress.insert("undeclared", true.into_value());
+        for (field, value) in [
+            ("source", unknown_source.into_value()),
+            ("source", missing_source.into_value()),
+            ("source", inactive_source.into_value()),
+            ("progress", unknown_progress.into_value()),
+        ] {
+            let mut corrupt = original.clone();
+            corrupt.insert(field, value);
+            assert!(
+                db.a.client()
+                    .query(include_str!("queries/maintenance/controlled_replace.surql"))
+                    .bind(("record", record.clone()))
+                    .bind(("content", corrupt.into_value()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err(),
+                "controlled {field} mutation must reject atomically"
+            );
+            let mut unchanged =
+                db.a.client()
+                    .query(include_str!("queries/maintenance/controlled_read.surql"))
+                    .bind(("record", record.clone()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            assert_eq!(
+                unchanged.take::<Option<Value>>(0).unwrap(),
+                Some(original.clone().into_value()),
+                "rejected write must leave the complete journal unchanged"
+            );
+        }
+        let mut inconsistent = original.clone();
+        inconsistent.insert("source_resource_id", "different-resource".into_value());
+        db.a.client()
+            .query(include_str!("queries/maintenance/controlled_replace.surql"))
+            .bind(("record", record.clone()))
+            .bind(("content", inconsistent.into_value()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            matches!(
+                b.maintenance(actor.owner(), operation.operation_id).await,
+                Err(ComputerError::Unavailable)
+            ),
+            "stored source projection must agree with the whole source"
+        );
+        assert!(matches!(
+            a.maintenance_for_claim(&claim).await,
+            Err(ComputerError::Unavailable)
+        ));
+        db.a.client()
+            .query(include_str!("queries/maintenance/controlled_replace.surql"))
+            .bind(("record", record))
+            .bind(("content", original.into_value()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         for kind in ["stopped", "ready"] {
             db.a.client()
                 .query(include_str!("queries/maintenance/source_kind.surql"))

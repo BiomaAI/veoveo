@@ -54,8 +54,10 @@ impl PlatformStore {
             ))
             .await?
             .check()?;
-        let id: Option<RecordId> = response.take(0)?;
-        Ok(id.is_some())
+        let row: Option<Row> = response.take(0)?;
+        row.map(|row| row.checked(self.audit_targets()))
+            .transpose()
+            .map(|row| row.is_some())
     }
     pub async fn audit_live(
         &self,

@@ -35,6 +35,14 @@ pub enum AgentManagementError {
 }
 pub type Result<T> = std::result::Result<T, AgentManagementError>;
 
+/// Hydrate a retained revision through the same checks used by repositories.
+pub(crate) fn checked_revision(value: Value) -> Result<AgentRevision> {
+    use validation::StoredProjection;
+    let revision: AgentRevision = validation::decode_stored(value)?;
+    revision.validate_stored()?;
+    Ok(revision)
+}
+
 #[derive(Clone, SurrealValue)]
 struct Page {
     after: String,

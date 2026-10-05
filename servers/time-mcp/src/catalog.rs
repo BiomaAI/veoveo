@@ -279,7 +279,7 @@ impl TimeCatalog {
                 expected_source_digest_sha256: acquisition.expected_source_digest_sha256.clone(),
                 idempotency_key,
                 status: acquisition_state(acquisition.status),
-                phase: acquisition.phase.clone(),
+                phase: acquisition.phase,
                 staged_release_key: acquisition.staged_release_id.clone(),
                 canonical_json,
             })
@@ -367,7 +367,7 @@ impl TimeCatalog {
                 acquisition_key: acquisition.acquisition_id.clone(),
                 expected_record_version: expected,
                 status: acquisition_state(acquisition.status),
-                phase: acquisition.phase.clone(),
+                phase: acquisition.phase,
                 staged_release_key: acquisition.staged_release_id.clone(),
                 canonical_json,
             })

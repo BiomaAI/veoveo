@@ -1,5 +1,5 @@
 //! Explicit finite recovery windows; a retry cannot renew the same window twice.
-use super::{MaintenanceOperation, MaintenanceStage, authority::resume_target, object, record};
+use super::{MaintenanceOperation, MaintenanceStage, authority::resume_target, record};
 use crate::{
     ComputerActor, ComputerError, ComputersStore, Result,
     api::ResumeUpdateInput,
@@ -11,9 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{
-    OpenObject, deterministic_enterprise_id, gateway_refresh_family_record_id,
-};
+use veoveo_platform_store::{deterministic_enterprise_id, gateway_refresh_family_record_id};
 use veoveo_task_runtime::{TaskError, TaskRuntime};
 
 #[derive(Serialize, SurrealValue)]
@@ -21,17 +19,17 @@ struct Content {
     operation_id: Uuid,
     request_id: Uuid,
     fingerprint: String,
-    input: OpenObject,
+    input: MaintenanceResumeInput,
     authority: crate::AcceptedAuthority,
     decision: crate::ExecutionDecision,
-    previous_progress: OpenObject,
+    previous_progress: super::progress::MaintenanceProgress,
 }
 #[derive(Deserialize, SurrealValue)]
 struct Receipt {
     operation_id: Uuid,
     request_id: Uuid,
     fingerprint: String,
-    input: OpenObject,
+    input: MaintenanceResumeInput,
 }
 fn request_record(actor: &ComputerActor, input: &ResumeUpdateInput) -> Result<RecordId> {
     if input.task_id.as_uuid().get_version_num() != 7 {
@@ -101,10 +99,7 @@ impl ComputersStore {
             .await?;
         let prior: Option<Receipt> = reply.take(0).map_err(|_| ComputerError::Unavailable)?;
         let prior = prior.ok_or(ComputerError::Unavailable)?;
-        let saved: ResumeUpdateInput = serde_json::from_value(
-            serde_json::to_value(prior.input).map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
+        let saved = prior.input.0;
         if prior.operation_id != input.task_id.as_uuid()
             || prior.request_id != input.request_id.as_uuid()
             || prior.fingerprint != fingerprint(&saved)?
@@ -190,7 +185,7 @@ impl ComputersStore {
                 operation_id: input.task_id.as_uuid(),
                 request_id: input.request_id.as_uuid(),
                 fingerprint: fingerprint(input)?,
-                input: object(input)?,
+                input: MaintenanceResumeInput(input.clone()),
                 authority: actor.accepted().clone(),
                 decision: crate::ExecutionDecision {
                     control_revision: authority.control_revision.clone(),
@@ -200,7 +195,7 @@ impl ComputersStore {
                     decision,
                     automation: None,
                 },
-                previous_progress: object(&before.progress)?,
+                previous_progress: before.progress.clone(),
             };
 
             let family = actor
@@ -231,8 +226,9 @@ impl ComputersStore {
                         ("computer", computer_record(input.computer_id).into_value()),
                         ("provider", self.provider_instance_id.as_uuid().into_value()),
                         ("expected_updated_at", before.updated_at.into_value()),
-                        ("expected_progress", object(&before.progress)?.into_value()),
-                        ("progress", object(&after.progress)?.into_value()),
+                        ("expected_source", before.source.clone().into_value()),
+                        ("expected_progress", before.progress.clone().into_value()),
+                        ("progress", after.progress.clone().into_value()),
                         (
                             "stage",
                             serde_json::to_value(after.stage)
@@ -300,5 +296,25 @@ impl ComputersStore {
                 None => Err(error),
             },
         }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+struct MaintenanceResumeInput(ResumeUpdateInput);
+impl SurrealValue for MaintenanceResumeInput {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Object
+    }
+    fn is_value(value: &surrealdb::types::Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        crate::storage_codec::native(crate::storage_codec::encode(&self))
+    }
+    fn from_value(
+        value: surrealdb::types::Value,
+    ) -> std::result::Result<Self, surrealdb::types::Error> {
+        crate::storage_codec::decode(value)
     }
 }

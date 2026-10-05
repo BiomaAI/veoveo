@@ -31,7 +31,7 @@ DEFINE FUNCTION fn::append_audit($audit_rows: array<object>) {
         LET $record_id: record<audit_record> = $audit_row.id;
         LET $audit_existing = SELECT * FROM ONLY $record_id;
         IF type::is_object($audit_existing) THEN {
-            IF $audit_existing.draft != $audit_row.draft { THROW 'audit_identity_conflict'; };
+            IF $audit_existing.draft != $audit_row.draft OR $audit_existing.profile_lookup != $audit_row.profile_lookup OR $audit_existing.target_lookup != $audit_row.target_lookup OR $audit_existing.detail_lookup != $audit_row.detail_lookup { THROW 'audit_identity_conflict'; };
         } ELSE {
             LET $window_exists = IF $audit_write.window = NONE THEN false ELSE {
                 LET $window_id: record<audit_download_window> = $audit_write.window;
@@ -162,6 +162,10 @@ DEFINE FIELD OVERWRITE actor_key ON audit_record TYPE none | string READONLY PER
 DEFINE FIELD OVERWRITE class ON audit_record TYPE string READONLY ASSERT $value INSIDE ['api_activity', 'authentication', 'account_change', 'artifact_activity', 'live_view_access', 'computer_activity'] PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE day ON audit_record TYPE datetime READONLY VALUE time::floor(occurred_at, 1d) PERMISSIONS FULL;
+
+DEFINE FIELD OVERWRITE profile_lookup ON audit_record TYPE option<string> READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE target_lookup ON audit_record TYPE object FLEXIBLE READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE detail_lookup ON audit_record TYPE object FLEXIBLE READONLY PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE draft ON audit_record TYPE object FLEXIBLE READONLY PERMISSIONS FULL;
 

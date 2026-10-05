@@ -32,7 +32,7 @@ pub(super) fn validate_acquisition(draft: &TimeAcquisitionDraft) -> Result<(), P
     )?;
     validate_key("source_key", &draft.source_key, "time-source-")?;
     validate_text("idempotency_key", &draft.idempotency_key, 256)?;
-    validate_text("phase", &draft.phase, 128)?;
+
     if let Some(release) = &draft.staged_release_key {
         validate_key("staged_release_key", release, "time-release-")?;
     }

@@ -37,6 +37,7 @@ pub(super) async fn install_profile_policy(
         revision: revision.clone(),
         tenant: None,
         object_kind: "profile".into(),
+        profile_policy_version: Some(veoveo_types::PolicyVersion::parse("r1").unwrap()),
         object_id: "fixture".into(),
         document: platform::OpenObject::new(document),
     };
@@ -44,6 +45,7 @@ pub(super) async fn install_profile_policy(
         revision: revision.clone(),
         tenant: None,
         object_kind: "policy".into(),
+        profile_policy_version: None,
         object_id: "r1".into(),
         document: platform::OpenObject::new(std::collections::BTreeMap::from([(
             "version".into(),

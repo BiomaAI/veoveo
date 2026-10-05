@@ -39,7 +39,10 @@ Work Context state. `projection.rs` explicitly maps private store records into p
 DTOs. Mutation, validation and event handlers remain separate from existing durable
 agent messaging routes. Routine definition edits use the durable store and do not reload
 gateway configuration or start model execution. `instances/` owns managed admission, operation reads and
-public instance projections. Its templates derive every infrastructure and credential
+public instance projections. Instance hydration checks full retained revisions
+through the repository decoder, including content/digest and declared execution
+agreement, then verifies revision/definition and definition/tenant associations.
+Template identity comes from the declared execution receipt after those checks. Its templates derive every infrastructure and credential
 reference from reviewed configuration. The gateway has no Kubernetes write permission.
 
 ## Observation And Retry

@@ -37,7 +37,7 @@ pub(crate) struct TimeAcquisitionDraft {
     pub(crate) expected_source_digest_sha256: Option<AuthoritySourceDigest>,
     pub(crate) idempotency_key: String,
     pub(crate) status: TimeAcquisitionState,
-    pub(crate) phase: String,
+    pub(crate) phase: crate::TimeAcquisitionPhase,
     pub(crate) staged_release_key: Option<AuthorityReleaseId>,
     pub(crate) canonical_json: String,
 }
@@ -48,7 +48,7 @@ pub(crate) struct TimeAcquisitionUpdate {
     pub(crate) acquisition_key: TimeAcquisitionId,
     pub(crate) expected_record_version: TimeVersion,
     pub(crate) status: TimeAcquisitionState,
-    pub(crate) phase: String,
+    pub(crate) phase: crate::TimeAcquisitionPhase,
     pub(crate) staged_release_key: Option<AuthorityReleaseId>,
     pub(crate) canonical_json: String,
 }

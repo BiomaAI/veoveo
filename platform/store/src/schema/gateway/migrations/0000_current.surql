@@ -104,11 +104,13 @@ DEFINE FIELD OVERWRITE id ON gateway_control_object TYPE uuid DEFAULT `rand`::uu
 
 DEFINE FIELD OVERWRITE object_id ON gateway_control_object TYPE string READONLY PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE object_kind ON gateway_control_object TYPE string ASSERT $value = /^[A-Za-z0-9_.:\/-]{1,128}$/ READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE object_kind ON gateway_control_object TYPE string ASSERT $value = /^[A-Za-z0-9_.:\/-]{1,128}$/ AND ($value != 'profile' OR $this.profile_policy_version != NONE) READONLY PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE revision ON gateway_control_object TYPE record<gateway_control_revision> READONLY PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE tenant ON gateway_control_object TYPE none | string READONLY PERMISSIONS FULL;
+
+DEFINE FIELD OVERWRITE profile_policy_version ON gateway_control_object TYPE option<string> READONLY ASSERT IF $this.object_kind = 'profile' THEN type::is_string($value) AND string::len($value) > 0 AND $value != /[\s\p{Cc}]/ ELSE $value = NONE END PERMISSIONS FULL;
 
 DEFINE INDEX gateway_control_object_identity_unique ON gateway_control_object FIELDS revision, object_kind, object_id UNIQUE;
 

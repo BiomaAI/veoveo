@@ -26,7 +26,7 @@ fn optional_modules() -> Vec<ModuleSetup> {
         veoveo_optimization_mcp::schema::module_setup(execution("optimization")).unwrap(),
     ]
 }
-#[derive(Debug, PartialEq, SurrealValue)]
+#[derive(Debug, PartialEq, serde::Serialize, SurrealValue)]
 struct Inventory {
     tables: BTreeMap<String, String>,
     functions: BTreeMap<String, String>,
@@ -44,6 +44,37 @@ async fn inventory(store: &PlatformStore) -> Inventory {
         .unwrap()
         .unwrap()
 }
+/// Optional diagnostic output from this test's owned fresh fixture; no runtime credentials.
+async fn capture_installed_schema(store: &PlatformStore, current: &Inventory) {
+    let Some(output) = std::env::var_os("VEOVEO_TEST_SCHEMA_INFO_SNAPSHOT") else {
+        return;
+    };
+    let mut tables = BTreeMap::new();
+    for table in current.tables.keys() {
+        let mut response = store
+            .client()
+            .query(include_str!(
+                "../../../../testing/fixtures/queries/store/table_info.surql"
+            ))
+            .bind(("table", table.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let info: serde_json::Value = response
+            .take::<Option<serde_json::Value>>(0)
+            .unwrap()
+            .expect("installed table schema");
+        tables.insert(table.clone(), info);
+    }
+    std::fs::write(
+        output,
+        serde_json::to_vec_pretty(&serde_json::json!({"database": current, "tables": tables}))
+            .unwrap(),
+    )
+    .unwrap();
+}
+
 async fn receipt_count(store: &PlatformStore) -> usize {
     store
         .client()
@@ -206,6 +237,7 @@ async fn fresh_selected_lanes_exclude_disabled_owners_and_replay_without_reapply
             }
             if status.lanes.iter().filter(|lane| lane.selected).count() == registry.modules().len()
             {
+                capture_installed_schema(&db.a, &current).await;
                 let originals = current
                     .tables
                     .iter()

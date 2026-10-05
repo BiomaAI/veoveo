@@ -145,6 +145,11 @@ Mutation completions enter the shared retry queue. Capability issuance requires 
 record before exposing the capability. Upload publication appends its completion in the
 occurrence transaction. The owning process must drain the shared writer on shutdown.
 
+Upload admission decodes the whole profile’s policy version alongside its Artifact
+upload policy and compares it with Gateway’s declared lookup. This check precedes
+new session creation and retained session access. Transaction guards hash whole
+profile/policy documents, so a later control change invalidates the retained grant.
+
 ## Resumable Upload Contract
 
 The public upload contract is defined in

@@ -3,11 +3,11 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value as Json;
 use surrealdb::types::{Error, Kind, Number, SerdeWrapper, SurrealValue, Value};
 
-fn encode(value: &impl Serialize) -> Json {
+pub(crate) fn encode(value: &impl Serialize) -> Json {
     serde_json::to_value(value).expect("typed Computer control object serializes as JSON")
 }
 
-fn native(value: Json) -> Value {
+pub(crate) fn native(value: Json) -> Value {
     SerdeWrapper(value).into_value()
 }
 
@@ -43,7 +43,7 @@ fn json(value: Value) -> Result<Json, Error> {
     }
 }
 
-fn decode<T: DeserializeOwned>(value: Value) -> Result<T, Error> {
+pub(crate) fn decode<T: DeserializeOwned>(value: Value) -> Result<T, Error> {
     serde_json::from_value(json(value)?).map_err(|error| {
         Error::internal(format!("invalid stored Computer control object: {error}"))
     })

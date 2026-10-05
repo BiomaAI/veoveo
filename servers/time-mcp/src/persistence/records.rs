@@ -124,7 +124,8 @@ pub(crate) struct TimeAcquisitionRecord {
     pub(crate) expected_source_digest_sha256: Option<String>,
     pub(crate) idempotency_key: String,
     pub(crate) status: TimeAcquisitionState,
-    pub(crate) phase: String,
+    #[surreal(wrap)]
+    pub(crate) phase: crate::TimeAcquisitionPhase,
     pub(crate) staged_release_key: Option<String>,
     pub(crate) canonical_json: String,
     pub(crate) record_version: i64,
@@ -242,7 +243,8 @@ pub(super) struct TimeAcquisitionContent {
     pub(super) expected_source_digest_sha256: Option<String>,
     pub(super) idempotency_key: String,
     pub(super) status: TimeAcquisitionState,
-    pub(super) phase: String,
+    #[surreal(wrap)]
+    pub(super) phase: crate::TimeAcquisitionPhase,
     pub(super) staged_release_key: Option<String>,
     pub(super) canonical_json: String,
     pub(super) record_version: i64,

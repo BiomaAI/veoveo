@@ -152,3 +152,37 @@ fn time_expression_variants_and_resolution_requests_are_closed() {
     }
     assert!(serde_json::from_value::<TimeExpression>(json!({"format":"civil","value":{"local_datetime":"2026-01-01T00:00:00","zone_id":"UTC","tzdb_release_id":"time-release-tzdb","undeclared":true}})).is_err());
 }
+
+#[test]
+fn acquisition_phase_wire_and_schema_use_the_owner_vocabulary() {
+    use veoveo_time_mcp::contract::TimeAcquisitionPhase;
+    let expected = [
+        "queued",
+        "downloading",
+        "validating",
+        "complete",
+        "cancelling",
+        "cancelled",
+        "failed",
+    ];
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(TimeAcquisitionPhase)).unwrap()["enum"],
+        serde_json::json!(expected)
+    );
+    for (phase, spelling) in TimeAcquisitionPhase::ALL.iter().zip(expected) {
+        assert_eq!(phase.as_str(), spelling);
+        assert_eq!(serde_json::to_value(phase).unwrap(), spelling);
+        assert_eq!(
+            serde_json::from_value::<TimeAcquisitionPhase>(spelling.into()).unwrap(),
+            *phase
+        );
+    }
+    for invalid in [
+        serde_json::json!("staged"),
+        serde_json::json!("unknown"),
+        serde_json::Value::Null,
+        serde_json::json!(3),
+    ] {
+        assert!(serde_json::from_value::<TimeAcquisitionPhase>(invalid).is_err());
+    }
+}

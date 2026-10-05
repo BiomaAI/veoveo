@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::contract::authoring as wire;
 use crate::persistence::instances::*;
-use surrealdb::types::{RecordId, SurrealValue, ToSql};
+use surrealdb::types::{RecordId, SurrealValue, ToSql, Value};
 
 use super::super::{AgentManagementState, Fault, authority::Admission, projection as common};
 
@@ -47,13 +47,7 @@ pub(super) fn operation(
 struct DefinitionIdentity {
     id: RecordId,
     key: String,
-}
-
-#[derive(SurrealValue)]
-struct RevisionIdentity {
-    id: RecordId,
-    digest: String,
-    template: String,
+    tenant: RecordId,
 }
 
 pub(super) async fn instances(
@@ -85,10 +79,14 @@ pub(super) async fn instances(
         .map_err(|_| Fault::unavailable())?;
     let definitions: Vec<DefinitionIdentity> =
         response.take(0).map_err(|_| Fault::unavailable())?;
-    let revisions: Vec<RevisionIdentity> = response.take(1).map_err(|_| Fault::unavailable())?;
+    let revisions: Vec<Value> = response.take(1).map_err(|_| Fault::unavailable())?;
+    let revisions = revisions
+        .into_iter()
+        .map(|row| crate::persistence::checked_revision(row).map_err(|_| Fault::unavailable()))
+        .collect::<Result<Vec<_>, _>>()?;
     let definitions: BTreeMap<_, _> = definitions
         .into_iter()
-        .map(|v| (v.id.to_sql(), v.key))
+        .map(|v| (v.id.to_sql(), v))
         .collect();
     let revisions: BTreeMap<_, _> = revisions.into_iter().map(|v| (v.id.to_sql(), v)).collect();
     values
@@ -100,10 +98,17 @@ pub(super) async fn instances(
             let requested = revisions
                 .get(&v.requested_revision.to_sql())
                 .ok_or_else(Fault::unavailable)?;
+            if definition.tenant != v.tenant || requested.definition != v.definition {
+                return Err(Fault::unavailable());
+            }
+            let crate::persistence::AgentExecution::Managed { template, .. } = &requested.execution
+            else {
+                return Err(Fault::unavailable());
+            };
             Ok(wire::ManagedInstance {
                 id: wire::AgentManagedInstanceId::parse(v.key).map_err(|_| Fault::unavailable())?,
                 name: v.name,
-                definition: wire::AgentDefinitionId::parse(definition.clone())
+                definition: wire::AgentDefinitionId::parse(definition.key.clone())
                     .map_err(|_| Fault::unavailable())?,
                 owner: common::uuid(&v.owner)?,
                 work_context: common::context(
@@ -111,7 +116,7 @@ pub(super) async fn instances(
                     &actor.subject.authority.tenant,
                     &v.work_context,
                 )?,
-                template: wire::AgentTemplateId::parse(requested.template.clone())
+                template: wire::AgentTemplateId::parse(template.clone())
                     .map_err(|_| Fault::unavailable())?,
                 requested_revision: common::digest(&requested.digest)?,
                 active_revision: v
@@ -120,7 +125,12 @@ pub(super) async fn instances(
                         revisions
                             .get(&id.to_sql())
                             .ok_or_else(Fault::unavailable)
-                            .and_then(|r| common::digest(&r.digest))
+                            .and_then(|r| {
+                                if r.definition != v.definition {
+                                    return Err(Fault::unavailable());
+                                }
+                                common::digest(&r.digest)
+                            })
                     })
                     .transpose()?,
                 generation: v.generation,

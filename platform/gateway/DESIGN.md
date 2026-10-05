@@ -231,6 +231,13 @@ profile-scoped App dependencies. Domain contracts qualify their own serializatio
 digest checks. Installed acceptance compares a published Frames world with its resource
 readback through the public gateway before configuring a simulator.
 
+Profile control objects include a read-only typed policy-version lookup derived
+from the admitted profile in the publication transaction. Profile rows require it;
+other registered object kinds omit it. Upload consumers compare that lookup with
+the typed profile before admission. Artifact SQL selects policy by this declared
+column and hashes the complete profile and policy documents. Malformed, missing
+or inconsistent metadata prevents upload authorization.
+
 ## Audit And Catalog Cache
 
 The immutable catalog registry supplies owner admission alongside the core control

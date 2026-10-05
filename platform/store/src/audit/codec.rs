@@ -3,7 +3,9 @@ use crate::{RecordId, StoreError};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{Error, Kind, SurrealValue, Value};
-use veoveo_audit_contract::{AuditDecodeError, AuditDraft, AuditRecord, AuditTargetRegistry};
+use veoveo_audit_contract::{
+    AuditDecodeError, AuditDetail, AuditDraft, AuditRecord, AuditTarget, AuditTargetRegistry,
+};
 
 #[derive(Debug, Clone)]
 pub(super) struct Document(pub serde_json::Value);
@@ -31,8 +33,52 @@ impl SurrealValue for Document {
         )
     }
     fn from_value(value: Value) -> Result<Self, Error> {
-        let json = crate::json_value::from_surreal(value)?;
+        let json = crate::json_value::from_surreal_json(value)?;
         Ok(Self(json))
+    }
+}
+/// Whole registered target, admitted contextually with the retained draft.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct TargetLookup(serde_json::Value);
+impl TargetLookup {
+    pub fn new(target: &AuditTarget) -> Self {
+        Self(serde_json::to_value(target).expect("admitted audit target"))
+    }
+}
+impl SurrealValue for TargetLookup {
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn into_value(self) -> Value {
+        crate::json_value::into_surreal(self.0)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        let value = crate::json_value::from_surreal_json(value)?;
+        if !value.is_object() {
+            return Err(Error::internal("invalid audit target lookup".into()));
+        }
+        Ok(Self(value))
+    }
+}
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct DetailLookup(pub AuditDetail);
+impl SurrealValue for DetailLookup {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> Value {
+        scalar(&self.0)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        serde_json::from_value(crate::json_value::from_surreal_json(value)?)
+            .map(Self)
+            .map_err(|_| Error::internal("invalid audit detail lookup".into()))
     }
 }
 #[derive(Debug, Clone, SurrealValue)]
@@ -41,6 +87,10 @@ pub(super) struct Row {
     pub partition: String,
     pub draft: Document,
     pub target_ref: Option<RecordId>,
+    #[surreal(wrap)]
+    pub profile_lookup: Option<veoveo_types::GatewayProfileId>,
+    pub target_lookup: TargetLookup,
+    pub detail_lookup: DetailLookup,
     pub recorded_at: DateTime<Utc>,
 }
 impl Row {
@@ -49,6 +99,9 @@ impl Row {
         if self.id != super::record_id(draft.partition(), draft.id())
             || self.partition != draft.partition().storage_key()
             || self.target_ref != super::target_reference(draft.target())?
+            || self.profile_lookup != draft.authority().profile
+            || self.target_lookup != TargetLookup::new(draft.target())
+            || self.detail_lookup.0 != *draft.detail()
         {
             return Err(StoreError::AuditIntegrity);
         }
@@ -80,7 +133,7 @@ impl SurrealValue for AuditContextRecord {
         scalar(&self.0)
     }
     fn from_value(value: Value) -> Result<Self, Error> {
-        let json = crate::json_value::from_surreal(value)?;
+        let json = crate::json_value::from_surreal_json(value)?;
         serde_json::from_value(json)
             .map(Self)
             .map_err(|_| Error::internal("invalid audit attribution".into()))

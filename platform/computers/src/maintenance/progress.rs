@@ -271,3 +271,20 @@ impl MaintenanceOperation {
         Ok(())
     }
 }
+
+impl surrealdb::types::SurrealValue for MaintenanceProgress {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Object
+    }
+    fn is_value(value: &surrealdb::types::Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        crate::storage_codec::native(crate::storage_codec::encode(&self))
+    }
+    fn from_value(
+        value: surrealdb::types::Value,
+    ) -> std::result::Result<Self, surrealdb::types::Error> {
+        crate::storage_codec::decode(value)
+    }
+}

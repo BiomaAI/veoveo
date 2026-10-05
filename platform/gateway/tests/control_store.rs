@@ -1,45 +1,32 @@
 #[path = "../../../testing/fixtures/catalog_admission.rs"]
 mod catalog_admission;
+#[path = "../../../testing/fixtures/store.rs"]
+mod fixture;
 use std::collections::BTreeSet;
 
 use chrono::Utc;
-use uuid::Uuid;
+
 use veoveo_mcp_contract::{
     GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource, OAuthClientId, PolicySet, TenantDefinition,
     WorkContextDefinition, WorkContextMembershipRule,
 };
 use veoveo_mcp_gateway::GatewayControlStore;
-use veoveo_platform_store::{StoreConfig, StoreCredentials, deterministic_tenant_id};
+use veoveo_platform_store::deterministic_tenant_id;
 use veoveo_types::{AccessSubject, GroupId, PolicyVersion, PrincipalId, TenantId, WorkContextId};
 use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 #[tokio::test]
 async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint = std::env::var("VEOVEO_SURREAL_ENDPOINT")
-        .unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let namespace = std::env::var("VEOVEO_SURREAL_NAMESPACE")
-        .unwrap_or_else(|_| "veoveo_integration".to_owned());
-    let database_prefix =
-        std::env::var("VEOVEO_SURREAL_DATABASE").unwrap_or_else(|_| "platform_test".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USERNAME").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let database = format!("{database_prefix}_{}", Uuid::new_v4().simple());
-    let config = StoreConfig::builder(
-        endpoint,
-        namespace,
-        database,
-        StoreCredentials::root(username, password),
-    )
-    .build()
-    .unwrap();
-    let store = GatewayControlStore::connect(config, catalog_admission::binding())
+    tokio::time::timeout(std::time::Duration::from_secs(90), publication())
         .await
-        .unwrap();
+        .expect("native control publication exceeded 90 seconds");
+}
+
+async fn publication() {
+    let db = fixture::TestDb::new().await;
+    let store =
+        GatewayControlStore::from_platform_store(db.a.clone(), catalog_admission::binding());
 
     assert!(store.load_active_revision().await.unwrap().is_none());
     assert!(store.load_active_revision_head().await.unwrap().is_none());

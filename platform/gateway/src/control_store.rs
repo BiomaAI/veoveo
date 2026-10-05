@@ -44,6 +44,7 @@ struct ControlPlaneObjectRow {
     kind: veoveo_types::ExtensionName,
     id: String,
     document: OpenObject,
+    profile_policy_version: Option<veoveo_types::PolicyVersion>,
 }
 
 impl GatewayControlStore {
@@ -213,6 +214,7 @@ impl GatewayControlStore {
                 object_kind: row.kind.as_str().to_owned(),
                 object_id: row.id,
                 document: row.document,
+                profile_policy_version: row.profile_policy_version,
             })
             .collect();
 
@@ -366,7 +368,9 @@ fn control_plane_object_rows(
         rows.push(object_row(None, "server", server.slug.as_str(), server)?);
     }
     for profile in &control_plane.profiles {
-        rows.push(object_row(None, "profile", profile.id.as_str(), profile)?);
+        let mut row = object_row(None, "profile", profile.id.as_str(), profile)?;
+        row.profile_policy_version = Some(profile.policy_version.clone());
+        rows.push(row);
     }
     for object in sections.objects() {
         rows.push(object_row(
@@ -531,6 +535,7 @@ fn object_row(
         kind: veoveo_types::ExtensionName::parse(kind.into())?,
         id: id.into(),
         document: serialize_object(value)?,
+        profile_policy_version: None,
     })
 }
 

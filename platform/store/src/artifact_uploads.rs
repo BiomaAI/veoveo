@@ -13,21 +13,24 @@ pub use parts::*;
 use crate::{PlatformStore, StoreError};
 
 impl PlatformStore {
-    /// The gateway control-plane is an open document boundary. Its consumer
-    /// deserializes only the typed profile fields it owns.
+    /// Return exactly one active profile and its admitted Gateway policy lookup.
+    /// The owner consumer checks that lookup against the whole profile document.
     pub async fn artifact_upload_profile(
         &self,
-        profile: &str,
-    ) -> Result<Option<crate::OpenObject>, StoreError> {
+        profile: &veoveo_types::GatewayProfileId,
+    ) -> Result<Option<ArtifactUploadProfile>, StoreError> {
         let mut response = self
             .db
             .query(include_str!(
                 "queries/artifact_uploads/artifact_upload_profile.surql"
             ))
-            .bind(("profile", profile.to_owned()))
+            .bind(("profile", profile.as_str().to_owned()))
             .await?
             .check()?;
-        let mut documents: Vec<crate::OpenObject> = response.take(1)?;
+        let mut documents: Vec<ArtifactUploadProfile> = response.take(1)?;
+        if documents.len() > 1 {
+            return Err(StoreError::InvalidGatewayControlRevision);
+        }
         Ok(documents.pop())
     }
 

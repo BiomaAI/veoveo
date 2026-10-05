@@ -52,6 +52,36 @@ async fn recovery() {
         initiator_key: None,
         delegation_id: None,
     };
+    let now = Utc::now();
+    let context = veoveo_platform_store::WorkContextRecord {
+        id: veoveo_platform_store::deterministic_work_context_id("map-recovery", "operations")
+            .unwrap()
+            .record_id(),
+        tenant: identity.tenant_id.record_id(),
+        context_key: "operations".into(),
+        title: "Recovery".into(),
+        policy_revision: authority.policy_revision.clone(),
+        output_policy: veoveo_platform_store::WorkContextOutputPolicyRecord {
+            owner_kind: authority.owner_kind,
+            owner_key: authority.owner_key.clone(),
+            initial_grants: vec![],
+            classification: None,
+            data_labels: vec![],
+        },
+        memberships: vec![],
+        created_at: now,
+        updated_at: now,
+    };
+    store
+        .client()
+        .query(include_str!(
+            "../../queries/authoring/projection/recovery_tests/recovery/create_context.surql"
+        ))
+        .bind(("context", context))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let layer_id = FeatureLayerId::new();
     let feature_id = MapFeatureId::new();
     MapRepository::new(store.clone())
@@ -245,11 +275,78 @@ async fn recovery() {
     let projection =
         AuthoringProjection::new(db.b.clone(), MapAnalytics::open(config.clone()).unwrap());
     assert_eq!(projection.sequence().unwrap(), first as u64);
+    let tenant = draft.identity.tenant_id.record_id();
+    let context =
+        veoveo_platform_store::deterministic_work_context_id("map-recovery", "operations")
+            .unwrap()
+            .record_id();
+    let foreign = store
+        .ensure_identity(
+            "map-recovery-foreign",
+            "author",
+            "https://veoveo.local/services",
+            "author",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    store
+        .client()
+        .query(include_str!(
+            "../../queries/authoring/projection/recovery_tests/recovery/identity_metadata.surql"
+        ))
+        .bind(("context", context.clone()))
+        .bind(("tenant", foreign.tenant_id.record_id()))
+        .bind(("enabled", true))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(
+        projection.reconcile_through(second as u64).await.is_err(),
+        "corrupt context association must stop recovery before advancing the checkpoint"
+    );
+    assert_eq!(projection.sequence().unwrap(), first as u64);
+    store
+        .client()
+        .query(include_str!(
+            "../../queries/authoring/projection/recovery_tests/recovery/identity_metadata.surql"
+        ))
+        .bind(("context", context.clone()))
+        .bind(("tenant", tenant.clone()))
+        .bind(("enabled", false))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert_eq!(
+        MapRepository::new(store.clone())
+            .read_map_feature_commits(first, second, 1)
+            .await
+            .unwrap()[0]
+            .tenant_key,
+        "map-recovery",
+        "disabled tenant metadata remains available for retained journal recovery"
+    );
+
     assert_eq!(
         projection.reconcile_through(second as u64).await.unwrap(),
         second as u64
     );
     assert_projection_rows(&projection, 2, 2);
+    store
+        .client()
+        .query(include_str!(
+            "../../queries/authoring/projection/recovery_tests/recovery/identity_metadata.surql"
+        ))
+        .bind(("context", context))
+        .bind(("tenant", tenant))
+        .bind(("enabled", true))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
     assert_eq!(projection.reconcile().await.unwrap(), second as u64);
     assert_projection_rows(&projection, 2, 2);
 

@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::TaskId;
@@ -59,6 +58,19 @@ pub(super) enum MaintenanceSourceKind {
 }
 
 impl MaintenanceSource {
+    pub(super) fn lookup(&self) -> (Option<String>, Option<String>) {
+        match self {
+            Self::Ready {
+                resource_id,
+                process_id,
+            }
+            | Self::Stopped {
+                resource_id,
+                process_id,
+            } => (Some(resource_id.clone()), Some(process_id.clone())),
+            Self::InitialFailure { .. } => (None, None),
+        }
+    }
     pub(super) fn kind(&self) -> MaintenanceSourceKind {
         match self {
             Self::Ready { .. } => MaintenanceSourceKind::Ready,
@@ -142,14 +154,16 @@ pub(super) struct MaintenanceRecord {
     source_instance_id: Uuid,
     source_template_id: String,
     source_template_fingerprint: String,
-    source: OpenObject,
+    source: MaintenanceSource,
+    source_resource_id: Option<String>,
+    source_process_id: Option<String>,
     #[surreal(wrap)]
     source_kind: MaintenanceSourceKind,
     target_instance_id: Uuid,
     target_template_id: String,
     target_template_fingerprint: String,
     stage: String,
-    progress: OpenObject,
+    progress: super::progress::MaintenanceProgress,
     task_projected_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -158,6 +172,10 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
     type Error = ComputerError;
     fn try_from(row: MaintenanceRecord) -> Result<Self> {
         let source_kind = row.source_kind;
+        let source_lookup = (
+            row.source_resource_id.clone(),
+            row.source_process_id.clone(),
+        );
         let computer_id = crate::api::ComputerId::try_from(row.computer_id)
             .map_err(|_| ComputerError::Unavailable)?;
         let provider_instance_id =
@@ -184,14 +202,14 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
                 source_instance_id: row.source_instance_id,
                 source_template_id,
                 source_template_fingerprint: row.source_template_fingerprint,
-                source: serde_json::from_value(serde_json::to_value(row.source)?)?,
+                source: row.source,
                 target_instance_id: row.target_instance_id,
                 target: MaintenanceTarget {
                     template_id: target_template_id,
                     template_fingerprint: row.target_template_fingerprint,
                 },
                 stage: serde_json::from_value(serde_json::Value::String(row.stage))?,
-                progress: serde_json::from_value(serde_json::to_value(row.progress)?)?,
+                progress: row.progress,
                 task_projected_at: row.task_projected_at,
                 created_at: row.created_at,
                 updated_at: row.updated_at,
@@ -209,6 +227,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
             .map_err(|_| ComputerError::Unavailable)?;
         if row.task_tenant != crate::identity::task_tenant(&op.actor)?
             || op.source.kind() != source_kind
+            || op.source.lookup() != source_lookup
             || op.operation_id.as_uuid().get_version_num() != 7
             || [op.source_instance_id, op.target_instance_id]
                 .iter()
@@ -226,5 +245,26 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
         }
         op.validate_progress()?;
         Ok(op)
+    }
+}
+
+impl surrealdb::types::SurrealValue for MaintenanceSource {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Object
+    }
+    fn is_value(value: &surrealdb::types::Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        crate::storage_codec::native(crate::storage_codec::encode(&self))
+    }
+    fn from_value(
+        value: surrealdb::types::Value,
+    ) -> std::result::Result<Self, surrealdb::types::Error> {
+        let value: Self = crate::storage_codec::decode(value)?;
+        value
+            .validate()
+            .map_err(|_| surrealdb::types::Error::internal("invalid maintenance source".into()))?;
+        Ok(value)
     }
 }

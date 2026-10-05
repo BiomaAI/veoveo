@@ -1,1 +1,1 @@
-UPDATE computer_maintenance_resume SET input.expected_updated_at = 42 WHERE operation_id = $operation;
+UPDATE computer_maintenance_resume SET input.expectedUpdatedAt = 'invalid-timestamp' WHERE operation_id = $operation;

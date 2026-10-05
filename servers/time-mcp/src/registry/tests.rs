@@ -166,7 +166,7 @@ async fn stage(
                 source_id: source.source_id,
                 expected_source_digest_sha256: Some(release.source_digest_sha256.clone()),
                 status: TimeAcquisitionStatus::Succeeded,
-                phase: "staged".into(),
+                phase: crate::TimeAcquisitionPhase::Complete,
                 staged_release_id: Some(release.release_id.clone()),
                 message: "".into(),
                 created_at: now,

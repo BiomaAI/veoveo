@@ -76,7 +76,7 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
         acquisition.expected_source_digest_sha256 = Some(uppercase.source_digest_sha256.clone());
         acquisition.staged_release_id = None;
         acquisition.status = TimeAcquisitionStatus::Queued;
-        acquisition.phase = "queued".into();
+        acquisition.phase = crate::TimeAcquisitionPhase::Queued;
         let created = catalog
             .create_acquisition(&owner, acquisition.clone(), "digest-replay".into())
             .await

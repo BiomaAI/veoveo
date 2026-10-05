@@ -30,7 +30,7 @@ DEFINE FIELD OVERWRITE idempotency_key ON time_acquisition TYPE string PERMISSIO
 
 DEFINE FIELD OVERWRITE owner ON time_acquisition TYPE record<principal> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE phase ON time_acquisition TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE phase ON time_acquisition TYPE 'queued' | 'downloading' | 'validating' | 'complete' | 'cancelling' | 'cancelled' | 'failed' PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE record_version ON time_acquisition TYPE int PERMISSIONS FULL;
 

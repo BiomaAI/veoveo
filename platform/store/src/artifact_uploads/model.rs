@@ -6,6 +6,30 @@ use uuid::Uuid;
 
 use crate::{InvocationAuthorityRecord, PrincipalKind};
 
+/// Whole profile document with its Gateway-owned admitted policy lookup.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactUploadProfile {
+    pub document: crate::OpenObject,
+    pub profile_policy_version: veoveo_types::PolicyVersion,
+}
+impl SurrealValue for ArtifactUploadProfile {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Object
+    }
+    fn is_value(value: &surrealdb::types::Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        crate::json_value::into_surreal(serde_json::to_value(self).expect("typed upload profile"))
+    }
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::types::Error> {
+        serde_json::from_value(crate::json_value::from_surreal_json(value)?).map_err(|_| {
+            surrealdb::types::Error::internal("invalid upload profile metadata".into())
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct ArtifactUploadAuthorityVersion {
     pub control_plane_sha256: String,
@@ -179,4 +203,34 @@ pub fn artifact_storage_usage_id(tenant: crate::TenantId) -> RecordId {
         "artifact_storage_usage",
         surrealdb::types::Uuid::from(tenant.as_uuid()),
     )
+}
+
+#[cfg(test)]
+mod profile_tests {
+    use super::*;
+    #[test]
+    fn profile_metadata_preserves_json_and_rejects_native_control_values() {
+        let profile = ArtifactUploadProfile {
+            document: crate::OpenObject::new(std::collections::BTreeMap::from([
+                ("policy_version".into(), serde_json::json!("r1")),
+                (
+                    "metadata".into(),
+                    serde_json::json!({"number": u64::MAX, "null": null}),
+                ),
+            ])),
+            profile_policy_version: "r1".parse().unwrap(),
+        };
+        assert_eq!(
+            ArtifactUploadProfile::from_value(profile.clone().into_value()).unwrap(),
+            profile
+        );
+        let surrealdb::types::Value::Object(mut invalid) = profile.into_value() else {
+            panic!("profile object")
+        };
+        let surrealdb::types::Value::Object(document) = invalid.get_mut("document").unwrap() else {
+            panic!("profile document")
+        };
+        document.insert("policy_version", RecordId::new("policy", "r1").into_value());
+        assert!(ArtifactUploadProfile::from_value(invalid.into_value()).is_err());
+    }
 }

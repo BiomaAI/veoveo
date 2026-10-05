@@ -464,7 +464,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     source_id: source.source_id.clone(),
                     expected_source_digest_sha256: Some("a".repeat(64).parse().unwrap()),
                     status: TimeAcquisitionStatus::Queued,
-                    phase: "queued".into(),
+                    phase: crate::TimeAcquisitionPhase::Queued,
                     staged_release_id: Some(release.release_id.clone()),
                     message: "".into(),
                     created_at: now,
@@ -477,6 +477,32 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .unwrap();
         let record = RecordId::new("time_acquisition", acquisition.acquisition_id.to_string());
         let original = body(&db.a, &record).await;
+        for invalid in ["unknown", "staged", ""] {
+            let rejected =
+                db.a.client()
+                    .query(include_str!("../../tests/queries/merge_record.surql"))
+                    .bind(("record", record.clone()))
+                    .bind((
+                        "patch",
+                        BTreeMap::from([("phase".to_owned(), invalid.into_value())]),
+                    ))
+                    .await
+                    .unwrap()
+                    .check();
+            assert!(
+                rejected.is_err(),
+                "unknown acquisition phase must reject atomically"
+            );
+            assert_eq!(
+                catalog
+                    .acquisition(&owner, &acquisition.acquisition_id)
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                acquisition
+            );
+        }
+
         for (field, value) in [
             (
                 "acquisition_id",
@@ -537,14 +563,14 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         }
         let mut updated = acquisition.clone();
         updated.status = TimeAcquisitionStatus::Succeeded;
-        updated.phase = "complete".into();
+        updated.phase = crate::TimeAcquisitionPhase::Complete;
         let updated = catalog.update_acquisition(&owner, updated).await.unwrap();
         assert_eq!(updated.record_version.get(), 2);
         let other = TimeCatalog::new(db.a.clone());
         let mut left = updated.clone();
-        left.phase = "left".into();
+        left.phase = crate::TimeAcquisitionPhase::Downloading;
         let mut right = updated;
-        right.phase = "right".into();
+        right.phase = crate::TimeAcquisitionPhase::Validating;
         let (left, right) = tokio::join!(
             catalog.update_acquisition(&owner, left),
             other.update_acquisition(&owner, right),

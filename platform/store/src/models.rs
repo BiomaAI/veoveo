@@ -437,6 +437,8 @@ pub struct GatewayControlObjectRecord {
     pub object_kind: String,
     pub object_id: String,
     pub document: OpenObject,
+    #[surreal(wrap)]
+    pub profile_policy_version: Option<veoveo_types::PolicyVersion>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -446,6 +448,8 @@ pub struct GatewayControlObjectContent {
     pub object_kind: String,
     pub object_id: String,
     pub document: OpenObject,
+    #[surreal(wrap)]
+    pub profile_policy_version: Option<veoveo_types::PolicyVersion>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

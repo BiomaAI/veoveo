@@ -104,7 +104,7 @@ impl TimePersistence {
             &update.acquisition_key,
             "time-acquisition-",
         )?;
-        validate_text("phase", &update.phase, 128)?;
+
         validate_json(&update.canonical_json)?;
         if let Some(release) = &update.staged_release_key {
             validate_key("staged_release_key", release, "time-release-")?;
@@ -118,7 +118,7 @@ impl TimePersistence {
             ))
             .bind(("tenant", update.tenant_id.record_id()))
             .bind(("status", update.status))
-            .bind(("phase", update.phase))
+            .bind(("phase", update.phase.as_str().to_owned()))
             .bind(("staged", update.staged_release_key.map(String::from)))
             .bind(("canonical_json", update.canonical_json))
             .bind(("expected", update.expected_record_version.get() as i64))

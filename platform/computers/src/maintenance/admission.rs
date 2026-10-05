@@ -1,6 +1,5 @@
 use super::{
-    MaintenanceOperation, MaintenanceSource, MaintenanceTarget, model::MaintenanceRecord, object,
-    record,
+    MaintenanceOperation, MaintenanceSource, MaintenanceTarget, model::MaintenanceRecord, record,
 };
 use crate::task_references::MaintenanceReference;
 use crate::{
@@ -15,9 +14,7 @@ use std::{collections::BTreeSet, time::Duration};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::task_record_id;
-use veoveo_platform_store::{
-    OpenObject, deterministic_enterprise_id, gateway_refresh_family_record_id,
-};
+use veoveo_platform_store::{deterministic_enterprise_id, gateway_refresh_family_record_id};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
 
@@ -35,7 +32,9 @@ struct Content {
     source_instance_id: Uuid,
     source_template_id: String,
     source_template_fingerprint: String,
-    source: OpenObject,
+    source: MaintenanceSource,
+    source_resource_id: Option<String>,
+    source_process_id: Option<String>,
     #[surreal(wrap)]
     source_kind: super::model::MaintenanceSourceKind,
     target_instance_id: Uuid,
@@ -300,7 +299,9 @@ impl ComputersStore {
             source_template_id: computer.template_id.to_string(),
             source_template_fingerprint: computer.template_fingerprint.clone(),
             source_kind: source.kind(),
-            source: object(&source)?,
+            source_resource_id: source.lookup().0,
+            source_process_id: source.lookup().1,
+            source: source.clone(),
             target_instance_id: Uuid::now_v7(),
             target_template_id: target.template_id.to_string(),
             target_template_fingerprint: target.template_fingerprint.clone(),

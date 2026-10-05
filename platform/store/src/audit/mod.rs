@@ -12,7 +12,7 @@ mod delivery;
 mod indexing;
 mod maintenance;
 pub use codec::AuditContextRecord;
-use codec::{Document, Row, scalar};
+use codec::{DetailLookup, Document, Row, TargetLookup, scalar};
 const APPEND: &str = include_str!("../queries/audit/append.surql");
 const LIST: &str = include_str!("../queries/audit/list.surql");
 
@@ -76,6 +76,23 @@ fn encode(registry: &AuditTargetRegistry, draft: AuditDraft) -> Result<Value, St
         draft.actor().map(|a| a.principal.to_string()).into_value(),
     );
     row.insert("target_ref", target_reference(draft.target())?.into_value());
+    row.insert(
+        "profile_lookup",
+        draft
+            .authority()
+            .profile
+            .as_ref()
+            .map(|p| p.to_string())
+            .into_value(),
+    );
+    row.insert(
+        "target_lookup",
+        TargetLookup::new(draft.target()).into_value(),
+    );
+    row.insert(
+        "detail_lookup",
+        DetailLookup(draft.detail().clone()).into_value(),
+    );
     row.insert(
         "trace_id",
         draft.request().trace_id.to_string().into_value(),

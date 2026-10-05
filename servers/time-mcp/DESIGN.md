@@ -764,6 +764,14 @@ both proposed versions before dispatch. Retirement increments the previous relea
 inside that transaction with a positive, below-maximum version predicate; failure
 rolls back the candidate release and pointer together.
 
+### Acquisition Phases
+
+`TimeAcquisitionPhase` owns queued, downloading, validating, complete, cancelling,
+cancelled and failed spellings across the public contract, worker, driver and schema.
+The database rejects unknown phases before changing a row; contract-only consumers
+use the same vocabulary without database dependencies. Status and phase keep their
+separate transition responsibilities.
+
 ### Retained Catalog Metadata
 
 `catalog/records.rs` converts SQL-selected rows into public values. It checks each

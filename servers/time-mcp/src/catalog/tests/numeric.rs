@@ -155,7 +155,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
                     source_id: source.source_id,
                     expected_source_digest_sha256: None,
                     status: TimeAcquisitionStatus::Queued,
-                    phase: "queued".into(),
+                    phase: crate::TimeAcquisitionPhase::Queued,
                     staged_release_id: None,
                     message: "".into(),
                     created_at: now,
@@ -176,7 +176,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
         for version in [0, i64::MAX as u64, u64::MAX] {
             let mut wire = serde_json::to_value(&retained).unwrap();
             wire["record_version"] = version.into();
-            wire["phase"] = "changed".into();
+            wire["phase"] = "downloading".into();
             match serde_json::from_value::<TimeAcquisition>(wire) {
                 Ok(changed) => assert!(catalog.update_acquisition(&owner, changed).await.is_err()),
                 Err(_) => assert!(crate::TimeVersion::new(version).is_err()),

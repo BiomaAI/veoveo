@@ -1064,6 +1064,11 @@ edits. Replaying an installed lane preserves the existing head and its sequence.
 Client-facing geographic or temporal integrations imply no optional-module dependency.
 Kernel queries require their owners' APIs.
 
+Map projection recovery resolves retained tenant/context keys through
+`tenant_context_keys_v1`. Disabled authority keeps its immutable journal metadata
+available. An absent or mismatched relationship fails typed hydration of the indexed
+commit page and stops checkpoint advancement; recovery never skips such a commit.
+
 ## Persistence Observation
 
 The `schema` feature exposes closed `MapObservationTable` names. Runtime consumers

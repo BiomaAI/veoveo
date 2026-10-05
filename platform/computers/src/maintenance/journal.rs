@@ -1,5 +1,5 @@
 //! Task-lease guarded journal commits. Unknown database replies return no ticket.
-use super::{MaintenanceOperation, model::MaintenanceRecord, object, record};
+use super::{MaintenanceOperation, model::MaintenanceRecord, record};
 use crate::{ComputerError, ComputersStore, Result, current_authority::ExecutionPermit};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -20,6 +20,10 @@ impl ClockedMaintenance {
             .unwrap_or_default()
             .saturating_sub(self.read_started.elapsed())
     }
+}
+
+fn sealed_checkpoint_value(checkpoint: &crate::secrets::SealedMaintenanceCheckpoint) -> Value {
+    crate::storage_codec::native(crate::storage_codec::encode(checkpoint))
 }
 
 pub(super) struct JournalChange<'a> {
@@ -89,9 +93,10 @@ impl ComputersStore {
                 crate::model::computer_record(before.computer_id).into_value(),
             ),
             ("expected_updated_at", before.updated_at.into_value()),
-            ("expected_progress", object(&before.progress)?.into_value()),
+            ("expected_source", before.source.clone().into_value()),
+            ("expected_progress", before.progress.clone().into_value()),
             ("expected_stage", enum_value(before.stage)?),
-            ("progress", object(&after.progress)?.into_value()),
+            ("progress", after.progress.clone().into_value()),
             ("stage", enum_value(after.stage)?),
             ("computer_updated_at", computer.updated_at.into_value()),
             (
@@ -104,10 +109,13 @@ impl ComputersStore {
                 before.computer_id,
                 crate::audit::maintenance(after),
             )?,
-            ("policy", policy.map(object).transpose()?.into_value()),
+            ("policy", policy.cloned().into_value()),
             (
                 "checkpoint",
-                change.checkpoint.map(object).transpose()?.into_value(),
+                change
+                    .checkpoint
+                    .map(sealed_checkpoint_value)
+                    .unwrap_or(Value::None),
             ),
             (
                 "policy_record",
