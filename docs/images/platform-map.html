@@ -4907,12 +4907,17 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
   body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important; background-image: none !important; }
   #btn-theme, .preset-wrap, .reader-rail { display: none !important; }
   .container { max-width: none !important; }
+  html.veoveo-embedded, html.veoveo-embedded body { overflow: hidden !important; min-height: 0 !important; height: auto !important; }
+  html.veoveo-embedded .diagram-container { padding: 14px 14px 68px !important; }
   .diagram-container > svg .c-region { fill: rgba(116, 42, 152, 0.05) !important; stroke: #3A2F4F !important; }
 </style>
 <script>
   // The palette is fixed: pin Archify's state and drop its theme and style shortcuts.
   document.documentElement.setAttribute('data-theme', 'dark');
   document.documentElement.setAttribute('data-preset', 'classic');
+  // Embedded in the whitepaper, the frame takes the content height. The page never scrolls, and
+  // fixed padding replaces Archify's viewport-height rules, which would resize the frame in a loop.
+  if (window.self !== window.top) document.documentElement.classList.add('veoveo-embedded');
   addEventListener('keydown', (event) => {
     const typing = event.target.closest && event.target.closest('input, textarea, [contenteditable]');
     if (!typing && !event.metaKey && !event.ctrlKey && !event.altKey && /^[tTsS]$/.test(event.key)) {

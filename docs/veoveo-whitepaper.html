@@ -142,7 +142,11 @@
   section.platform-map { background: var(--dark); color: var(--dark-ink); padding: 0.8rem 16px 3rem; }
   .platform-map-inner { max-width: 72rem; margin: 0 auto; }
   .platform-map iframe { display: block; width: 100%; height: 64rem; border: 0; overflow: hidden; background: var(--dark); }
-  .platform-map .map-print { display: none; }
+  .platform-map .map-static { display: none; width: 100%; height: auto; }
+  @media screen and (max-width: 939px) {
+    .platform-map iframe { display: none; }
+    .platform-map .map-static { display: block; }
+  }
 
   /* ---------- abstract ---------- */
   .abstract { border-bottom: 1px solid var(--line); padding: 0.2rem 0 1rem; margin: 0 0 1.1rem; }
@@ -238,7 +242,7 @@
     }
     .platform-map-inner { max-width: none; height: 100%; display: flex; align-items: center; justify-content: center; }
     .platform-map iframe { display: none; }
-    .platform-map .map-print { display: block; width: 100%; height: auto; }
+    .platform-map .map-static { display: block; width: 100%; height: auto; }
 
     section.transcript { padding: 0.75in 0.8in; }
     .transcript-inner { max-width: none; }
@@ -299,24 +303,29 @@
 
 <section class="platform-map" aria-label="Veoveo platform map">
   <div class="platform-map-inner">
-    <iframe src="images/platform-map.html?theme=dark" title="Veoveo platform map" scrolling="no"></iframe>
-    <img class="map-print" src="images/platform-map-print.svg" width="1214" height="880" alt="Veoveo platform map: people, MCP clients and the agent kernel reach hosted servers through the gateway, and the gateway and the agent kernel keep state in the SurrealDB platform store.">
+    <iframe data-src="images/platform-map.html?theme=dark" title="Veoveo platform map" scrolling="no"></iframe>
+    <img class="map-static" src="images/platform-map-print.svg" width="1214" height="880" alt="Veoveo platform map: people, MCP clients and the agent kernel reach hosted servers through the gateway, and the gateway and the agent kernel keep state in the SurrealDB platform store.">
   </div>
   <script>
+    // Wide screens load the interactive viewer; narrow screens and print show the static map.
     // The frame takes the viewer's full height, so the map never clips or scrolls inside the page.
     (() => {
       const frame = document.querySelector(".platform-map iframe");
+      const wide = matchMedia("(min-width: 940px)");
       const fit = () => {
         const doc = frame.contentDocument;
-        const content = doc && doc.querySelector(".container");
+        const content = doc && doc.querySelector(".diagram-container");
         if (!content) return;
         const padding = parseFloat(getComputedStyle(doc.body).paddingBottom) || 0;
         frame.style.height = `${Math.ceil(content.getBoundingClientRect().bottom + padding)}px`;
       };
       frame.addEventListener("load", () => {
         fit();
-        new ResizeObserver(fit).observe(frame.contentDocument.querySelector(".container"));
+        new ResizeObserver(fit).observe(frame.contentDocument.querySelector(".diagram-container"));
       });
+      const load = () => { if (wide.matches && !frame.src) frame.src = frame.dataset.src; };
+      load();
+      wide.addEventListener("change", load);
     })();
   </script>
 </section>
