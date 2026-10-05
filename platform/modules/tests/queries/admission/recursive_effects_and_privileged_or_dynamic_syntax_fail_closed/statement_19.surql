@@ -1,0 +1,1 @@
+RETURN $value.link.foreign_field;

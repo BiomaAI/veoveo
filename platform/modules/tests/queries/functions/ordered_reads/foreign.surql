@@ -1,0 +1,4 @@
+DEFINE TABLE own SCHEMAFULL;
+DEFINE FUNCTION fn::own::ordered() -> array<object> {
+    RETURN SELECT * FROM own ORDER BY peer.id LIMIT 20;
+} PERMISSIONS FULL;

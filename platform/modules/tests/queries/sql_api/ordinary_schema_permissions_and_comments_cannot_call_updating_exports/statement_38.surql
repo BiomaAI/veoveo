@@ -1,0 +1,1 @@
+DEFINE TABLE consumer COMMENT fn::kernel::own::read_v1(own:x,'key');

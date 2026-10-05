@@ -1,0 +1,1 @@
+CREATE own CONTENT { nested: [{ bad: (DELETE foreign) }] };

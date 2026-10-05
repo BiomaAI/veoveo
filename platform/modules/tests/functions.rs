@@ -69,31 +69,73 @@ fn admitted(sql: &'static str) -> bool {
 #[test]
 fn local_calls_inspect_complete_callee_bodies_and_native_parameters() {
     for sql in [
-        "DEFINE FUNCTION fn::own::leaf($value: string) -> string { RETURN string::uppercase($value); }; DEFINE FUNCTION fn::own::caller($value: string) -> string { RETURN fn::own::leaf($value); }; RETURN fn::own::caller('value');",
-        "DEFINE FUNCTION fn::own::caller($value: string) -> string { RETURN fn::own::leaf($value); }; DEFINE FUNCTION fn::own::leaf($value: string) -> string { RETURN string::uppercase($value); }; RETURN fn::own::caller('value');",
-        "DEFINE FUNCTION fn::own::write($id: record<own>) -> bool { UPDATE ONLY $id SET value=1; RETURN true; }; fn::own::write(own:one);",
-        "DEFINE FUNCTION fn::own::read($input: object) -> bool { RETURN $input.enabled = true; }; RETURN fn::own::read({enabled:true});",
-        "DEFINE FUNCTION fn::own::read($rows: array<object>) { FOR $row IN $rows { LET $payload: object=$row.payload; RETURN $payload.enabled; }; };",
-        "DEFINE FUNCTION fn::own::read($input: any) -> bool { RETURN IF type::is_object($input) THEN $input.enabled=true ELSE false END; };",
-        "DEFINE TABLE own; DEFINE FIELD payload ON own TYPE object; DEFINE INDEX nested ON own FIELDS payload.key; DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; };",
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_1.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_2.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_3.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_4.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_5.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_6.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_7.surql"
+        ),
     ] {
         assert!(admitted(sql), "{sql}");
     }
     for sql in [
-        "DEFINE FUNCTION fn::own::write() { DELETE foreign; }; RETURN fn::own::write();",
-        "DEFINE FUNCTION fn::own::write() { UPDATE own SET nested=(DELETE foreign); };",
-        "DEFINE FUNCTION fn::own::leaf($value: string) -> bool { RETURN true; }; RETURN fn::own::leaf(<string>(DELETE own));",
-        "RETURN fn::own::future(); DEFINE FUNCTION fn::own::future() -> bool { RETURN true; };",
-        "DEFINE FUNCTION fn::own::caller() { RETURN fn::own::missing(); };",
-        "DEFINE FUNCTION fn::own::cycle() { RETURN fn::own::cycle(); };",
-        "DEFINE FUNCTION fn::own::first() { RETURN fn::own::second(); }; DEFINE FUNCTION fn::own::second() { RETURN fn::own::first(); };",
-        "DEFINE FUNCTION fn::own::read($input: any) { RETURN $input.link; };",
-        "DEFINE FUNCTION fn::own::read($input: object) { RETURN $input.link.secret; };",
-        "DEFINE FUNCTION fn::own::read($input: record<own>) { RETURN $input.secret; };",
-        "DEFINE FUNCTION fn::own::read($rows: array<record<own>>) { FOR $row IN $rows { RETURN $row.secret; }; };",
-        "DEFINE FUNCTION fn::own::read($rows: array<any>) { FOR $row IN $rows { RETURN $row.secret; }; };",
-        "DEFINE FUNCTION fn::own::read($input: object) { LET $payload: any=$input.payload; RETURN $payload.secret; };",
-        "RETURN string::len(<string>(DELETE own));",
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_8.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_9.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_10.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_11.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_12.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_13.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_14.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_15.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_16.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_17.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_18.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_19.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_20.surql"
+        ),
+        include_str!(
+            "queries/functions/local_calls_inspect_complete_callee_bodies_and_native_parameters/statement_21.surql"
+        ),
     ] {
         assert!(!admitted(sql), "{sql}");
     }
@@ -104,7 +146,9 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
         (
             ModuleLayer::Optional,
             ModuleLayer::Optional,
-            "DEFINE FUNCTION fn::base::read() -> bool { RETURN (SELECT * FROM base) != []; };",
+            include_str!(
+                "queries/functions/optional_calls_require_readonly_callees_and_introducing_minimum/statement_22.surql"
+            ),
             true,
             true,
             true,
@@ -112,7 +156,9 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
         (
             ModuleLayer::Optional,
             ModuleLayer::Optional,
-            "DEFINE FUNCTION fn::base::read() -> bool { DELETE base; RETURN true; };",
+            include_str!(
+                "queries/functions/optional_calls_require_readonly_callees_and_introducing_minimum/statement_23.surql"
+            ),
             true,
             true,
             false,
@@ -120,7 +166,9 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
         (
             ModuleLayer::Optional,
             ModuleLayer::Optional,
-            "DEFINE FUNCTION fn::base::read() -> bool { RETURN true; };",
+            include_str!(
+                "queries/functions/optional_calls_require_readonly_callees_and_introducing_minimum/statement_24.surql"
+            ),
             false,
             false,
             false,
@@ -128,7 +176,9 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
         (
             ModuleLayer::Optional,
             ModuleLayer::Optional,
-            "DEFINE FUNCTION fn::base::read() -> bool { RETURN true; };",
+            include_str!(
+                "queries/functions/optional_calls_require_readonly_callees_and_introducing_minimum/statement_25.surql"
+            ),
             true,
             false,
             false,
@@ -136,7 +186,9 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
         (
             ModuleLayer::Kernel,
             ModuleLayer::Optional,
-            "DEFINE FUNCTION fn::base::read() -> bool { RETURN true; };",
+            include_str!(
+                "queries/functions/optional_calls_require_readonly_callees_and_introducing_minimum/statement_26.surql"
+            ),
             true,
             true,
             false,
@@ -150,7 +202,9 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
         let consumer = module(
             "consumer",
             consumer_layer,
-            vec!["RETURN fn::base::read();"],
+            vec![include_str!(
+                "queries/functions/optional_calls_require_readonly_callees_and_introducing_minimum/statement_27.surql"
+            )],
             if minimum {
                 vec![requirement.clone()]
             } else {
@@ -185,53 +239,99 @@ fn optional_calls_require_readonly_callees_and_introducing_minimum() {
 #[test]
 fn surviving_readonly_children_reject_writer_overwrites_and_removals() {
     for middle in [
-        "DEFINE TABLE own PERMISSIONS FOR select WHERE fn::own::leaf();",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE bool ASSERT fn::own::leaf();",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE bool VALUE fn::own::leaf();",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE bool DEFAULT fn::own::leaf();",
-        "DEFINE TABLE own; DEFINE EVENT event ON own WHEN fn::own::leaf() THEN true;",
-        "DEFINE FUNCTION fn::own::caller() -> bool { RETURN fn::own::leaf(); } PERMISSIONS WHERE fn::own::leaf();",
-        "DEFINE FUNCTION fn::own::caller() -> bool { RETURN fn::own::leaf(); };",
-        "DEFINE TABLE own; DEFINE EVENT event ON own WHEN true THEN fn::own::leaf();",
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_28.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_29.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_30.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_31.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_32.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_33.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_34.surql"
+        ),
+        include_str!(
+            "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_35.surql"
+        ),
     ] {
-        let sql = Box::leak(format!("DEFINE FUNCTION fn::own::leaf() -> bool {{ RETURN true; }}; {middle} DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool {{ UPDATE own SET value=1; RETURN true; }};").into_boxed_str());
+        let sql = Box::leak(format!(include_str!("queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_36.surql"), middle = middle).into_boxed_str());
         assert!(!admitted(sql), "surviving readonly caller: {sql}");
     }
-    assert!(!admitted(
-        "DEFINE FUNCTION fn::own::leaf() { RETURN true; }; DEFINE FUNCTION fn::own::caller() { RETURN fn::own::leaf(); }; REMOVE FUNCTION fn::own::leaf;"
-    ));
-    assert!(admitted(
-        "DEFINE FUNCTION fn::own::leaf() { RETURN true; }; DEFINE FUNCTION fn::own::caller() { RETURN fn::own::leaf(); }; REMOVE FUNCTION fn::own::caller; REMOVE FUNCTION fn::own::leaf;"
-    ));
-    assert!(admitted(
-        "DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own PERMISSIONS FOR select WHERE fn::own::leaf(); DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { RETURN false; };"
-    ));
-    assert!(!admitted(
-        "DEFINE FUNCTION fn::own::caller() { RETURN fn::own::leaf(); }; RETURN fn::own::caller(); DEFINE FUNCTION fn::own::leaf() { RETURN true; };"
-    ));
+    assert!(!admitted(include_str!(
+        "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_37.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_38.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_39.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/functions/surviving_readonly_children_reject_writer_overwrites_and_removals/statement_40.surql"
+    )));
 }
 #[test]
 fn scalar_children_and_owned_views_keep_reads_and_mutations_separate() {
     for sql in [
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE array<string> VALUE $value.distinct() ASSERT $value.all(|$item: any| string::len($item)>0);",
-        "DEFINE TABLE own; DEFINE FIELD digest ON own TYPE string ASSERT $value.len() = 64;",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE uuid ASSERT $value != $this.previous;",
-        "DEFINE TABLE own_daily TYPE ANY SCHEMALESS AS SELECT state, count() AS count FROM own GROUP BY state;",
-        "DEFINE FUNCTION fn::own::read($id: record<own>) -> bool { RETURN record::exists($id); };",
-        "DEFINE FUNCTION fn::own::write() { LET $id: record<own> = type::record('own', ['part', 1]); CREATE ONLY $id; };",
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_41.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_42.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_43.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_44.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_45.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_46.surql"
+        ),
     ] {
         assert!(admitted(sql), "{sql}");
     }
     for sql in [
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE array<string> ASSERT $value.all(|$item: any| (DELETE own));",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE record VALUE $value.secret;",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE string ASSERT $this.link.secret = $value;",
-        "DEFINE TABLE own_daily TYPE ANY SCHEMALESS AS SELECT count((DELETE own)) AS count FROM own GROUP ALL;",
-        "DEFINE TABLE own_daily TYPE ANY SCHEMALESS AS SELECT count() AS count FROM foreign GROUP ALL;",
-        "DEFINE TABLE own; DEFINE FIELD value ON own TYPE record ASSERT record::exists($value);",
-        "DEFINE FUNCTION fn::own::read($value: object) { RETURN record::exists($value.target); };",
-        "DEFINE FUNCTION fn::own::read($id: record<own>) { RETURN record::exists(foreign:one); };",
-        "DEFINE FUNCTION fn::own::read($name: string) { LET $id: record<own> = type::record($name, 'id'); RETURN record::exists($id); };",
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_47.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_48.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_49.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_50.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_51.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_52.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_53.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_54.surql"
+        ),
+        include_str!(
+            "queries/functions/scalar_children_and_owned_views_keep_reads_and_mutations_separate/statement_55.surql"
+        ),
     ] {
         assert!(!admitted(sql), "{sql}");
     }
@@ -239,32 +339,38 @@ fn scalar_children_and_owned_views_keep_reads_and_mutations_separate() {
 
 #[test]
 fn altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers() {
-    assert!(!admitted(
-        "DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own; ALTER TABLE own PERMISSIONS FOR select WHERE fn::own::leaf(); DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { UPDATE own SET state='changed'; RETURN true; };"
-    ));
-    assert!(!admitted(
-        "DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own; ALTER TABLE own PERMISSIONS FOR select WHERE fn::own::leaf(); REMOVE FUNCTION fn::own::leaf;"
-    ));
-    assert!(admitted(
-        "DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own PERMISSIONS FOR select WHERE fn::own::leaf(); ALTER TABLE own PERMISSIONS NONE; DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { UPDATE own SET state='changed'; RETURN true; };"
-    ));
+    assert!(!admitted(include_str!(
+        "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_56.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_57.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_58.surql"
+    )));
     for middle in [
-        "DEFINE TABLE own PERMISSIONS FOR select WHERE fn::own::leaf(); DEFINE TABLE IF NOT EXISTS own PERMISSIONS FULL;",
-        "DEFINE TABLE own; DEFINE FIELD state ON own TYPE bool ASSERT fn::own::leaf(); DEFINE FIELD IF NOT EXISTS state ON own TYPE bool;",
-        "DEFINE TABLE own; DEFINE EVENT event ON own WHEN fn::own::leaf() THEN true; DEFINE EVENT IF NOT EXISTS event ON own WHEN true THEN true;",
+        include_str!(
+            "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_59.surql"
+        ),
+        include_str!(
+            "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_60.surql"
+        ),
+        include_str!(
+            "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_61.surql"
+        ),
     ] {
-        let sql = Box::leak(format!("DEFINE FUNCTION fn::own::leaf() -> bool {{ RETURN true; }}; {middle} DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool {{ UPDATE own SET state=true; RETURN true; }};").into_boxed_str());
+        let sql = Box::leak(format!(include_str!("queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_62.surql"), middle = middle).into_boxed_str());
         assert!(
             !admitted(sql),
             "conditional definition cannot erase stored callback: {sql}"
         );
     }
-    assert!(!admitted(
-        "DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own; DEFINE INDEX counter ON own COUNT WHERE fn::own::leaf(); DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { UPDATE own SET state=true; RETURN true; };"
-    ));
-    assert!(admitted(
-        "DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own; DEFINE INDEX counter ON own COUNT WHERE fn::own::leaf(); REMOVE INDEX counter ON own; DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { UPDATE own SET state=true; RETURN true; };"
-    ));
+    assert!(!admitted(include_str!(
+        "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_63.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/functions/altered_permissions_and_conditional_definitions_cannot_hide_surviving_callers/statement_64.surql"
+    )));
 }
 
 #[test]
@@ -277,17 +383,21 @@ fn optional_minimum_tracks_introduction_across_safe_overwrites() {
         "base",
         ModuleLayer::Optional,
         vec![
-            "DEFINE FUNCTION fn::base::read() -> bool { RETURN true; };",
-            "DEFINE FUNCTION OVERWRITE fn::base::read() -> bool { RETURN false; };",
+            include_str!(
+                "queries/functions/optional_minimum_tracks_introduction_across_safe_overwrites/statement_65.surql"
+            ),
+            include_str!(
+                "queries/functions/optional_minimum_tracks_introduction_across_safe_overwrites/statement_66.surql"
+            ),
         ],
         vec![],
     );
     let consumer = module(
         "consumer",
         ModuleLayer::Optional,
-        vec![
-            "DEFINE FUNCTION fn::consumer::read() -> bool { RETURN fn::base::read(); }; RETURN fn::consumer::read();",
-        ],
+        vec![include_str!(
+            "queries/functions/optional_minimum_tracks_introduction_across_safe_overwrites/statement_67.surql"
+        )],
         vec![requirement],
     );
     let registry = ModuleRegistry::new(vec![base, consumer]).unwrap();
@@ -297,4 +407,22 @@ fn optional_minimum_tracks_introduction_across_safe_overwrites() {
             .unwrap(),
     )
     .unwrap();
+}
+
+#[test]
+fn ordered_reads_inspect_every_key_and_preserve_readonly_contexts() {
+    assert!(admitted(include_str!(
+        "queries/functions/ordered_reads/valid.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/functions/ordered_reads/field_object.surql"
+    )));
+    for invalid in [
+        include_str!("queries/functions/ordered_reads/field_record.surql"),
+        include_str!("queries/functions/ordered_reads/builtin_mutation.surql"),
+        include_str!("queries/functions/ordered_reads/foreign.surql"),
+        include_str!("queries/functions/ordered_reads/mutation.surql"),
+    ] {
+        assert!(!admitted(invalid));
+    }
 }

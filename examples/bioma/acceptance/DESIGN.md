@@ -35,6 +35,13 @@ before taking the targeted export. Each physical volume must use `Retain`.
 `pilot_recovery` restores each archive into a disposable directory on the same node
 and compares contents, permissions, ownership, timestamps and links.
 
+Acceptance statements live under each source owner's `queries/` directory. The
+cutover restore transaction binds its record collection and creates every record
+before commit. Consolidation restores each record through bound identity and content.
+The private `records-restore.surql` artifact serializes native record values into
+file-backed SQL templates for operator recovery; the rehearsal executes the bound
+transaction and compares the restored records with the exported before-images.
+
 The record rehearsal reads the installation through native database credentials,
 exports only the referenced records and vehicle grants, then restores them into an
 isolated database. It exercises atomic adoption and rejects a retry after a managed

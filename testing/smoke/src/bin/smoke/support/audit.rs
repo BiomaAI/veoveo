@@ -40,45 +40,33 @@ pub(crate) enum SmokeAuditSelection {
 }
 
 impl SmokeAuditSelection {
-    fn predicate(&self) -> &'static str {
+    fn query(&self) -> &'static str {
         match self {
-            Self::Class(_) => "class = $selection.value",
-            Self::Read(_) => {
-                "draft.detail.kind = 'read' AND draft.detail.method = $selection.value"
-            }
-            Self::Discovery(_) => {
-                "draft.detail.kind = 'discovery' AND draft.detail.collection = $selection.value"
-            }
+            Self::Class(_) => include_str!("../queries/audit/count_class.surql"),
+            Self::Read(_) => include_str!("../queries/audit/count_read.surql"),
+            Self::Discovery(_) => include_str!("../queries/audit/count_discovery.surql"),
             Self::DiscoveryDenials { .. } => {
-                "draft.detail.kind = 'discovery' AND draft.detail.collection = $selection.value.collection AND draft.detail.denied = $selection.value.denied"
+                include_str!("../queries/audit/count_discovery_denials.surql")
             }
-            Self::ToolAdmission => "draft.detail.kind = 'tool_admission'",
-            Self::ToolCompletion => "draft.detail.kind = 'tool_completion'",
-            Self::Task(_) => {
-                "draft.detail.kind = 'task' AND draft.detail.activity = $selection.value"
-            }
+            Self::ToolAdmission => include_str!("../queries/audit/count_tool_admission.surql"),
+            Self::ToolCompletion => include_str!("../queries/audit/count_tool_completion.surql"),
+            Self::Task(_) => include_str!("../queries/audit/count_task.surql"),
             Self::AuthenticationMethod(_) => {
-                "draft.detail.kind = 'authentication' AND draft.detail.method = $selection.value"
+                include_str!("../queries/audit/count_authentication_method.surql")
             }
             Self::AuthenticationReason(_) => {
-                "draft.detail.kind = 'authentication' AND draft.detail.reason = $selection.value"
+                include_str!("../queries/audit/count_authentication_reason.surql")
             }
-            Self::Reason(_) => "draft.reason = $selection.value",
-            Self::AdminAdmission(_) => {
-                "draft.detail.kind = 'admin_admission' AND draft.detail.operation = $selection.value"
-            }
+            Self::Reason(_) => include_str!("../queries/audit/count_reason.surql"),
+            Self::AdminAdmission(_) => include_str!("../queries/audit/count_admin_admission.surql"),
             Self::AdminCompletion(_) => {
-                "draft.detail.kind = 'admin_completion' AND draft.detail.operation = $selection.value"
+                include_str!("../queries/audit/count_admin_completion.surql")
             }
-            Self::ActorKind { .. } => {
-                "class = $selection.value.class AND draft.actor.kind = $selection.value.kind"
-            }
+            Self::ActorKind { .. } => include_str!("../queries/audit/count_actor_kind.surql"),
             Self::DelegatedActor { .. } => {
-                "class = $selection.value.class AND draft.actor.kind = 'service' AND draft.actor.principal = $selection.value.actor AND draft.actor.delegating_principal = $selection.value.delegator AND draft.actor.oauth_client = $selection.value.client"
+                include_str!("../queries/audit/count_delegated_actor.surql")
             }
-            Self::DataLabel { .. } => {
-                "class = $selection.value.class AND $selection.value.label IN draft.authority.data_labels"
-            }
+            Self::DataLabel { .. } => include_str!("../queries/audit/count_data_label.surql"),
         }
     }
 }
@@ -133,10 +121,7 @@ impl SmokeAudit {
                 let mut response = self
                     .store
                     .client()
-                    .query(
-                        include_str!("../queries/audit/count.surql")
-                            .replace("/* activity */ true", selection.predicate()),
-                    )
+                    .query(selection.query())
                     .bind(("partition", partition.storage_key()))
                     .bind(("selection", serde_json::to_value(selection)?))
                     .bind(("outcome", outcome.map(serde_json::to_value).transpose()?))

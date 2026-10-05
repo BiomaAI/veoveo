@@ -1,0 +1,1 @@
+DEFINE TABLE consumer COMMENT (UPDATE consumer SET value=1);

@@ -27,7 +27,7 @@ fn migration(version: u32, requirements: Vec<LaneRequirement>) -> Migration {
     Migration::new(
         MigrationVersion::new(version),
         MigrationName::new(format!("step_{version}")).unwrap(),
-        "RETURN 1;",
+        include_str!("queries/declarations/migration/statement_1.surql"),
     )
     .unwrap()
     .with_requirements(requirements)

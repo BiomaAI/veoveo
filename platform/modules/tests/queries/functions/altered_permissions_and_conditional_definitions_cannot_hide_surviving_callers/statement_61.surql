@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE EVENT event ON own WHEN fn::own::leaf() THEN true; DEFINE EVENT IF NOT EXISTS event ON own WHEN true THEN true;

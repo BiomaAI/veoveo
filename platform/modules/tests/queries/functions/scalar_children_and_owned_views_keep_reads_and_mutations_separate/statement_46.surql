@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::write() { LET $id: record<own> = type::record('own', ['part', 1]); CREATE ONLY $id; };

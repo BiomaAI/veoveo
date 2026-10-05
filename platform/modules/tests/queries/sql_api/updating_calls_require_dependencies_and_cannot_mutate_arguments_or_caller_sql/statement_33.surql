@@ -1,0 +1,1 @@
+RETURN fn::kernel::own::read_v1(own:x,<string>(UPDATE consumer SET value=1));

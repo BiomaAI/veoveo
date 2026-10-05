@@ -1,0 +1,1 @@
+DEFINE TABLE own_daily TYPE ANY SCHEMALESS AS SELECT state, count() AS count FROM own GROUP BY state;

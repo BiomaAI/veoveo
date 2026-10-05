@@ -1,0 +1,1 @@
+RETURN fn::own::future(); DEFINE FUNCTION fn::own::future() -> bool { RETURN true; };

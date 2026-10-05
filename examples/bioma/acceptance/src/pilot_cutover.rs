@@ -99,7 +99,7 @@ pub async fn adopt(store: &PlatformStore, entries: &[PilotAdoption]) -> Result<V
     validate(entries)?;
     let mut result = store
         .client()
-        .query(include_str!("pilot_cutover.surql"))
+        .query(include_str!("queries/pilot_cutover.surql"))
         .bind(("entries", stored_fields(entries.to_vec().into_value())))
         .await?
         .check()?;

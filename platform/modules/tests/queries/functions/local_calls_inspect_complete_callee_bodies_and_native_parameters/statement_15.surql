@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::read($input: any) { RETURN $input.link; };

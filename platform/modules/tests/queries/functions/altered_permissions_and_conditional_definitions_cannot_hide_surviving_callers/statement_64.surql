@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own; DEFINE INDEX counter ON own COUNT WHERE fn::own::leaf(); REMOVE INDEX counter ON own; DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { UPDATE own SET state=true; RETURN true; };

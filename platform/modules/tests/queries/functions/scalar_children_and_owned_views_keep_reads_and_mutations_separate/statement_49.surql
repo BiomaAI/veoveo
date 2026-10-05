@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD value ON own TYPE string ASSERT $this.link.secret = $value;

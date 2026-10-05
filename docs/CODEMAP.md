@@ -651,11 +651,11 @@ Domain runtimes can own private queries and driver records over these connection
 | `platform/recordings/store/src/recording_catalog/access.rs` and `platform/recordings/store/src/recording_catalog/grants.rs` | shared typed caller authority, checked grant selections, transactional creation, SQL reuse and Redap class admission |
 | `platform/recordings/store/src/recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
 | `administration.rs` | explicit database-scoped runtime credential administration; connection startup applies no schema |
-| `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
+| `identity.rs`, `queries/identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
-| `artifacts/reads.rs`, `artifacts/read_admission.surql` and `artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission; shared predicate and scope bindings let domain readers join readable results before decoding and page limits |
-| `artifacts/publication.rs` and `artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
+| `artifacts/reads.rs`, `queries/artifacts/read_admission.surql` and `queries/artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission; shared predicate and scope bindings let domain readers join readable results before decoding and page limits |
+| `artifacts/publication.rs` and `queries/artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |
 | `artifact_uploads/lifecycle.rs` and `artifact_uploads/publication.rs` | fenced initialization/finalization, manifest freeze, atomic occurrence and receipt publication, cancellation, and retained cleanup accounting |
@@ -669,7 +669,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `platform/recordings/store/src/recording_ingest.rs`, `platform/recordings/store/src/recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, UAV and Knowledge resource observation |
-| `identity.rs`, `identity_enabled.surql` | current principal, tenant and enterprise admission with typed issuer/subject bindings |
+| `identity.rs`, `queries/identity_enabled.surql` | current principal, tenant and enterprise admission with typed issuer/subject bindings |
 | `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, atomic catalog replacement against current control authority, coordinator leases and collection/member epochs, conditional chunk reuse, SQL catalog completion and caller-visible statistics, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
 | `tests/knowledge/bulk.rs` | maximum-size member vectors over the default Store connection and rollback after a rejected bulk replacement |
 | `agents/runtime/src/persistence/revision.rs` and `queries/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
@@ -1682,7 +1682,7 @@ dispatch preflights and budgeted execution.
 | `testing/smoke/src/bin/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
 | `testing/smoke/src/bin/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
-| `testing/smoke/src/bin/smoke/support/audit.rs` and `audit_count.surql` | fixture-partition SQL assertions over typed audit activities and public scoped CLI checks |
+| `testing/smoke/src/bin/smoke/support/audit.rs` and `queries/audit/` | fixture-partition SQL assertions over typed audit activities, complete query variants and public scoped CLI checks |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
 

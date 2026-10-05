@@ -1,0 +1,1 @@
+DEFINE TABLE own PERMISSIONS FOR select WHERE fn::own::leaf();

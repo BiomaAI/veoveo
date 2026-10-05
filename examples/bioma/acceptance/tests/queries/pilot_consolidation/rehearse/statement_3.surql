@@ -1,0 +1,1 @@
+CREATE ONLY $definition.id CONTENT $definition; CREATE ONLY $revision.id CONTENT $revision;

@@ -38,13 +38,13 @@ impl DatabaseEditorCredentials {
         }
         Ok(Self { username, password })
     }
+    pub(crate) fn username(&self) -> &str {
+        &self.username
+    }
     pub(crate) fn statement(&self) -> String {
         let literal =
             serde_json::to_string(&self.password).expect("string serialization cannot fail");
-        format!(
-            "DEFINE USER OVERWRITE `{}` ON DATABASE PASSWORD {literal} ROLES EDITOR;",
-            self.username
-        )
+        include_str!("../../queries/preparation_editor.surql").replace("{literal}", &literal)
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize, SurrealValue)]

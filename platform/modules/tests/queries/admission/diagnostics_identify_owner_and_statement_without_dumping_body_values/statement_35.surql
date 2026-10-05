@@ -1,0 +1,1 @@
+CREATE foreign CONTENT { token: 'distinctive-secret-value' };

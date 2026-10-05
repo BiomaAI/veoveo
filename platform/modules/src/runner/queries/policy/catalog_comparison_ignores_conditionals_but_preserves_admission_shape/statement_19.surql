@@ -1,0 +1,1 @@
+DEFINE TABLE history; DELETE history;

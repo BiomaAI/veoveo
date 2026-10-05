@@ -44,17 +44,16 @@ pub fn private_write(path: PathBuf, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 pub async fn retained_records(store: &PlatformStore) -> Result<Vec<Value>> {
-    let mut result = store.client().query(r#"
-        LET $instances = SELECT * FROM managed_agent WHERE tenant = $tenant AND key IN $keys;
-        LET $ids = array::distinct(array::flatten($instances.map(|$i| [$i.id, $i.operation, $i.definition,
-            $i.requested_revision, $i.principal, $i.owner, $i.tenant, $i.work_context])));
-        SELECT * FROM $ids;
-        SELECT * FROM agent WHERE tenant = $tenant AND agent_key IN $keys;
-        SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND principal_key IN $principals;
-        SELECT * FROM agent_definition WHERE tenant = $tenant AND key IN $keys;
-        SELECT * FROM agent_definition_revision WHERE definition.tenant = $tenant AND definition.key IN $keys;
-    "#).bind(("tenant", deterministic_tenant_id("bioma")?.record_id()))
-        .bind(("keys", keys())).bind(("principals", principals())).await?.check()?;
+    let mut result = store
+        .client()
+        .query(include_str!(
+            "queries/support/retained_records/statement_1.surql"
+        ))
+        .bind(("tenant", deterministic_tenant_id("bioma")?.record_id()))
+        .bind(("keys", keys()))
+        .bind(("principals", principals()))
+        .await?
+        .check()?;
     let mut records: Vec<Value> = result.take(2)?;
     records.extend(result.take::<Vec<Value>>(3)?);
     records.extend(result.take::<Vec<Value>>(4)?);
@@ -66,12 +65,16 @@ pub async fn retained_records(store: &PlatformStore) -> Result<Vec<Value>> {
     Ok(records)
 }
 pub async fn protected_records(store: &PlatformStore) -> Result<Vec<Value>> {
-    let mut result = store.client().query(r#"
-        SELECT * FROM principal WHERE id IN (SELECT VALUE principal FROM managed_agent WHERE tenant = $tenant AND key IN $keys);
-        SELECT * FROM agent WHERE tenant = $tenant AND agent_key IN $keys;
-        SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND principal_key IN $principals;
-    "#).bind(("tenant", deterministic_tenant_id("bioma")?.record_id()))
-        .bind(("keys", keys())).bind(("principals", principals())).await?.check()?;
+    let mut result = store
+        .client()
+        .query(include_str!(
+            "queries/support/protected_records/statement_2.surql"
+        ))
+        .bind(("tenant", deterministic_tenant_id("bioma")?.record_id()))
+        .bind(("keys", keys()))
+        .bind(("principals", principals()))
+        .await?
+        .check()?;
     let mut records: Vec<Value> = result.take(0)?;
     records.extend(result.take::<Vec<Value>>(1)?);
     records.extend(result.take::<Vec<Value>>(2)?);

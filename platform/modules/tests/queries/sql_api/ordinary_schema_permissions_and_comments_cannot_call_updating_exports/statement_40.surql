@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::consumer() { RETURN true; } COMMENT fn::kernel::own::read_v1(own:x,'key');

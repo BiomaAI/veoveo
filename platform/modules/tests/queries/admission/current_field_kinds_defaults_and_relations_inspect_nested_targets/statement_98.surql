@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD id ON own TYPE uuid DEFAULT rand::uuid();

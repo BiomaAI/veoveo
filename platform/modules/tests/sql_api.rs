@@ -2,7 +2,7 @@
 #![cfg(feature = "runner")]
 use veoveo_modules::runner::prepare;
 use veoveo_modules::*;
-const SAFE: &str = "DEFINE FUNCTION fn::kernel::own::read_v1($id: record<own>, $key: string) -> option<object> { LET $rows = SELECT * FROM own WHERE id=$id LIMIT 1; LET $row = array::first($rows); RETURN IF type::is_object($row) THEN { LET $payload=$row.payload; RETURN IF type::is_object($payload) THEN { RETURN IF $payload.key=$key THEN {key:$payload.key} ELSE NONE END; } ELSE NONE END; } ELSE NONE END; } PERMISSIONS FULL;";
+const SAFE: &str = include_str!("queries/sql_api/declarations/statement_1.surql");
 fn host() -> LaneExecution {
     LaneExecution::new(
         ExecutionImage::new("fixture").unwrap(),
@@ -132,43 +132,64 @@ fn caller(sql: &'static str, minimum: bool, dependency: bool) -> ModuleSetup {
 }
 #[test]
 fn exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments() {
-    let valid = "LET $id: record<own> = own:x; RETURN fn::kernel::own::read_v1($id,'key');";
+    let valid = include_str!(
+        "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_2.surql"
+    );
     for (sql, minimum, dependency, expected) in [
         (valid, true, true, true),
         (valid, false, true, false),
         (
-            "RETURN fn::kernel::own::read_v1(own:x,'key');",
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_3.surql"
+            ),
             false,
             false,
             false,
         ),
         (
-            "RETURN fn::kernel::own::read_v2(own:x,'key');",
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_4.surql"
+            ),
             true,
             true,
             false,
         ),
         (
-            "RETURN fn::kernel::own::read_v1({id:own:x},'key');",
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_5.surql"
+            ),
             true,
             true,
             false,
         ),
         (
-            "RETURN fn::kernel::own::read_v1(consumer:x,'key');",
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_6.surql"
+            ),
             true,
             true,
             false,
         ),
         (
-            "RETURN fn::kernel::own::read_v1($untyped,'key');",
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_7.surql"
+            ),
             true,
             true,
             false,
         ),
-        ("RETURN fn::kernel::own::read_v1(own:x);", true, true, false),
         (
-            "RETURN fn::kernel::own::read_v1(own:x,(DELETE consumer));",
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_8.surql"
+            ),
+            true,
+            true,
+            false,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/exact_api_calls_require_dependency_minimum_signature_and_all_safe_arguments/statement_9.surql"
+            ),
             true,
             true,
             false,
@@ -196,7 +217,7 @@ fn declared_signature_and_introduction_cannot_substitute_a_different_definition(
                 Migration::new(
                     MigrationVersion::new(0),
                     MigrationName::new("api").unwrap(),
-                    "DEFINE TABLE own;",
+                    include_str!("queries/sql_api/declared_signature_and_introduction_cannot_substitute_a_different_definition/statement_10.surql"),
                 )
                 .unwrap(),
             ])
@@ -263,7 +284,9 @@ fn ownership_is_reused_without_an_execution_host_and_rejects_overlap() {
     );
 }
 
-const UPDATE_API: &str = "DEFINE FUNCTION fn::kernel::own::read_v1($id: record<own>, $key: string) -> option<object> { LET $rows = SELECT * FROM $id; LET $row = array::first($rows); RETURN IF type::is_object($row) THEN { UPDATE ONLY $id SET payload = {key:$key} RETURN NONE; RETURN {key:$key}; } ELSE NONE END; } PERMISSIONS FULL;";
+const UPDATE_API: &str = include_str!(
+    "queries/sql_api/ownership_is_reused_without_an_execution_host_and_rejects_overlap/statement_11.surql"
+);
 fn updating_kernel(sql: &'static str, effects: SqlEffectProfile) -> ModuleSetup {
     let owner = kernel(sql);
     ModuleSetup::builder(owner.name().clone(), owner.layer())
@@ -304,23 +327,57 @@ fn owned_update_profile_admits_only_declared_set_fields() {
     let registry = ModuleRegistry::new(vec![kernel(UPDATE_API)]).unwrap();
     assert!(prepare(registry.select(vec![]).unwrap()).is_err());
     for replacement in [
-        "UPDATE ONLY $id SET other = {key:$key} RETURN NONE",
-        "UPDATE ONLY $id SET payload.key = $key RETURN NONE",
-        "UPDATE ONLY $id SET payload.* = $key RETURN NONE",
-        "UPDATE ONLY $id CONTENT {payload:{key:$key}} RETURN NONE",
-        "UPDATE ONLY $id MERGE {payload:{key:$key}} RETURN NONE",
-        "UPDATE ONLY $id UNSET payload RETURN NONE",
-        "UPDATE foreign SET payload = {key:$key} RETURN NONE",
-        "UPDATE own_other SET payload = {key:$key} RETURN NONE",
-        "UPDATE $unknown SET payload = {key:$key} RETURN NONE",
-        "CREATE own CONTENT {payload:{key:$key}}",
-        "DELETE $id",
-        "DEFINE FIELD payload ON own TYPE object",
-        "ALTER TABLE own SCHEMAFULL",
-        "REMOVE TABLE own",
-        "UPDATE ONLY $id SET payload = (DELETE own) RETURN NONE",
-        "UPDATE ONLY $id SET payload = (SELECT * FROM foreign) RETURN NONE",
-        "UPDATE ONLY $id SET payload = fn::kernel::own::read_v1($id,$key) RETURN NONE",
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_12.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_13.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_14.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_15.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_16.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_17.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_18.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_19.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_20.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_21.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_22.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_23.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_24.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_25.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_26.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_27.surql"
+        ),
+        include_str!(
+            "queries/sql_api/owned_update_profile_admits_only_declared_set_fields/statement_28.surql"
+        ),
     ] {
         let sql = UPDATE_API.replace(
             "UPDATE ONLY $id SET payload = {key:$key} RETURN NONE",
@@ -347,32 +404,49 @@ fn owned_update_profile_admits_only_declared_set_fields() {
 fn updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql() {
     for (sql, minimum, dependency, expected) in [
         (
-            "RETURN fn::kernel::own::read_v1(own:x,'key');",
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_29.surql"
+            ),
             true,
             true,
             true,
         ),
         (
-            "RETURN fn::kernel::own::read_v1(own:x,'key');",
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_30.surql"
+            ),
             false,
             true,
             false,
         ),
         (
-            "RETURN fn::kernel::own::read_v1(own:x,'key');",
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_31.surql"
+            ),
             false,
             false,
             false,
         ),
-        ("UPDATE own:x SET payload = {};", true, true, false),
         (
-            "RETURN fn::kernel::own::read_v1(own:x,<string>(UPDATE consumer SET value=1));",
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_32.surql"
+            ),
             true,
             true,
             false,
         ),
         (
-            "RETURN fn::kernel::own::read_v1(own:x,<string>fn::kernel::own::read_v1(own:x,'nested'));",
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_33.surql"
+            ),
+            true,
+            true,
+            false,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_34.surql"
+            ),
             true,
             true,
             false,
@@ -450,14 +524,30 @@ fn permissions_and_comments_cannot_inherit_api_body_updates() {
 #[test]
 fn ordinary_schema_permissions_and_comments_cannot_call_updating_exports() {
     for sql in [
-        "DEFINE TABLE consumer PERMISSIONS FOR select WHERE fn::kernel::own::read_v1(own:x,'key');",
-        "DEFINE FIELD payload ON consumer PERMISSIONS FOR select WHERE fn::kernel::own::read_v1(own:x,'key');",
-        "DEFINE FUNCTION fn::consumer() { RETURN true; } PERMISSIONS WHERE fn::kernel::own::read_v1(own:x,'key');",
-        "DEFINE TABLE consumer COMMENT fn::kernel::own::read_v1(own:x,'key');",
-        "DEFINE FIELD payload ON consumer COMMENT fn::kernel::own::read_v1(own:x,'key');",
-        "DEFINE FUNCTION fn::consumer() { RETURN true; } COMMENT fn::kernel::own::read_v1(own:x,'key');",
-        "DEFINE TABLE consumer PERMISSIONS FOR select WHERE { UPDATE consumer SET value=1; RETURN true; };",
-        "DEFINE TABLE consumer COMMENT (UPDATE consumer SET value=1);",
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_35.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_36.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_37.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_38.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_39.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_40.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_41.surql"
+        ),
+        include_str!(
+            "queries/sql_api/ordinary_schema_permissions_and_comments_cannot_call_updating_exports/statement_42.surql"
+        ),
     ] {
         assert!(
             surrealdb_syn::parse_with_settings(

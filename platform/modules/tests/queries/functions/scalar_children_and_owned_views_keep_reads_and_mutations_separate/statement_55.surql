@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::read($name: string) { LET $id: record<own> = type::record($name, 'id'); RETURN record::exists($id); };

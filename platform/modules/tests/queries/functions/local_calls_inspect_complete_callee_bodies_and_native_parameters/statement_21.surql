@@ -1,0 +1,1 @@
+RETURN string::len(<string>(DELETE own));

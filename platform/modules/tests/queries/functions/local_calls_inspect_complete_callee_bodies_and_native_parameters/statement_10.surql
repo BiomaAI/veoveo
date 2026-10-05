@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::leaf($value: string) -> bool { RETURN true; }; RETURN fn::own::leaf(<string>(DELETE own));

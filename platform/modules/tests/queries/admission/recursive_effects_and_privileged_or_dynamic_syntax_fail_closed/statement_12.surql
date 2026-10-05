@@ -1,0 +1,1 @@
+DEFINE ANALYZER own_search TOKENIZERS blank FILTERS MAPPER('/tmp/map.txt');

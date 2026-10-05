@@ -1,0 +1,1 @@
+UPDATE ONLY $id SET generation = 2;

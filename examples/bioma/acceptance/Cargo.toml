@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-agent-runtime = { path = "../../../agents/runtime", default-features = false, features = ["persistence"] }
 veoveo-gateway-catalog.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-gateway-contract.workspace = true

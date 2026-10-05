@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD digest ON own TYPE string ASSERT $value.len() = 64;

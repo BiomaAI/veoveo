@@ -1,0 +1,1 @@
+DEFINE EVENT evil ON own WHEN true THEN DELETE foreign;

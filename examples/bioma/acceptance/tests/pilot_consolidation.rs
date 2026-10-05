@@ -29,27 +29,23 @@ async fn rehearse() -> Result<()> {
         };
         let id = fields.get("id").context("record identity")?;
         db.a.client()
-            .query(format!(
-                "CREATE ONLY {} CONTENT {};",
-                id.to_sql(),
-                record.to_sql()
+            .query(include_str!(
+                "queries/pilot_consolidation/rehearse/statement_1.surql"
             ))
+            .bind(("id", id.clone()))
+            .bind(("record", record.clone()))
             .await?
             .check()?;
     }
     let tenant = deterministic_tenant_id("bioma")?.record_id();
     // Reconstruct the source bindings in the disposable copy, including after the
     // live cutover. Archived definitions preserve the required historical revisions.
-    db.a.client().query(r#"
-        FOR $instance IN (SELECT * FROM managed_agent) {
-            LET $old = array::first(SELECT * FROM agent_definition WHERE key = $instance.key);
-            UPDATE ONLY $instance.id SET definition = $old.id, requested_revision = $old.published,
-                active_revision = $old.published, desired = 'paused', observed = 'paused';
-        };
-        DELETE agent_definition WHERE key = 'uav-pilot';
-        UPDATE agent_definition SET disabled = true, status = 'disabled';
-        UPDATE agent SET lease_expires_at = NONE, lease_owner = NONE, state = 'idle', last_episode = NONE;
-    "#).await?.check()?;
+    db.a.client()
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_2.surql"
+        ))
+        .await?
+        .check()?;
     let mut definition: AgentDefinition =
         db.a.client()
             .select(agent_definition_record(&tenant, "uav-1-pilot")?)
@@ -84,13 +80,21 @@ async fn rehearse() -> Result<()> {
     }
     definition.draft = revision.content.clone();
     definition.published = Some(revision.id.clone());
-    db.a.client().query("CREATE ONLY $definition.id CONTENT $definition; CREATE ONLY $revision.id CONTENT $revision;")
-        .bind(("definition", definition)).bind(("revision", revision)).await?.check()?;
+    db.a.client()
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_3.surql"
+        ))
+        .bind(("definition", definition))
+        .bind(("revision", revision))
+        .await?
+        .check()?;
     // Runtime actors and OAuth clients can share a subject under distinct issuers.
     // The retained principal is the instance's explicit reference, never its name.
     let mut actor: veoveo_platform_store::PrincipalRecord =
         db.a.client()
-            .query("SELECT * FROM principal WHERE subject = 'uav-1-pilot' LIMIT 1;")
+            .query(include_str!(
+                "queries/pilot_consolidation/rehearse/statement_4.surql"
+            ))
             .await?
             .check()?
             .take::<Vec<veoveo_platform_store::PrincipalRecord>>(0)?
@@ -103,7 +107,9 @@ async fn rehearse() -> Result<()> {
     );
     actor.issuer = "veoveo://agent-runtime".into();
     db.a.client()
-        .query("CREATE ONLY $actor.id CONTENT $actor;")
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_5.surql"
+        ))
         .bind(("actor", actor))
         .await?
         .check()?;
@@ -111,7 +117,9 @@ async fn rehearse() -> Result<()> {
     let unchanged = protected_records(&db.a).await?;
     // Last-row failure must roll back all earlier rows and operations.
     db.a.client()
-        .query("UPDATE ONLY $id SET name = 'concurrent edit';")
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_6.surql"
+        ))
         .bind(("id", plan[3].before.id.clone()))
         .await?
         .check()?;
@@ -129,20 +137,24 @@ async fn rehearse() -> Result<()> {
         "failed transaction changed first pilot"
     );
     db.a.client()
-        .query("UPDATE ONLY $id SET name = $before.name;")
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_7.surql"
+        ))
         .bind(("id", plan[3].before.id.clone()))
         .bind(("before", plan[3].before.clone()))
         .await?
         .check()?;
     db.a.client()
-        .query(
-            "UPDATE agent SET lease_expires_at = time::now() + 1h WHERE agent_key = 'uav-4-pilot';",
-        )
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_8.surql"
+        ))
         .await?
         .check()?;
     ensure!(apply(&db.a, &plan).await.is_err(), "active writer accepted");
     db.a.client()
-        .query("UPDATE agent SET lease_expires_at = NONE;")
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_9.surql"
+        ))
         .await?
         .check()?;
     let ids = apply(&db.a, &plan).await?;
@@ -172,7 +184,9 @@ async fn rehearse() -> Result<()> {
         "identity substitution accepted"
     );
     db.a.client()
-        .query("UPDATE ONLY $id SET generation += 1;")
+        .query(include_str!(
+            "queries/pilot_consolidation/rehearse/statement_10.surql"
+        ))
         .bind(("id", plan[0].after.id.clone()))
         .await?
         .check()?;

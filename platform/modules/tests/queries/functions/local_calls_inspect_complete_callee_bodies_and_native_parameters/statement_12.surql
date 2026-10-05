@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::caller() { RETURN fn::own::missing(); };

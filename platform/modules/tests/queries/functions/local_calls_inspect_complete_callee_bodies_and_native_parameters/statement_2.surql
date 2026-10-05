@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::caller($value: string) -> string { RETURN fn::own::leaf($value); }; DEFINE FUNCTION fn::own::leaf($value: string) -> string { RETURN string::uppercase($value); }; RETURN fn::own::caller('value');

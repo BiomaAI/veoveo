@@ -450,13 +450,21 @@ impl<'a> Visitor<'a> {
                             "type::is_array",
                             "string::len",
                             "string::lowercase",
+                            "string::contains",
                             "string::uppercase",
                             "math::abs",
+                            "math::floor",
+                            "type::is_string",
                             "time::now",
                             "rand::uuid::v7",
                             "rand::uuid",
                         ]
                         .contains(&name.as_str()) => {}
+                    surrealdb_sql::Function::Normal(name) => {
+                        return Err(RunnerError::new(format!(
+                            "builtin {name} is outside the admitted migration profile"
+                        )));
+                    }
                     _ => return Err(unsupported()),
                 }
                 if self.api.is_some()
@@ -1048,7 +1056,6 @@ impl<'a> Visitor<'a> {
         if s.with.is_some()
             || s.split.is_some()
             || s.group.is_some()
-            || s.order.is_some()
             || s.fetch.is_some()
             || s.explain.is_some()
             || s.tempfiles
@@ -1067,6 +1074,14 @@ impl<'a> Visitor<'a> {
         }
         if let Some(c) = &s.cond {
             self.expr(&c.0, depth + 1)?;
+        }
+        if let Some(ordering) = &s.order {
+            let surrealdb_sql::order::Ordering::Order(orders) = ordering else {
+                return Err(unsupported());
+            };
+            for order in orders.iter() {
+                self.readonly_expr(&Expr::Idiom(order.value.clone()), depth + 1)?;
+            }
         }
         if let Some(limit) = &s.limit {
             self.expr(&limit.0, depth + 1)?;
@@ -1135,36 +1150,36 @@ mod tests {
     fn catalog_comparison_ignores_conditionals_but_preserves_admission_shape() {
         assert!(
             same_definition(
-                "DEFINE TABLE history SCHEMAFULL PERMISSIONS NONE",
-                "DEFINE TABLE IF NOT EXISTS history SCHEMAFULL PERMISSIONS NONE;"
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_11.surql"),
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_12.surql")
             )
             .unwrap()
         );
         assert!(
             !same_definition(
-                "DEFINE TABLE history SCHEMALESS PERMISSIONS NONE",
-                "DEFINE TABLE history SCHEMAFULL PERMISSIONS NONE"
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_13.surql"),
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_14.surql")
             )
             .unwrap()
         );
         assert!(
             !same_definition(
-                "DEFINE FIELD v ON history TYPE int",
-                "DEFINE FIELD v ON history TYPE string"
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_15.surql"),
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_16.surql")
             )
             .unwrap()
         );
         assert!(
             !same_definition(
-                "DEFINE INDEX by_v ON history FIELDS v",
-                "DEFINE INDEX by_v ON history FIELDS v UNIQUE"
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_17.surql"),
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_18.surql")
             )
             .unwrap()
         );
         assert!(
             same_definition(
-                "DEFINE TABLE history; DELETE history;",
-                "DEFINE TABLE history"
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_19.surql"),
+                include_str!("queries/policy/catalog_comparison_ignores_conditionals_but_preserves_admission_shape/statement_20.surql")
             )
             .is_err()
         );

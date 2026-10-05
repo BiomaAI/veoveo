@@ -1,0 +1,1 @@
+DEFINE TABLE right; DEFINE FIELD link ON right TYPE record<left>;

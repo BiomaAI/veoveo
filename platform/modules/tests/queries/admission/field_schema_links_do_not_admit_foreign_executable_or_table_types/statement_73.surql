@@ -1,0 +1,1 @@
+LET $link: record<base> = NONE;

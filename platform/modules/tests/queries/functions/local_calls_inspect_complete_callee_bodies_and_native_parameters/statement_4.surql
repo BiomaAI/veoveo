@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::read($input: object) -> bool { RETURN $input.enabled = true; }; RETURN fn::own::read({enabled:true});

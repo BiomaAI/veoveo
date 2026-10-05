@@ -1,0 +1,1 @@
+DEFINE FIELD v ON own PERMISSIONS FOR select WHERE (DELETE foreign);

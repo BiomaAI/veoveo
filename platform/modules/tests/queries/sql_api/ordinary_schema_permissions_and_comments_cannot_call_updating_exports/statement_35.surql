@@ -1,0 +1,1 @@
+DEFINE TABLE consumer PERMISSIONS FOR select WHERE fn::kernel::own::read_v1(own:x,'key');

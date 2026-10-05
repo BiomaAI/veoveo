@@ -1,0 +1,1 @@
+UPDATE ONLY $id MERGE {payload:{key:$key}} RETURN NONE

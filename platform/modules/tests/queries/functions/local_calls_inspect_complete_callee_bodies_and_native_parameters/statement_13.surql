@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::cycle() { RETURN fn::own::cycle(); };

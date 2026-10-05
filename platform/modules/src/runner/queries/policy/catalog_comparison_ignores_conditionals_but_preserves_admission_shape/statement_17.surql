@@ -1,0 +1,1 @@
+DEFINE INDEX by_v ON history FIELDS v

@@ -1,0 +1,1 @@
+LET $id: record<own> = own:x; RETURN fn::kernel::own::read_v1($id,'key');

@@ -19,6 +19,10 @@ process guards and installation selection. Focused deployment, flight and browse
 harnesses own their respective acceptance suites. See the
 [code map](../../docs/CODEMAP.md#testing-and-conformance) for those owners.
 
+Audit smoke assertions select one complete owner query for each typed activity.
+Every variant binds the partition, outcome and selection values and preserves the
+same record range and count result. Activity predicates are stored in the query files.
+
 ## Stream Cross-Replica Acceptance
 
 The installed `stream-gpu` smoke accepts `--replica-pods WRITER OBSERVER` to pin

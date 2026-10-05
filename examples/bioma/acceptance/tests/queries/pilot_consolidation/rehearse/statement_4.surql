@@ -1,0 +1,1 @@
+SELECT * FROM principal WHERE subject = 'uav-1-pilot' LIMIT 1;

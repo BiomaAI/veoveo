@@ -91,6 +91,10 @@ excludes network, file, scripting and provider effects. `record::exists` checks 
 same admitted target and read policy as SELECT. Static `type::record` constructors
 validate the table claim and every key expression.
 
+SELECT ordering admits static parsed keys, collation, numeric comparison and either
+direction. Each key uses the existing row-field and read-only expression checks;
+random ordering stays outside the profile.
+
 Every supported expression-bearing child is visited, including defaults, assertions,
 permissions, comments, nested objects, event/function bodies and cast types. Unproven
 record dereferences, graph traversal and dynamic targets fail admission. The selected production owner lanes use this supported profile. Additional
@@ -180,6 +184,11 @@ It is not a binary self-attestation. Running the exact locked image and binding 
 rendered objects establishes provenance. Consumers regenerate the entire plan from
 compiled declarations before effects; selected module names remain open validated types.
 
+Owner SQL lives in query and migration assets. Parser fixtures preserve the submitted
+SQL bytes, including intentionally malformed input. API rejection tests may transform
+those assets to exercise field proofs and effects. Generated deferred-caller fixtures
+insert only a fixed test body into a file-backed statement template.
+
 ## Preparation Generation
 
 `PreparationKey` and `InstallationGeneration` are dependency-free checked types.
@@ -191,6 +200,10 @@ requires a higher generation; the same generation with conflicting identity fail
 
 Prepared execution initializes the reserved infrastructure, then claims the generation
 before runtime-account provisioning and owner-lane execution. A delayed older preparer cannot rotate the newer account.
+The database-editor statement binds its checked username. SurrealDB's `DEFINE USER`
+password clause requires a string literal, so the runner JSON-escapes only that value
+into the owner query template. Credential errors and formatting redact the password.
+
 Completion rotates a validated database editor and writes the completion marker in one
 owned native transaction. Already completed keys do not repeat rotation. The API accepts
 only credentials for this fixed operation and has no arbitrary-SQL execution hook.

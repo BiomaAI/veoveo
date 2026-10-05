@@ -190,7 +190,9 @@ pub(crate) async fn execute<C: Connection>(
                             wait(
                                 &mut receiver,
                                 limits.operation_timeout,
-                                transaction.query(credentials.statement()),
+                                transaction
+                                    .query(credentials.statement())
+                                    .bind(("username", credentials.username().to_owned())),
                             )
                             .await?
                             .and_then(|r| r.check())

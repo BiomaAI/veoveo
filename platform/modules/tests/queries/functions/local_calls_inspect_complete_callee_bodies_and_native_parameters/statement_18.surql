@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::read($rows: array<record<own>>) { FOR $row IN $rows { RETURN $row.secret; }; };

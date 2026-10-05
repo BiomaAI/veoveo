@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::read($input: object) { RETURN $input.link.secret; };

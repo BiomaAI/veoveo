@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::write() { UPDATE own SET nested=(DELETE foreign); };

@@ -1,0 +1,1 @@
+UPDATE ONLY $id SET payload = (DELETE own) RETURN NONE

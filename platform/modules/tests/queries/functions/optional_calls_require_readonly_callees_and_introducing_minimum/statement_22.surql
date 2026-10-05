@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::base::read() -> bool { RETURN (SELECT * FROM base) != []; };

@@ -1,0 +1,1 @@
+DEFINE TABLE own_daily TYPE ANY SCHEMALESS AS SELECT count() AS count FROM foreign GROUP ALL;

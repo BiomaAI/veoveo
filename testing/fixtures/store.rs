@@ -45,7 +45,7 @@ impl TestDb {
                 .unwrap();
             admin
                 .client()
-                .query("ALTER DATABASE COMPACT;")
+                .query(include_str!("queries/store/compact.surql"))
                 .await
                 .unwrap()
                 .check()
@@ -329,7 +329,8 @@ pub async fn wait_for_no_live(
             for table in tables {
                 let mut response = store
                     .client()
-                    .query(format!("INFO FOR TABLE {};", table.as_str()))
+                    .query(include_str!("queries/store/table_info.surql"))
+                    .bind(("table", table.as_str().to_owned()))
                     .await
                     .unwrap()
                     .check()

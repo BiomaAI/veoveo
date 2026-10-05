@@ -1,0 +1,1 @@
+UPDATE ONLY $id SET payload = (SELECT * FROM foreign) RETURN NONE

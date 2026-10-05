@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD target ON own TYPE option<record> ASSERT $value = NONE OR record::tb($value) != '';

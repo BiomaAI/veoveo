@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::consumer::read() -> bool { RETURN fn::base::read(); }; RETURN fn::consumer::read();

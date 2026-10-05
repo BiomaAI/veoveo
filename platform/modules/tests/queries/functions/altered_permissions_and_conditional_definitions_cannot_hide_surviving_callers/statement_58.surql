@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; }; DEFINE TABLE own PERMISSIONS FOR select WHERE fn::own::leaf(); ALTER TABLE own PERMISSIONS NONE; DEFINE FUNCTION OVERWRITE fn::own::leaf() -> bool { UPDATE own SET state='changed'; RETURN true; };

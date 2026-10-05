@@ -1,0 +1,1 @@
+DEFINE FIELD link ON own TYPE record<base> ASSERT (SELECT * FROM base);

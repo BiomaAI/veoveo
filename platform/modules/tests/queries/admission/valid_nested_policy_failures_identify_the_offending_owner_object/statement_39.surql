@@ -1,0 +1,1 @@
+DEFINE FIELD v ON own DEFAULT (CREATE foreign);

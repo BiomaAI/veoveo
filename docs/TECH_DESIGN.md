@@ -293,8 +293,13 @@ select different `serde_json` object-order features.
   JWT revocations;
 - tasks, owners, leases, results, retention pins, provider jobs/events, and usage;
 - artifact blobs, occurrences, grants, share links, and write capabilities;
-- coordinate frames/operations, recording datasets/layers, agents/episodes/wakes;
 - audit records and native changefeed checkpoints.
+
+Agents, Workspace, Map and Recording own their domain records, repositories and query
+files. Their separately gated schema declarations select their installation lanes.
+Recording's repository lives in `platform/recordings/store`, which its Hub, Reader,
+Video and MCP server share. These repositories use Store's connection and kernel
+services; their runtime dependencies stay outside the reusable Store crate.
 
 Task observation in Rust and Python, agent wake scheduling, Agent Manager, gateway
 catalog and Console invalidations, Artifact notifications and Computer notifications

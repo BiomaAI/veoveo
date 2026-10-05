@@ -1,0 +1,4 @@
+DEFINE TABLE own SCHEMAFULL;
+DEFINE FUNCTION fn::own::ordered() -> array<object> {
+    RETURN SELECT name, rank FROM own ORDER BY name COLLATE ASC, rank NUMERIC DESC LIMIT 20;
+} PERMISSIONS FULL;

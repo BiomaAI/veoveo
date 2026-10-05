@@ -8,7 +8,9 @@ impl Visitor<'_> {
     ) -> Result<(), RunnerError> {
         if let [Part::Start(Expr::Param(parameter)), Part::Field(_)] = idiom.0.as_slice()
             && (self.objects.contains(parameter.as_str())
-                || (parameter.as_str() == "this" && self.this_table.is_some()))
+                || (parameter.as_str() == "this" && self.this_table.is_some())
+                || (parameter.as_str() == "value"
+                    && matches!(self.field_value, Some(Kind::Object))))
         {
             return self.expr(&Expr::Param(parameter.clone()), depth + 1);
         }

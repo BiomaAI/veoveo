@@ -98,7 +98,9 @@ async fn prepare(store: &PlatformStore) -> Result<Vec<PilotAdoption>> {
         let key = format!("uav-{n}-pilot");
         let runtime: AgentRecord = store
             .client()
-            .query("SELECT * FROM agent WHERE tenant = $tenant AND agent_key = $key;")
+            .query(include_str!(
+                "queries/pilot_cutover/prepare/statement_1.surql"
+            ))
             .bind(("tenant", tenant.clone()))
             .bind(("key", key.clone()))
             .await?
@@ -175,7 +177,9 @@ async fn prepare(store: &PlatformStore) -> Result<Vec<PilotAdoption>> {
         ensure!(key_material.kty == "RSA", "RSA identity required");
         let now = store
             .client()
-            .query("RETURN [time::now()];")
+            .query(include_str!(
+                "queries/pilot_cutover/prepare/statement_2.surql"
+            ))
             .await?
             .check()?
             .take::<Vec<surrealdb::types::Datetime>>(0)?
@@ -276,7 +280,9 @@ async fn records(store: &PlatformStore, entries: &[PilotAdoption]) -> Result<Vec
     ids.dedup();
     let mut result: Vec<Value> = store
         .client()
-        .query("SELECT * FROM $records;")
+        .query(include_str!(
+            "queries/pilot_cutover/records/statement_3.surql"
+        ))
         .bind(("records", ids.clone()))
         .await?
         .check()?
@@ -306,8 +312,17 @@ async fn records(store: &PlatformStore, entries: &[PilotAdoption]) -> Result<Vec
             )
         })
         .collect();
-    let grants: Vec<Value> = store.client().query("SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND work_context = $context AND principal_key IN $keys;")
-        .bind(("tenant", entries[0].instance.tenant.clone())).bind(("context", entries[0].instance.work_context.clone())).bind(("keys", keys)).await?.check()?.take(0)?;
+    let grants: Vec<Value> = store
+        .client()
+        .query(include_str!(
+            "queries/pilot_cutover/records/statement_4.surql"
+        ))
+        .bind(("tenant", entries[0].instance.tenant.clone()))
+        .bind(("context", entries[0].instance.work_context.clone()))
+        .bind(("keys", keys))
+        .await?
+        .check()?
+        .take(0)?;
     ensure!(
         grants.len() == 4,
         "expected the four retained vehicle grants"
@@ -329,7 +344,7 @@ async fn prepare_and_rehearse_retained_pilot_adoption() -> Result<()> {
         prepare(&live).await?
     };
     let before = records(&live, &entries).await?;
-    let mut sql = String::from("BEGIN TRANSACTION;\n");
+    let mut sql = String::from(include_str!("queries/pilot_cutover/restore_begin.surql"));
     for record in &before {
         // SQL values are an opaque export boundary; lifecycle decisions use typed records.
         let Value::Object(fields) = record else {
@@ -337,14 +352,20 @@ async fn prepare_and_rehearse_retained_pilot_adoption() -> Result<()> {
         };
         let id = fields.get("id").context("record id")?;
         sql.push_str(&format!(
-            "CREATE ONLY {} CONTENT {};\n",
+            include_str!("queries/pilot_cutover/prepare_and_rehearse_retained_pilot_adoption/statement_5.surql"),
             id.to_sql(),
             record.to_sql()
         ));
     }
-    sql.push_str("COMMIT TRANSACTION;\n");
+    sql.push_str(include_str!("queries/pilot_cutover/restore_commit.surql"));
     let isolated = fixture::TestDb::new().await;
-    isolated.a.client().query(sql.clone()).await?.check()?;
+    isolated
+        .a
+        .client()
+        .query(include_str!("queries/pilot_cutover/restore_records.surql"))
+        .bind(("records", before.clone()))
+        .await?
+        .check()?;
     ensure!(
         records(&isolated.a, &entries).await? == before,
         "targeted record restore differs"
@@ -356,7 +377,15 @@ async fn prepare_and_rehearse_retained_pilot_adoption() -> Result<()> {
         adopt(&isolated.a, &stale).await.is_err(),
         "stale source was adopted"
     );
-    let count: Vec<i64> = isolated.a.client().query("RETURN [array::len((SELECT id FROM managed_agent)), array::len((SELECT id FROM managed_agent_capacity))];").await?.check()?.take(0)?;
+    let count: Vec<i64> = isolated
+        .a
+        .client()
+        .query(include_str!(
+            "queries/pilot_cutover/prepare_and_rehearse_retained_pilot_adoption/statement_6.surql"
+        ))
+        .await?
+        .check()?
+        .take(0)?;
     ensure!(
         count == [0, 0],
         "failed adoption left partial lifecycle or quota records"
@@ -365,7 +394,9 @@ async fn prepare_and_rehearse_retained_pilot_adoption() -> Result<()> {
     isolated
         .a
         .client()
-        .query("UPDATE ONLY $id SET lease_expires_at = time::now() + 1h;")
+        .query(include_str!(
+            "queries/pilot_cutover/prepare_and_rehearse_retained_pilot_adoption/statement_7.surql"
+        ))
         .bind(("id", entries[3].runtime.id.clone()))
         .await?
         .check()?;
@@ -382,7 +413,9 @@ async fn prepare_and_rehearse_retained_pilot_adoption() -> Result<()> {
     isolated
         .a
         .client()
-        .query("UPDATE ONLY $id CONTENT $runtime;")
+        .query(include_str!(
+            "queries/pilot_cutover/prepare_and_rehearse_retained_pilot_adoption/statement_8.surql"
+        ))
         .bind(("id", entries[3].runtime.id.clone()))
         .bind(("runtime", entries[3].runtime.clone()))
         .await?
@@ -401,7 +434,9 @@ async fn prepare_and_rehearse_retained_pilot_adoption() -> Result<()> {
     isolated
         .a
         .client()
-        .query("UPDATE ONLY $id SET generation = 2;")
+        .query(include_str!(
+            "queries/pilot_cutover/prepare_and_rehearse_retained_pilot_adoption/statement_9.surql"
+        ))
         .bind(("id", entries[0].instance.id.clone()))
         .await?
         .check()?;

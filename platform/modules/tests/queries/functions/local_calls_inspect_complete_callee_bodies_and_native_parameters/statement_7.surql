@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD payload ON own TYPE object; DEFINE INDEX nested ON own FIELDS payload.key; DEFINE FUNCTION fn::own::leaf() -> bool { RETURN true; };

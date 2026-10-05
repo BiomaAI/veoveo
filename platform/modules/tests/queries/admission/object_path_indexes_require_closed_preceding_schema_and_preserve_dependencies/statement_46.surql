@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD identity ON own TYPE option<object>; DEFINE INDEX by_key ON own FIELDS identity.key;

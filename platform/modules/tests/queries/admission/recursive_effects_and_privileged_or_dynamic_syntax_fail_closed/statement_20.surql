@@ -1,0 +1,1 @@
+SELECT own.link.foreign_field FROM own;

@@ -1,0 +1,1 @@
+DEFINE TABLE left; DEFINE FIELD link ON left TYPE option<array<set<record<right> | string>>>;

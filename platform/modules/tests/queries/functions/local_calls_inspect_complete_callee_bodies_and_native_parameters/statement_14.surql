@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::first() { RETURN fn::own::second(); }; DEFINE FUNCTION fn::own::second() { RETURN fn::own::first(); };

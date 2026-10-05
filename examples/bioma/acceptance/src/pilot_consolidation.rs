@@ -50,7 +50,9 @@ pub async fn prepare(store: &PlatformStore, config_map: &str) -> Result<Vec<Pilo
     );
     let now: Vec<surrealdb::types::Datetime> = store
         .client()
-        .query("RETURN [time::now()];")
+        .query(include_str!(
+            "queries/pilot_consolidation/prepare/statement_1.surql"
+        ))
         .await?
         .check()?
         .take(0)?;
@@ -171,7 +173,7 @@ pub async fn apply(store: &PlatformStore, entries: &[PilotRebinding]) -> Result<
     validate(entries)?;
     let mut result = store
         .client()
-        .query(include_str!("pilot_consolidation.surql"))
+        .query(include_str!("queries/pilot_consolidation.surql"))
         .bind(("entries", stored_fields(entries.to_vec().into_value())))
         .await?
         .check()?;

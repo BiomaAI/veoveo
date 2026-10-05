@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD value ON own TYPE array<string> VALUE $value.distinct() ASSERT $value.all(|$item: any| string::len($item)>0);

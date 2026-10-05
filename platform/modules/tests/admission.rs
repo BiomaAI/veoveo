@@ -62,41 +62,85 @@ fn admitted(sql: &'static str) -> bool {
 }
 #[test]
 fn owned_nested_schema_and_mutations_are_admitted() {
-    assert!(admitted(
-        "DEFINE TABLE own SCHEMAFULL; DEFINE FIELD value ON own TYPE int ASSERT $value > 0; DEFINE INDEX by_value ON own FIELDS value UNIQUE; CREATE own:one CONTENT { value: 1 }; UPDATE own:one SET value = 2; DEFINE FUNCTION fn::own() { RETURN (SELECT * FROM own); };"
-    ));
-    assert!(admitted(
-        "DEFINE TABLE own; ALTER TABLE own SCHEMAFULL; REMOVE TABLE own;"
-    ));
-    assert!(admitted(
-        "DEFINE ANALYZER own_search TOKENIZERS blank FILTERS lowercase; DEFINE INDEX text ON own FIELDS value FULLTEXT ANALYZER own_search BM25;"
-    ));
+    assert!(admitted(include_str!(
+        "queries/admission/owned_nested_schema_and_mutations_are_admitted/statement_1.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/admission/owned_nested_schema_and_mutations_are_admitted/statement_2.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/admission/owned_nested_schema_and_mutations_are_admitted/statement_3.surql"
+    )));
 }
 #[test]
 fn recursive_effects_and_privileged_or_dynamic_syntax_fail_closed() {
     for sql in [
-        "BEGIN; CREATE own; COMMIT;",
-        "USE NS other DB other;",
-        "DEFINE USER root ON ROOT PASSWORD 'secret' ROLES OWNER;",
-        "CREATE own CONTENT { nested: (DELETE foreign) };",
-        "DEFINE FIELD bad ON own VALUE (CREATE foreign);",
-        "DEFINE TABLE own COMMENT (DELETE foreign);",
-        "DEFINE FUNCTION fn::own() { CREATE foreign; };",
-        "DEFINE EVENT evil ON own WHEN true THEN DELETE foreign;",
-        "DEFINE FIELD v ON own PERMISSIONS FOR select WHERE (DELETE foreign);",
-        "DEFINE ANALYZER own_search TOKENIZERS blank FILTERS MAPPER('/tmp/map.txt');",
-        "RETURN http::get('https://example.com');",
-        "RETURN fn::own();",
-        "DEFINE ANALYZER own_search FUNCTION fn::own;",
-        "CREATE platform_module_lane;",
-        "SELECT * FROM platform_module_migration;",
-        "LET $target = 'own'; DELETE $target;",
-        "RETURN $value.link.foreign_field;",
-        "SELECT own.link.foreign_field FROM own;",
-        "RETURN <record<foreign>> $value;",
-        "DEFINE FIELD link ON own TYPE record<own> REFERENCE ON DELETE THEN { DELETE foreign; };",
-        "ALTER TABLE foreign SCHEMAFULL;",
-        "REMOVE TABLE foreign;",
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/explicit_transaction.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/session_selection.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_5.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_6.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_7.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_8.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_9.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_10.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_11.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_12.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_13.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_14.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_15.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_16.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_17.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_18.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_19.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_20.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_21.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_22.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_23.surql"
+        ),
+        include_str!(
+            "queries/admission/recursive_effects_and_privileged_or_dynamic_syntax_fail_closed/statement_24.surql"
+        ),
     ] {
         assert!(!admitted(sql), "unexpected admission of {sql}");
     }
@@ -105,22 +149,44 @@ fn recursive_effects_and_privileged_or_dynamic_syntax_fail_closed() {
 fn read_layers_and_analyzer_dependencies_are_distinct() {
     let required = vec![LaneRequirement::Satisfied(ModuleName::new("base").unwrap())];
     for (layer, sql, expected) in [
-        (ModuleLayer::Kernel, "SELECT * FROM base;", true),
-        (ModuleLayer::Kernel, "DELETE base;", false),
-        (ModuleLayer::Optional, "SELECT * FROM base;", false),
+        (
+            ModuleLayer::Kernel,
+            include_str!(
+                "queries/admission/read_layers_and_analyzer_dependencies_are_distinct/statement_25.surql"
+            ),
+            true,
+        ),
+        (
+            ModuleLayer::Kernel,
+            include_str!(
+                "queries/admission/read_layers_and_analyzer_dependencies_are_distinct/statement_26.surql"
+            ),
+            false,
+        ),
         (
             ModuleLayer::Optional,
-            "DEFINE FIELD link ON own TYPE record<base>;",
+            include_str!(
+                "queries/admission/read_layers_and_analyzer_dependencies_are_distinct/statement_27.surql"
+            ),
+            false,
+        ),
+        (
+            ModuleLayer::Optional,
+            include_str!(
+                "queries/admission/read_layers_and_analyzer_dependencies_are_distinct/statement_28.surql"
+            ),
             true,
         ),
         (
             ModuleLayer::Optional,
-            "DEFINE INDEX search ON own FIELDS text FULLTEXT ANALYZER base_search BM25;",
+            include_str!(
+                "queries/admission/read_layers_and_analyzer_dependencies_are_distinct/statement_29.surql"
+            ),
             true,
         ),
     ] {
         let registry = ModuleRegistry::new(vec![
-            module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+            module("base", ModuleLayer::Kernel, include_str!("queries/admission/read_layers_and_analyzer_dependencies_are_distinct/statement_30.surql"), vec![]),
             module("own", layer, sql, required.clone()),
         ])
         .unwrap();
@@ -145,8 +211,8 @@ fn optional_reads_require_declared_optional_owner() {
             vec![]
         };
         let registry = ModuleRegistry::new(vec![
-            module("base", ModuleLayer::Optional, "DEFINE TABLE base;", vec![]),
-            module("own", ModuleLayer::Optional, "SELECT * FROM base;", deps),
+            module("base", ModuleLayer::Optional, include_str!("queries/admission/optional_reads_require_declared_optional_owner/statement_31.surql"), vec![]),
+            module("own", ModuleLayer::Optional, include_str!("queries/admission/optional_reads_require_declared_optional_owner/statement_32.surql"), deps),
         ])
         .unwrap();
         assert_eq!(
@@ -162,7 +228,7 @@ fn optional_reads_require_declared_optional_owner() {
 }
 #[test]
 fn native_reference_cleanup_links_to_declared_kernel_without_data_read() {
-    let registry = ModuleRegistry::new(vec![module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]), module("own", ModuleLayer::Optional, "DEFINE TABLE own; DEFINE FIELD link ON own TYPE record<base> REFERENCE ON DELETE CASCADE;", vec![LaneRequirement::Satisfied(ModuleName::new("base").unwrap())])]).unwrap();
+    let registry = ModuleRegistry::new(vec![module("base", ModuleLayer::Kernel, include_str!("queries/admission/native_reference_cleanup_links_to_declared_kernel_without_data_read/statement_33.surql"), vec![]), module("own", ModuleLayer::Optional, include_str!("queries/admission/native_reference_cleanup_links_to_declared_kernel_without_data_read/statement_34.surql"), vec![LaneRequirement::Satisfied(ModuleName::new("base").unwrap())])]).unwrap();
     assert!(
         prepare(
             registry
@@ -177,7 +243,7 @@ fn diagnostics_identify_owner_and_statement_without_dumping_body_values() {
     let registry = ModuleRegistry::new(vec![module(
         "own",
         ModuleLayer::Kernel,
-        "CREATE foreign CONTENT { token: 'distinctive-secret-value' };",
+        include_str!("queries/admission/diagnostics_identify_owner_and_statement_without_dumping_body_values/statement_35.surql"),
         vec![],
     )])
     .unwrap();
@@ -196,7 +262,7 @@ fn malformed_selected_sql_reports_syntax_admission_failure() {
     let registry = ModuleRegistry::new(vec![module(
         "own",
         ModuleLayer::Kernel,
-        "DEFINE TABLE own; CREATE own CONTENT { broken: ;",
+        include_str!("queries/admission/malformed_selected_sql_reports_syntax_admission_failure/statement_37.surql"),
         vec![],
     )])
     .unwrap();
@@ -209,13 +275,27 @@ fn malformed_selected_sql_reports_syntax_admission_failure() {
 #[test]
 fn valid_nested_policy_failures_identify_the_offending_owner_object() {
     for sql in [
-        "CREATE own CONTENT { nested: [{ bad: (DELETE foreign) }] };",
-        "DEFINE FIELD v ON own DEFAULT (CREATE foreign);",
-        "DEFINE FIELD v ON own PERMISSIONS FOR select WHERE (DELETE foreign);",
-        "DEFINE EVENT evil ON own WHEN true THEN DELETE foreign;",
-        "DEFINE FUNCTION fn::own() { CREATE foreign; };",
-        "DEFINE FIELD link ON own TYPE record<own> REFERENCE ON DELETE THEN { DELETE foreign; };",
-        "RETURN <record<foreign>> $value;",
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_38.surql"
+        ),
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_39.surql"
+        ),
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_40.surql"
+        ),
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_41.surql"
+        ),
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_42.surql"
+        ),
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_43.surql"
+        ),
+        include_str!(
+            "queries/admission/valid_nested_policy_failures_identify_the_offending_owner_object/statement_44.surql"
+        ),
     ] {
         assert_valid_syntax(sql);
         let registry =
@@ -235,34 +315,82 @@ fn valid_nested_policy_failures_identify_the_offending_owner_object() {
 #[test]
 fn object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies() {
     for sql in [
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.key ON own TYPE string; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE option<object>; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.child ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.child.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; REMOVE INDEX by_key ON own; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_45.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_46.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_47.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_48.surql"
+        ),
     ] {
         assert!(admitted(sql), "{sql}");
     }
     for sql in [
-        "DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE record<own>; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE option<record<own>>; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE any; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.child.key;",
-        "DEFINE TABLE own; DEFINE FIELD IF NOT EXISTS identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; REMOVE FIELD identity ON own; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; REMOVE TABLE own; DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; IF false THEN { DEFINE FIELD identity ON own TYPE object; } END; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; IF false THEN { REMOVE INDEX by_key ON own; } END; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; IF false THEN { REMOVE TABLE own; } END; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; DEFINE FIELD OVERWRITE identity ON own TYPE any;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD other ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; DEFINE INDEX IF NOT EXISTS by_key ON own FIELDS other.key; DEFINE FIELD OVERWRITE identity ON own TYPE record<own>;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.child ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.child.key; DEFINE FIELD OVERWRITE identity ON own TYPE object;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE INDEX by_key ON own FIELDS identity.key; DEFINE FIELD identity.* ON own TYPE record<own>;",
-        "DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; DEFINE FIELD identity.* ON own TYPE record<own>; DEFINE INDEX by_key ON own FIELDS identity.key;",
-        "DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS string::lowercase((SELECT * FROM foreign));",
-        "DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS string::lowercase(<string>(DELETE own));",
-        "DEFINE TABLE own; DEFINE FUNCTION fn::own() { DEFINE FIELD identity ON own TYPE object; }; DEFINE INDEX by_key ON own FIELDS identity.key;",
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_49.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_50.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_51.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_52.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_53.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_54.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_55.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_56.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_57.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_58.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_59.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_60.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_61.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_62.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_63.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_64.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_65.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_66.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_67.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_68.surql"
+        ),
     ] {
         assert!(!admitted(sql), "{sql}");
     }
@@ -273,13 +401,17 @@ fn reciprocal_kernel_field_schema_links_do_not_order_execution() {
     let left = module(
         "left",
         ModuleLayer::Kernel,
-        "DEFINE TABLE left; DEFINE FIELD link ON left TYPE option<array<set<record<right> | string>>>;",
+        include_str!(
+            "queries/admission/reciprocal_kernel_field_schema_links_do_not_order_execution/statement_69.surql"
+        ),
         vec![],
     );
     let right = module(
         "right",
         ModuleLayer::Kernel,
-        "DEFINE TABLE right; DEFINE FIELD link ON right TYPE record<left>;",
+        include_str!(
+            "queries/admission/reciprocal_kernel_field_schema_links_do_not_order_execution/statement_70.surql"
+        ),
         vec![],
     );
     for modules in [vec![left.clone(), right.clone()], vec![right, left]] {
@@ -291,25 +423,55 @@ fn reciprocal_kernel_field_schema_links_do_not_order_execution() {
 #[test]
 fn field_schema_links_do_not_admit_foreign_executable_or_table_types() {
     for sql in [
-        "DEFINE FIELD link ON own TYPE table<base>;",
-        "RETURN <record<base>> $value;",
-        "LET $link: record<base> = NONE;",
-        "DEFINE FUNCTION fn::own($link: record<base>) -> record<base> { RETURN $link; };",
-        "DEFINE FIELD link ON own TYPE record<base> DEFAULT base:one;",
-        "DEFINE FIELD link ON own TYPE record<base> VALUE (SELECT * FROM base);",
-        "DEFINE FIELD link ON own TYPE record<base> ASSERT (SELECT * FROM base);",
-        "DEFINE FIELD link ON own TYPE record<base> DEFAULT (CREATE base);",
-        "DEFINE FIELD link ON own TYPE record<base> COMPUTED (SELECT * FROM base);",
-        "DEFINE FIELD link ON own TYPE record<base> PERMISSIONS FOR select WHERE (SELECT * FROM base);",
-        "DEFINE FIELD link ON own TYPE record<base> COMMENT (DELETE base);",
-        "DEFINE FIELD link ON own TYPE record<own> REFERENCE ON DELETE THEN { DELETE base; };",
-        "DEFINE FIELD link ON own TYPE record<own> REFERENCE ON DELETE THEN { RETURN (SELECT * FROM base); };",
-        "DEFINE FIELD link ON own TYPE record<base> REFERENCE ON DELETE CASCADE;",
-        "DEFINE FIELD link ON base TYPE record<own>;",
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_71.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_72.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_73.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_74.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_75.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_76.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_77.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_78.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_79.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_80.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_81.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_82.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_83.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_84.surql"
+        ),
+        include_str!(
+            "queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_85.surql"
+        ),
     ] {
         assert_valid_syntax(sql);
         let registry = ModuleRegistry::new(vec![
-            module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+            module("base", ModuleLayer::Kernel, include_str!("queries/admission/field_schema_links_do_not_admit_foreign_executable_or_table_types/statement_86.surql"), vec![]),
             module("own", ModuleLayer::Kernel, sql, vec![]),
         ])
         .unwrap();
@@ -331,20 +493,30 @@ fn field_schema_links_do_not_admit_foreign_executable_or_table_types() {
 #[test]
 fn nested_field_schema_links_validate_every_owner_and_exclude_history() {
     for sql in [
-        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<unclaimed>>>;",
-        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<optional>>>;",
-        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_lane>>>;",
-        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_migration>>>;",
-        "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_installation>>>;",
+        include_str!(
+            "queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_87.surql"
+        ),
+        include_str!(
+            "queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_88.surql"
+        ),
+        include_str!(
+            "queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_89.surql"
+        ),
+        include_str!(
+            "queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_90.surql"
+        ),
+        include_str!(
+            "queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_91.surql"
+        ),
     ] {
         assert_valid_syntax(sql);
         let registry = ModuleRegistry::new(vec![
-            module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+            module("base", ModuleLayer::Kernel, include_str!("queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_92.surql"), vec![]),
             module("own", ModuleLayer::Kernel, sql, vec![]),
             module(
                 "optional",
                 ModuleLayer::Optional,
-                "DEFINE TABLE optional;",
+                include_str!("queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_93.surql"),
                 vec![],
             ),
         ])
@@ -360,11 +532,11 @@ fn nested_field_schema_links_validate_every_owner_and_exclude_history() {
         );
     }
     let registry = ModuleRegistry::new(vec![
-        module("base", ModuleLayer::Kernel, "DEFINE TABLE base;", vec![]),
+        module("base", ModuleLayer::Kernel, include_str!("queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_94.surql"), vec![]),
         module(
             "own",
             ModuleLayer::Optional,
-            "DEFINE FIELD link ON own TYPE record<base>;",
+            include_str!("queries/admission/nested_field_schema_links_validate_every_owner_and_exclude_history/statement_95.surql"),
             vec![],
         ),
     ])
@@ -382,21 +554,43 @@ fn nested_field_schema_links_validate_every_owner_and_exclude_history() {
 #[test]
 fn current_field_kinds_defaults_and_relations_inspect_nested_targets() {
     for sql in [
-        "DEFINE TABLE own; DEFINE FIELD state ON own TYPE 'queued' | 'running';",
-        "DEFINE TABLE own; DEFINE FIELD payload ON own TYPE {state: 'queued' | 'running', ids: array<record<own>>};",
-        "DEFINE TABLE own; DEFINE FIELD id ON own TYPE uuid DEFAULT rand::uuid();",
-        "DEFINE TABLE own TYPE RELATION IN own OUT own ENFORCED;",
-        "DEFINE TABLE own; DEFINE FIELD target ON own TYPE option<record> ASSERT $value = NONE OR record::tb($value) != '';",
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_96.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_97.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_98.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_99.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_100.surql"
+        ),
     ] {
         assert!(admitted(sql), "current schema profile rejected {sql}");
     }
     for sql in [
-        "DEFINE TABLE own; DEFINE FIELD payload ON own TYPE {nested: array<record<foreign>>};",
-        "DEFINE TABLE own TYPE RELATION IN own OUT foreign ENFORCED;",
-        "DEFINE TABLE own; DEFINE FIELD target ON own TYPE option<record> REFERENCE;",
-        "RETURN <record> $value;",
-        "DEFINE FUNCTION fn::own($target: record) { RETURN $target; };",
-        "DEFINE TABLE own; DEFINE FIELD target ON own TYPE record VALUE (SELECT * FROM foreign);",
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_101.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_102.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_103.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_104.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_105.surql"
+        ),
+        include_str!(
+            "queries/admission/current_field_kinds_defaults_and_relations_inspect_nested_targets/statement_106.surql"
+        ),
     ] {
         assert!(
             !admitted(sql),

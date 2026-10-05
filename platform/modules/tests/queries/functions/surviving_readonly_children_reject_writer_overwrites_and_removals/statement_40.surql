@@ -1,0 +1,1 @@
+DEFINE FUNCTION fn::own::caller() { RETURN fn::own::leaf(); }; RETURN fn::own::caller(); DEFINE FUNCTION fn::own::leaf() { RETURN true; };

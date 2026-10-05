@@ -1,0 +1,1 @@
+CREATE ONLY $actor.id CONTENT $actor;

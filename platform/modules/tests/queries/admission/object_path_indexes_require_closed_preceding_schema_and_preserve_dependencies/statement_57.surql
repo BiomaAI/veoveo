@@ -1,0 +1,1 @@
+DEFINE TABLE own; DEFINE FIELD identity ON own TYPE object; REMOVE TABLE own; DEFINE TABLE own; DEFINE INDEX by_key ON own FIELDS identity.key;
