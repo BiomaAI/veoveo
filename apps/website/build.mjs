@@ -12,7 +12,7 @@ cpSync(join(site, "public"), dist, { recursive: true });
 
 const paper = readFileSync(join(docs, "veoveo-whitepaper.html"), "utf8");
 const figures = new Set(
-  [...paper.matchAll(/(?:src|srcset|href)="((?:images|assets\/brand)\/[^"]+)"|url\(["']?((?:images|assets\/brand)\/[^"')]+)/g)]
+  [...paper.matchAll(/(?:src|srcset|href)="((?:images|assets\/brand)\/[^"?#]+)[^"]*"|url\(["']?((?:images|assets\/brand)\/[^"')]+)/g)]
     .map((m) => m[1] ?? m[2]),
 );
 const target = join(dist, "whitepaper");
