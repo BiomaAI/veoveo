@@ -97,6 +97,12 @@ actor, source principal, client, tenant, context, invocation provenance and sour
 expiry before delivery. Current registration and domain permissions remain the server's
 responsibility.
 
+Normalized principals use the closed `PrincipalAssurance` vocabulary shared with
+Rust: `us_person`. An omitted assurance set defaults to empty, and unknown normalized
+values fail model and signed internal-token admission. External JWT claims keep their
+gateway normalization policy; this vocabulary applies to the principal delivered to
+the server.
+
 ## Task Query Assets
 
 The Task runtime stores complete SurrealQL statements under

@@ -170,3 +170,24 @@ def test_normalized_principal_and_group_membership_reject_unknown_fields():
         Principal.model_validate({**principal, "external_claim": True})
     with pytest.raises(ValueError, match="extra_forbidden"):
         GroupMembership.model_validate({"group": "engineering", "role": "read", "unexpected": True})
+
+
+def test_normalized_principal_assurances_use_the_closed_rust_vocabulary():
+    from veoveo_mcp.contract import Principal, PrincipalAssurance
+
+    principal = {"id": "alice", "kind": "user", "issuer": "https://idp.example.com", "subject": "alice"}
+    assert Principal.model_validate(principal).assurances == set()
+    for assurances in [
+        ["us_person"],
+        [PrincipalAssurance.US_PERSON],
+        ["us_person", "us_person"],
+    ]:
+        admitted = Principal.model_validate({**principal, "assurances": assurances})
+        assert admitted.assurances == {PrincipalAssurance.US_PERSON}
+        assert admitted.model_dump(mode="json")["assurances"] == ["us_person"]
+        assert Principal.model_validate_json(admitted.model_dump_json()) == admitted
+    assert list(PrincipalAssurance) == [PrincipalAssurance.US_PERSON]
+    assert Principal.model_json_schema()["$defs"]["PrincipalAssurance"]["enum"] == ["us_person"]
+    for unknown in ["contractor", "UsPerson", "US_PERSON", "", "us_person "]:
+        with pytest.raises(ValueError, match="enum"):
+            Principal.model_validate({**principal, "assurances": [unknown]})

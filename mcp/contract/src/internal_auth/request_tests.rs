@@ -31,13 +31,14 @@ fn all_invocation_modes_preserve_signed_source_and_session_context() {
             .issue(
                 GatewayProfileId::parse("operator").unwrap(),
                 ServerSlug::parse("computers").unwrap(),
-                fixture.actor,
+                fixture.actor.clone(),
                 fixture.authority,
                 Some(fixture.request_context.clone()),
                 Utc::now() + TimeDelta::seconds(60),
             )
             .unwrap();
         let received = verifier.verify(&issued.bearer_token).unwrap();
+        assert_eq!(received.actor, fixture.actor, "{}", fixture.name);
         assert_eq!(
             received.request_context,
             Some(fixture.request_context),

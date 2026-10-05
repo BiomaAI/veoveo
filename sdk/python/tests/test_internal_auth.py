@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 import jwt as pyjwt
 import pytest
+from pydantic import ValidationError
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
@@ -137,16 +138,64 @@ def test_verifies_a_valid_gateway_assertion():
 def test_external_jwt_claims_do_not_extend_the_normalized_principal():
     pem, jwks = _keypair()
     identity = _verifier(jwks).verify(
-        _token(pem, _claims(external_claim={"provider": "example"}))
+        _token(pem, _claims(
+            external_claim={"provider": "example"},
+            principal_assurances=["provider_extension"],
+        ))
     )
     assert identity.actor.kind.value == "service"
     assert "external_claim" not in identity.actor.model_dump()
+
+
+def test_signed_internal_actor_assurances_are_admitted_as_enum_values():
+    from veoveo_mcp.contract import PrincipalAssurance
+
+    pem, jwks = _keypair()
+    actor = _principal()
+    actor["assurances"] = ["us_person"]
+    identity = _verifier(jwks).verify(_token(pem, _claims(actor=actor)))
+    assert identity.actor.assurances == {PrincipalAssurance.US_PERSON}
+    assert identity.actor.model_dump(mode="json")["assurances"] == ["us_person"]
+
+
+@pytest.mark.parametrize("location", ["actor", "source"])
+def test_signed_internal_principals_reject_unknown_normalized_assurances(location):
+    pem, jwks = _keypair()
+    fixture = deepcopy(_request_context_fixtures()[0])
+    principal = (
+        fixture["actor"] if location == "actor"
+        else fixture["request_context"]["principal"]
+    )
+    principal["assurances"] = ["contractor"]
+    claims = _claims(
+        actor=fixture["actor"], authority=fixture["authority"],
+        request_context=fixture["request_context"],
+    )
+    with pytest.raises(InternalTokenError) as rejected:
+        _verifier(jwks).verify(_token(pem, claims))
+    assert isinstance(rejected.value.__cause__, ValidationError)
+    assert any(error["type"] == "enum" for error in rejected.value.__cause__.errors())
 
 
 def _request_context_fixtures():
     return json.loads(
         (Path(__file__).parents[3] / "testing/fixtures/gateway-request-context.json").read_text()
     )
+
+
+@pytest.mark.parametrize("fixture", _request_context_fixtures(), ids=lambda f: f["name"])
+def test_shared_request_context_preserves_assurances_in_signed_claims(fixture):
+    from veoveo_mcp.contract import PrincipalAssurance
+
+    pem, jwks = _keypair()
+    claims = _claims(
+        actor=fixture["actor"], authority=fixture["authority"],
+        request_context=fixture["request_context"],
+    )
+    received = _verifier(jwks).verify(_token(pem, claims))
+    expected = {PrincipalAssurance.US_PERSON} if fixture["name"] == "direct" else set()
+    assert received.actor.assurances == expected
+    assert received.request_context.principal.assurances == expected
 
 
 @pytest.mark.parametrize("fixture", _request_context_fixtures(), ids=lambda f: f["name"])

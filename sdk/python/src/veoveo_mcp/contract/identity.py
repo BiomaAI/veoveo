@@ -56,6 +56,10 @@ class PrincipalKind(str, Enum):
     SERVICE = "service"
 
 
+class PrincipalAssurance(str, Enum):
+    US_PERSON = "us_person"
+
+
 class GroupRole(str, Enum):
     READ = "read"
     WRITE = "write"
@@ -82,7 +86,7 @@ class Principal(BaseModel):
     roles: set[RoleId] = Field(default_factory=set)
     scopes: set[ScopeName] = Field(default_factory=set)
     data_labels: set[DataLabelId] = Field(default_factory=set)
-    assurances: set[str] = Field(default_factory=set)
+    assurances: set[PrincipalAssurance] = Field(default_factory=set)
     authenticated_at: datetime | None = None
 
     def group_memberships(self) -> set[GroupMembership]:

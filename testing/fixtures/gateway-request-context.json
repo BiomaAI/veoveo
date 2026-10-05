@@ -16,7 +16,9 @@
         "operator:use"
       ],
       "data_labels": [],
-      "assurances": [],
+      "assurances": [
+        "us_person"
+      ],
       "authenticated_at": null
     },
     "authority": {
@@ -72,7 +74,9 @@
           "operator:use"
         ],
         "data_labels": [],
-        "assurances": [],
+        "assurances": [
+          "us_person"
+        ],
         "authenticated_at": null
       },
       "audit": {
