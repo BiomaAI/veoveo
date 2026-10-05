@@ -143,10 +143,24 @@ undeclared fields and mismatched revision content in both management and control
 paths; its management, gateway and decoder suites pass. The composed schema,
 installation-command lifecycle and independent schema consumer pass. Affected
 compilation, strict lint, formatting and source-policy checks pass. Independent review
-findings are resolved. This qualifies the batch for a source checkpoint.
+findings are resolved. The batch is committed and pushed as `54f3bc130`.
 
-Next are Media's shared webhook journal and settlement APIs, the remaining Agent
-Identity operations and Artifact subscription deadlines. Computers' real provider
+Kernel SQL exports now admit creation of one typed record in an owned table, with
+an explicit field allowlist. The module admission and native runner suites pass,
+including rejection of foreign targets and mutations inside read-only contexts.
+This independent prerequisite is committed and pushed as `015c84b47`.
+
+The Agent, Artifact, Task and Media integration batch is in progress and has not
+passed compilation or native qualification.
+Agent Identity operations now call owner exports, including service-principal creation
+inside the Agent transaction. Artifact subscription deadlines reuse Store's read policy
+across the full selected collection. Task storage, Rust and Python transitions carry a
+separate typed product URI; server completion writers and their affected output schemas
+are being updated together. Media's shared webhook journal, provider correlation,
+settlement and owner lookups are still being implemented. Qualification runs after this
+dependency chain is complete.
+
+Computers' real provider
 process suites still require a configured, qualified native execution profile before
 publication; the current tests do not close that Phase 10 requirement.
 The remaining [Phase 3](#phase-3-module-ownership-of-persistence-and-queries) owner
@@ -1154,6 +1168,18 @@ checks performed before the transaction do not protect a later journal write.
 The creation contribution's identity stays immutable. A later provider identity
 enters through a checked owner projection in the journal transaction, with the
 same rollback and replay guarantees as the Task contribution.
+
+Media must authenticate callback-to-dispatch correlation before an external job ID
+has been bound. WaveSpeed's [signature profile](https://wavespeed.ai/docs/verify-webhooks)
+covers the event ID, timestamp and body; the callback URL's Task ID is outside that
+signature. Persist a private Media-owned dispatch binding before submission and
+require it alongside the provider signature. Keep callback secrets out of request
+errors and logs. Qualify replay against two unbound Tasks, restart, binding races and
+late terminal observations after local cancellation. A submission timeout preserves
+an unresolved outcome and cannot authorize resubmission or a failed Task settlement.
+The installation cut must drain the previous callback profile; missing binding
+credentials fail rather than selecting an older handler.
+
 Artifact's subscription deadline
 query also belongs behind its owning Store API. Reuse current Artifact admission
 for retention and grant-expiry selection before returning the next deadline.
@@ -1412,6 +1438,16 @@ interpret MCP keys or server-owned result schemas. Qualify product completions,
 completions without a product, tool errors, malformed or mismatched addresses and
 replayed settlement. Update every writer in the same cut, including Media's webhook
 settlement and owner contributions.
+
+The MCP error flag alone does not determine whether a result has a product. A failed
+command may retain an addressable output; validate its URI and link by the same rule.
+Input references and updates to existing control state do not establish a separate
+result resource. Owners declare that distinction in their typed output contracts.
+Map reachability returns inline polygons and a calculation ID; remove
+`reachable_area_uri`, which has no retained resource or read route. Map's persisted
+route, matrix and other published products use their existing address builders.
+View capture returns its Frame address. Frames and DuckDB declare an Artifact
+address only when that result materializes an Artifact.
 
 The 28 JSON-in-string columns stay as text. `canonical_json` serves byte-exact
 idempotency comparisons in Map, Time and UAV, `geometry_json` carries GeoJSON, and
