@@ -34,6 +34,11 @@ also admits the selected model/template and exact capabilities, and validates ow
 transfer eligibility. These policy responsibilities are not inferred from a string
 identifier or from definition ownership alone.
 
+Identity owns the context snapshot and principal checks invoked inside Agent transactions.
+Publication uses `context_snapshot_matches_v1`; transfer uses the enabled
+`principal_current_v1` profile. Executable publisher attribution uses retained
+`principal_summaries_v1`, including disabled authors.
+
 ## Transactions And Revisions
 
 One mutation commits the definition and its idempotency receipt. Native table feeds

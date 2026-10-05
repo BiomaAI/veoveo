@@ -33,6 +33,13 @@ the registration and before execution, including for retained revisions. Pausing
 closes new episode admission while an admitted episode may drain. No lifecycle event
 starts a model call.
 
+Identity checks proposed service-principal and retained OAuth client collisions through
+`service_principal_available_v1`. Its `create_service_principal_v1` export creates the
+principal inside the same Agent transaction as capacity, instance and operation receipt.
+A later failure rolls back that creation and reservation. Registration and reconciliation
+use `tenant_context_keys_v1` for retained metadata, then apply Agent's current dispatch
+and enabled admission separately.
+
 ## Reconciliation And Execution
 
 Desired generation and active generation are separate. An update requests a drain;

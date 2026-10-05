@@ -1221,3 +1221,73 @@ async fn registration_and_reconciliation_reject_stored_revision_fields_and_proje
     .await
     .expect("managed stored revision qualification deadline");
 }
+
+#[tokio::test]
+async fn identity_collisions_leave_principal_instance_and_capacity_unchanged() {
+    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        let db = TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                fixture::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        for static_client in [false, true] {
+            let tenant = if static_client {
+                "oauth-collision"
+            } else {
+                "principal-collision"
+            };
+            let alice = identity(&db.a, tenant, "alice").await;
+            context(&db.a, &alice, "operations").await;
+            let actor = authority(&db.a, &alice, "operations").await;
+            let definition = managed_definition(&db.a, &actor).await;
+            if static_client {
+                db.a.client()
+                    .query(include_str!(
+                        "../queries/agent_management/identity_ownership/oauth_collision.surql"
+                    ))
+                    .bind(("tenant", alice.tenant_id.record_id()))
+                    .bind(("client", "managed-one"))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            } else {
+                identity(&db.a, tenant, "https://test.example/oauth#managed-one").await;
+            }
+            let snapshot = async |store: &PlatformStore| {
+                let mut response = store
+                    .client()
+                    .query(include_str!(
+                        "../queries/agent_management/identity_ownership/collision_snapshot.surql"
+                    ))
+                    .bind(("tenant", alice.tenant_id.record_id()))
+                    .bind(("context", actor.work_context.clone()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+                response.take::<Vec<i64>>(0).unwrap()
+            };
+            let before = snapshot(&db.a).await;
+            assert_eq!(
+                AgentRepository::new(db.b.clone())
+                    .mutate_managed_agent(
+                        &actor,
+                        "one",
+                        Uuid::now_v7(),
+                        None,
+                        plan(&definition, "one"),
+                        LIMITS
+                    )
+                    .await,
+                Err(AgentManagementError::Conflict)
+            );
+            assert_eq!(snapshot(&db.b).await, before);
+            assert_eq!(&before[1..], &[0, 0, 0, 0]);
+        }
+    })
+    .await
+    .expect("Identity collision Agent fixture exceeded 120 seconds");
+}

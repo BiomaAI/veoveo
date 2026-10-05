@@ -15,10 +15,9 @@ IF $mutation.kind = 'provision' {
     IF $definition = NONE OR $definition.tenant != $authority.tenant OR $definition.disabled
         OR $definition.status = 'archived' OR $authority.work_context NOT IN $definition.audience
         OR $revision.digest != $plan.revision OR $revision.execution.kind != 'managed' { THROW 'agent_not_found'; };
-    IF record::exists($command.principal)
+    IF !fn::kernel::identity::service_principal_available_v1($command.principal, $plan.identity.client_id)
         OR array::len(SELECT id FROM agent WHERE tenant = $authority.tenant AND agent_key = $command.key LIMIT 1) > 0
-        OR array::len(SELECT id FROM managed_agent WHERE identity.client_id = $plan.identity.client_id LIMIT 1) > 0
-        OR array::len(SELECT id FROM oauth_client WHERE client_id = $plan.identity.client_id LIMIT 1) > 0 { THROW 'agent_conflict'; };
+        OR array::len(SELECT id FROM managed_agent WHERE identity.client_id = $plan.identity.client_id LIMIT 1) > 0 { THROW 'agent_conflict'; };
     IF array::len(SELECT id FROM managed_agent WHERE resources.namespace = $plan.resources.namespace AND (
         resources.workload = $plan.resources.workload OR resources.credential_secret = $plan.resources.credential_secret
         OR resources.volume_claim = $plan.resources.volume_claim) LIMIT 1) > 0 { THROW 'agent_conflict'; };
@@ -26,8 +25,7 @@ IF $mutation.kind = 'provision' {
     UPSERT ONLY $capacity SET tenant = $authority.tenant, work_context = $authority.work_context,
         instances = (instances ?? 0) + 1, storage_gib = (storage_gib ?? 0) + $plan.resources.storage_gib;
     IF $capacity.instances > $command.limits.instances OR $capacity.storage_gib > $command.limits.storage_gib { THROW 'agent_capacity'; };
-    CREATE ONLY $command.principal SET tenant = $authority.tenant, kind = 'service', issuer = $plan.identity.issuer,
-        subject = $plan.identity.client_id, display_name = $plan.name, claims_hash = '', enabled = true;
+    fn::kernel::identity::create_service_principal_v1($authority.tenant, $command.principal, $plan.identity.issuer, $plan.identity.client_id, $plan.name);
     CREATE ONLY $command.instance SET tenant = $authority.tenant, work_context = $authority.work_context,
         owner = $authority.principal, deployed_by = $authority.principal, key = $command.key, name = $plan.name,
         definition = $command.definition, requested_revision = $revision.id, active_generation = 0,

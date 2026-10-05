@@ -27,9 +27,7 @@ IF $mutation.kind = 'create' {
     } ELSE IF $mutation.kind = 'publish' {
         IF $definition.disabled OR $definition.draft_digest != $mutation.digest { THROW 'agent_conflict'; };
         FOR $target IN $mutation.audience {
-            LET $context = SELECT * FROM ONLY $target.work_context;
-            IF $context = NONE OR $context.tenant != $authority.tenant OR
-                crypto::sha256(<string> [$context.policy_revision, $context.memberships, $context.output_policy]) != $target.context_digest { THROW 'agent_forbidden'; };
+            IF !fn::kernel::identity::context_snapshot_matches_v1($authority.tenant, $target.work_context, $target.context_digest) { THROW 'agent_forbidden'; };
         };
         LET $existing = array::first(SELECT id FROM agent_definition_revision WHERE definition = $command.definition AND digest = $mutation.digest LIMIT 1);
         LET $published = IF $existing = NONE {
@@ -44,8 +42,7 @@ IF $mutation.kind = 'create' {
             status = IF $definition.status = 'archived' { 'archived' } ELSE { $mutation.status },
             disabled = IF $mutation.status = 'archived' { $definition.disabled } ELSE { $mutation.status = 'disabled' };
     } ELSE IF $mutation.kind = 'transfer' {
-        LET $owner = SELECT * FROM ONLY $mutation.owner;
-        IF $owner = NONE OR !$owner.enabled OR $owner.tenant != $authority.tenant { THROW 'agent_forbidden'; };
+        IF fn::kernel::identity::principal_current_v1($authority.tenant, $mutation.owner) = NONE { THROW 'agent_forbidden'; };
         UPDATE ONLY $command.definition SET owner = $mutation.owner;
     } ELSE { THROW 'agent_conflict'; };
     UPDATE ONLY $command.definition SET revision += 1, updated_at = time::now();

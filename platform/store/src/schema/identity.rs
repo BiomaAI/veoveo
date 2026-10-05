@@ -11,7 +11,12 @@ pub const CURRENT_SCHEMA: &str = concat!(
     include_str!("identity/migrations/identity_labels_v1.surql"),
     include_str!("identity/migrations/tenant_current_v1.surql"),
     include_str!("identity/migrations/principal_current_v1.surql"),
-    include_str!("identity/migrations/tenant_matches_v1.surql")
+    include_str!("identity/migrations/tenant_matches_v1.surql"),
+    include_str!("identity/migrations/oauth_client_exists_v1.surql"),
+    include_str!("identity/migrations/service_principal_available_v1.surql"),
+    include_str!("identity/migrations/context_snapshot_matches_v1.surql"),
+    include_str!("identity/migrations/create_service_principal_v1.surql"),
+    include_str!("identity/migrations/tenant_context_keys_v1.surql")
 );
 
 fn actor_admitted_v1_api() -> Result<KernelSqlApi, DeclarationError> {
@@ -185,10 +190,130 @@ fn tenant_matches_v1_api() -> Result<KernelSqlApi, DeclarationError> {
     )
 }
 
+fn oauth_client_exists_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    let api = KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::oauth_client_exists_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![SqlParameter::new("client", SqlType::String)?],
+            SqlType::Bool,
+        )?,
+        SqlReadProfile::new(vec![TableName::new("oauth_client")?])?,
+        include_str!("identity/migrations/oauth_client_exists_v1.surql"),
+    )?;
+    Ok(api)
+}
+
+fn service_principal_available_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    let api = KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::service_principal_available_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("principal", SqlType::Record(TableName::new("principal")?))?,
+                SqlParameter::new("client", SqlType::String)?,
+            ],
+            SqlType::Bool,
+        )?,
+        SqlReadProfile::new(vec![
+            TableName::new("principal")?,
+            TableName::new("oauth_client")?,
+        ])?,
+        include_str!("identity/migrations/service_principal_available_v1.surql"),
+    )?;
+    Ok(api)
+}
+
+fn context_snapshot_matches_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    let api = KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::context_snapshot_matches_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("context", SqlType::Record(TableName::new("work_context")?))?,
+                SqlParameter::new("digest", SqlType::String)?,
+            ],
+            SqlType::Bool,
+        )?,
+        SqlReadProfile::new(vec![TableName::new("work_context")?])?,
+        include_str!("identity/migrations/context_snapshot_matches_v1.surql"),
+    )?;
+    Ok(api)
+}
+
+fn create_service_principal_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    let api = KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::create_service_principal_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("principal", SqlType::Record(TableName::new("principal")?))?,
+                SqlParameter::new("issuer", SqlType::String)?,
+                SqlParameter::new("subject", SqlType::String)?,
+                SqlParameter::new("name", SqlType::String)?,
+            ],
+            SqlType::Object,
+        )?,
+        SqlReadProfile::new(vec![TableName::new("principal")?])?,
+        include_str!("identity/migrations/create_service_principal_v1.surql"),
+    )?;
+    Ok(
+        api.with_effects(SqlEffectProfile::OwnedCreate(SqlCreateProfile::new(
+            TableName::new("principal")?,
+            vec![
+                SqlFieldName::new("tenant")?,
+                SqlFieldName::new("kind")?,
+                SqlFieldName::new("issuer")?,
+                SqlFieldName::new("subject")?,
+                SqlFieldName::new("display_name")?,
+                SqlFieldName::new("claims_hash")?,
+                SqlFieldName::new("enabled")?,
+            ],
+        )?)),
+    )
+}
+
+fn tenant_context_keys_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    let api = KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::tenant_context_keys_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("context", SqlType::Record(TableName::new("work_context")?))?,
+            ],
+            SqlType::Option(Box::new(SqlType::Object)),
+        )?,
+        SqlReadProfile::new(vec![
+            TableName::new("tenant")?,
+            TableName::new("work_context")?,
+        ])?,
+        include_str!("identity/migrations/tenant_context_keys_v1.surql"),
+    )?;
+    Ok(api)
+}
+
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
 pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, DeclarationError> {
     ModuleSetup::builder(ModuleName::new("identity")?, ModuleLayer::Kernel)
         .ownership(vec![
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::oauth_client_exists_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::service_principal_available_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::context_snapshot_matches_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::create_service_principal_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::tenant_context_keys_v1",
+            )?),
             OwnershipClaim::Function(FunctionName::new(
                 "fn::kernel::identity::tenant_matches_v1",
             )?),
@@ -227,6 +352,11 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             CURRENT_SCHEMA,
         )?])?)
         .sql_apis(vec![
+            oauth_client_exists_v1_api()?,
+            service_principal_available_v1_api()?,
+            context_snapshot_matches_v1_api()?,
+            create_service_principal_v1_api()?,
+            tenant_context_keys_v1_api()?,
             tenant_matches_v1_api()?,
             tenant_current_v1_api()?,
             principal_current_v1_api()?,

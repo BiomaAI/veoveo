@@ -660,7 +660,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `platform/recordings/store/src/recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
 | `administration.rs` | explicit database-scoped runtime credential administration; connection startup applies no schema |
 | `identity.rs`, `queries/identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
-| `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, tenant-scoped principal summaries, enabled-human search, identity labels and current-directory facts; retained tenant matching supports worker recovery after revocation |
+| `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, principal summaries, directory facts, context snapshots, OAuth collisions and service-principal creation inside caller transactions; retained tenant matching supports worker recovery after revocation |
 | `schema/gateway/migrations/` | Gateway-owned SQL exports for active control-revision agreement, unrevoked refresh-family expiry and Task retention routes |
 | `schema/tasks/migrations/` | Tasks-owned SQL exports for caller selection, trusted lifecycle selection, whole-input agreement, existence and retention release |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |

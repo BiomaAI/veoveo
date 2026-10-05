@@ -31,8 +31,12 @@ impl AgentRepository {
                 .bind(("client", oauth_client.to_owned()))
                 .await?
                 .check()?;
-            let installed: Vec<i64> = response.take(0)?;
-            if installed.first().copied().unwrap_or(0) != 0
+            let installed = response
+                .take::<Option<bool>>(0)?
+                .ok_or(StoreError::MissingRecord {
+                    operation: "managed OAuth installation fact",
+                })?;
+            if installed
                 || !managed.enabled
                 || managed.tenant_key != tenant_key
                 || managed.context_key != context_key

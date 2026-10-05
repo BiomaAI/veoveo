@@ -842,3 +842,111 @@ async fn private_draft_unknown_fields_are_rejected_after_sql_admission() {
     .await
     .expect("private draft decoder qualification deadline");
 }
+
+#[tokio::test]
+async fn identity_owner_preserves_retained_publishers_and_enabled_transfer() {
+    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        let db = TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                fixture::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let alice = identity(&db.a, "owner-check", "alice").await;
+        let bob = identity(&db.a, "owner-check", "bob").await;
+        let outsider = identity(&db.a, "other-owner-check", "outsider").await;
+        context(&db.a, &alice, "research").await;
+        let author = authority(&db.a, &alice, "research").await;
+        let mut manager = authority(&db.b, &bob, "research").await;
+        manager.manage_context = true;
+        let created = create(&db.a, &author, "assistant").await;
+        let published = publish(&db.a, &author, &created).await;
+        let repo = AgentRepository::new(db.b.clone());
+        let before = repo
+            .agent_executable(&manager, "assistant", None)
+            .await
+            .unwrap();
+        db.a.client()
+            .query(include_str!(
+                "queries/agent_management/identity_ownership/disable_principal.surql"
+            ))
+            .bind(("principal", alice.principal_id.record_id()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let after = repo
+            .agent_executable(&manager, "assistant", None)
+            .await
+            .unwrap();
+        assert_eq!(after.published_by_name, before.published_by_name);
+        assert_ne!(after.published_by_name, "Agent author");
+        assert_eq!(
+            repo.mutate_agent_definition(
+                &manager,
+                "assistant",
+                Uuid::now_v7(),
+                Some(published.revision),
+                AgentDefinitionMutation::Transfer {
+                    owner: alice.principal_id.record_id()
+                }
+            )
+            .await,
+            Err(AgentManagementError::Forbidden)
+        );
+        assert_eq!(
+            repo.mutate_agent_definition(
+                &manager,
+                "assistant",
+                Uuid::now_v7(),
+                Some(published.revision),
+                AgentDefinitionMutation::Transfer {
+                    owner: outsider.principal_id.record_id()
+                }
+            )
+            .await,
+            Err(AgentManagementError::Forbidden)
+        );
+        let moved = repo
+            .mutate_agent_definition(
+                &manager,
+                "assistant",
+                Uuid::now_v7(),
+                Some(published.revision),
+                AgentDefinitionMutation::Transfer {
+                    owner: bob.principal_id.record_id(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(moved.owner, bob.principal_id.record_id());
+        let mut response =
+            db.a.client()
+                .query(include_str!(
+                    "queries/agent_management/identity_ownership/keys.surql"
+                ))
+                .bind(("tenant", alice.tenant_id.record_id()))
+                .bind(("context", author.work_context.clone()))
+                .bind(("foreign_tenant", outsider.tenant_id.record_id()))
+                .bind((
+                    "missing_context",
+                    veoveo_platform_store::deterministic_work_context_id("owner-check", "missing")
+                        .unwrap()
+                        .record_id(),
+                ))
+                .bind((
+                    "missing_tenant",
+                    veoveo_platform_store::deterministic_tenant_id("missing-owner-check")
+                        .unwrap()
+                        .record_id(),
+                ))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        assert_eq!(response.take::<Vec<bool>>(0).unwrap(), vec![true; 4]);
+    })
+    .await
+    .expect("Identity owner Agent fixture exceeded 120 seconds");
+}
