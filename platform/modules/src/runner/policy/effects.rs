@@ -21,16 +21,33 @@ impl Visitor<'_> {
         let Some(api) = self.api else {
             return Ok(());
         };
-        let (SqlEffectProfile::OwnedUpdate(profile), Expr::Update(statement)) =
-            (api.effects(), expr)
-        else {
-            return Err(RunnerError::new(
-                "SQL API effect profile rejects this mutation",
-            ));
+        let (fields, data) = match (api.effects(), expr) {
+            (SqlEffectProfile::OwnedUpdate(profile), Expr::Update(statement)) => {
+                (profile.fields(), &statement.data)
+            }
+            (SqlEffectProfile::OwnedCreate(profile), Expr::Create(statement)) => {
+                if !statement.only
+                    || statement.what.len() != 1
+                    || !matches!(
+                        statement.what.first(),
+                        Some(Expr::Param(_)) | Some(Expr::Literal(Literal::RecordId(_)))
+                    )
+                {
+                    return Err(RunnerError::new(
+                        "SQL API create requires ONLY one typed owned record target",
+                    ));
+                }
+                (profile.fields(), &statement.data)
+            }
+            _ => {
+                return Err(RunnerError::new(
+                    "SQL API effect profile rejects this mutation",
+                ));
+            }
         };
-        let Some(surrealdb_sql::Data::SetExpression(assignments)) = &statement.data else {
+        let Some(surrealdb_sql::Data::SetExpression(assignments)) = data else {
             return Err(RunnerError::new(
-                "SQL API updates require explicit SET assignments",
+                "SQL API mutations require explicit SET assignments",
             ));
         };
         if assignments.is_empty() {
@@ -39,16 +56,12 @@ impl Visitor<'_> {
         for assignment in assignments {
             let [Part::Field(name)] = assignment.place.0.as_slice() else {
                 return Err(RunnerError::new(
-                    "SQL API update requires a listed top-level field",
+                    "SQL API mutation requires a listed top-level field",
                 ));
             };
-            if !profile
-                .fields()
-                .iter()
-                .any(|field| field.as_str() == name.as_str())
-            {
+            if !fields.iter().any(|field| field.as_str() == name.as_str()) {
                 return Err(RunnerError::new(
-                    "SQL API update field is outside its owned update profile",
+                    "SQL API mutation field is outside its owned effect profile",
                 ));
             }
         }

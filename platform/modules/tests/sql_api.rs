@@ -640,3 +640,129 @@ fn injected_datetime_and_pure_min_preserve_complete_child_checks() {
         assert!(admit(invalid).is_err());
     }
 }
+
+#[test]
+fn owned_create_profile_admits_only_one_record_and_declared_set_fields() {
+    const CREATE_API: &str = include_str!("queries/sql_api/owned_create_profile/allowed.surql");
+    let effects = SqlEffectProfile::OwnedCreate(
+        SqlCreateProfile::new(
+            TableName::new("own").unwrap(),
+            vec![SqlFieldName::new("payload").unwrap()],
+        )
+        .unwrap(),
+    );
+    let admit = |sql| {
+        let registry = ModuleRegistry::new(vec![updating_kernel(sql, effects.clone())]).unwrap();
+        prepare(registry.select(vec![]).unwrap()).is_ok()
+    };
+    assert!(admit(CREATE_API));
+    assert!(!admitted(CREATE_API));
+    for replacement in [
+        include_str!("queries/sql_api/owned_create_profile/rejected_0.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_1.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_2.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_3.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_4.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_5.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_6.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_7.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_8.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_9.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_10.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_11.surql"),
+        include_str!("queries/sql_api/owned_create_profile/rejected_12.surql"),
+    ] {
+        let sql = CREATE_API.replace(
+            "CREATE ONLY $id SET payload = {key:$key} RETURN NONE",
+            replacement.trim().trim_end_matches(';'),
+        );
+        assert!(
+            surrealdb_syn::parse_with_settings(
+                sql.as_bytes(),
+                surrealdb_syn::ParserSettings::default(),
+                async |parser, stack| {
+                    let ast = parser.parse_query(stack).await?;
+                    parser.assert_finished()?;
+                    Ok(ast)
+                }
+            )
+            .is_ok(),
+            "{sql}"
+        );
+        assert!(!admit(leaked(sql.clone())), "must reject: {sql}");
+    }
+    for (sql, minimum, dependency, expected) in [
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_29.surql"
+            ),
+            true,
+            true,
+            true,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_30.surql"
+            ),
+            false,
+            true,
+            false,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_31.surql"
+            ),
+            false,
+            false,
+            false,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_32.surql"
+            ),
+            true,
+            true,
+            false,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_33.surql"
+            ),
+            true,
+            true,
+            false,
+        ),
+        (
+            include_str!(
+                "queries/sql_api/updating_calls_require_dependencies_and_cannot_mutate_arguments_or_caller_sql/statement_34.surql"
+            ),
+            true,
+            true,
+            false,
+        ),
+    ] {
+        let registry = ModuleRegistry::new(vec![
+            updating_kernel(CREATE_API, effects.clone()),
+            caller(sql, minimum, dependency),
+        ])
+        .unwrap();
+        assert_eq!(
+            prepare(
+                registry
+                    .select(vec![ModuleName::new("consumer").unwrap()])
+                    .unwrap()
+            )
+            .is_ok(),
+            expected,
+            "{sql}"
+        );
+    }
+    assert!(SqlCreateProfile::new(TableName::new("own").unwrap(), vec![]).is_err());
+    assert!(
+        SqlCreateProfile::new(
+            TableName::new("own").unwrap(),
+            vec![SqlFieldName::new("payload").unwrap(); 2]
+        )
+        .is_err()
+    );
+}

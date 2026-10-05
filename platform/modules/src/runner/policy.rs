@@ -155,11 +155,15 @@ impl<'a> Visitor<'a> {
                 return Err(RunnerError::new("SQL API cannot mutate schema"));
             }
             if mode == AccessMode::DataWrite
-                && !matches!(api.effects(), SqlEffectProfile::OwnedUpdate(profile)
-                    if kind == ObjectKind::Table && profile.table().as_str() == name)
+                && !(kind == ObjectKind::Table
+                    && match api.effects() {
+                        SqlEffectProfile::OwnedUpdate(profile) => profile.table().as_str() == name,
+                        SqlEffectProfile::OwnedCreate(profile) => profile.table().as_str() == name,
+                        SqlEffectProfile::ReadOnly => false,
+                    })
             {
                 return Err(RunnerError::new(
-                    "SQL API write is outside its owned update profile",
+                    "SQL API write is outside its owned effect profile",
                 ));
             }
         }
@@ -483,11 +487,17 @@ impl<'a> Visitor<'a> {
                 for target in &statement.what {
                     self.target(target, true, depth + 1)?;
                 }
-                if let Some(data) = &statement.data {
-                    self.data(data, depth + 1)?;
-                }
-                self.output(statement.output.as_ref(), depth + 1)?;
-                self.expr(&statement.timeout, depth + 1)
+                let row_scope = self.row_scope;
+                self.row_scope = true;
+                let result = (|| {
+                    if let Some(data) = &statement.data {
+                        self.data(data, depth + 1)?;
+                    }
+                    self.output(statement.output.as_ref(), depth + 1)?;
+                    self.expr(&statement.timeout, depth + 1)
+                })();
+                self.row_scope = row_scope;
+                result
             }
             Expr::Update(statement) => {
                 if statement.with.is_some() || statement.explain.is_some() {

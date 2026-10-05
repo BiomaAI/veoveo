@@ -223,20 +223,23 @@ value and adds composition-supplied execution, dependencies and lane history.
 
 A kernel owner exports an exact versioned `KernelSqlApi`. The default effect profile
 is read-only. An explicit `OwnedUpdate` profile names one owned table and its checked
-top-level fields. The declaration names the
+top-level fields. `OwnedCreate` names one owned table and its checked top-level
+fields, and requires `CREATE ONLY` with one statically typed record target. The declaration names the
 introducing migration, parameter and return types, owned read tables and complete
 function definition. Supported signatures use strings, booleans, objects, specific
 record tables, arrays and optional values. The private parser requires the definition
 once in its introducing entry and compares its full AST and signature. Declaring an
 export does not waive inspection of its body. Read-only leaves reject writes. Updating
 leaves admit only `UPDATE SET` assignments to their listed fields; whole-record changes,
-nested targets, creation, deletion and DDL fail admission. Both profiles reject custom
+nested targets, creation, deletion and DDL fail admission. Creating leaves admit only
+`CREATE ONLY SET` with listed fields; table, array, list and subquery targets, whole-record
+data, updates, deletion and DDL fail admission. All profiles reject custom
 calls, scripts, foreign reads and nondeterministic built-ins. A typed record parameter
 may supply a SELECT or UPDATE target inside a leaf when its table passes the declared
 read or update profile. Ordinary owner SQL cannot use a parameter as a dynamic target.
-Updating leaves run in their caller's transaction; they do not commit independently.
+Mutating leaves run in their caller's transaction; they do not commit independently.
 Permission predicates and schema comments are read-only contexts in every owner. They
-reject direct mutation and calls to updating exports, even on an updating leaf.
+reject direct mutation and calls to mutating exports, even on an updating leaf.
 
 The visitor permits a single field on a native object parameter or an explicitly
 typed object local. Other locals require a positive branch of
@@ -252,7 +255,7 @@ of stored object shape.
 A migration calling an API must declare its owner's dependency and an explicit
 per-migration minimum covering introduction. Admission checks the exact API name,
 argument count and proven types, including specific record tables. It inspects every
-argument and rejects argument-side mutation, including calls to updating exports. Private functions and undeclared versions
+argument and rejects argument-side mutation, including calls to mutating exports. Private functions and undeclared versions
 cannot become callable through a namespace prefix. Runtime services bind admitted
 caller scope through their owner contracts; the SQL API does not authenticate an
 arbitrary supplied scope.

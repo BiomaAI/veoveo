@@ -109,10 +109,34 @@ impl SqlUpdateProfile {
         &self.fields
     }
 }
+/// The exact owned table and fields a leaf function may create through SET assignments.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SqlCreateProfile {
+    table: TableName,
+    fields: Vec<SqlFieldName>,
+}
+impl SqlCreateProfile {
+    pub fn new(table: TableName, fields: Vec<SqlFieldName>) -> Result<Self, DeclarationError> {
+        let mut unique = std::collections::BTreeSet::new();
+        if fields.is_empty() || fields.iter().any(|field| !unique.insert(field)) {
+            return Err(DeclarationError::new(
+                "SQL API create profile needs one or more unique fields",
+            ));
+        }
+        Ok(Self { table, fields })
+    }
+    pub fn table(&self) -> &TableName {
+        &self.table
+    }
+    pub fn fields(&self) -> &[SqlFieldName] {
+        &self.fields
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SqlEffectProfile {
     ReadOnly,
     OwnedUpdate(SqlUpdateProfile),
+    OwnedCreate(SqlCreateProfile),
 }
 /// A versioned leaf function with a declared effect profile. The runner qualifies the full exact definition.
 #[derive(Clone, Debug, PartialEq, Eq)]

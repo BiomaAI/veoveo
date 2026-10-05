@@ -415,8 +415,10 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 append-only lane declarations, dependency ordering and enabled-module selection without
 normal or build dependencies. `ModuleOwnership` shares checked owner claims with runtime
 adapters without requiring an installation execution host. `src/sql_api.rs` describes
-versioned kernel SQL exports; `src/runner/policy/api.rs` admits their read-only bodies
-and guarded object access. `src/runner/policy/index.rs` checks schema-proven object
+versioned kernel SQL exports; `src/runner/policy/api.rs` checks their signatures
+and guarded object access. `src/runner/policy/effects.rs` restricts mutations to the
+declared owned table and fields; creation requires one typed record target.
+`src/runner/policy/index.rs` checks schema-proven object
 paths in indexes and rejects field changes that invalidate their parent shapes.
 `src/observation.rs` declares checked observation tables and explicit LIVE-only or
 changefeed replay capability without database dependencies. Optional owners export

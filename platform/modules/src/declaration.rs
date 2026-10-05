@@ -379,6 +379,7 @@ impl ModuleSetupBuilder {
                     .iter()
                     .any(|m| m.version() == api.introduced())
                 || matches!(api.effects(), SqlEffectProfile::OwnedUpdate(profile) if !self.ownership.iter().any(|c| c.matches(ObjectKind::Table, profile.table().as_str())))
+                || matches!(api.effects(), SqlEffectProfile::OwnedCreate(profile) if !self.ownership.iter().any(|c| c.matches(ObjectKind::Table, profile.table().as_str())))
                 || api.reads().tables().iter().any(|t| {
                     !self
                         .ownership

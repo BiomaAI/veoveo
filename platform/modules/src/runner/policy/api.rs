@@ -159,7 +159,7 @@ impl<'a> Visitor<'a> {
         };
         if self.argument_readonly && !matches!(api.effects(), SqlEffectProfile::ReadOnly) {
             return Err(RunnerError::new(
-                "read-only SQL context cannot call an updating API",
+                "read-only SQL context cannot call a mutating API",
             ));
         }
         self.preparation
