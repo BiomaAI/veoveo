@@ -202,7 +202,7 @@ impl WorkloadKind {
             Self::Deployments => "deployments",
         }
     }
-    fn list_path(self, namespace: &str, workload: &str) -> Result<String> {
+    fn endpoint(self, namespace: &str, workload: &str) -> Result<url::Url> {
         let mut endpoint = url::Url::parse(match self {
             Self::Pods => "https://kubernetes.invalid/api/v1/namespaces/",
             Self::Deployments => "https://kubernetes.invalid/apis/apps/v1/namespaces/",
@@ -217,7 +217,27 @@ impl WorkloadKind {
             "labelSelector",
             &format!("veoveo.ai/managed-agent={workload}"),
         );
+        Ok(endpoint)
+    }
+    fn list_path(self, namespace: &str, workload: &str) -> Result<String> {
+        let endpoint = self.endpoint(namespace, workload)?;
         Ok(endpoint[url::Position::BeforePath..].to_owned())
+    }
+    fn watch_path(self, namespace: &str, workload: &str, version: &str) -> Result<String> {
+        ensure!(!version.is_empty(), "workload watch resourceVersion absent");
+        let mut endpoint = self.endpoint(namespace, workload)?;
+        endpoint
+            .query_pairs_mut()
+            .append_pair("watch", "true")
+            .append_pair("resourceVersion", version)
+            .append_pair("timeoutSeconds", "550");
+        Ok(endpoint[url::Position::BeforePath..].to_owned())
+    }
+    fn observer(self) -> &'static str {
+        match self {
+            Self::Pods => "managed Pod watch",
+            Self::Deployments => "managed Deployment watch",
+        }
     }
 }
 impl PodList {
@@ -256,7 +276,6 @@ impl PodWatch {
         workload: &str,
         kind: WorkloadKind,
     ) -> Result<Self> {
-        let selector = format!("veoveo.ai/managed-agent={workload}");
         // Normal kubectl output flattens empty lists and discards their resourceVersion.
         // Read the single-resource API response intact before starting the watch at its revision.
         let path = kind.list_path(namespace, workload)?;
@@ -268,20 +287,13 @@ impl PodWatch {
         for p in &list.items {
             record_retirement(&p.metadata, &mut retired);
         }
+        let watch = kind.watch_path(namespace, workload, &list.metadata.resource_version)?;
         let child = process::Background::start(
-            fixture.kubectl_in(namespace).args([
-                "get",
-                kind.name(),
-                "--selector",
-                &selector,
-                "--watch-only",
-                "--output-watch-events",
-                "-o=json",
-                "--resource-version",
-                &list.metadata.resource_version,
-                "--request-timeout=0",
-            ]),
+            fixture
+                .kubectl_in(namespace)
+                .args(["get", "--raw", &watch, "--request-timeout=0"]),
             600,
+            kind.observer(),
         )?;
         Ok(Self {
             child,
@@ -401,6 +413,12 @@ mod tests {
                 path,
                 format!("{route}?labelSelector=veoveo.ai%2Fmanaged-agent%3Dagent-fixture")
             );
+            let watch = kind.watch_path("agents", "agent-fixture", "4264")?;
+            assert_eq!(
+                watch,
+                format!("{path}&watch=true&resourceVersion=4264&timeoutSeconds=550")
+            );
+            assert!(kind.watch_path("agents", "agent-fixture", "").is_err());
             let encoded = kind.list_path("namespace/reserved", "agent +reserved")?;
             let endpoint = url::Url::parse(&format!("https://kubernetes.invalid{encoded}"))?;
             assert!(endpoint.path().contains("namespace%2Freserved"));

@@ -145,6 +145,7 @@ impl Managed {
                 "--request-timeout=0",
             ]),
             1800,
+            "managed Store port-forward",
         )?;
         let started = Instant::now();
         let mut output = Vec::new();

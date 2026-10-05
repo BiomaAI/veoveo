@@ -223,8 +223,9 @@ content witness to the retained PVC. Generation 2 rotates the actual database
 account and both owned runtime Secrets, verifies fresh connection rejection with
 the old credential, and observes foreground workload retirement. Pod and Deployment
 watches begin with raw single-resource API lists whose resourceVersion survives
-an empty inventory; a replacement cannot overlap its
-old object in either ordered stream. A watch error, unknown identity or disconnected
+an empty inventory. Raw API watches carry that revision and the same selector,
+with a 550-second server timeout inside the 600-second observer budget. A
+replacement cannot overlap its old object in either ordered stream. A watch error, unknown identity or disconnected
 observer fails qualification.
 
 The runtime's ordered LIVE stream must show old-owner release or expiry before a
@@ -268,7 +269,9 @@ the phase, program and exit status. The fixture-owned Helm render
 exposes stderr through the same secret replacement and 16 KiB cap as pod diagnostics.
 Failure diagnostics describe the UID-owned agent namespace before the installation
 namespace, summarize Deployment and Pod inventories before collecting logs, and
-apply the output cap after replacing every fixture-owned secret.
+apply the output cap after replacing every fixture-owned secret. Observer exits
+identify the Pod watch, Deployment watch or Store port-forward and report exit
+status without command arguments or child stderr.
 Other command output and argv stay private.
 
 The harness pins `oci-spec` 0.10.0 with only its distribution feature for maintained

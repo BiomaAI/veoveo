@@ -163,9 +163,10 @@ pub(super) struct Background {
     started: Instant,
     seconds: u64,
     offset: u64,
+    observer: &'static str,
 }
 impl Background {
-    pub fn start(command: &mut Command, seconds: u64) -> Result<Self> {
+    pub fn start(command: &mut Command, seconds: u64, observer: &'static str) -> Result<Self> {
         let stdout = tempfile::tempfile()?;
         let stderr = tempfile::tempfile()?;
         command.process_group(0);
@@ -185,6 +186,7 @@ impl Background {
             started: Instant::now(),
             seconds,
             offset: 0,
+            observer,
         })
     }
     pub fn read(&mut self) -> Result<Vec<u8>> {
@@ -197,16 +199,25 @@ impl Background {
                 && self.stderr.metadata()?.len() <= 2 * 1024 * 1024,
             "fixture observer output exceeded 2 MiB"
         );
-        ensure!(
-            matches!(
-                waitid(
-                    Id::Pid(Pid::from_raw(self.owned.child.id() as i32)),
-                    WaitPidFlag::WEXITED | WaitPidFlag::WNOHANG | WaitPidFlag::WNOWAIT
-                )?,
-                WaitStatus::StillAlive
+        let status = waitid(
+            Id::Pid(Pid::from_raw(self.owned.child.id() as i32)),
+            WaitPidFlag::WEXITED | WaitPidFlag::WNOHANG | WaitPidFlag::WNOWAIT,
+        )?;
+        match status {
+            WaitStatus::StillAlive => (),
+            WaitStatus::Exited(_, code) => anyhow::bail!(
+                "{} ended (exit status: {code}); an observation gap cannot prove drain",
+                self.observer
             ),
-            "fixture watch/forward ended; an observation gap cannot prove drain"
-        );
+            WaitStatus::Signaled(_, signal, _) => anyhow::bail!(
+                "{} ended (signal: {signal}); an observation gap cannot prove drain",
+                self.observer
+            ),
+            _ => anyhow::bail!(
+                "{} returned an unexpected child state; an observation gap cannot prove drain",
+                self.observer
+            ),
+        }
         // pread keeps the child's shared open-file write offset untouched.
         use std::os::unix::fs::FileExt;
         let mut bytes = vec![0; (self.stdout.metadata()?.len() - self.offset) as usize];
@@ -231,6 +242,28 @@ mod tests {
         assert!(diagnostic.contains("native diagnostic"));
         assert!(diagnostic.contains("exit status: 7"));
         assert!(!diagnostic.contains("password-123"));
+    }
+    #[test]
+    fn background_exit_diagnostics_name_observer_and_status_without_child_secrets() {
+        let mut background = Background::start(
+            Command::new("sh").args(["-c", "echo secret=password-123 >&2; exit 7"]),
+            2,
+            "managed Pod watch",
+        )
+        .unwrap();
+        let started = Instant::now();
+        let diagnostic = loop {
+            match background.read() {
+                Err(error) => break format!("{error:#}"),
+                Ok(_) => {
+                    assert!(started.elapsed() < Duration::from_secs(1));
+                    thread::sleep(Duration::from_millis(10));
+                }
+            }
+        };
+        assert!(diagnostic.contains("managed Pod watch ended (exit status: 7)"));
+        assert!(!diagnostic.contains("password-123"));
+        assert!(!diagnostic.contains("echo secret"));
     }
     #[test]
     fn command_deadline_and_failure_are_distinct() {
