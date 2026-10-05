@@ -77,9 +77,13 @@ trait for nongeneric structs and enums. Each declaration selects an ordinary own
 | `custom(...)` | Explicit mechanics for representations outside these forms |
 
 The parser admits owner, variant and field options once into a shared declaration.
-Both compact forms and custom declarations use that model. The emitter uses its
-checked routes for parsing, constructors, accessors and discovery, with one component
-builder for scalar fields, tails and optional queries.
+Both compact forms and custom declarations use that model. Complete route admission
+precedes normalization into typed field plans for cache, component role, constructor
+argument and accessor mode. One field walk emits parsing, encoded patterns,
+constructors and accessors from those plans. Optional query values and optional scalar
+storage with an owner codec have distinct roles. The same component fragments build
+addresses from parsed fields and constructor arguments; compact forms preserve their
+cache spelling profile and custom hooks preserve qualified String caches.
 
 A struct declares `template = "…"` on the attribute. The profile maps route errors;
 URI errors use that mapping unless the owner overrides it. Every dynamic component maps

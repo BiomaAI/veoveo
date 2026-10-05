@@ -355,3 +355,27 @@ fn encoded_constraints_are_opt_in_and_receive_component_context() {
         "example://precise/item-12?cursor=q%2F34"
     );
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[veoveo_types::resource_address(custom(template = "example://qualified/{id}", error = Error, route_error = route_error, wire))]
+struct QualifiedCache {
+    #[resource(error = |_| Error::Field, accessor = id)]
+    id: Component,
+    #[resource(cache)]
+    wire: std::string::String,
+}
+
+#[test]
+fn custom_qualified_string_cache_preserves_text_wire_and_borrowed_component() {
+    let address = QualifiedCache::resource_from_parts(Component("a/b".into())).unwrap();
+    assert_eq!(address.id().0, "a/b");
+    assert_eq!(address.wire, "example://qualified/a%2Fb");
+    let uri = address.to_uri().unwrap();
+    assert_eq!(QualifiedCache::parse(&uri).unwrap(), address);
+    assert_eq!(
+        QualifiedCache::try_from(address.wire.clone()).unwrap(),
+        address
+    );
+    assert_eq!(String::from(address.clone()), address.wire);
+    assert!(QualifiedCache::try_from("example://qualified/bad".to_owned()).is_err());
+}

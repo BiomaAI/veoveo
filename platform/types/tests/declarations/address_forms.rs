@@ -198,3 +198,57 @@ fn owner_schema_and_derived_metadata_keep_their_explicit_profiles() {
     );
     assert!(Checked::schema_id().ends_with("::Checked"));
 }
+
+// Optional scalar storage uses the owner codec for the complete Option, rather
+// than the query codec for its inner value.
+struct OptionalNames;
+impl veoveo_types::ResourceFieldCodec<Option<Name>> for OptionalNames {
+    type Error = ResourceUriError;
+    fn parse(value: &str) -> Result<Option<Name>, Self::Error> {
+        if value == "none" {
+            Ok(None)
+        } else {
+            Name::parse(value).map(Some)
+        }
+    }
+    fn text(value: &Option<Name>) -> std::borrow::Cow<'_, str> {
+        value.as_ref().map_or("none", Name::as_str).into()
+    }
+}
+#[veoveo_types::resource_address(components(Uris), template = "example://optional/{id}")]
+struct OptionalScalar(
+    #[resource(variable = "id", codec = OptionalNames, error = |error| error,
+        accessor = id, argument = optional_borrowed)]
+    Option<Name>,
+);
+
+#[veoveo_types::resource_address(components(Uris), template = "example://copied-getter/{id}", traits = copied)]
+struct CopiedGetter(
+    #[resource(variable = "id", accessor = id, copy_accessor, error = |_| ResourceUriError::DisallowedComponent)]
+     veoveo_types::TaskId,
+);
+
+#[test]
+fn optional_scalar_codec_and_borrowed_accessor_are_independent_of_query_role() {
+    let task = veoveo_types::TaskId::new();
+    let copied = CopiedGetter::new(task);
+    let copied_accessor: fn(&CopiedGetter) -> veoveo_types::TaskId = CopiedGetter::id;
+    assert_eq!(copied_accessor(&copied), task);
+    assert_eq!(
+        CopiedGetter::parse(copied.to_uri().as_str()).unwrap(),
+        copied
+    );
+    let construct: fn(Option<&Name>) -> OptionalScalar = OptionalScalar::new;
+    let accessor: fn(&OptionalScalar) -> Option<&Name> = OptionalScalar::id;
+    let id = Name::parse("value").unwrap();
+    for value in [Some(&id), None] {
+        let address = construct(value);
+        assert_eq!(accessor(&address), value);
+        let wire = address.to_uri();
+        assert_eq!(OptionalScalar::parse(wire.as_str()).unwrap(), address);
+        let rebuilt = OptionalScalar::resource_from_parts(value.cloned()).unwrap();
+        assert_eq!(rebuilt, address);
+    }
+    assert_eq!(construct(None).to_uri().as_str(), "example://optional/none");
+    assert!(OptionalScalar::parse("example://optional/").is_err());
+}

@@ -1,13 +1,15 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 shared mechanics have a qualified baseline. The declaration repetition
+Status: Phase 0 is qualified. The declaration repetition
 repair is applied across owners and callers and passes native qualification.
 Compact ID and resource attributes now generate standard derives, conversions and
 convenience methods through owner profiles. Shared tests, the owner-contract aggregate,
 both independent consumers, full workspace compilation, strict lint, source-policy
-checks and Task Runtime's database integration pass. The complete
-cost gate remains open; current-source reduction alone does not establish reduction
-from before the migration.
+checks and Task Runtime's database integration pass. Phase 0 acceptance requires
+clearer authoring, strong types and qualified behavior. Complete-family line counts
+remain visible, but net line reduction is not a completion requirement. Shared address
+generation uses one typed field model for parsing, builders and accessors; its affected
+native, consumer, compilation and repository checks pass.
 Vocabulary, embedded documents, Id, ResourceAddress, Checked models and opaque cursors
 preserve their owner admission and wire/schema profiles. Production helper and static
 unit-error adoption is complete; the tracked-source macro catalog is enforced.
@@ -629,51 +631,54 @@ Scoped strict lint, parser misuse tests and the full tracked-source catalog pass
 The Phase 0 behavioral audit covers typed address and identity admission, independent
 extensions, wire stability, discovery agreement and every declared macro. Explicit
 model and cursor exclusions are the owner representations described above. These
-checks do not establish that owner declarations reduce repetition. Phase 0 remains
-open on that requirement, alongside the later phase and installed acceptance gates.
+checks establish behavior. Authoring acceptance also requires compact owner
+declarations, reusable profiles and helpers that make correct declarations easier
+for developers and coding agents to write. The shared implementation may grow when
+that cost buys clearer authoring and stronger types.
 
 ### Declaration Repetition
 
-The accepted Id proposal called for declarative `uuid_v7`, `prefixed`, `text` and
-`hex` forms. The implemented admission hooks preserve owner behavior but leave
-repeated derive lists, Serde attributes, closures and convenience implementations.
-Across the Phase 0 commits, Map's ID file grew from 188 to 1,086 lines, Computers'
-from 133 to 515, and Optimization's address file from 122 to 203. These complete-file
-comparisons include colocated tests; they identify concrete owner declaration growth
-without claiming that every added line is duplication.
+The applied repair provides declarative UUID, prefixed, text and hex forms and shared
+resource constructors and accessors. Owner-selected profiles preserve generation,
+namespaces, accepted spellings, error mapping, binary representation, schema identity
+and secret redaction. Custom admission hooks cover representations outside the ordinary
+forms. Map IDs now use a two-line declaration with a shared owner profile; Computers
+IDs select their UUID admission profile and error context. Typed resource builders
+reject IDs from another domain at compile time.
 
-Complete the declaration API with shared forms and owner-selected profiles, keeping
-custom admission hooks for contracts that need them. Shared UUID and stable-key
-capabilities must preserve generation, namespaces, accepted spellings and error
-mapping. Serialization profiles must preserve binary representation, schema identity
-and secret redaction. Resource declarations also need shared standard constructors,
-accessors and formatting where owners currently repeat them. Qualify the chosen
-surface before updating the implementation rules in AGENTS.md.
+Evaluate declaration ergonomics and type safety before implementation size. Ordinary
+owners declare their form and domain policy once; shared mechanics supply standard
+derives, serialization and convenience methods. New owners must compose through
+their own profiles and types without adding domain vocabulary to core. Compile-time
+misuse checks and consumer tests establish that these conveniences preserve admission,
+wire formats and schemas. Additional shared code is acceptable when it makes these
+contracts easier to author and maintain.
 
 Measure complete owner families and the shared implementation together, including
 validators, schema helpers and every descendant of a moved file. Compare both the
 current tree and the tree before the Id migration; report subsequently added
-capabilities separately. A smaller macro catalog alone does not satisfy this
-requirement. Existing value, wire, schema and independent-consumer tests continue to
-protect behavior during the correction.
+capabilities separately. Use those measurements to expose maintenance cost; neither
+a smaller macro catalog nor a negative line count establishes authoring quality.
+Existing value, wire, schema and independent-consumer tests continue to protect
+behavior during the correction.
 
 The applied repair removes repeated ordinary-ID derives and conversions. The measured
 set covers 183 Rust and manifest paths, including the original declaration owners,
 moved Gateway ID implementations, shared URI and checked/cursor helpers, and every
-owner in the cursor serialization batch. It compares Git trees at `ba20a34d^` and
-`ec29482df`. Complete owner, facade and manifest files remain counted. Qualification
+owner in the cursor serialization batch. It compares `ba20a34d^` with the qualified
+address-generation batch. Complete owner, facade and manifest files remain counted. Qualification
 includes standalone tests, colocated test modules and Rustdoc fixtures.
 
-| Source category | Before migration | Measured repair | Change |
+| Source category | Before migration | Qualified repair | Change |
 |---|---:|---:|---:|
-| Implementation/API | 22,615 | 25,191 | +2,576 |
-| Qualification | 5,517 | 9,408 | +3,891 |
-| Total | 28,132 | 34,599 | +6,467 |
+| Implementation/API | 22,615 | 25,329 | +2,714 |
+| Qualification | 5,517 | 9,538 | +4,021 |
+| Total | 28,132 | 34,867 | +6,735 |
 
 Within that measured set, the complete `platform/macros`, `platform/types` and
-macro-policy files add 3,537 implementation/API lines. The remaining owner files
-remove 961. Smaller owner declarations have not offset the shared implementation
-cost, which stays part of the reduction requirement. These are whole-file
+macro-policy files add 3,654 implementation/API lines. The remaining owner files
+remove 940. Smaller owner declarations have not offset the shared implementation
+cost, which stays visible in the assessment. These are whole-file
 partitions; neither isolates the cost of a particular capability.
 
 This scope includes checked-value, cursor, numeric and optional-catalog changes as well
@@ -694,8 +699,9 @@ profiles. Their complete family removes another 42 implementation/API lines and 
 78 qualification lines, preserving envelope bytes, retained aliases and schema identity.
 The reviewed Reason and Stream subscription wrappers keep their owner implementations:
 the proposed shared form increased their size or changed malformed-address error precedence.
-Redap wire adapters and Rust convenience API variants still need cost review. The
-historical reduction requirement stays open alongside the independent Phase 5 and 6 batches.
+Redap wire adapters and Rust convenience API variants keep their owner implementations
+unless a shared form improves their authoring and preserves their contracts. Their
+line count does not block later phases.
 
 The correction uses attribute front ends for ID and resource declarations so they
 can generate standard derives as well as implementations. Ordinary public traits
@@ -716,8 +722,15 @@ validation through a second grammar description. Parse each declaration once and
 pass a typed configuration to its emitter. Schema identity overrides reuse generated
 metadata instead of copying descriptions into owner callbacks.
 
-The observation batch is qualified and committed. Complete this declaration
-correction before starting another persistence extraction batch.
+The observation batch and declaration repair are qualified. The address generator
+admits each field into a typed cache or component plan, with explicit scalar/query/tail,
+argument and accessor choices. One emitter consumes that plan without mutating frontend
+options to suppress duplicate getters. Native checks preserve optional scalar codecs,
+cache spellings and route-before-convenience diagnostics. Owner contracts, independent
+consumers and workspace compilation pass. Against `64a3be86a`, this batch adds 51
+implementation/API lines and 108 qualification lines across the same measured family.
+That cost is accepted for the checked field model and shared emission. Persistence
+extraction can proceed; historical line growth does not block that work.
 
 ### Rollout And Gates
 
@@ -732,7 +745,7 @@ use scoped native checks and independently resolved contract consumers.
 
 | Gate | Pass condition |
 |---|---|
-| Declaration repetition | Ordinary IDs and addresses declare their form and owner policy without repeating standard derives, serialization glue or convenience implementations; complete-owner and shared-code comparisons demonstrate the reduction |
+| Declaration authoring | Ordinary IDs and addresses declare their form and owner policy without repeating standard derives, serialization glue or convenience implementations; typed profiles, builders and misuse checks make correct declarations easier to write; complete-owner and shared-code comparisons report cost without requiring net line reduction |
 | Address tests | Round trips, reserved characters, duplicate or unsupported query parameters, malformed identifiers and wrong parents, as the Strong Types rule requires |
 | Id and vocabulary tests | Each form rejects invalid input on every constructor and deserializer; duplicate or empty spellings fail to compile |
 | Misuse tests | `compile_fail` cases for a template that names an unknown field, a field without a typed identifier, and an invalid scope spelling |

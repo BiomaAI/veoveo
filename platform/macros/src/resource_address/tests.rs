@@ -2,8 +2,8 @@ use super::*;
 use syn::DeriveInput;
 
 fn generate(input: &syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
-    let declaration = Declaration::new(input, declaration::read_options(&input.attrs)?, false)?;
-    super::generate(&declaration)
+    let declaration = Declaration::new(input, declaration::read_options(&input.attrs)?, None)?;
+    Ok(super::generate(&declaration).tokens)
 }
 
 #[test]
@@ -169,4 +169,34 @@ fn input_hooks_reject_duplicates_and_variant_placement() {
     ] {
         assert!(generate(&input).is_err());
     }
+}
+
+#[test]
+fn compact_cache_spelling_and_route_before_convenience_diagnostics_are_preserved() {
+    let compact = super::super::resource_address_frontend::expand(
+        quote!(cached(Uris), template = "example://item/{id}"),
+        quote!(
+            struct Item {
+                id: Id,
+                #[resource(cache)]
+                wire: std::string::String,
+            }
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(compact.to_string(), "cache requires String or ResourceUri");
+    let invalid = super::super::resource_address_frontend::expand(
+        quote!(components(Uris), template = "example://item/{missing}"),
+        quote!(
+            struct Item {
+                #[resource(accessor = id, clone_accessor, owned_accessor)]
+                id: Id,
+            }
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(
+        invalid.to_string(),
+        "field must map to exactly one declared template variable"
+    );
 }

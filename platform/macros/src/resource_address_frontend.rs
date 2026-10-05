@@ -128,8 +128,8 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     let mut input = syn::parse2::<DeriveInput>(item)?;
     if let Some(custom) = declaration.custom {
         let options = read_custom_options(&input.attrs, custom)?;
-        let address = AddressDeclaration::new(&input, options, false)?;
-        let backend = super::resource_address::generate(&address)?;
+        let address = AddressDeclaration::new(&input, options, None)?;
+        let backend = super::resource_address::generate(&address).tokens;
         remove_resource(&mut input);
         return Ok(quote!(#input #backend));
     }
@@ -278,146 +278,13 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     route_options.error = Some(error.clone());
     route_options.route_error = Some(syn::parse_quote!(Self::__address_route_error));
     route_options.wire = wire;
-    let mut address = AddressDeclaration::new(&input, route_options, true)?;
-    let mut cache = None;
-    let mut parameters = Vec::new();
-    let mut values = Vec::new();
-    let mut accessors = Vec::new();
-    if let Data::Struct(data) = &input.data {
-        for (index, (field, opts)) in data
-            .fields
-            .iter()
-            .zip(&mut address.routes[0].settings)
-            .enumerate()
-        {
-            let member = field
-                .ident
-                .as_ref()
-                .map(|id| quote!(#id))
-                .unwrap_or_else(|| {
-                    let index = syn::Index::from(index);
-                    quote!(#index)
-                });
-            let argument = field
-                .ident
-                .clone()
-                .unwrap_or_else(|| format_ident!("component_{index}"));
-            let admit = opts.admit.as_ref();
-            let clone_accessor = opts.clone_accessor;
-            let owned_accessor = opts.owned_accessor;
-            if clone_accessor && owned_accessor
-                || opts.copy_accessor && (clone_accessor || owned_accessor)
-            {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "clone accessor conflicts with copied or owned accessor",
-                ));
-            }
-            if (clone_accessor || owned_accessor) && opts.accessor.is_none() {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "accessor convenience requires accessor = name",
-                ));
-            }
-            if opts.cache
-                && ((opts.argument.is_some()
-                    || opts.admit.is_some()
-                    || opts.clone_accessor
-                    || opts.owned_accessor)
-                    || opts.accessor.is_some())
-            {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "cache cannot declare component conveniences",
-                ));
-            }
-            if admit.is_some() && constructor != "checked" {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "component admission requires a checked constructor",
-                ));
-            }
-            if opts.cache {
-                let is_uri = matches!(&field.ty,syn::Type::Path(path) if path.path.segments.last().is_some_and(|segment|segment.ident=="ResourceUri"));
-                let is_string =
-                    matches!(&field.ty,syn::Type::Path(path) if path.path.is_ident("String"));
-                if !is_uri && !is_string {
-                    return Err(syn::Error::new_spanned(
-                        field,
-                        "cache requires String or ResourceUri",
-                    ));
-                }
-                cache = Some((member, is_uri));
-                continue;
-            }
-            let ty = field.ty.clone();
-            let mode = opts
-                .argument
-                .as_deref()
-                .unwrap_or(if constructor == "borrowed" {
-                    "borrowed"
-                } else {
-                    "owned"
-                });
-            let (argument_type, mut argument_value) = match mode {
-                "owned" => (quote!(#ty), quote!(#argument)),
-                "borrowed" => (quote!(&#ty), quote!(#argument.clone())),
-                "optional_borrowed" => {
-                    let inner = super::resource_address::option_inner(&ty).ok_or_else(|| {
-                        syn::Error::new_spanned(
-                            &ty,
-                            "optional borrowed argument requires Option<T>",
-                        )
-                    })?;
-                    (quote!(Option<&#inner>), quote!(#argument.cloned()))
-                }
-                _ => {
-                    return Err(syn::Error::new_spanned(
-                        field,
-                        "unsupported address argument preset",
-                    ));
-                }
-            };
-            if let Some(admit) = admit {
-                argument_value = quote!((#admit)(#argument_value)?);
-            }
-            parameters.push(quote!(#argument:#argument_type));
-            values.push(argument_value);
-            if clone_accessor || owned_accessor {
-                let accessor = opts.accessor.take().ok_or_else(|| {
-                    syn::Error::new_spanned(&*field, "clone_accessor requires accessor")
-                })?;
-                let getter = if owned_accessor {
-                    quote!(pub fn #accessor(self)->#ty { self.#member })
-                } else {
-                    quote!(pub fn #accessor(&self)->#ty { self.#member.clone() })
-                };
-                accessors.push(getter);
-            }
-            if opts.error.is_none() {
-                opts.error = Some(syn::parse_quote!(Self::__address_component_error));
-            }
-        }
-    }
-    if let Data::Enum(_) = &input.data {
-        for route in &mut address.routes {
-            for options in &mut route.settings {
-                if options.argument.is_some()
-                    || options.admit.is_some()
-                    || options.clone_accessor
-                    || options.owned_accessor
-                {
-                    return Err(syn::Error::new_spanned(
-                        &input,
-                        "enum component conveniences stay owner-defined",
-                    ));
-                }
-                if options.error.is_none() {
-                    options.error = Some(syn::parse_quote!(Self::__address_component_error));
-                }
-            }
-        }
-    }
+    let address = AddressDeclaration::new(&input, route_options, Some(&constructor))?;
+    let super::resource_address::Expansion {
+        tokens: backend,
+        parameters,
+        values,
+        cache,
+    } = super::resource_address::generate(&address);
     if cached && cache.is_none() || !cached && cache.is_some() {
         return Err(syn::Error::new_spanned(
             &input,
@@ -451,7 +318,6 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     } else {
         quote!()
     };
-    let backend = super::resource_address::generate(&address)?;
     remove_resource(&mut input);
     let mut schema_input = input.clone();
     retain_schema_attributes(&mut schema_input);
@@ -534,7 +400,7 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
     };
     Ok(quote!(#derive #serde #input #backend
         impl #name {
-            #constructor_fn #parse_fn #cache_fn #to_uri_fn #(#accessors)*
+            #constructor_fn #parse_fn #cache_fn #to_uri_fn
             fn __address_parse(value:&str)->Result<Self,#error>{let uri=::veoveo_types::ResourceUri::new(value).map_err(|error|<#profile as ::veoveo_types::ResourceProfile>::uri_error(stringify!(#name),error))?;<Self as ::veoveo_types::ResourceAddress>::parse(&uri)}
             fn __address_component_error(error:#error)->#error{error}
             fn __address_route_error(error: ::veoveo_types::ResourceRouteError)->#error{(<#profile as ::veoveo_types::ResourceProfile>::PROFILE.route_error)(stringify!(#name),error)}

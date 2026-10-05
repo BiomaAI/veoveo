@@ -1,4 +1,4 @@
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::parse::Parser;
 use syn::{Attribute, Data, DeriveInput, Expr, Field, Fields, LitBool, LitStr, Type};
@@ -246,6 +246,200 @@ pub(crate) fn read_field(
     Ok(options)
 }
 
+/// Admitted field roles are independent of optional Rust storage.
+pub(crate) enum Role {
+    Scalar,
+    Query,
+    Tail,
+}
+pub(crate) enum Cache {
+    String,
+    Uri,
+}
+pub(crate) enum Accessor {
+    Borrowed,
+    Optional(Box<Type>),
+    Copy,
+    Clone,
+    Owned,
+}
+pub(crate) enum Argument {
+    Owned,
+    Borrowed,
+    Optional(Box<Type>),
+}
+pub(crate) enum FieldKind {
+    Cache(Cache),
+    Component(Box<Component>),
+}
+pub(crate) struct Component {
+    pub variable: String,
+    pub codec: Type,
+    pub error: Option<Expr>,
+    pub role: Role,
+    pub value_type: Type,
+    pub accessor: Option<(syn::Ident, Accessor)>,
+    pub argument: Argument,
+    pub admit: Option<Expr>,
+}
+pub(crate) struct FieldPlan {
+    pub member: syn::Member,
+    pub binding: syn::Ident,
+    pub argument: syn::Ident,
+    pub ty: Type,
+    pub kind: FieldKind,
+}
+impl FieldPlan {
+    fn new(
+        field: &Field,
+        settings: FieldOptions,
+        route: &Route,
+        index: usize,
+        constructor: Option<&str>,
+        variant: bool,
+    ) -> syn::Result<Self> {
+        let FieldOptions {
+            variable,
+            codec,
+            mut error,
+            tail,
+            cache,
+            accessor,
+            copy_accessor,
+            argument,
+            admit,
+            clone_accessor,
+            owned_accessor,
+        } = settings;
+        let invalid = |message| syn::Error::new_spanned(field, message);
+        if constructor.is_some() {
+            if variant
+                && (argument.is_some() || admit.is_some() || clone_accessor || owned_accessor)
+            {
+                return Err(invalid("enum component conveniences stay owner-defined"));
+            }
+            if clone_accessor && owned_accessor
+                || copy_accessor && (clone_accessor || owned_accessor)
+            {
+                return Err(invalid(
+                    "clone accessor conflicts with copied or owned accessor",
+                ));
+            }
+            if (clone_accessor || owned_accessor) && accessor.is_none() {
+                return Err(invalid("accessor convenience requires accessor = name"));
+            }
+            if cache
+                && (argument.is_some()
+                    || admit.is_some()
+                    || clone_accessor
+                    || owned_accessor
+                    || accessor.is_some())
+            {
+                return Err(invalid("cache cannot declare component conveniences"));
+            }
+            if admit.is_some() && constructor != Some("checked") {
+                return Err(invalid(
+                    "component admission requires a checked constructor",
+                ));
+            }
+            if error.is_none() {
+                error = Some(syn::parse_quote!(Self::__address_component_error));
+            }
+        }
+        let optional = super::option_inner(&field.ty);
+        let kind = if cache {
+            // Custom hooks historically classify String by its final path segment;
+            // compact forms require the unqualified String spelling.
+            let string = matches!(&field.ty, Type::Path(path) if if constructor.is_some() { path.path.is_ident("String") } else { path.path.segments.last().is_some_and(|segment| segment.ident == "String") });
+            if constructor.is_some()
+                && !string
+                && !matches!(&field.ty, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "ResourceUri"))
+            {
+                return Err(invalid("cache requires String or ResourceUri"));
+            }
+            FieldKind::Cache(if string { Cache::String } else { Cache::Uri })
+        } else {
+            let role = if route.queries.contains(&variable) {
+                Role::Query
+            } else if tail {
+                Role::Tail
+            } else {
+                Role::Scalar
+            };
+            let value_type = if matches!(role, Role::Query) {
+                optional.ok_or_else(|| invalid("query field must be Option<T>"))?
+            } else {
+                &field.ty
+            }
+            .clone();
+            let accessor = accessor.map(|name| {
+                (
+                    name,
+                    if owned_accessor {
+                        Accessor::Owned
+                    } else if clone_accessor {
+                        Accessor::Clone
+                    } else if copy_accessor {
+                        Accessor::Copy
+                    } else if let Some(inner) = optional {
+                        Accessor::Optional(Box::new(inner.clone()))
+                    } else {
+                        Accessor::Borrowed
+                    },
+                )
+            });
+            let argument = match argument
+                .as_deref()
+                .unwrap_or(if constructor == Some("borrowed") {
+                    "borrowed"
+                } else {
+                    "owned"
+                }) {
+                "owned" => Argument::Owned,
+                "borrowed" => Argument::Borrowed,
+                "optional_borrowed" => Argument::Optional(Box::new(
+                    optional
+                        .ok_or_else(|| {
+                            syn::Error::new_spanned(
+                                &field.ty,
+                                "optional borrowed argument requires Option<T>",
+                            )
+                        })?
+                        .clone(),
+                )),
+                _ => return Err(invalid("unsupported address argument preset")),
+            };
+            FieldKind::Component(Box::new(Component {
+                variable,
+                codec: codec.expect("admitted component codec"),
+                error,
+                role,
+                value_type,
+                accessor,
+                argument,
+                admit,
+            }))
+        };
+        Ok(Self {
+            member: field
+                .ident
+                .clone()
+                .map(syn::Member::Named)
+                .unwrap_or_else(|| syn::Member::Unnamed(syn::Index::from(index))),
+            binding: format_ident!(
+                "__resource_field_{index}",
+                span = proc_macro2::Span::mixed_site()
+            ),
+            argument: field
+                .ident
+                .clone()
+                .unwrap_or_else(|| format_ident!("component_{index}")),
+            ty: field.ty.clone(),
+            kind,
+        })
+    }
+}
+
 pub(crate) struct Declaration<'a> {
     pub name: &'a syn::Ident,
     pub options: Options,
@@ -255,11 +449,15 @@ pub(crate) struct RouteDeclaration<'a> {
     pub fields: &'a Fields,
     pub variant: Option<&'a syn::Ident>,
     pub options: Options,
-    pub settings: Vec<FieldOptions>,
+    pub plan: Vec<FieldPlan>,
     pub route: Route,
 }
 impl<'a> Declaration<'a> {
-    pub fn new(input: &'a DeriveInput, options: Options, conveniences: bool) -> syn::Result<Self> {
+    pub fn new(
+        input: &'a DeriveInput,
+        options: Options,
+        constructor: Option<&str>,
+    ) -> syn::Result<Self> {
         if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
             return Err(syn::Error::new_spanned(
                 input,
@@ -278,7 +476,7 @@ impl<'a> Declaration<'a> {
                 "resource requires route_error = owner_mapping",
             ));
         }
-        let mut routes: Vec<RouteDeclaration<'a>> = Vec::new();
+        let mut routes = Vec::new();
         let mut add = |fields: &'a Fields,
                        variant: Option<&'a syn::Variant>,
                        options: Options|
@@ -286,7 +484,7 @@ impl<'a> Declaration<'a> {
             let settings = fields
                 .iter()
                 .enumerate()
-                .map(|(index, field)| read_field(field, index, conveniences))
+                .map(|(index, field)| read_field(field, index, constructor.is_some()))
                 .collect::<syn::Result<Vec<_>>>()?;
             if let Some(variant) = variant {
                 if settings.iter().any(|options| options.cache) {
@@ -313,20 +511,22 @@ impl<'a> Declaration<'a> {
             }
             let route = Route::new(&options, fields, &settings)?;
             if let Some(variant) = variant
-                && routes.iter().any(|other| route.overlaps(&other.route))
+                && routes
+                    .iter()
+                    .any(|(_, _, _, _, other)| route.overlaps(other))
             {
                 return Err(syn::Error::new_spanned(
                     variant,
                     "resource route overlaps another variant's component shape",
                 ));
             }
-            routes.push(RouteDeclaration {
-                options,
+            routes.push((
                 fields,
-                variant: variant.map(|variant| &variant.ident),
+                variant.map(|variant| &variant.ident),
+                options,
                 settings,
                 route,
-            });
+            ));
             Ok(())
         };
         match &input.data {
@@ -362,7 +562,33 @@ impl<'a> Declaration<'a> {
         Ok(Self {
             name: &input.ident,
             options,
-            routes,
+            routes: routes
+                .into_iter()
+                .map(|(fields, variant, options, settings, route)| {
+                    let plan = fields
+                        .iter()
+                        .zip(settings)
+                        .enumerate()
+                        .map(|(index, (field, settings))| {
+                            FieldPlan::new(
+                                field,
+                                settings,
+                                &route,
+                                index,
+                                constructor,
+                                variant.is_some(),
+                            )
+                        })
+                        .collect::<syn::Result<_>>()?;
+                    Ok(RouteDeclaration {
+                        fields,
+                        variant,
+                        options,
+                        plan,
+                        route,
+                    })
+                })
+                .collect::<syn::Result<_>>()?,
         })
     }
 }
