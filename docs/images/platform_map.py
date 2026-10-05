@@ -11,7 +11,8 @@ route highlighting:
 
 This script copies that viewer to platform-map.html with the veoveo.ai night
 palette. The palette overrides every Archify theme and visual style, and the
-script removes the theme and style controls with their keyboard shortcuts. It also
+script removes the theme and style controls with their keyboard shortcuts and the
+node list beside the diagram. It also
 writes platform-map-print.svg, the same diagram with the same palette, for the
 printed whitepaper, where a frame cannot be interactive.
 
@@ -69,7 +70,8 @@ THEME = "\n".join([
     *[f"    {name}: {value} !important;" for name, value in PALETTE.items()],
     "  }",
     f"  body {{ font-family: {SANS} !important; background-image: none !important; }}",
-    "  #btn-theme, .preset-wrap { display: none !important; }",
+    "  #btn-theme, .preset-wrap, .reader-rail { display: none !important; }",
+    "  .container { max-width: none !important; }",
     "  .diagram-container > svg .c-region { fill: rgba(116, 42, 152, 0.05) !important; stroke: #3A2F4F !important; }",
     "</style>",
     "<script>",

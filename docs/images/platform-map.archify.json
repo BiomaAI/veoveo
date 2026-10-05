@@ -610,33 +610,5 @@
       "to": "objectstore",
       "label": "bytes"
     }
-  ],
-  "cards": [
-    {
-      "dot": "violet",
-      "title": "Request path",
-      "items": [
-        "People reach the gateway through the Console and Workspace browser edge",
-        "External MCP clients authorize against the gateway's OAuth server",
-        "The gateway forwards MCP to each hosted server with a signed identity"
-      ]
-    },
-    {
-      "dot": "violet",
-      "title": "Agents",
-      "items": [
-        "The manager provisions a Deployment, Secret and PVC per managed agent",
-        "The kernel claims wakes from SurrealDB and runs one bounded episode per batch",
-        "Workspace chat runs execute inside the gateway with the sender's authority"
-      ]
-    },
-    {
-      "dot": "violet",
-      "title": "Data",
-      "items": [
-        "Every hosted server keeps its Tasks and state in the platform store",
-        "Artifact bytes live in RustFS by default or in an external S3 bucket"
-      ]
-    }
   ]
 }

@@ -4905,7 +4905,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     --toolbar-menu-bg: #0B0713 !important;
   }
   body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important; background-image: none !important; }
-  #btn-theme, .preset-wrap { display: none !important; }
+  #btn-theme, .preset-wrap, .reader-rail { display: none !important; }
+  .container { max-width: none !important; }
   .diagram-container > svg .c-region { fill: rgba(116, 42, 152, 0.05) !important; stroke: #3A2F4F !important; }
 </style>
 <script>
@@ -5608,40 +5609,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     </div>
     <!-- Info Cards -->
     <div class="cards">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot violet"></div>
-          <h3>Request path</h3>
-        </div>
-        <ul>
-          <li>People reach the gateway through the Console and Workspace browser edge</li>
-          <li>External MCP clients authorize against the gateway&#39;s OAuth server</li>
-          <li>The gateway forwards MCP to each hosted server with a signed identity</li>
-        </ul>
-      </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot violet"></div>
-          <h3>Agents</h3>
-        </div>
-        <ul>
-          <li>The manager provisions a Deployment, Secret and PVC per managed agent</li>
-          <li>The kernel claims wakes from SurrealDB and runs one bounded episode per batch</li>
-          <li>Workspace chat runs execute inside the gateway with the sender&#39;s authority</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot violet"></div>
-          <h3>Data</h3>
-        </div>
-        <ul>
-          <li>Every hosted server keeps its Tasks and state in the platform store</li>
-          <li>Artifact bytes live in RustFS by default or in an external S3 bucket</li>
-        </ul>
-      </div>
     </div>
     <nav class="node-outline no-print" id="node-outline" hidden aria-labelledby="node-outline-title">
       <div class="node-outline-head">

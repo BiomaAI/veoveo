@@ -141,11 +141,8 @@
   /* ---------- platform map ---------- */
   section.platform-map { background: var(--dark); color: var(--dark-ink); padding: 0.8rem 16px 3rem; }
   .platform-map-inner { max-width: 72rem; margin: 0 auto; }
-  .platform-map .map-frame { margin-top: 0.4rem; }
-  .platform-map .map-frame iframe { display: block; width: 100%; aspect-ratio: 1224 / 1040; min-height: 40rem; border: 0; background: var(--dark); }
+  .platform-map iframe { display: block; width: 100%; height: 64rem; border: 0; overflow: hidden; background: var(--dark); }
   .platform-map .map-print { display: none; }
-  .platform-map .tcap { max-width: 46rem; }
-  .platform-map .tcap a { color: var(--accent-bright); }
 
   /* ---------- abstract ---------- */
   .abstract { border-bottom: 1px solid var(--line); padding: 0.2rem 0 1rem; margin: 0 0 1.1rem; }
@@ -239,13 +236,9 @@
       page: fullbleedwide; width: 11in; height: 8.5in; overflow: hidden;
       padding: 0.45in 0.6in; break-after: page;
     }
-    .platform-map-inner { max-width: none; }
-    .platform-map .tp-eyebrow { font-size: 10px; }
-    .platform-map .tp-sub { font-size: 8.5px; margin-bottom: 8px; }
-    .platform-map .map-frame iframe { display: none; }
-    .platform-map .map-print { display: block; width: auto; height: 6.55in; margin: 0 auto; }
-    .platform-map .map-hint { display: none; }
-    .platform-map .tcap { font-size: 8.5px; max-width: none; margin-top: 10px; }
+    .platform-map-inner { max-width: none; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .platform-map iframe { display: none; }
+    .platform-map .map-print { display: block; width: 100%; height: auto; }
 
     section.transcript { padding: 0.75in 0.8in; }
     .transcript-inner { max-width: none; }
@@ -304,20 +297,28 @@
   <img class="cover-art" src="images/cover-hero.jpg" alt="A person, a four-legged robot, a ground robot, a drone and an uncrewed boat linked to a shared world model, in a city that turns from a simulated wireframe into the real street.">
 </header>
 
-<section class="platform-map" aria-labelledby="platform-map-title">
+<section class="platform-map" aria-label="Veoveo platform map">
   <div class="platform-map-inner">
-    <div class="tp-eyebrow" id="platform-map-title">Platform map</div>
-    <div class="tp-sub">One installation, as the Helm chart deploys it</div>
-    <div class="map-frame">
-      <iframe src="images/platform-map.html?theme=dark" title="Veoveo platform map. Select a component to see its connections and the source files behind it."></iframe>
-      <img class="map-print" src="images/platform-map-print.svg" width="1214" height="880" alt="Veoveo platform map: people, MCP clients and the agent kernel reach hosted servers through the gateway, and the gateway and the agent kernel keep state in the SurrealDB platform store.">
-    </div>
-    <p class="tcap">Every request passes through the gateway, which checks identity and policy before it
-      forwards MCP with a signed identity. Managed agents run in their own namespace and reach
-      hosted servers only through the gateway. Hosted servers record long-running work as Tasks
-      in the platform store. <span class="map-hint">Select a component to trace its connections and
-      open the source behind it, or <a href="images/platform-map.html?theme=dark">open the map on its own page</a>.</span></p>
+    <iframe src="images/platform-map.html?theme=dark" title="Veoveo platform map" scrolling="no"></iframe>
+    <img class="map-print" src="images/platform-map-print.svg" width="1214" height="880" alt="Veoveo platform map: people, MCP clients and the agent kernel reach hosted servers through the gateway, and the gateway and the agent kernel keep state in the SurrealDB platform store.">
   </div>
+  <script>
+    // The frame takes the viewer's full height, so the map never clips or scrolls inside the page.
+    (() => {
+      const frame = document.querySelector(".platform-map iframe");
+      const fit = () => {
+        const doc = frame.contentDocument;
+        const content = doc && doc.querySelector(".container");
+        if (!content) return;
+        const padding = parseFloat(getComputedStyle(doc.body).paddingBottom) || 0;
+        frame.style.height = `${Math.ceil(content.getBoundingClientRect().bottom + padding)}px`;
+      };
+      frame.addEventListener("load", () => {
+        fit();
+        new ResizeObserver(fit).observe(frame.contentDocument.querySelector(".container"));
+      });
+    })();
+  </script>
 </section>
 
 <section class="transcript" aria-label="Illustrative mission transcript">
