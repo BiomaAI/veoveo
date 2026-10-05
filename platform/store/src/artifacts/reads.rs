@@ -76,6 +76,32 @@ impl ArtifactReadScope {
 }
 
 impl PlatformStore {
+    /// Earliest visible access expiry across the complete selected collection.
+    /// `None` selects all artifacts; an empty slice selects no members.
+    pub async fn artifact_read_deadline(
+        &self,
+        scope: ArtifactReadScope,
+        members: Option<&[ArtifactId]>,
+    ) -> Result<Option<DateTime<Utc>>, StoreError> {
+        let mut response = scope
+            .bind(
+                self.db
+                    .query(include_str!("../queries/artifacts/read_deadline.surql")),
+            )
+            .bind(("all", members.is_none()))
+            .bind((
+                "members",
+                members
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|id| id.record_id())
+                    .collect::<Vec<_>>(),
+            ))
+            .await?
+            .check()?;
+        Ok(response.take(response.num_statements() - 1)?)
+    }
+
     pub async fn artifact_read(
         &self,
         scope: ArtifactReadScope,

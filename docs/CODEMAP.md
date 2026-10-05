@@ -666,6 +666,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `artifacts/reads.rs`, `queries/artifacts/read_page.surql` and `schema/artifacts/migrations/read_v1.surql` | typed Artifact scope bindings, exact and paged reads, and the kernel export for current read admission, observation facts and expiry deadlines |
+| `queries/artifacts/read_deadline.surql` | earliest caller-visible expiry across all selected members, using the Artifact read policy and one database timestamp; an empty member selection differs from the whole collection |
 | `artifacts/publication.rs` and `queries/artifacts/register.surql` | shared typed publication content and transactional occurrence and grant registration with immutable tenant/digest blob reuse |
 | `artifact_uploads.rs` and `artifact_uploads/` | typed upload ledger, policy-bound idempotent admission, and atomic tenant reservations |
 | `artifact_uploads/parts.rs` and its SurrealQL statements | immutable part descriptors, generation-fenced receipts, shared transfer budgets, and unknown-length reservation windows |

@@ -261,6 +261,9 @@ async fn access_loss_invalidates_members_and_roots_for_revocation_and_expiry() {
             .bind(("expiry", retention)).bind(("artifact", veoveo_platform_store::ArtifactId::from_uuid(id.as_uuid()).record_id()))
             .await.unwrap().check().unwrap();
         assert_eq!(f.subscriptions.deadline(&f.owner, None).await.unwrap(), retention);
+        assert_eq!(f.subscriptions.deadline(&f.owner, Some(&[])).await.unwrap(), f.owner.identity.expires_at,
+            "an empty selection has no stored access deadline");
+        assert_eq!(f.subscriptions.deadline(&f.owner, Some(&[id])).await.unwrap(), retention);
         let mut listener = owner_client.listen(SubscriptionFilter::builder().resource_subscription(root.as_str()).build()).await.unwrap();
         updates(&mut listener, &[&root]).await;
         loop {

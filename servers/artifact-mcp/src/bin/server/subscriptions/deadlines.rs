@@ -42,24 +42,16 @@ impl ArtifactSubscriptions {
             caller.clearance().clone(),
             Some(identity.authority.work_context.clone()),
         )?;
-        let mut response = scope
-            .bind(self.store.client().query(include_str!(
-                "../../../../queries/bin/server/subscriptions/deadlines.surql"
-            )))
-            .bind(("all", members.is_none()))
-            .bind((
-                "members",
-                members
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|id| {
-                        veoveo_platform_store::ArtifactId::from_uuid(id.as_uuid()).record_id()
-                    })
-                    .collect::<Vec<_>>(),
-            ))
-            .await?
-            .check()?;
-        let deadline: Option<DateTime<Utc>> = response.take(response.num_statements() - 1)?;
+        let members = members.map(|members| {
+            members
+                .iter()
+                .map(|id| veoveo_platform_store::ArtifactId::from_uuid(id.as_uuid()))
+                .collect::<Vec<_>>()
+        });
+        let deadline = self
+            .store
+            .artifact_read_deadline(scope, members.as_deref())
+            .await?;
         Ok(deadline.map_or(identity.expires_at, |deadline| {
             deadline.min(identity.expires_at)
         }))

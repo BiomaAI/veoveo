@@ -29,3 +29,12 @@ as described by its owner. These grammar exceptions accept no SQL body from call
 Native Knowledge generation, search and index tests qualify table-expression execution;
 user rotation and observation tests qualify the other dynamic slots. Parser validation
 alone does not establish their database behavior.
+
+## Artifact Access Deadlines
+
+`PlatformStore::artifact_read_deadline` receives the checked `ArtifactReadScope` and
+specific Artifact IDs. An absent selection covers the full collection; an empty selection
+covers no members. The query selects candidate IDs before projecting deadlines through
+`fn::kernel::artifacts::read_v1`. One database timestamp governs visibility and expiry
+for every member. It applies no page limit and returns only the earliest admitted future
+access deadline. The MCP caller caps that deadline at its token expiry.

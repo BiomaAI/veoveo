@@ -224,7 +224,9 @@ ArtifactIndexCursor retains its Copy identity representation and literal artifac
 
 ## Persistence Query Placement
 
-Subscription deadlines include a complete statement from
-`queries/bin/server/subscriptions/deadlines.surql`. Its fixed Artifact admission
-predicate executes before the deadline aggregate; runtime scope and member values
-use driver bindings. Native fixture statements live in `tests/queries/`.
+Subscription wake deadlines use Store's typed `artifact_read_deadline` operation.
+Store reuses Artifact read admission with one database timestamp for all selected
+members, including members beyond the first index page. The server caps stored access
+expiry at the caller token expiry. Store owns the complete statement in
+`platform/store/src/queries/artifacts/read_deadline.surql`; caller scope and selected
+member IDs use driver bindings. Native fixture statements live in `tests/queries/`.
