@@ -320,16 +320,24 @@ nine optional modules.
 | Server module | Map | `map_*` (22) |
 | Server module | Time | `time_*` (8) |
 | Server module | UAV | `uav_*` (4) |
-| Server module | Frames | `frame_world`, `frame_world_revision`, `coordinate_operation`, and `task_used_frame`, which moves out of the kernel task tables |
+| Server module | Frames | `frame_world`, `frame_world_revision`, and `coordinate_operation` |
 | Server module | Media | `media_task_context`, `media_usage` |
 
-Phase 1 qualifies the declared target dependency order and inventories current-schema
-cycles. Tasks and Artifacts currently refer to each other through `task.result_artifact`
-and `artifact_occurrence.task`. Tasks and Gateway also refer to each other through
-Task profile/server fields and `gateway_task_route.source_task`/`mcp_interaction.task`.
-Phase 3 must resolve these embedded associations with owner approval before final
-ownership and dependency closure. Moving link tables alone cannot resolve every cycle.
-The table's top-to-bottom order is the proposed target, subject to qualification.
+Phase 1 qualifies execution dependencies. Tasks and Artifacts refer to each other
+through `task.result_artifact` and `artifact_occurrence.task`; Tasks and Gateway have
+similar typed links. A native SurrealDB 3.3 probe confirms that a field can declare a
+record type before its target table exists. Phase 3 preserves these typed links and
+distinguishes their schema graph from the migration execution graph.
+
+The runner may admit forward `record<>` types in owned field definitions between
+selected kernel owners, including nested unions and containers. This permission
+applies only to plain field types without `REFERENCE`. Casts, typed variables,
+function signatures, record literals and field expressions keep their existing
+admission rules. Optional owners still require declared dependencies. Reads, writes,
+analyzers and function calls do not gain permission from a field's type. Qualify
+reciprocal kernel fields and rejection of executable or optional-owner access before
+accepting the change. The migration execution graph must remain acyclic; the table's
+top-to-bottom execution order stays subject to full-lane qualification.
 Audit's `target_ref` includes Computers; Phase 3 must preserve audit semantics while
 resolving this kernel reference to an optional module.
 Optional modules depend only on kernel modules and on modules they declare.
@@ -829,7 +837,7 @@ the full kernel graph gate belongs there.
 | Kernel dependency | Extension point |
 |---|---|
 | Gateway binary hosts Computers, Speech, Recordings, Agents and Workspace HTTP surfaces | Route registration on the gateway builder; each module crate supplies its routes and the gateway library depends on none of them |
-| Server indexes on `task` (migrations `0042`, `0093`) and `task_used_frame` | Task-runtime transaction hooks: registered adapters supply typed rows for their declared tables at creation and settlement. The runtime owns transaction statements, Task links and settlement guards. Links use `record<task>` with `REFERENCE ON DELETE CASCADE` |
+| Server indexes on `task` (migrations `0042`, `0093`) | Task-runtime transaction hooks: registered adapters supply typed rows for their declared tables at creation and settlement. The runtime owns transaction statements, Task links and settlement guards. Links use `record<task>` with `REFERENCE ON DELETE CASCADE` |
 | Module SQL reading kernel tables | Versioned `fn::kernel::*` functions in kernel lanes, starting with task visibility for a caller and artifact readability. Visibility resolves the persisted record inside its owner function and filters module queries before limits or grouping |
 | `platform/store` depends on `veoveo-computers-contract` and hosts optional module persistence | Resolved in phase 3, when that persistence moves into its modules |
 
@@ -1050,6 +1058,21 @@ and Map in the server's persistence feature below its spatial runtime. Agent cha
 imports mutate Workspace participants, so Workspace owns that transaction and consumes
 typed Agent revision admission. Agents must not depend on Workspace.
 
+Kernel SQL exports keep their owned read profiles. A mutating export declares the
+owned table and fields it may update; read-only exports keep their existing limits.
+Agent result settlement reads its Task route through a Gateway export, then calls
+the Task owner's retention-release export with typed Task and server references.
+Both calls run inside the Agent transaction, preserving the route/server check and
+rollback of retention release when Agent settlement fails. This composition does
+not require foreign reads inside an export or calls between kernel exports.
+
+Owner-local SQL functions may compose after admission inspects their complete bodies
+and transitive effects. Calls between optional owners require a declared dependency,
+a concrete migration minimum and a read-only callee. Kernel exports stay explicit
+versioned leaves. Admission rejects unresolved calls, recursion and argument-side
+mutation. A later function overwrite must not grant writes to a surviving permission,
+field expression or other read-only caller.
+
 Recording persistence needs a lower `platform/recordings/store` library. Recording MCP
 already depends on Hub and Reader, while those libraries and Video also consume its
 catalog and ingest persistence. Putting that persistence in the server creates a
@@ -1066,15 +1089,51 @@ must bootstrap their selected owner lanes directly. The current fixture's mixed
 `migrate_on_connect(true)` bootstrap cannot prove owner independence or disabled-owner
 absence. Qualify those cases and prerequisites before accepting the moved suites.
 
+Fresh lanes omit `task_used_frame`: no production reader or writer uses it, and its
+`frame` endpoint names a table removed by the world-revision model. Remove its claim
+and fixture expectation without assigning it new semantics. Optimization's existing
+catalog replaces its three old indexes on kernel Task payloads. UAV's mission lookup
+can use its indexed mission plans and execution links to select Task record IDs
+directly. Preserve current authority and parent checks before ordering or limits,
+and qualify the native query plan without a Task table scan before retiring
+`task_uav_plan`. This prerequisite does not complete Phase 4's payload-column work.
+
 Audit's Computer target also crosses this dependency cut. Computers must own its
 typed target codec and lookup-reference projection. Composition binds that codec to
 Audit's extension slot; persisted and query decoding reject unbound targets. Preserve
 the existing target JSON without an extra wrapper, canonical record bytes and the
-same-transaction append path. Audit's owner lane admits a checked record reference
-without enumerating optional tables. Preserve the target index and existing exact
+same-transaction append path. Audit's owner lane stores the admitted lookup as an
+opaque native record reference without enumerating optional tables. Its field type
+grants neither `REFERENCE` cleanup nor executable dereference rights. The registered
+owner codec checks the lookup projection, and readers verify it against the target.
+Preserve the target index and existing exact
 draft-target list matching. Qualify independent registration, malformed targets,
 canonical hashes, commit/rollback and Audit-only bootstrap before removing the
 Computers contract dependency.
+
+Establish contextual Audit admission before that dependency cut. Audit owns an
+immutable target registry whose typed registrations bind an owner decoder, closed
+schema and lookup-reference projection together. Computers supplies its target type
+and discriminator. An admitted extension serializes directly as the existing target
+object; registry identity and lookup metadata never enter canonical record bytes.
+Unknown, unbound and duplicate discriminators, collisions with core variants, and
+contributions from another registry fail admission. The generic claim-extension
+registry's drop-unknown behavior does not apply to Audit.
+
+Target-bearing drafts, records, queries and reader models decode with the registry.
+Private wire DTOs may carry unadmitted input, but domain APIs accept checked values.
+Driver rows extract the stored value before contextual admission; live reads, page
+reads, sealing, export and indexing use the same admission path. Query targets are
+checked before SQL execution, and SQL keeps its complete target equality predicate.
+Preserve duplicate-field rejection at external JSON boundaries.
+
+The composed reader schema uses those same registrations to form a closed union,
+preserving owner definitions and rejecting schema-name collisions. Audit-only
+composition has no Computer target or table. The installation keeps the read codec
+for a supported domain when its workload is disabled; codec registration does not
+activate that workload or its persistence lane. An installation missing a required
+codec rejects the record with a configuration diagnostic rather than skipping it.
+Qualify HTTP/CLI inputs and generated browser readers with the persistence consumers.
 
 ## Phase 4: Database Field Types
 
