@@ -44,6 +44,33 @@ fn managed_objects(objects: &[Value]) -> impl Iterator<Item = &Value> {
     })
 }
 
+fn probe_job(template: &Value, name: &str, args: &[&str]) -> Result<Value> {
+    let mut job = template.clone();
+    job["metadata"] = json!({"name":name});
+    job["spec"]
+        .as_object_mut()
+        .context("probe Job spec")?
+        .remove("ttlSecondsAfterFinished");
+    job["spec"]["template"]["spec"]["containers"][0]["command"] = json!(["/usr/local/bin/gateway"]);
+    job["spec"]["template"]["spec"]["containers"][0]["args"] = json!(args);
+    Ok(job)
+}
+
+fn readiness_exit(pods: &Value) -> Result<Option<i64>> {
+    let pods = pods["items"]
+        .as_array()
+        .context("readiness Pod inventory")?;
+    ensure!(pods.len() == 1, "readiness probe must own exactly one Pod");
+    let status = pods[0]["status"]["initContainerStatuses"]
+        .as_array()
+        .and_then(|statuses| {
+            statuses
+                .iter()
+                .find(|status| status["name"] == "database-readiness")
+        });
+    Ok(status.and_then(|status| status["state"]["terminated"]["exitCode"].as_i64()))
+}
+
 pub(super) struct Fixture {
     pub namespace: String,
     context: String,
@@ -560,25 +587,76 @@ impl Fixture {
         args: &[&str],
         success: bool,
     ) -> Result<Vec<u8>> {
-        let mut job = template.clone();
-        job["metadata"] = json!({"name":name});
-        job["spec"]
-            .as_object_mut()
-            .context("probe Job spec")?
-            .remove("ttlSecondsAfterFinished");
-        job["spec"]["template"]["spec"]["containers"][0]["command"] =
-            json!(["/usr/local/bin/gateway"]);
-        job["spec"]["template"]["spec"]["containers"][0]["args"] = json!(args);
+        let job = probe_job(template, name, args)?;
         self.create_object(&job)?;
         let settled = self.wait_job(name, success);
+        let readiness = job["spec"]["template"]["spec"]["initContainers"]
+            .as_array()
+            .is_some_and(|containers| {
+                containers
+                    .iter()
+                    .any(|container| container["name"] == "database-readiness")
+            });
+        if readiness {
+            self.require_readiness_init(name)
+                .with_context(|| format!("probe {name} database readiness"))?;
+        }
         let logs = self.logs(name);
+        if readiness && logs.is_err() {
+            let diagnostic = self.readiness_diagnostic(
+                name,
+                "database-readiness init succeeded with exit code 0; main logs unavailable",
+            );
+            self.remember_probe_failure(name, &diagnostic);
+        }
         if let Err(error) = settled {
             if let Ok(ref bytes) = logs {
                 self.remember_probe_failure(name, bytes);
             }
             return Err(error).with_context(|| format!("probe {name}"));
         }
-        logs
+        logs.with_context(|| format!("probe {name} main logs"))
+    }
+    fn require_readiness_init(&mut self, name: &str) -> Result<()> {
+        let pods: Value = serde_json::from_slice(&process::checked(
+            self.kubectl().args([
+                "get",
+                "pods",
+                "--selector",
+                &format!("job-name={name}"),
+                "--output=json",
+            ]),
+            20,
+        )?)
+        .context("decode readiness Pod observation")?;
+        let exit = readiness_exit(&pods)?;
+        if exit == Some(0) {
+            return Ok(());
+        }
+        let state = match exit {
+            Some(code) => format!("database-readiness init failed with exit code {code}"),
+            None => "database-readiness init did not report successful termination".into(),
+        };
+        let diagnostic = self.readiness_diagnostic(name, &state);
+        self.remember_probe_failure(name, &diagnostic);
+        anyhow::bail!("{state}")
+    }
+    fn readiness_diagnostic(&self, name: &str, phase: &str) -> Vec<u8> {
+        let mut diagnostic = phase.as_bytes().to_vec();
+        diagnostic.push(b'\n');
+        match process::checked(
+            self.kubectl().args([
+                "logs",
+                &format!("job/{name}"),
+                "--container=database-readiness",
+                "--limit-bytes=2097152",
+            ]),
+            30,
+        ) {
+            Ok(logs) => diagnostic.extend(logs),
+            Err(_) => diagnostic.extend(b"readiness init logs unavailable\n"),
+        }
+        diagnostic
     }
     fn remember_probe_failure(&mut self, name: &str, bytes: &[u8]) {
         if self.first_probe_failure.is_none() {
@@ -778,21 +856,22 @@ impl Fixture {
                     self.agent_uid = None;
                     kernels_gone = true;
                 }
-                Err(_) => failures.push("agent namespace deletion/observation"),
+                Err(error) => failures
+                    .push(self.cleanup_error("agent namespace deletion/observation", &error)),
             }
         }
         // The DB remains available until every kernel has exited. Sequences and
         // episodes are monotonic in this qualified kernel path.
         if let Some(mut managed) = self.managed.take() {
             if kernels_gone {
-                if managed.final_zero_episodes().is_err() {
-                    failures.push("final episode observation");
+                if let Err(error) = managed.final_zero_episodes() {
+                    failures.push(self.cleanup_error("final episode observation", &error));
                 }
             } else {
-                failures.push("final drain/zero-inference proof unavailable");
+                failures.push("final drain/zero-inference proof unavailable".into());
             }
-            if managed.close_live().is_err() {
-                failures.push("owned LIVE cleanup");
+            if let Err(error) = managed.close_live() {
+                failures.push(self.cleanup_error("owned LIVE cleanup", &error));
             }
         }
         for index in (0..self.cluster_owned.len()).rev() {
@@ -809,26 +888,35 @@ impl Fixture {
                 )?;
                 Ok::<_, anyhow::Error>(())
             })();
-            if result.is_ok() {
-                self.cluster_owned.remove(index);
-            } else {
-                failures.push("UID-owned cluster policy deletion");
+            match result {
+                Ok(()) => {
+                    self.cluster_owned.remove(index);
+                }
+                Err(error) => {
+                    failures.push(self.cleanup_error("UID-owned cluster policy deletion", &error))
+                }
             }
         }
         if let Some(uid) = self.uid.clone() {
             let name = self.namespace.clone();
-            if self.delete_owned_namespace(&name, &uid).is_ok() {
-                self.uid = None;
-            } else {
-                failures.push("installation namespace deletion/observation");
+            match self.delete_owned_namespace(&name, &uid) {
+                Ok(()) => {
+                    self.uid = None;
+                }
+                Err(error) => failures.push(
+                    self.cleanup_error("installation namespace deletion/observation", &error),
+                ),
             }
         }
         ensure!(
             failures.is_empty(),
-            "fixture cleanup failed: {}",
-            failures.join(", ")
+            "{}",
+            self.redact_diagnostics(format!("fixture cleanup failed: {}", failures.join(", ")))
         );
         Ok(())
+    }
+    fn cleanup_error(&self, stage: &str, error: &anyhow::Error) -> String {
+        self.redact_diagnostics(format!("{stage}: {error:#}"))
     }
     fn delete_owned_namespace(&mut self, name: &str, uid: &str) -> Result<()> {
         let existing = process::checked(
@@ -840,17 +928,21 @@ impl Fixture {
                 "--output=json",
             ]),
             20,
-        )?;
+        )
+        .with_context(|| format!("inspect namespace {name} before UID-owned deletion"))?;
         if existing.is_empty() {
             return Ok(());
         }
-        let existing: Namespace = serde_json::from_slice(&existing)?;
+        let existing: Namespace =
+            serde_json::from_slice(&existing).context("decode namespace UID before deletion")?;
         ensure!(
             existing.metadata.uid == uid,
             "owned namespace UID changed before deletion"
         );
         let options = json!({"apiVersion":"v1","kind":"DeleteOptions","preconditions":{"uid":uid},"propagationPolicy":"Foreground"});
-        let path = self.file(&options)?;
+        let path = self
+            .file(&options)
+            .context("write namespace deletion preconditions")?;
         process::checked(
             self.kubectl()
                 .arg("delete")
@@ -858,7 +950,8 @@ impl Fixture {
                 .arg("--filename")
                 .arg(path),
             30,
-        )?;
+        )
+        .with_context(|| format!("submit UID-owned deletion of namespace {name}"))?;
         process::checked(
             self.kubectl().args([
                 "wait",
@@ -867,7 +960,8 @@ impl Fixture {
                 "--timeout=60s",
             ]),
             70,
-        )?;
+        )
+        .with_context(|| format!("observe deletion of namespace {name} within 60 seconds"))?;
         Ok(())
     }
 }
@@ -908,6 +1002,14 @@ mod tests {
             .chain(fixture.managed_config.installation_secrets.values())
             .cloned()
             .collect();
+        let cleanup = fixture.cleanup_error(
+            "observe owned namespace deletion",
+            &anyhow::anyhow!("inner {}", fixture.runtime_password).context("kubectl timeout"),
+        );
+        assert!(
+            cleanup.contains("observe owned namespace deletion: kubectl timeout: inner [REDACTED]")
+        );
+        assert!(!cleanup.contains(&fixture.runtime_password));
         let input = secrets
             .iter()
             .map(|secret| secret.as_str())
@@ -939,6 +1041,23 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    fn readiness_requires_the_init_container_to_have_succeeded() -> Result<()> {
+        let mut pod = json!({"items":[{"status":{"initContainerStatuses":[{
+            "name":"database-readiness", "state":{"terminated":{"exitCode":0}}
+        }]}}]});
+        assert_eq!(readiness_exit(&pod)?, Some(0));
+        pod["items"][0]["status"]["initContainerStatuses"][0]["state"]["terminated"]["exitCode"] =
+            7.into();
+        assert_eq!(readiness_exit(&pod)?, Some(7));
+        pod["items"][0]["status"]["initContainerStatuses"][0]["state"] =
+            json!({"waiting":{"reason":"PodInitializing"}});
+        assert_eq!(readiness_exit(&pod)?, None);
+        assert!(readiness_exit(&json!({"items":[]})).is_err());
+        assert!(readiness_exit(&json!({"items":[{},{}]})).is_err());
+        Ok(())
+    }
+
     #[test]
     fn generated_fixture_plans_render_with_agents_selected_through_rotation() -> Result<()> {
         let image = |name: &str, digest: char| {
@@ -1037,6 +1156,85 @@ mod tests {
             let rendered = fixture
                 .render(plan, &raw)
                 .with_context(|| format!("native generation {} chart", index + 1))?;
+            let publication = rendered
+                .objects
+                .iter()
+                .find(|object| {
+                    object["kind"] == "Job"
+                        && object["metadata"]["labels"]["app.kubernetes.io/component"]
+                            == "control-plane-publication"
+                })
+                .context("native publication Job")?;
+            let template = super::super::assertions::old_runtime_probe(publication)?;
+            let negative = probe_job(
+                &template,
+                "old-runtime-rejected",
+                &["control-plane-validate"],
+            )?;
+            assert_eq!(negative["spec"]["activeDeadlineSeconds"], 120);
+            assert_eq!(negative["spec"]["backoffLimit"], 0);
+            let pod = &negative["spec"]["template"]["spec"];
+            assert_eq!(pod["restartPolicy"], "Never");
+            assert_eq!(pod["automountServiceAccountToken"], false);
+            let main = &pod["containers"][0];
+            assert_eq!(main["command"], json!(["/usr/local/bin/gateway"]));
+            assert_eq!(main["args"], json!(["control-plane-validate"]));
+            let readiness = &pod["initContainers"][0];
+            assert_eq!(pod["initContainers"].as_array().unwrap().len(), 1);
+            assert_eq!(readiness["command"], json!(["curl"]));
+            for field in ["image", "imagePullPolicy", "securityContext", "resources"] {
+                assert_eq!(readiness[field], main[field]);
+            }
+            for field in ["env", "envFrom", "volumeMounts"] {
+                assert!(readiness.get(field).is_none());
+            }
+            assert_eq!(
+                readiness["args"],
+                json!([
+                    "--disable",
+                    "--fail",
+                    "--silent",
+                    "--show-error",
+                    "--output",
+                    "/dev/null",
+                    "--connect-timeout",
+                    "2",
+                    "--max-time",
+                    "5",
+                    "--retry",
+                    "20",
+                    "--retry-delay",
+                    "1",
+                    "--retry-max-time",
+                    "60",
+                    "--retry-connrefused",
+                    "--retry-all-errors",
+                    "http://surrealdb:8000/ready"
+                ])
+            );
+            let old = main["env"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|entry| entry["name"] == "VEOVEO_SURREAL_PASSWORD")
+                .unwrap();
+            assert_eq!(
+                old["valueFrom"]["secretKeyRef"],
+                json!({"name":"fixture-old-runtime","key":"password"})
+            );
+            for before in publication["spec"]["template"]["spec"]["containers"][0]["env"]
+                .as_array()
+                .unwrap()
+            {
+                if before["name"] != "VEOVEO_SURREAL_PASSWORD" {
+                    assert!(main["env"].as_array().unwrap().contains(before));
+                }
+            }
+            assert!(
+                publication["spec"]["template"]["spec"]
+                    .get("initContainers")
+                    .is_none()
+            );
             let applied = managed_objects(&rendered.objects).collect::<Vec<_>>();
             let agent_namespace = fixture.managed_config.namespace.as_str();
             for (kind, name) in [

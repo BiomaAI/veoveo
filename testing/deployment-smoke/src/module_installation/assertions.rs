@@ -54,6 +54,69 @@ pub(super) fn authentication_rejected(diagnostic: &str) -> bool {
         .contains("there was a problem with authentication")
 }
 
+pub(super) fn old_runtime_probe(template: &Value) -> Result<Value> {
+    let mut job = template.clone();
+    let container = &mut job["spec"]["template"]["spec"]["containers"][0];
+    let env = container["env"]
+        .as_array_mut()
+        .context("runtime probe env")?;
+    let endpoint = env
+        .iter()
+        .find(|entry| entry["name"] == "VEOVEO_SURREAL_ENDPOINT")
+        .and_then(|entry| entry["value"].as_str())
+        .context("runtime probe endpoint")?
+        .to_owned();
+    let mut changed = 0;
+    for entry in env {
+        if entry["name"] == "VEOVEO_SURREAL_PASSWORD" {
+            ensure!(
+                entry["valueFrom"]["secretKeyRef"]["key"] == "password",
+                "runtime probe password key"
+            );
+            entry["valueFrom"]["secretKeyRef"]["name"] = "fixture-old-runtime".into();
+            changed += 1;
+        }
+    }
+    ensure!(
+        changed == 1,
+        "runtime probe must replace exactly one password reference"
+    );
+    let mut ready = url::Url::parse(&endpoint).context("runtime probe endpoint URL")?;
+    ensure!(
+        ready.host_str().is_some()
+            && ready.username().is_empty()
+            && ready.password().is_none()
+            && ready.query().is_none()
+            && ready.fragment().is_none()
+            && ready.path() == "/",
+        "runtime probe endpoint must name an uncredentialed database Service"
+    );
+    let scheme = match ready.scheme() {
+        "ws" => "http",
+        "wss" => "https",
+        _ => anyhow::bail!("runtime probe requires a WebSocket database endpoint"),
+    };
+    ready
+        .set_scheme(scheme)
+        .map_err(|()| anyhow::anyhow!("runtime probe readiness scheme"))?;
+    ready.set_path("/ready");
+    let mut init = serde_json::json!({
+        "name":"database-readiness", "image":container["image"],
+        "command":["curl"],
+        "args":["--disable", "--fail", "--silent", "--show-error", "--output", "/dev/null",
+            "--connect-timeout", "2", "--max-time", "5", "--retry", "20", "--retry-delay", "1",
+            "--retry-max-time", "60", "--retry-connrefused", "--retry-all-errors", ready.as_str()],
+    });
+    for field in ["imagePullPolicy", "securityContext", "resources"] {
+        if let Some(value) = container.get(field) {
+            init[field] = value.clone();
+        }
+    }
+    job["spec"]["activeDeadlineSeconds"] = 120.into();
+    job["spec"]["template"]["spec"]["initContainers"] = serde_json::json!([init]);
+    Ok(job)
+}
+
 fn job<'a>(render: &'a Render, component: &str) -> Result<&'a Value> {
     render
         .objects
@@ -305,15 +368,7 @@ pub(super) fn lifecycle(
                     )?;
                     rejected.push(kind.into());
                 }
-                let mut old_auth = job(render, "control-plane-publication")?.clone();
-                for env in old_auth["spec"]["template"]["spec"]["containers"][0]["env"]
-                    .as_array_mut()
-                    .context("runtime probe env")?
-                {
-                    if env["name"] == "VEOVEO_SURREAL_PASSWORD" {
-                        env["valueFrom"]["secretKeyRef"]["name"] = "fixture-old-runtime".into();
-                    }
-                }
+                let old_auth = old_runtime_probe(job(render, "control-plane-publication")?)?;
                 let failed = fixture.probe(
                     &old_auth,
                     "old-runtime-rejected",

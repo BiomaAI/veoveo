@@ -267,6 +267,16 @@ Commands have deadlines, file-backed output capped at 2 MiB and owned process-gr
 cleanup on timeout; no blind mutation retries are added. Command failures identify
 the phase, program and exit status. The fixture-owned Helm render
 exposes stderr through the same secret replacement and 16 KiB cap as pod diagnostics.
+The old-runtime credential probe first runs a credential-free `curl` readiness
+init in the same Pod, using the same pinned gateway image and database Service.
+Readiness has a 60-second retry budget with 5-second transfers inside the probe's
+120-second Job deadline. The main validation command runs once with the old
+password Secret; only its authentication rejection proves the negative case.
+The harness verifies successful init termination before reading the main logs.
+Failed init diagnostics identify the readiness phase and exit status.
+Cleanup errors preserve the deletion or observation stage and source error chain,
+with secret replacement and a 16 KiB aggregate limit. Namespace deletion keeps
+its 60-second Kubernetes wait and 70-second subprocess deadline.
 The harness preserves the first unexpected probe's secret-redacted output before
 inventory and pod logs share the 16 KiB diagnostic limit. An unavailable inventory
 cannot suppress that probe diagnostic. Native publication tests establish the
