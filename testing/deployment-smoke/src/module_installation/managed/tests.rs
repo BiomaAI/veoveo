@@ -283,6 +283,22 @@ fn published_control_plane_supports_complete_fixture_provision() -> anyhow::Resu
                 .await?
                 .context("published fixture plane missing")?;
             assert_eq!(published.control_plane, configuration.plane);
+            // Match control-plane-validate's real connection and active-revision
+            // path with valid runtime credentials before the negative control.
+            let runtime_config = fixture.a.config();
+            let admission = GatewayCatalogAdmission::unbound().bind(registry.clone())?;
+            let connected = GatewayControlStore::connect(runtime_config.clone(), admission.clone()).await?;
+            assert!(connected.load_active_revision().await?.is_some());
+            let wrong = veoveo_platform_store::StoreConfig::builder(
+                runtime_config.endpoint().as_str(), runtime_config.namespace(), runtime_config.database(),
+                veoveo_platform_store::StoreCredentials::database(runtime_config.username(), "fixture-wrong-password"),
+            ).build()?;
+            let error = GatewayControlStore::connect(wrong, admission).await.unwrap_err();
+            // Rust CLI main prints anyhow's Debug chain, not just its outer context.
+            let diagnostic = format!("{error:?}");
+            assert!(super::super::assertions::authentication_rejected(&diagnostic));
+            assert!(!super::super::assertions::authentication_rejected("connection refused"));
+            assert!(!super::super::assertions::authentication_rejected("unexpected argument"));
             let facts = installation_facts(&published.control_plane, &registry)?;
             wire::validate_model_connections(std::slice::from_ref(&configuration.model), &facts)?;
             configuration.template.validate(&facts)?;

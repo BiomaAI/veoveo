@@ -59,6 +59,7 @@ pub(super) struct Fixture {
     agent_uid: Option<String>,
     cluster_owned: Vec<(String, String)>,
     kube_version: Option<String>,
+    first_probe_failure: Option<String>,
 }
 #[derive(Deserialize)]
 struct Namespace {
@@ -97,6 +98,7 @@ impl Fixture {
             agent_uid: None,
             cluster_owned: Vec::new(),
             kube_version: None,
+            first_probe_failure: None,
         };
         Ok(fixture)
     }
@@ -568,10 +570,46 @@ impl Fixture {
             json!(["/usr/local/bin/gateway"]);
         job["spec"]["template"]["spec"]["containers"][0]["args"] = json!(args);
         self.create_object(&job)?;
-        self.wait_job(name, success)?;
-        self.logs(name)
+        let settled = self.wait_job(name, success);
+        let logs = self.logs(name);
+        if let Err(error) = settled {
+            if let Ok(ref bytes) = logs {
+                self.remember_probe_failure(name, bytes);
+            }
+            return Err(error).with_context(|| format!("probe {name}"));
+        }
+        logs
+    }
+    fn remember_probe_failure(&mut self, name: &str, bytes: &[u8]) {
+        if self.first_probe_failure.is_none() {
+            self.first_probe_failure = Some(self.redact_diagnostics(format!(
+                "failed probe {name}:\n{}\n",
+                String::from_utf8_lossy(bytes)
+            )));
+        }
+    }
+    pub fn require_probe_result(
+        &mut self,
+        name: &str,
+        bytes: &[u8],
+        accepted: bool,
+        reason: &str,
+    ) -> Result<()> {
+        if !accepted {
+            self.remember_probe_failure(name, bytes);
+            anyhow::bail!("{reason}; probe {name}");
+        }
+        Ok(())
     }
     pub fn failure_diagnostics(&self) -> Result<String> {
+        let mut output = self.first_probe_failure.clone().unwrap_or_default();
+        match self.inventory_diagnostics() {
+            Ok(inventory) => output.push_str(&inventory),
+            Err(_) => output.push_str("owned inventory diagnostics unavailable\n"),
+        }
+        Ok(self.redact_diagnostics(output))
+    }
+    fn inventory_diagnostics(&self) -> Result<String> {
         let uid = self
             .uid
             .as_ref()
@@ -868,6 +906,7 @@ mod tests {
             .chain(std::iter::once(&fixture.runtime_password))
             .chain(fixture.prior_passwords.iter())
             .chain(fixture.managed_config.installation_secrets.values())
+            .cloned()
             .collect();
         let input = secrets
             .iter()
@@ -875,11 +914,28 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n")
             + &"é".repeat(20000);
+        fixture
+            .require_probe_result("first", input.as_bytes(), false, "wrong admission")
+            .unwrap_err();
+        fixture
+            .require_probe_result("later", b"later failure", false, "wrong admission")
+            .unwrap_err();
+        let remembered = fixture.first_probe_failure.as_ref().unwrap();
+        assert!(remembered.starts_with("failed probe first:"));
+        assert!(!remembered.contains("later failure"));
+        assert!(remembered.len() <= 16384);
+        // Even an unavailable namespace inventory cannot erase the primary probe.
+        let failure = fixture.failure_diagnostics()?;
+        assert!(failure.starts_with("failed probe first:"));
+        assert!(failure.len() <= 16384);
+        for secret in &secrets {
+            assert!(!remembered.contains(secret));
+        }
         let diagnostic = fixture.redact_diagnostics(input);
         assert!(diagnostic.len() <= 16384);
         assert!(diagnostic.contains("[REDACTED]"));
         for secret in secrets {
-            assert!(!diagnostic.contains(secret));
+            assert!(!diagnostic.contains(&secret));
         }
         Ok(())
     }

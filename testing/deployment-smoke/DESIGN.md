@@ -267,6 +267,11 @@ Commands have deadlines, file-backed output capped at 2 MiB and owned process-gr
 cleanup on timeout; no blind mutation retries are added. Command failures identify
 the phase, program and exit status. The fixture-owned Helm render
 exposes stderr through the same secret replacement and 16 KiB cap as pod diagnostics.
+The harness preserves the first unexpected probe's secret-redacted output before
+inventory and pod logs share the 16 KiB diagnostic limit. An unavailable inventory
+cannot suppress that probe diagnostic. Native publication tests establish the
+runtime validation path with valid credentials and its authentication rejection
+with a wrong password; unrelated connection or command errors fail the probe.
 Failure diagnostics describe the UID-owned agent namespace before the installation
 namespace, summarize Deployment and Pod inventories before collecting logs, and
 apply the output cap after replacing every fixture-owned secret. Observer exits

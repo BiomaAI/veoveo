@@ -48,6 +48,12 @@ pub(super) struct Case {
     observed_image_ids: Vec<String>,
 }
 
+pub(super) fn authentication_rejected(diagnostic: &str) -> bool {
+    diagnostic
+        .to_ascii_lowercase()
+        .contains("there was a problem with authentication")
+}
+
 fn job<'a>(render: &'a Render, component: &str) -> Result<&'a Value> {
     render
         .objects
@@ -288,13 +294,15 @@ pub(super) fn lifecycle(
                         false,
                     )?;
                     let text = String::from_utf8(output)?;
-                    // Logs are not copied to evidence. The error must identify generation fencing,
-                    // rather than an unrelated crash, image pull or timeout.
-                    ensure!(
+                    // Expected rejection logs are omitted; unexpected failures retain
+                    // redacted diagnostics. Admit only generation fencing here.
+                    fixture.require_probe_result(
+                        &format!("stale-{kind}"),
+                        text.as_bytes(),
                         text.contains("generation")
                             && (text.contains("stale") || text.contains("newer")),
-                        "stale command failed outside generation fencing"
-                    );
+                        "stale command failed outside generation fencing",
+                    )?;
                     rejected.push(kind.into());
                 }
                 let mut old_auth = job(render, "control-plane-publication")?.clone();
@@ -312,11 +320,13 @@ pub(super) fn lifecycle(
                     &["control-plane-validate"],
                     false,
                 )?;
-                let diagnostic = String::from_utf8(failed)?.to_ascii_lowercase();
-                ensure!(
-                    diagnostic.contains("authentication") || diagnostic.contains("authenticate"),
-                    "old runtime account failed outside authentication admission"
-                );
+                let diagnostic = std::str::from_utf8(&failed)?;
+                fixture.require_probe_result(
+                    "old-runtime-rejected",
+                    &failed,
+                    authentication_rejected(diagnostic),
+                    "old runtime account failed outside authentication admission",
+                )?;
                 rejected.push("old-runtime-authentication".into());
                 let after = status(fixture, render, 20)?; // Probe identity is independent of requested plan generation.
                 ensure!(
