@@ -180,3 +180,11 @@ Store owns Audit persistence statements. Audit native fixture statements live in
 The fresh Audit lane creates `audit_sealer:active` with generation and replay cursor
 zero, a fresh owner UUID and initial lease/replay timestamps. Recorded lane replay
 preserves this state; the selected-lane native matrix qualifies that behavior.
+
+## Seal Driver Records
+
+Store's nominal block row, block write and seal binding preserve native IDs, record
+links, UUID fencing, datetime and integer sequence/cursor fields. Frozen block and
+checkpoint documents use the existing JSON encoder. Hash text keeps its declared
+spelling, and an absent previous hash stays native NONE. Sealing SQL and its
+owner/generation/cursor comparison run unchanged in one transaction.

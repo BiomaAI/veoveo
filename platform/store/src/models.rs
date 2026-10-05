@@ -419,14 +419,14 @@ pub struct GatewayControlRevisionRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct GatewayControlRevisionContent {
+pub struct GatewayControlRevisionContent<P: SurrealValue> {
     pub revision_id: String,
     pub sha256: String,
     pub source: GatewayControlRevisionSource,
     pub applied_at: DateTime<Utc>,
     pub applied_by: String,
     pub tenant: Option<String>,
-    pub control_plane: OpenObject,
+    pub control_plane: P,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

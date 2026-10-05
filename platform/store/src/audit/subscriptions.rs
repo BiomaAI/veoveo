@@ -42,13 +42,13 @@ impl PlatformStore {
             .bind(("profile", profile.to_string()))
             .bind((
                 "target",
-                super::codec::scalar(&AuditTarget::AuditLog {
+                super::codec::TargetLookup::new(&AuditTarget::AuditLog {
                     partition: partition.clone(),
                 }),
             ))
             .bind((
                 "detail",
-                super::codec::scalar(&AuditDetail::Read {
+                super::codec::DetailLookup(AuditDetail::Read {
                     method: AuditReadMethod::AuditView,
                 }),
             ))

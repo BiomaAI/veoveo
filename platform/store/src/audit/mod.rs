@@ -266,7 +266,10 @@ impl PlatformStore {
             ))
             .bind(("class", query.class.map(|c| scalar(&c))))
             .bind(("actor", query.actor.as_ref().map(ToString::to_string)))
-            .bind(("target", query.target.as_ref().map(scalar)))
+            .bind((
+                "target",
+                query.target.as_ref().map(codec::TargetLookup::new),
+            ))
             .bind(("outcome", query.outcome.map(|c| scalar(&c))))
             .bind(("trace", query.trace.as_ref().map(ToString::to_string)))
             .bind(("from", query.from))

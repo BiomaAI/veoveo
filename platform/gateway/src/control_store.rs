@@ -1,6 +1,7 @@
 #[cfg(test)]
 use veoveo_gateway_contract::GatewayAction;
 mod audit;
+mod snapshot;
 use crate::GatewayCatalogAdmission;
 
 use anyhow::{Context, Result};
@@ -189,8 +190,7 @@ impl GatewayControlStore {
             applied_at: revision.applied_at,
             applied_by: revision.applied_by.to_string(),
             tenant: revision.tenant.as_ref().map(ToString::to_string),
-            control_plane: serialize_object(&revision.control_plane)
-                .context("failed to serialize gateway control plane")?,
+            control_plane: snapshot::ControlPlaneSnapshot(revision.control_plane.clone()),
         };
         let object_rows = control_plane_object_rows(
             &revision.control_plane,

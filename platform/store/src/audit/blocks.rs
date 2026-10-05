@@ -7,7 +7,7 @@ use crate::{
     ChangefeedCursor, ChangefeedEntry, PlatformStore, RecordId, StoreError, decode_changefeed_entry,
 };
 use chrono::{DateTime, Utc};
-use surrealdb::types::{Array, Object, SurrealValue, Uuid as SurrealUuid, Value};
+use surrealdb::types::{Array, SurrealValue, Uuid as SurrealUuid, Value};
 use veoveo_audit_contract::*;
 
 #[derive(Debug, Clone, SurrealValue)]
@@ -67,64 +67,65 @@ pub(super) fn block_id(partition: &AuditPartition, sequence: AuditBlockSequence)
 pub(super) fn named_id(table: &'static str, partition: &AuditPartition) -> RecordId {
     RecordId::new(table, partition.storage_key())
 }
-fn block_row(block: &AuditBlock) -> Value {
-    let mut row = Object::new();
-    row.insert(
-        "partition",
-        (block.head.partition.storage_key()).into_value(),
-    );
-    row.insert("sequence", (block.head.sequence.get() as i64).into_value());
-    row.insert(
-        "first_versionstamp",
-        (block.head.first_versionstamp.get() as i64).into_value(),
-    );
-    row.insert(
-        "last_versionstamp",
-        (block.head.last_versionstamp.get() as i64).into_value(),
-    );
-    row.insert(
-        "records",
-        block
+/// Native sealing row; canonical block/checkpoint JSON is encoded separately.
+#[derive(SurrealValue)]
+struct AuditBlockRecord {
+    partition: String,
+    sequence: i64,
+    first_versionstamp: i64,
+    last_versionstamp: i64,
+    records: Vec<RecordId>,
+    head_hash: codec::NativeText<veoveo_types::Sha256Digest>,
+    block: codec::FrozenDocument<AuditBlock>,
+    sealed_at: DateTime<Utc>,
+}
+#[derive(SurrealValue)]
+struct AuditBlockWrite {
+    id: RecordId,
+    head_id: RecordId,
+    partition: String,
+    sequence: i64,
+    head_hash: codec::NativeText<veoveo_types::Sha256Digest>,
+    previous: Option<codec::NativeText<veoveo_types::Sha256Digest>>,
+    checkpoint: codec::FrozenDocument<AuditCheckpoint>,
+    row: AuditBlockRecord,
+}
+#[derive(SurrealValue)]
+struct AuditSealBinding {
+    owner: SurrealUuid,
+    generation: i64,
+    expected_cursor: i64,
+    next_cursor: i64,
+    blocks: Vec<AuditBlockWrite>,
+}
+fn block_row(block: &AuditBlock) -> AuditBlockRecord {
+    AuditBlockRecord {
+        partition: block.head.partition.storage_key(),
+        sequence: block.head.sequence.get() as i64,
+        first_versionstamp: block.head.first_versionstamp.get() as i64,
+        last_versionstamp: block.head.last_versionstamp.get() as i64,
+        records: block
             .head
             .members
             .iter()
-            .map(|m| record_id(&block.head.partition, m.id))
-            .collect::<Vec<_>>()
-            .into_value(),
-    );
-    row.insert("head_hash", block.head_hash.to_string().into_value());
-    row.insert("block", codec::scalar(block));
-    row.insert("sealed_at", block.head.sealed_at.into_value());
-    Value::Object(row)
+            .map(|member| record_id(&block.head.partition, member.id))
+            .collect(),
+        head_hash: codec::NativeText(block.head_hash.clone()),
+        block: codec::FrozenDocument(block.clone()),
+        sealed_at: block.head.sealed_at,
+    }
 }
-fn block_write(block: &AuditBlock) -> Value {
-    let mut item = Object::new();
-    item.insert(
-        "id",
-        block_id(&block.head.partition, block.head.sequence).into_value(),
-    );
-    item.insert(
-        "head_id",
-        named_id("audit_partition_head", &block.head.partition).into_value(),
-    );
-    item.insert(
-        "partition",
-        (block.head.partition.storage_key()).into_value(),
-    );
-    item.insert("sequence", (block.head.sequence.get() as i64).into_value());
-    item.insert("head_hash", block.head_hash.to_string().into_value());
-    item.insert(
-        "previous",
-        block
-            .head
-            .previous
-            .as_ref()
-            .map(ToString::to_string)
-            .into_value(),
-    );
-    item.insert("checkpoint", codec::scalar(&block.checkpoint()));
-    item.insert("row", block_row(block));
-    Value::Object(item)
+fn block_write(block: &AuditBlock) -> AuditBlockWrite {
+    AuditBlockWrite {
+        id: block_id(&block.head.partition, block.head.sequence),
+        head_id: named_id("audit_partition_head", &block.head.partition),
+        partition: block.head.partition.storage_key(),
+        sequence: block.head.sequence.get() as i64,
+        head_hash: codec::NativeText(block.head_hash.clone()),
+        previous: block.head.previous.clone().map(codec::NativeText),
+        checkpoint: codec::FrozenDocument(block.checkpoint()),
+        row: block_row(block),
+    }
 }
 impl PlatformStore {
     pub async fn audit_export_range(
@@ -260,11 +261,13 @@ impl PlatformStore {
         let mut response = self
             .db
             .query(include_str!("../queries/audit/seal.surql"))
-            .bind(("owner", SurrealUuid::from(lease.owner)))
-            .bind(("generation", lease.generation))
-            .bind(("expected_cursor", lease.cursor))
-            .bind(("next_cursor", next.get() as i64))
-            .bind(("blocks", blocks.iter().map(block_write).collect::<Vec<_>>()))
+            .bind(AuditSealBinding {
+                owner: SurrealUuid::from(lease.owner),
+                generation: lease.generation,
+                expected_cursor: lease.cursor,
+                next_cursor: next.get() as i64,
+                blocks: blocks.iter().map(block_write).collect(),
+            })
             .await?;
         if let Some(error) = crate::primary_transaction_error(response.take_errors()) {
             return Err(control_error(error));
@@ -375,7 +378,10 @@ impl PlatformStore {
             ))
             .bind(("class", query.class.map(|c| codec::scalar(&c))))
             .bind(("actor", query.actor.as_ref().map(ToString::to_string)))
-            .bind(("target", query.target.as_ref().map(codec::scalar)))
+            .bind((
+                "target",
+                query.target.as_ref().map(codec::TargetLookup::new),
+            ))
             .bind(("outcome", query.outcome.map(|c| codec::scalar(&c))))
             .bind(("trace", query.trace.as_ref().map(ToString::to_string)))
             .bind(("from", query.from))
@@ -454,4 +460,61 @@ pub(super) fn control_error(error: surrealdb::Error) -> StoreError {
         }
     }
     error.into()
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+    #[test]
+    fn native_seal_bindings_preserve_frozen_documents_and_absent_previous() {
+        let digest = veoveo_types::Sha256Digest::from_bytes([9; 32]);
+        let mut block = AuditBlock {
+            head: AuditBlockHead {
+                schema: AuditBlockSchema::V1,
+                partition: AuditPartition::Installation,
+                sequence: AuditBlockSequence::new(1).unwrap(),
+                first_versionstamp: AuditVersionstamp::new(7).unwrap(),
+                last_versionstamp: AuditVersionstamp::new(11).unwrap(),
+                members: vec![],
+                root: digest.clone(),
+                previous: None,
+                key_id: digest.clone(),
+                sealed_at: DateTime::parse_from_rfc3339("2026-01-01T01:02:03.456Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+            },
+            head_hash: digest.clone(),
+            signature: AuditSignature::from_bytes([3; 64]),
+        };
+        let Value::Object(first) = block_write(&block).into_value() else {
+            panic!("native write object")
+        };
+        assert_eq!(first.get("previous"), Some(&Value::None));
+        assert_eq!(
+            first.get("id"),
+            Some(&block_id(&block.head.partition, block.head.sequence).into_value())
+        );
+        assert_eq!(
+            first.get("head_hash"),
+            Some(&digest.to_string().into_value())
+        );
+        assert_eq!(
+            first.get("checkpoint"),
+            Some(&codec::scalar(&block.checkpoint()))
+        );
+        let Some(Value::Object(row)) = first.get("row") else {
+            panic!("native block row")
+        };
+        assert_eq!(row.get("block"), Some(&codec::scalar(&block)));
+        assert_eq!(
+            row.get("sealed_at"),
+            Some(&block.head.sealed_at.into_value())
+        );
+        assert_eq!(row.get("first_versionstamp"), Some(&7i64.into_value()));
+        block.head.previous = Some(digest.clone());
+        let Value::Object(next) = block_write(&block).into_value() else {
+            panic!("native write")
+        };
+        assert_eq!(next.get("previous"), Some(&digest.to_string().into_value()));
+    }
 }

@@ -163,3 +163,19 @@ impl<T: Serialize + serde::de::DeserializeOwned> SurrealValue for NativeText<T> 
             .map_err(|_| Error::internal("invalid audit lookup text".into()))
     }
 }
+
+/// Known frozen JSON document inside a nominal native driver row.
+pub(super) struct FrozenDocument<T>(pub T);
+impl<T: Serialize + serde::de::DeserializeOwned> SurrealValue for FrozenDocument<T> {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn into_value(self) -> Value {
+        scalar(&self.0)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        serde_json::from_value(crate::json_value::from_surreal_json(value)?)
+            .map(Self)
+            .map_err(|_| Error::internal("invalid frozen audit document".into()))
+    }
+}

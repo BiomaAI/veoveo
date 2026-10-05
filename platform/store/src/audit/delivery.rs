@@ -121,7 +121,7 @@ impl PlatformStore {
                 block_id(&block.head.partition, block.head.sequence),
             ))
             .bind(("block_hash", block.head_hash.to_string()))
-            .bind(("expected_block", codec::scalar(block)))
+            .bind(("expected_block", codec::FrozenDocument(block.clone())))
             .bind((
                 "anchor_id",
                 named_id("audit_retention_anchor", &block.head.partition),
@@ -148,8 +148,8 @@ impl PlatformStore {
                     ]),
                 ),
             ))
-            .bind(("payload", codec::scalar(payload)))
-            .bind(("checkpoint", codec::scalar(&block.checkpoint())))
+            .bind(("payload", codec::FrozenDocument(payload.clone())))
+            .bind(("checkpoint", codec::FrozenDocument(block.checkpoint())))
             .bind(("complete", complete))
             .bind(("rejection", rejection.as_ref().map(codec::scalar)))
             .await?;

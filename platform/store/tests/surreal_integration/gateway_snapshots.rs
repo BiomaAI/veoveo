@@ -136,7 +136,7 @@ async fn independent_control_object_kinds_follow_shared_extension_name_syntax() 
             applied_at: Utc::now(),
             applied_by: "qualification".into(),
             tenant: None,
-            control_plane: Default::default(),
+            control_plane: veoveo_platform_store::OpenObject::default(),
         };
         db.a.client()
             .query(include_str!(

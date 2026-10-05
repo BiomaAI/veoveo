@@ -413,5 +413,9 @@ checks record identity against those fields. Code consumption updates the top-le
 consumed timestamp atomically, and request consumption deletes the unexpired request
 once. These records use the fresh coordinated installation schema; gateway replicas
 must drain together before replacing an older payload-based schema.
+Gateway writes each whole control-plane revision through its typed snapshot codec.
+The Store write record accepts that owner payload without importing MCP types; retained
+reads pass their JSON snapshot to Gateway admission. Independent extension documents
+keep their open JSON contents.
 Control object kinds use validated `ExtensionName` syntax and permit independently
 registered owner kinds.

@@ -12,7 +12,10 @@ async fn control(store: &PlatformStore, digest: &Sha256Digest) {
         applied_at: Utc::now(),
         applied_by: "catalog-test".into(),
         tenant: None,
-        control_plane: serde_json::from_value(serde_json::json!({})).unwrap(),
+        control_plane: serde_json::from_value::<veoveo_platform_store::OpenObject>(
+            serde_json::json!({}),
+        )
+        .unwrap(),
     };
     store
         .client()

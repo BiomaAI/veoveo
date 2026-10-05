@@ -116,7 +116,10 @@ pub async fn install(store: &PlatformStore, plane: &GatewayControlPlane) {
         applied_at: Utc::now(),
         applied_by: "knowledge-fixture".into(),
         tenant: None,
-        control_plane: serde_json::from_value(serde_json::to_value(plane).unwrap()).unwrap(),
+        control_plane: serde_json::from_value::<veoveo_platform_store::OpenObject>(
+            serde_json::to_value(plane).unwrap(),
+        )
+        .unwrap(),
     };
     store
         .client()

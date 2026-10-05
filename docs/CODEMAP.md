@@ -217,7 +217,7 @@ designs above.
 | `platform/runtimes/computers/provider-patches/Dockerfile` | standalone OpenShell OCI build, verified upstream/patch trees and pinned provider toolchain; compute-host topology is separate |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
-| `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, leased block sealing, export receipts and whole-block retention |
+| `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, nominal native sealing bindings in `blocks.rs`, frozen export documents, export receipts and whole-block retention |
 | `platform/artifacts/contract/src/ledger.rs` | Artifact access-request and capability IDs and the shared private ledger address builder |
 | `platform/gateway/src/audit.rs` | typed request attribution and conversion of gateway policy targets to audit records |
 | `platform/policy/src/resource_policy.rs` | typed resource/template ownership and shared lexical exposure checks |
@@ -759,7 +759,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `http/context.rs`, `authentication.rs`, `auth_support.rs` | typed shared HTTP context, route-owned profile selection, token admission and authentication audit |
 | `http/registration.rs`, `lifecycle.rs` | module route factories, required bindings, request and worker admission, cancellation and drain ownership |
 | `http/native_mcp/` | authenticated native transport and notification-driven capability discovery shared by Agents and Workspace; callers supply client capabilities and progress observers |
-| `control_store.rs` and `control_store/audit.rs` | immutable SurrealDB control revisions, compare-and-set activation, and transactional Work Context change records |
+| `control_store.rs`, `control_store/snapshot.rs` and `control_store/audit.rs` | Gateway-owned whole-snapshot native encoding, immutable SurrealDB control revisions, compare-and-set activation, and transactional Work Context change records |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, immutable principals, and independently typed OIDC display labels |
 | `policy.rs` | gateway catalog adapter for the shared evaluator in `platform/policy` |
 | `mcp_support.rs` | MCP resource envelope and App-link projection, declared cross-server protocol links, and preservation of domain payloads and unknown extension metadata |
