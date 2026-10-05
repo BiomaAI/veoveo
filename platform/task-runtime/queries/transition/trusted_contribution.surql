@@ -11,7 +11,7 @@ LET $updated = (
         lease_owner = IF $terminal { NONE } ELSE { lease_owner },
         lease_expires_at = IF $terminal { NONE } ELSE { lease_expires_at },
         updated_at = $now
-    WHERE status = $expected AND updated_at = $expected_updated_at
+    WHERE status = $expected AND updated_at = $expected_updated_at AND request = $expected_request AND owner_context = $expected_owner_context
         AND server = $server AND tenant = $tenant AND owner = $owner
 
         AND (

@@ -1,1 +1,1 @@
-UPDATE ONLY $id SET request.input = NONE;
+UPDATE ONLY $id SET request.input = { native: task_json_probe:opaque };

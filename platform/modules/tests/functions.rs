@@ -426,3 +426,13 @@ fn ordered_reads_inspect_every_key_and_preserve_readonly_contexts() {
         assert!(!admitted(invalid));
     }
 }
+
+#[test]
+fn scalar_string_conversion_inspects_argument_effects() {
+    assert!(admitted(include_str!(
+        "queries/functions/scalar_string_conversion/valid.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/functions/scalar_string_conversion/mutation.surql"
+    )));
+}

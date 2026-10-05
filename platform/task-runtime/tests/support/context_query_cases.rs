@@ -49,20 +49,20 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
         let mut excluded = vec![foreign.task_id];
         // Each row disagrees at a different stored authority location. Its
         // malformed payload proves rejection happens in SQL, before decoding.
-        for (_assignment, sql) in [
+        for (assignment, sql) in [
 ("work_context case 1", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_01.surql")),
 ("profile case 2", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_02.surql")),
-("request.owner.profile case 3", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_03.surql")),
-("request.owner.principal_key case 4", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_04.surql")),
-("request.owner.data_labels case 5", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_05.surql")),
-("request.owner.data_labels case 6", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_06.surql")),
-("request.owner.data_labels case 7", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_07.surql")),
-("request.owner.data_labels case 8", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_08.surql")),
-("request.owner.authority case 9", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_09.surql")),
+("owner_context.profile case 3", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_03.surql")),
+("owner_context.principal_key case 4", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_04.surql")),
+("owner_context.data_labels case 5", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_05.surql")),
+("owner_context.data_labels case 6", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_06.surql")),
+("owner_context.data_labels case 7", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_07.surql")),
+("owner_context.data_labels case 8", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_08.surql")),
+("owner_context.authority case 9", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_09.surql")),
 ("authority.context_key case 10", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_10.surql")),
-("request.owner.authority.work_context case 11", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_11.surql")),
-("request.owner.authority.tenant case 12", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_12.surql")),
-("request.owner.authority.work_context case 13", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_13.surql")),
+("owner_context.authority.work_context case 11", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_11.surql")),
+("owner_context.authority.tenant case 12", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_12.surql")),
+("owner_context.authority.work_context case 13", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_13.surql")),
 ("task_type case 14", include_str!("../queries/support/context_query_cases/context_agreement_precedes_decode_limits_and_subscription_admission/mutation_14.surql"))
 ] {
             let id = runtime
@@ -71,7 +71,8 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 .unwrap()
                 .snapshot
                 .task_id;
-            db.b.client()
+            let before = task_storage_admission::row(&db.b, id).await;
+            let mutation = db.b.client()
                 .query(sql)
                 .bind(("id", task_record_id(id)))
                 .bind((
@@ -85,8 +86,12 @@ async fn context_agreement_precedes_decode_limits_and_subscription_admission() {
                 ))
                 .await
                 .unwrap()
-                .check()
-                .unwrap();
+                .check();
+            if matches!(assignment, "owner_context.data_labels case 6" | "owner_context.data_labels case 7" | "owner_context.data_labels case 8" | "owner_context.authority case 9" | "owner_context.authority.work_context case 13") {
+                task_storage_admission::rejected(&db.b, id, before, mutation.unwrap_err()).await;
+                continue;
+            }
+            mutation.unwrap();
             assert!(runtime.get(id).await.is_err());
             assert!(query.get(id).await.unwrap().is_none());
             assert!(matches!(

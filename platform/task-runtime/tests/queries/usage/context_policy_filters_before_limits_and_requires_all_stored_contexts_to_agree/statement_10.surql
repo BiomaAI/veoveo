@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.authority.tenant = 'wrong' RETURN NONE;
+UPDATE ONLY $task SET owner_context.authority.tenant = 'wrong' RETURN NONE;

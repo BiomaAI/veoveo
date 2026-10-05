@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.input = record_guard:input;
+UPDATE ONLY $task SET request.input = {native: record_guard:input};

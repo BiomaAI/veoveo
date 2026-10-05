@@ -19,6 +19,7 @@ from pydantic import JsonValue
 from surrealdb import RecordID
 
 from ..contract.identity import InvocationAuthority
+from .timestamp import TaskTimestamp
 
 PLATFORM_ID_NAMESPACE = uuid.UUID("7f7b11e2-3b9a-5c7a-9d51-2cf8e1bdfab4")
 INSTALLATION_TENANT = "installation"
@@ -315,6 +316,26 @@ class TaskSnapshot:
     retention_pins: frozenset[str]
     ttl_ms: int | None
     poll_interval_ms: int | None
+    _created_at_exact: TaskTimestamp = dataclass_field(kw_only=True, repr=False)
+    _updated_at_exact: TaskTimestamp = dataclass_field(kw_only=True, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self._created_at_exact, TaskTimestamp):
+            raise InvalidRecord("Task snapshot requires a typed exact creation timestamp")
+        if self._created_at_exact.as_datetime() != self.created_at:
+            raise InvalidRecord("Task creation timestamp does not match its datetime view")
+        if not isinstance(self._updated_at_exact, TaskTimestamp):
+            raise InvalidRecord("Task snapshot requires a typed exact timestamp")
+        if self._updated_at_exact.as_datetime() != self.updated_at:
+            raise InvalidRecord("Task timestamp does not match its datetime view")
+
+    @property
+    def created_timestamp(self) -> TaskTimestamp:
+        return self._created_at_exact
+
+    @property
+    def updated_timestamp(self) -> TaskTimestamp:
+        return self._updated_at_exact
 
     def is_terminal(self) -> bool:
         return self.status.is_terminal()
@@ -339,8 +360,8 @@ class TaskSnapshot:
             "lease_owner": self.lease_owner,
             "lease_expires_at": opt_time(self.lease_expires_at),
             "cancel_requested_at": opt_time(self.cancel_requested_at),
-            "created_at": rfc3339(self.created_at),
-            "updated_at": rfc3339(self.updated_at),
+            "created_at": str(self._created_at_exact),
+            "updated_at": str(self._updated_at_exact),
             "started_at": opt_time(self.started_at),
             "completed_at": opt_time(self.completed_at),
             "retention_expires_at": opt_time(self.retention_expires_at),
@@ -373,7 +394,9 @@ class TaskSnapshot:
             lease_expires_at=opt_time("lease_expires_at"),
             cancel_requested_at=opt_time("cancel_requested_at"),
             created_at=parse_rfc3339(value["created_at"]),
+            _created_at_exact=TaskTimestamp(value["created_at"]),
             updated_at=parse_rfc3339(value["updated_at"]),
+            _updated_at_exact=TaskTimestamp(value["updated_at"]),
             started_at=opt_time("started_at"),
             completed_at=opt_time("completed_at"),
             retention_expires_at=opt_time("retention_expires_at"),
@@ -586,6 +609,9 @@ def new_task_id() -> uuid.UUID:
 def default_retention_expiry(
     now: datetime, ttl_ms: int | None
 ) -> datetime | None:
-    if ttl_ms is not None:
-        return now + timedelta(milliseconds=ttl_ms)
-    return now + DEFAULT_RETENTION
+    try:
+        if ttl_ms is not None:
+            return now + timedelta(milliseconds=ttl_ms)
+        return now + DEFAULT_RETENTION
+    except OverflowError as error:
+        raise InvalidRecord("Task TTL exceeds supported deadline range") from error

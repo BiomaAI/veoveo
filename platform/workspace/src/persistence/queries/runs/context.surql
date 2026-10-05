@@ -5,7 +5,7 @@ RETURN {
     run: $run,
     trigger: (SELECT * FROM ONLY $run.trigger),
     members: (SELECT * FROM workspace_member WHERE chat = $command.chat LIMIT 256),
-    people: (SELECT id, display_name FROM principal WHERE id IN
+    people: fn::kernel::identity::principal_summaries_v1($authority.tenant,
         (SELECT VALUE principal FROM workspace_member WHERE chat = $command.chat LIMIT 256)),
     messages: (SELECT * FROM workspace_message WHERE chat = $command.chat AND sequence <= $run.context_sequence
         ORDER BY sequence DESC LIMIT 100),

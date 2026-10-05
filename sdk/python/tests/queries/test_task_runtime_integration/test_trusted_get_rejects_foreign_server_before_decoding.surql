@@ -1,1 +1,1 @@
-UPDATE $task SET server = $server, request.owner.authority = {};
+UPDATE $task SET server = $server, authority.policy_revision = 'malformed';

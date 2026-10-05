@@ -1,0 +1,1 @@
+UPDATE ONLY $task SET updated_at_exact = 'forged' RETURN NONE;

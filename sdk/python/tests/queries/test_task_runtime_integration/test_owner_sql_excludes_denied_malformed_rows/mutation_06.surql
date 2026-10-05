@@ -1,1 +1,1 @@
-UPDATE $task SET request.owner.profile = 'other-profile', request.owner.authority = {};
+UPDATE $task SET owner_context.profile = 'other-profile', authority.policy_revision = 'malformed';

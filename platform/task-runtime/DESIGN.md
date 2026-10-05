@@ -15,6 +15,34 @@ This library is the shared Task authority used by hosted domain services. Public
 handlers delegate protocol projection to the official RMCP types and the shared
 service adapter. The library does not authorize provider side effects by itself.
 
+## Stored Task Controls
+
+Store owns `TaskOwnerRecord` and `TaskRequestRecord`. The required `owner_context`
+column carries the admitted caller snapshot; `task.owner` keeps its principal record
+link. Runtime decoding compares the snapshot with the indexed tenant, principal,
+profile, context, initiator and the independent stored authority. Caller clearance
+labels and output-policy labels have separate meanings and can differ.
+
+The request object declares `input`, `status_message`, `ttl_ms` and
+`poll_interval_ms`. Only `input` accepts arbitrary JSON, including null, scalars,
+arrays and nested provider fields. The driver preserves unsigned 64-bit integers
+through SurrealDB decimal values. Optional controls use explicit JSON null, policy
+arrays use their declared defaults, and label sets have stable ordering. Request
+mutations compare both the retained request and owner snapshot in the same
+transaction. These storage rules apply to a fresh coordinated installation.
+
+Stored timing controls preserve the full unsigned 64-bit range. Creation admits a
+TTL only when its deadline fits the shared RFC 3339 four-digit-year range through
+9999; Runtime rejects overflow before identity or Task writes. An omitted TTL uses
+the seven-day retention default, and zero produces an immediate deadline.
+
+The database derives `created_at_exact` and `updated_at_exact` from their
+nanosecond datetime fields on every write. These private driver tokens let clients
+whose datetime decoder keeps only microseconds retain complete timestamps for
+keyset paging, compare-and-set operations and changefeed replay. Rust checks each
+token against its datetime; the public Task model exposes the original timestamps
+without extra fields.
+
 ## Ownership
 
 `runtime` owns creation, state transitions, subscriptions and retention. `leases`
@@ -256,6 +284,13 @@ Cases have 60-second deadlines, or 90 seconds for the result-shape matrix, and o
 their cleanup. `tests/support/result_shape_cases.rs` covers store reads, internal
 event replay, current-owner reconnects, JSON null, nested objects, arrays, unsigned
 integer precision, malformed envelopes and the populated-store installation guard.
+
+`tests/task_storage.rs` checks opaque inputs and unsigned metadata after reconnect,
+atomic rejection of malformed controls, and disagreement between stored authority
+and the owner snapshot. The SDK-owned fixture invokes the explicitly ignored
+`sdk_task_storage_interop` entry in `tests/surreal_integration.rs`; missing fixture
+configuration fails. Each language reads and claims the other language's Tasks,
+checking the owner, input and metadata after compare-and-set admission.
 
 A current `provider_wait` observer may update a Waiting message without changing its
 status. This preserves visible recovery progress and its lease instead of inventing

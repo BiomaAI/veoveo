@@ -1,1 +1,1 @@
-UPDATE $task SET request.owner.principal_key = 'other';
+UPDATE $task SET owner_context.principal_key = 'other';

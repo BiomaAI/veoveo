@@ -1,1 +1,1 @@
-UPDATE ONLY $id SET request.owner.profile = 'another-profile', request.input = NONE RETURN NONE;
+UPDATE ONLY $id SET owner_context.profile = 'another-profile', request.input = { native: task_json_probe:opaque } RETURN NONE;

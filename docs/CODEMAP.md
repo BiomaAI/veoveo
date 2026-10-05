@@ -639,6 +639,8 @@ Domain runtimes can own private queries and driver records over these connection
 | [`schema/`](../platform/store/src/schema/DESIGN.md) | current SurrealDB 3.3.0 kernel lanes; composition selects and executes owner declarations through the module runner |
 | [`src/queries/`](../platform/store/src/queries/DESIGN.md) | complete Store persistence statements, finite query selections and narrowly typed native grammar substitutions |
 | `models.rs` | persisted Rust record and enum definitions |
+| `task_request.rs` | closed Task owner snapshot and request control driver records, with opaque JSON input and unsigned metadata |
+| `task_timestamp.rs` | checked lossless creation and update timestamp tokens for Task driver clients |
 | `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
 | `ids.rs` | re-exports Store-owned ID families through `ids::*` |
 | `ids/access.rs` | enterprise, principal, tenant, gateway, Work Context and provider record IDs |
@@ -652,6 +654,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `platform/recordings/store/src/recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
 | `administration.rs` | explicit database-scoped runtime credential administration; connection startup applies no schema |
 | `identity.rs`, `queries/identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
+| `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, tenant-scoped principal summaries, enabled-human search and identity labels; Workspace owns its chat and invitation policy |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `artifacts/reads.rs`, `queries/artifacts/read_admission.surql` and `queries/artifacts/read_page.surql` | typed Artifact exact metadata and discovery admission; shared predicate and scope bindings let domain readers join readable results before decoding and page limits |
@@ -1513,6 +1516,7 @@ shape and schema, and this package follows it.
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
 | `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, typed result presence, JSON-preserving Store adapters, recovery, prune |
+| `tasks/records.py`, `tasks/timestamp.py` | closed Task storage controls and lossless timestamp bindings for Rust/Python claims, keyset pagination and native changefeed replay |
 | `tasks/changefeed.py`, `tasks/history.py` | checked native commit pages, complete transaction replay, typed versionstamp resume and trusted worker Task states |
 | `tasks/owner_query.py`, `tasks/owner_subscriptions.py` | Python current-owner Task selection, typed operation/page inputs, transactional caller mutations and request-owned current-state notifications |
 | `tasks/owner_usage.py` | SQL-selected usage point reads, grouped Task pages and prefix completion under the current parent Task's owner policy |

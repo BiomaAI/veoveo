@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.data_labels = ['secret'], result.payload.structuredContent.created_at = 'malformed' RETURN NONE;
+UPDATE ONLY $task SET owner_context.data_labels = ['secret'], result.payload.structuredContent.created_at = 'malformed' RETURN NONE;

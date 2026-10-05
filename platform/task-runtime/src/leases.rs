@@ -2,12 +2,13 @@
 use crate::{
     TaskRuntime,
     types::{
-        ClaimedTask, RecoveryClass, RequestEnvelope, TaskError, TaskSnapshot, record_to_snapshot,
-        validate_task_id,
+        ClaimedTask, RecoveryClass, TaskError, TaskSnapshot, record_to_snapshot, validate_task_id,
     },
 };
 use chrono::{TimeDelta, Utc};
 use std::time::Duration;
+use surrealdb::types::SurrealValue;
+use veoveo_platform_store::TaskRequestRecord;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
 use veoveo_types::TaskId;
@@ -117,9 +118,8 @@ impl TaskRuntime {
             (StoreTaskStatus::Running, Some("Running".to_owned()))
         };
 
-        let request = RequestEnvelope {
+        let request = TaskRequestRecord {
             input: snapshot.request.clone(),
-            owner: snapshot.owner.clone(),
             status_message,
             ttl_ms: snapshot.ttl_ms,
             poll_interval_ms: snapshot.poll_interval_ms,
@@ -131,11 +131,16 @@ impl TaskRuntime {
             .bind(("task", task))
             .bind(("next", status))
             .bind(("worker", self.worker_id().to_owned()))
-            .bind(("request", request.into_open_object()?))
+            .bind(("request", request.into_value()))
             .bind(("lease_expires", lease_expires_at))
             .bind(("now", now))
             .bind(("expected", snapshot.status))
             .bind(("expected_updated_at", snapshot.updated_at))
+            .bind(("expected_request", TaskRequestRecord::from(&snapshot)))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&snapshot.owner)?,
+            ))
             .await?
             .check()?;
         let updated: Option<TaskRecord> = response.take(2)?;

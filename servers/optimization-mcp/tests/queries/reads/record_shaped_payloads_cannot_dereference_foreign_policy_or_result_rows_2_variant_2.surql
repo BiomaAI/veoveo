@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.authority = record_guard:authority;
+UPDATE ONLY $task SET owner_context.authority = record_guard:authority;

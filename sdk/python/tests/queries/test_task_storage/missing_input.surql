@@ -1,0 +1,1 @@
+UPDATE $task SET request.input = NONE;

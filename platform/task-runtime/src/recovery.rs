@@ -3,11 +3,13 @@ use crate::{
     TaskRuntime,
     runtime::recovery_result,
     types::{
-        RecoveryClass, RecoveryReport, RequestEnvelope, TaskError, TaskFailure, TaskSnapshot,
-        TaskTransition, failure_to_open_object, record_to_snapshot,
+        RecoveryClass, RecoveryReport, TaskError, TaskFailure, TaskSnapshot, TaskTransition,
+        failure_to_open_object, record_to_snapshot,
     },
 };
 use chrono::Utc;
+use surrealdb::types::SurrealValue;
+use veoveo_platform_store::TaskRequestRecord;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
 impl TaskRuntime {
@@ -118,9 +120,8 @@ impl TaskRuntime {
         failure: Option<TaskFailure>,
     ) -> Result<TaskSnapshot, TaskError> {
         let now = Utc::now();
-        let envelope = RequestEnvelope {
+        let envelope = TaskRequestRecord {
             input: task.request.clone(),
-            owner: task.owner.clone(),
             status_message: Some(message.to_owned()),
             ttl_ms: task.ttl_ms,
             poll_interval_ms: task.poll_interval_ms,
@@ -144,12 +145,17 @@ impl TaskRuntime {
             })
             .bind(("task", task_record_id(task.task_id)))
             .bind(("status", status))
-            .bind(("request", envelope.into_open_object()?))
+            .bind(("request", envelope.into_value()))
             .bind(("error", failure.as_ref().map(failure_to_open_object)))
             .bind(("completed_at", terminal.then_some(now)))
             .bind(("now", now))
             .bind(("expected", task.status))
-            .bind(("expected_updated_at", task.updated_at));
+            .bind(("expected_updated_at", task.updated_at))
+            .bind(("expected_request", TaskRequestRecord::from(task)))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&task.owner)?,
+            ));
         let mut response = contribution
             .bind(query, task.task_id, &task.task_type, task.created_at)
             .await?

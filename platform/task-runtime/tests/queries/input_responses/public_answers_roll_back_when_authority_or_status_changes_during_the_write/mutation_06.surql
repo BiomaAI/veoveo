@@ -1,3 +1,3 @@
 DEFINE EVENT OVERWRITE input_interleave ON task_input
                 WHEN $event = 'UPDATE' AND $before.response = NONE AND $after.response != NONE
-                THEN (UPDATE ONLY $after.task SET request.owner.profile = 'other' RETURN NONE);
+                THEN (UPDATE ONLY $after.task SET owner_context.profile = 'other' RETURN NONE);

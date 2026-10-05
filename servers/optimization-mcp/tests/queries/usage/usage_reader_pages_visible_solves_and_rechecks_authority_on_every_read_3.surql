@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.authority.work_context = 'other-context' RETURN NONE;
+UPDATE ONLY $task SET owner_context.authority.work_context = 'other-context' RETURN NONE;

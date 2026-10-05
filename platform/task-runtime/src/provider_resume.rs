@@ -2,6 +2,7 @@
 use crate::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime, TaskSnapshot, TaskStatus};
 use chrono::{DateTime, Utc};
 use surrealdb::types::{SurrealValue, Value};
+use veoveo_platform_store::TaskRequestRecord;
 
 impl TaskRuntime {
     /// Resume a paused provider journal and its Task in one transaction.
@@ -44,14 +45,13 @@ impl TaskRuntime {
         resumed.updated_at = now;
         // The old cancellation remains historical evidence. Pending intent is
         // represented by Task status, and a new cancellation records a new epoch.
-        let envelope = crate::types::RequestEnvelope {
+        let envelope = TaskRequestRecord {
             input: current.request.clone(),
-            owner: current.owner.clone(),
             status_message: resumed.status_message.clone(),
             ttl_ms: current.ttl_ms,
             poll_interval_ms: current.poll_interval_ms,
         }
-        .into_open_object()?;
+        .into_value();
         bindings.extend([
             ("_resume_status", current.status.into_value()),
             ("_resume_updated", current.updated_at.into_value()),
@@ -61,6 +61,14 @@ impl TaskRuntime {
             ),
             ("_resume_now", now.into_value()),
             ("_resume_request", envelope.into_value()),
+            (
+                "_resume_expected_request",
+                TaskRequestRecord::from(current).into_value(),
+            ),
+            (
+                "_resume_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)?.into_value(),
+            ),
         ]);
         let body = include_str!("../queries/provider/resume_body.surql").replacen(
             "/* domain body */",

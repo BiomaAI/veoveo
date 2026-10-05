@@ -12,7 +12,6 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from pydantic import ValidationError
 from surrealdb import RecordID
 
 from query_files import test_query
@@ -435,9 +434,6 @@ async def test_snapshot_json_matches_rust_serde_shape(runtime):
         'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_06.surql',
         'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_07.surql',
         'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_08.surql',
-        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_09.surql',
-        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_10.surql',
-        'test_task_runtime_integration/test_owner_sql_excludes_denied_malformed_rows/mutation_11.surql',
     ],
 )
 async def test_owner_sql_excludes_denied_malformed_rows(runtime, assignment):
@@ -458,7 +454,7 @@ async def test_owner_sql_excludes_denied_malformed_rows(runtime, assignment):
         assert (await runtime.for_owner(caller).page(limit=1000)).items == ()
         # The denied body really is malformed; selection must precede decoding.
         raw = await runtime.store.connection.select(task_record(created.task_id))
-        assert raw[0]["request"]["owner"]["authority"] == {}
+        assert raw[0]["authority"]["policy_revision"] == "malformed"
 
 
 async def test_owner_sql_rechecks_clearance_through_independent_connection(
@@ -503,7 +499,7 @@ async def test_owner_sql_rechecks_clearance_through_independent_connection(
             # A revoked row stays outside decoding; an admitted malformed row fails.
             current = (await observer.for_owner(caller).page(limit=1000)).items
             assert changed not in {row.task_id for row in current}
-            with pytest.raises(ValidationError):
+            with pytest.raises(InvalidRecord):
                 await observer.for_owner(
                     replace(caller, data_labels=caller.data_labels | {"restricted"})
                 ).page(limit=1000)
@@ -532,7 +528,7 @@ async def test_trusted_get_rejects_foreign_server_before_decoding(runtime):
         )
         assert await runtime.get(str(created.task_id)) is None
         foreign = TaskRuntime(runtime.store, "other-server", "read-only-observer")
-        with pytest.raises(ValidationError):
+        with pytest.raises(InvalidRecord):
             await foreign.get(str(created.task_id))
 
 

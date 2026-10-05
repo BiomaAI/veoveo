@@ -707,3 +707,6 @@ mod attachments;
 
 #[path = "workspace/personal.rs"]
 mod personal;
+
+#[path = "workspace/people.rs"]
+mod people;

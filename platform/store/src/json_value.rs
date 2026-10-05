@@ -44,6 +44,37 @@ pub(crate) fn from_surreal(value: Value) -> Result<JsonValue, Error> {
     }
 }
 
+/// Task controls accept JSON values without coercing native database identities.
+pub(crate) fn from_surreal_json(value: Value) -> Result<JsonValue, Error> {
+    match value {
+        Value::Null => Ok(JsonValue::Null),
+        Value::Bool(value) => Ok(JsonValue::Bool(value)),
+        Value::String(value) => Ok(JsonValue::String(value)),
+        Value::Number(Number::Int(value)) => Ok(value.into()),
+        Value::Number(Number::Float(value)) => serde_json::Number::from_f64(value)
+            .map(JsonValue::Number)
+            .ok_or_else(|| Error::internal("Task JSON requires finite numbers".into())),
+        Value::Number(Number::Decimal(value)) => value
+            .to_string()
+            .parse::<serde_json::Number>()
+            .map(JsonValue::Number)
+            .map_err(|_| Error::internal("Task decimal cannot be represented as JSON".into())),
+        Value::Array(values) => values
+            .into_iter()
+            .map(from_surreal_json)
+            .collect::<Result<_, _>>()
+            .map(JsonValue::Array),
+        Value::Object(fields) => fields
+            .into_iter()
+            .map(|(key, value)| from_surreal_json(value).map(|value| (key, value)))
+            .collect::<Result<_, _>>()
+            .map(JsonValue::Object),
+        _ => Err(Error::internal(
+            "Task JSON cannot contain native database values".into(),
+        )),
+    }
+}
+
 impl SurrealValue for crate::OpenObject {
     fn kind_of() -> surrealdb::types::Kind {
         surrealdb::types::Kind::Object

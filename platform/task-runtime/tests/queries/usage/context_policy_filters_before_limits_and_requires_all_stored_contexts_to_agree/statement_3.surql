@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.authority = usage_policy_probe:authority RETURN NONE;
+UPDATE ONLY $task SET owner_context.authority = usage_policy_probe:authority RETURN NONE;

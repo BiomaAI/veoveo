@@ -161,10 +161,10 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
             );
         }
         for (mutation, statement) in [
-("request.owner.data_labels = ['restricted']", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_1.surql")),
-("request.owner.principal_key = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_2.surql")),
-("request.owner.profile = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_3.surql")),
-("request.owner.tenant_key = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_4.surql")),
+("owner_context.data_labels = ['restricted']", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_1.surql")),
+("owner_context.principal_key = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_2.surql")),
+("owner_context.profile = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_3.surql")),
+("owner_context.tenant_key = 'inconsistent'", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_4.surql")),
 ("owner = principal:other", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_5.surql")),
 ("profile = profile:other", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_6.surql")),
 ("tenant = tenant:other", include_str!("../../../queries/bin/server/index_tests/resource_reads_and_subscription_admission_filter_before_decoding_variant_7.surql"))

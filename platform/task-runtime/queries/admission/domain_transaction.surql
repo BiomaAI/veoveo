@@ -6,7 +6,7 @@ BEGIN TRANSACTION;
                  AND task_type = $_admission_kind
                  AND status = 'queued' AND lease_owner = NONE AND lease_expires_at = NONE
                  AND cancel_requested_at = NONE AND updated_at = $_admission_updated
-                 AND request = $_admission_request AND retention_pins = $_admission_pins RETURN AFTER);
+                 AND request = $_admission_request AND owner_context = $_admission_owner_context AND retention_pins = $_admission_pins RETURN AFTER);
              IF $_admission_guard = NONE { THROW 'task_admission_conflict'; };
              /* domain body */
 COMMIT TRANSACTION;

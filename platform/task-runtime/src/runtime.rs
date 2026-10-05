@@ -1,3 +1,4 @@
+use veoveo_platform_store::TaskRequestRecord;
 mod context_scope;
 mod history;
 mod input_responses;
@@ -18,7 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use veoveo_platform_store::task_record_id;
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Datelike, TimeDelta, Utc};
 use futures::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
@@ -38,10 +39,10 @@ use veoveo_types::{AccessLevel, InvocationAuthority, WorkContextMembershipLevel}
 use veoveo_types::{AccessSubject, InvocationProvenance};
 
 use crate::types::{
-    CreateTask, CreateTaskResult, RecoveryClass, RequestEnvelope, TaskError, TaskFailure,
-    TaskInputExchange, TaskInputRequest, TaskOwner, TaskPayloadState, TaskRetentionPin,
-    TaskRuntimeConfig, TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor,
-    failure_to_open_object, open_object_to_value, record_to_snapshot, validate_task_id,
+    CreateTask, CreateTaskResult, RecoveryClass, TaskError, TaskFailure, TaskInputExchange,
+    TaskInputRequest, TaskOwner, TaskPayloadState, TaskRetentionPin, TaskRuntimeConfig,
+    TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor, failure_to_open_object,
+    open_object_to_value, record_to_snapshot, validate_task_id,
 };
 
 const DEFAULT_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
@@ -63,7 +64,8 @@ struct TaskContent {
     task_type: veoveo_types::TaskTypeName,
     status: StoreTaskStatus,
     recovery_class: StoreRecoveryClass,
-    request: OpenObject,
+    request: TaskRequestRecord,
+    owner_context: veoveo_platform_store::TaskOwnerRecord,
     progress: f64,
     result: Option<veoveo_platform_store::TaskResultRecord>,
     error: Option<OpenObject>,
@@ -176,6 +178,24 @@ impl TaskRuntime {
                 "task owner and Work Context belong to different tenants".into(),
             ));
         }
+        let owner_context = veoveo_platform_store::TaskOwnerRecord::try_from(&draft.owner)?;
+        let now = Utc::now();
+        let duration = match draft.ttl_ms {
+            Some(ttl) => i64::try_from(ttl)
+                .ok()
+                .and_then(TimeDelta::try_milliseconds),
+            None => TimeDelta::from_std(DEFAULT_RETENTION).ok(),
+        }
+        .ok_or_else(|| {
+            TaskError::InvalidRecord("Task TTL exceeds supported deadline range".into())
+        })?;
+        let retention = Some(
+            now.checked_add_signed(duration)
+                .filter(|deadline| deadline.year() <= 9999)
+                .ok_or_else(|| {
+                    TaskError::InvalidRecord("Task TTL exceeds supported deadline range".into())
+                })?,
+        );
         if let Some(key) = draft.idempotency_key.as_deref()
             && let Some(snapshot) = self.idempotent_task(&draft.owner, key).await?
         {
@@ -197,17 +217,10 @@ impl TaskRuntime {
 
         let task_id = draft.task_id;
         let record = task_record_id(task_id);
-        let now = Utc::now();
         let contribution = self.creation_contribution(&draft, now)?;
         let contribution_sql = contribution.sql(true)?;
-        let retention = draft
-            .ttl_ms
-            .and_then(|ttl| TimeDelta::try_milliseconds(ttl as i64))
-            .or_else(|| TimeDelta::from_std(DEFAULT_RETENTION).ok())
-            .map(|ttl| now + ttl);
-        let envelope = RequestEnvelope {
+        let envelope = TaskRequestRecord {
             input: draft.request.clone(),
-            owner: draft.owner.clone(),
             status_message: Some("Queued".to_owned()),
             ttl_ms: draft.ttl_ms,
             poll_interval_ms: draft.poll_interval_ms,
@@ -230,7 +243,8 @@ impl TaskRuntime {
             task_type: draft.task_type.clone(),
             status: StoreTaskStatus::Queued,
             recovery_class: draft.recovery_class.into(),
-            request: envelope.into_open_object()?,
+            request: envelope,
+            owner_context,
             progress: 0.0,
             result: None,
             error: None,
@@ -468,9 +482,8 @@ impl TaskRuntime {
             created_at: now,
             responded_at: None,
         };
-        let envelope = RequestEnvelope {
+        let envelope = TaskRequestRecord {
             input: current.request.clone(),
-            owner: current.owner.clone(),
             status_message: Some("Waiting for input".to_owned()),
             ttl_ms: current.ttl_ms,
             poll_interval_ms: current.poll_interval_ms,
@@ -481,9 +494,14 @@ impl TaskRuntime {
             .client()
             .query(include_str!("../queries/runtime/request_input.surql"))
             .bind(("task", task_record_id(current.task_id)))
-            .bind(("request", envelope.into_open_object()?))
+            .bind(("request", envelope.into_value()))
             .bind(("now", now))
             .bind(("expected_updated_at", current.updated_at))
+            .bind(("expected_request", TaskRequestRecord::from(&current)))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)?,
+            ))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .bind(("tenant", tenant_record(&current.owner)?))
             .bind(("owner", owner_record(&current.owner)?))
@@ -641,9 +659,8 @@ impl TaskRuntime {
         };
         let contribution_sql = contribution.sql(false)?;
         let message = transition.message();
-        let mut envelope = RequestEnvelope {
+        let mut envelope = TaskRequestRecord {
             input: current.request.clone(),
-            owner: current.owner.clone(),
             status_message: Some(message.clone()),
             ttl_ms: current.ttl_ms,
             poll_interval_ms: current.poll_interval_ms,
@@ -690,7 +707,7 @@ impl TaskRuntime {
             )
             .bind(("task", task_record_id(current.task_id)))
             .bind(("next", next))
-            .bind(("request", envelope.into_open_object()?))
+            .bind(("request", envelope.into_value()))
             .bind(("progress", progress))
             .bind((
                 "result",
@@ -715,6 +732,11 @@ impl TaskRuntime {
             .bind(("now", now))
             .bind(("expected", current.status))
             .bind(("expected_updated_at", current.updated_at))
+            .bind(("expected_request", TaskRequestRecord::from(current)))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)?,
+            ))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .bind(("tenant", tenant_record(&current.owner)?))
             .bind(("owner", owner_record(&current.owner)?))

@@ -1,3 +1,5 @@
+#[path = "support/task_storage_admission.rs"]
+mod task_storage_admission;
 use veoveo_task_runtime::TaskUsageAccess;
 #[path = "../../../testing/fixtures/store.rs"]
 mod store;
@@ -344,13 +346,18 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
             ),
         ] {
             let id = create(&writer, &named_tenant, number, 1).await;
-            db.a.client()
+            let before = task_storage_admission::row(&db.a, id).await;
+            let result = db.a.client()
                 .query(query)
                 .bind(("task", task_record_id(id)))
                 .await
                 .unwrap()
-                .check()
-                .unwrap();
+                .check();
+            if matches!(number, 20..=23) {
+                task_storage_admission::rejected(&db.a, id, before, result.unwrap_err()).await;
+                continue;
+            }
+            result.unwrap();
             assert!(
                 reader
                     .usage(TaskUsageAccess::Owner(&named_tenant), id)
@@ -434,7 +441,13 @@ async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_t
             (504, include_str!("queries/usage/context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree/statement_11.surql")),
         ] {
             let id = create(&writer, &caller, number, 1).await;
-            db.a.client().query(query).bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
+            let before = task_storage_admission::row(&db.a, id).await;
+            let mutation = db.a.client().query(query).bind(("task", task_record_id(id))).await.unwrap().check();
+            if matches!(number, 504..=508) {
+                task_storage_admission::rejected(&db.a, id, before, mutation.unwrap_err()).await;
+                continue;
+            }
+            mutation.unwrap();
             assert!(reader.usage(WorkContext(&caller), id).await.unwrap().is_empty(), "{query}");
             assert!(!reader.task_visible(WorkContext(&caller), id).await.unwrap(), "{query}");
         }

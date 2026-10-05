@@ -1,0 +1,1 @@
+UPDATE ONLY $task SET request.poll_interval_ms = $value RETURN NONE;

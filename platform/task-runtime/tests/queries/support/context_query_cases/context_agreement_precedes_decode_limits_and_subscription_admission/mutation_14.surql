@@ -1,1 +1,1 @@
-UPDATE ONLY $id SET task_type = 'other-operation', request.input = NONE RETURN NONE;
+UPDATE ONLY $id SET task_type = 'other-operation', request.input = { native: task_json_probe:opaque } RETURN NONE;

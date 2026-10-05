@@ -78,6 +78,7 @@ pub struct WorkContextOutputPolicy {
 
 /// Gateway-resolved authority signed into every internal service token.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct InvocationAuthority {
     pub work_context: WorkContextId,
     pub tenant: TenantId,

@@ -40,7 +40,7 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
             .unwrap()
             .check()
             .unwrap();
-        for changed in 0..5 {
+        for changed in 0..6 {
             let task = runtime.create(draft()).await.unwrap().snapshot;
             let id = task.task_id;
             match changed {
@@ -76,6 +76,12 @@ async fn queued_snapshot_guard_rejects_claim_cancel_and_changed_input_or_pins() 
                         .unwrap()
                         .check()
                         .unwrap();
+                }
+                5 => {
+                    db.b.client()
+                        .query(include_str!("queries/admission/owner_context_changed.surql"))
+                        .bind(("task", task_record_id(task.task_id)))
+                        .await.unwrap().check().unwrap();
                 }
                 _ => unreachable!(),
             }

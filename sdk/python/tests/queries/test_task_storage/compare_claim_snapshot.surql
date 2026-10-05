@@ -1,0 +1,1 @@
+SELECT updated_at = $expected_updated_at AS timestamp_matches, request = $expected_request AS request_matches, owner_context = $expected_owner_context AS owner_matches, type::string(updated_at) AS stored_time FROM ONLY $task;

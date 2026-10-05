@@ -49,7 +49,11 @@ mod table;
 #[cfg(feature = "runtime")]
 mod task_ids;
 #[cfg(feature = "runtime")]
+mod task_request;
+#[cfg(feature = "runtime")]
 mod task_result;
+#[cfg(feature = "runtime")]
+mod task_timestamp;
 #[cfg(feature = "runtime")]
 mod usage;
 
@@ -107,7 +111,11 @@ pub use table::PlatformTable;
 #[cfg(feature = "runtime")]
 pub use task_ids::task_record_id;
 #[cfg(feature = "runtime")]
+pub use task_request::{TaskOwnerRecord, TaskRequestRecord};
+#[cfg(feature = "runtime")]
 pub use task_result::TaskResultRecord;
+#[cfg(feature = "runtime")]
+pub use task_timestamp::TaskTimestampToken;
 #[cfg(feature = "runtime")]
 pub use usage::DomainUsageDraft;
 #[cfg(feature = "runtime")]

@@ -1,2 +1,2 @@
-UPDATE ONLY $task SET request.owner.profile = 'wrong'
+UPDATE ONLY $task SET owner_context.profile = 'wrong'
 RETURN NONE;

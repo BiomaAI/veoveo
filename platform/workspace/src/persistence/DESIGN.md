@@ -40,6 +40,12 @@ content, including reply target and normalized explicit agent destinations. Unkn
 same error. Invitations require explicit acceptance by the named human and fresh
 Work Context authority. Accepted invitations cannot restore a removed member.
 
+People metadata uses the declared Identity leaves documented in the
+[Workspace schema design](../../DESIGN.md#schema-ownership). Disabled member and inviter
+names remain available for historical attribution. Search and invitation admission
+require enabled human principals in the current tenant. The invite transaction
+performs that admission before allocating a sequence or writing an invitation/event.
+
 Queries have bounded pages and mutations have bounded conflict retries. Database
 errors may contain submitted text, so public errors and tracing must use the closed
 error classification rather than printing the underlying database error.

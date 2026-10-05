@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.profile = record_guard:owner;
+UPDATE ONLY $task SET owner_context.profile = record_guard:owner;

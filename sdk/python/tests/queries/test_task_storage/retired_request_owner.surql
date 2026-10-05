@@ -1,0 +1,1 @@
+UPDATE ONLY $task SET request.owner = owner_context RETURN NONE;

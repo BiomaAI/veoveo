@@ -143,6 +143,7 @@ DEFINE FIELD OVERWRITE cancel_requested_at ON task TYPE none | datetime PERMISSI
 DEFINE FIELD OVERWRITE completed_at ON task TYPE none | datetime PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE created_at ON task TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE created_at_exact ON task TYPE string VALUE type::string($this.created_at) PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE delegation_id ON task TYPE none | string PERMISSIONS FULL;
 
@@ -170,7 +171,43 @@ DEFINE FIELD OVERWRITE progress ON task TYPE float DEFAULT 0f ASSERT $value >= 0
 
 DEFINE FIELD OVERWRITE recovery_class ON task TYPE 'resume' | 'webhook_wait' | 'provider_wait' | 'interrupted_indeterminate' PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE request ON task TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context ON task TYPE object PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.principal_key ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.issuer ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.subject ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.profile ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.principal_kind ON task TYPE 'user' | 'service' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.tenant_key ON task TYPE none | null | string DEFAULT NULL PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.data_labels ON task TYPE array<string> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.data_labels.* ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority ON task TYPE object PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.work_context ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.tenant ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.policy_revision ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.membership ON task TYPE 'viewer' | 'contributor' | 'custodian' | 'owner' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy ON task TYPE object PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.owner ON task TYPE object PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.owner.kind ON task TYPE 'principal' | 'group' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.owner.id ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.initial_grants.*.subject ON task TYPE object ASSERT object::keys($value) = ['id', 'kind'] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.initial_grants.*.subject.kind ON task TYPE 'principal' | 'group' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.initial_grants.*.subject.id ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.initial_grants ON task TYPE array<object> DEFAULT [] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.initial_grants.* ON task TYPE object ASSERT object::keys($value) = ['level', 'subject'] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.initial_grants.*.level ON task TYPE 'read' | 'write' | 'admin' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.classification ON task TYPE none | null | string DEFAULT NULL PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.data_labels ON task TYPE array<string> DEFAULT [] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.output_policy.data_labels.* ON task TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.provenance ON task TYPE object ASSERT ($value.mode = 'direct' AND type::is_string($value.initiator) AND $value.delegation_id = NONE) OR ($value.mode = 'delegated' AND type::is_string($value.initiator) AND type::is_string($value.delegation_id)) OR ($value.mode = 'automated' AND $value.initiator = NONE AND $value.delegation_id = NONE) PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.provenance.mode ON task TYPE 'direct' | 'delegated' | 'automated' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.provenance.initiator ON task TYPE none | string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE owner_context.authority.provenance.delegation_id ON task TYPE none | string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request ON task TYPE object PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request.input ON task TYPE null | bool | number | string | object | array FLEXIBLE ASSERT $value != NONE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request.status_message ON task TYPE none | null | string DEFAULT NULL PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request.ttl_ms ON task TYPE none | null | int | decimal DEFAULT NULL ASSERT $value = NONE OR $value = NULL OR ($value >= 0 AND $value <= 18446744073709551615dec AND $value = math::floor($value)) PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request.poll_interval_ms ON task TYPE none | null | int | decimal DEFAULT NULL ASSERT $value = NONE OR $value = NULL OR ($value >= 0 AND $value <= 18446744073709551615dec AND $value = math::floor($value)) PERMISSIONS FULL;
+
 
 DEFINE FIELD OVERWRITE result ON task TYPE none | object FLEXIBLE ASSERT $value = NONE OR object::keys($value) = ['payload'] PERMISSIONS FULL;
 
@@ -195,6 +232,7 @@ DEFINE FIELD OVERWRITE task_type ON task TYPE string PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE tenant ON task TYPE record<tenant> PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE updated_at ON task TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE updated_at_exact ON task TYPE string VALUE type::string($this.updated_at) PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE work_context ON task TYPE record<work_context> PERMISSIONS FULL;
 

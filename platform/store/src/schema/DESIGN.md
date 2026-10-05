@@ -19,7 +19,7 @@ its predecessor, and the registry resolves transitive requirements before effect
 | Owner | Table claims | Function claims |
 |---|---|---|
 | Store | `changefeed_checkpoint`, `platform_module_lane`, `platform_module_migration`, `platform_module_installation` | None |
-| Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `membership`, `work_context`, `oauth_client` | `fn::kernel::identity::actor_admitted_v1`, `fn::kernel::identity::identity_enabled_v1` |
+| Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `membership`, `work_context`, `oauth_client` | `fn::kernel::identity::actor_admitted_v1`, `fn::kernel::identity::identity_enabled_v1`, `fn::kernel::identity::principal_summaries_v1`, `fn::kernel::identity::search_enabled_users_v1`, `fn::kernel::identity::enabled_user_v1`, `fn::kernel::identity::identity_labels_v1` |
 | Gateway | `gateway_*`, `policy_revision`, `profile`, `profile_server`, `mcp_server`, `mcp_interaction` | `fn::kernel::gateway::task_retention_route_v1` |
 | Artifacts | `artifact_*`, `share_link` | `fn::artifact_upload_profile_digest`, `fn::artifact_upload_authority_matches` |
 | Tasks | `task`, `task_input`, `task_idempotency`, `task_produced_artifact`, `task_used_artifact`, `provider_job`, `provider_event`, `domain_usage` | `fn::kernel::tasks::selection_v1`, `fn::kernel::tasks::release_retention_v1` |
@@ -52,8 +52,9 @@ selected lanes. The composition owns command/image qualification; declarations a
 do not certify an installed Job or image.
 
 `--no-default-features --features schema` exposes these declarations and the
-dependency-free module API. The default `runtime` feature activates Store persistence,
-the database driver and runner. Each owner's SQL lives in `schema/<owner>/migrations`;
+dependency-free module API. The default `runtime` feature activates Store persistence and
+the database driver. Composition and native fixtures activate the runner separately.
+Each owner's SQL lives in `schema/<owner>/migrations`;
 queries remain with the persistence implementation that executes them.
 
 ## Schema Associations
@@ -82,9 +83,23 @@ covering introduction; callers inspect every argument under the read-only profil
 |---|---|
 | `fn::kernel::identity::actor_admitted_v1` | Reads `tenant`, `work_context` and `principal`; checks supplied context digest and optional human requirement |
 | `fn::kernel::identity::identity_enabled_v1` | Reads those same Identity tables for current enabled identity |
+| `fn::kernel::identity::principal_summaries_v1` | Reads `principal`; returns tenant-scoped ID/name pairs for at most 256 supplied IDs, including disabled and service actors |
+| `fn::kernel::identity::search_enabled_users_v1` | Reads `principal`; filters enabled human users by tenant and lowercase name substring before ordering by name and limiting to 20 |
+| `fn::kernel::identity::enabled_user_v1` | Reads `principal`; returns whether one supplied principal is an enabled human in the supplied tenant |
+| `fn::kernel::identity::identity_labels_v1` | Reads `tenant`, `work_context` and `principal`; returns person, tenant name and context title when both records belong to that tenant, otherwise `NONE` |
 | `fn::kernel::gateway::task_retention_route_v1` | Reads one `gateway_task_route` and returns its source Task and server; missing route throws |
 | `fn::kernel::tasks::selection_v1` | Reads one `task`; returns the admitted object or `NONE` |
 | `fn::kernel::tasks::release_retention_v1` | Reads one `task` and updates only its `retention_pins`; checks expected server and existing pin |
+
+Identity's metadata leaves use specific tenant, principal and Work Context record
+parameters. Principal summaries reject arrays above 256 entries before reading and
+preserve unspecified result order. Duplicate IDs produce one row; missing and foreign
+tenant IDs produce none. Historical attribution does not require an enabled principal.
+Identity labels check record existence and both tenant relationships. These read-only
+leaves neither authenticate their supplied scope nor call other exports. Workspace
+owns human search input validation and all chat, invitation and run predicates. Its
+invitation transaction calls `enabled_user_v1` before mutations, and inbox metadata
+resolves only the inviters selected by Workspace's pending-invitation query.
 
 Task selection takes thirteen typed bindings: Task, server, tenant, owner, profile,
 request keys, labels, optional operation types and an optional Work Context triple.
@@ -93,6 +108,14 @@ An absent context requires all three context inputs absent. Raw optional tenant
 identity stays distinct from the effective installation tenant. Open input/result
 payloads confer no record traversal permission; consumers guard and inspect them
 before domain predicates, grouping or limits.
+
+Tasks stores the required owner snapshot in `owner_context`, separately from the
+`owner` principal record link. The request declares its input, status message and
+timing fields; only the input accepts arbitrary domain JSON. Store-owned driver
+types validate the controlled objects. Rust and Python readers check that the
+snapshot agrees with the indexed identity references and current Task authority.
+Transactions comparing an expected request also compare the expected owner snapshot.
+Snapshot clearance labels and output-policy labels have separate meanings and fields.
 
 Retention release uses the explicit `OwnedUpdate` profile for `task.retention_pins`.
 Agents first reads the Gateway leaf and then calls the Task leaf for a present source

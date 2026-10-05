@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.tenant_key = NONE, result.payload.structuredContent.created_at = 'malformed' RETURN NONE;
+UPDATE ONLY $task SET owner_context.tenant_key = NONE, result.payload.structuredContent.created_at = 'malformed' RETURN NONE;

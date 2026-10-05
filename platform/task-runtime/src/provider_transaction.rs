@@ -70,6 +70,10 @@ impl TaskRuntime {
                 RecordId::new("mcp_server", self.server().to_owned()),
             ))
             .bind(("_provider_worker", self.worker_id().to_owned()))
+            .bind((
+                "_provider_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&snapshot.owner)?,
+            ))
             .bind(("_provider_expiry", claimed.lease_expires_at))
             .bind(("_provider_dispatch", kind == ProviderCommit::Dispatch));
         for (key, value) in bindings {

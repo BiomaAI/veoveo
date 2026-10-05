@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.principal_key = 'inconsistent', request.input = NONE RETURN NONE;
+UPDATE ONLY $task SET owner_context.principal_key = 'inconsistent', request.input = { native: task_json_probe:opaque } RETURN NONE;

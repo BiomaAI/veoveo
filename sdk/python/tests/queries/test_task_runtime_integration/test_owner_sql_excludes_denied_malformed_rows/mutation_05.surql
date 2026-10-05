@@ -1,1 +1,1 @@
-UPDATE $task SET request.owner.principal_key = 'someone-else', request.owner.authority = {};
+UPDATE $task SET owner_context.principal_key = 'someone-else', authority.policy_revision = 'malformed';

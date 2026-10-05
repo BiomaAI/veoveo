@@ -2,7 +2,7 @@
 
 This independent Rust workspace composes all seventeen owner declarations through
 `schema` features with default features disabled. Native tests pin the current
-163 table names, fourteen functions and two analyzers to their target owners,
+163 table names, 23 functions and two analyzers to their target owners,
 check the declared dependency order, and qualify optional selection through the
 shared registry. The generated plan fixture is compared with those actual owner
 exports. Declaration checks do not replace complete SQL admission or native execution

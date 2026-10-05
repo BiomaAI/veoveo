@@ -1,0 +1,1 @@
+UPDATE $task SET owner_context.data_labels = 'restricted';

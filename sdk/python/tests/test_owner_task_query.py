@@ -205,7 +205,7 @@ async def test_owner_revocation_inside_mutation_rolls_back_task_and_input_change
             nonlocal revoked
             if sql.startswith("BEGIN TRANSACTION; LET $updated") and not revoked:
                 revoked = True
-                await original("UPDATE $task SET request.owner.data_labels = ['restricted'];",
+                await original(test_query("test_owner_task_query/revoke_before_mutation.surql"),
                                {"task": task_record(task.task_id)})
             return await original(sql, variables)
 

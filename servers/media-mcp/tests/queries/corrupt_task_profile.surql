@@ -1,2 +1,2 @@
-UPDATE ONLY $task SET request.owner.profile = 'inconsistent'
+UPDATE ONLY $task SET owner_context.profile = 'inconsistent'
 RETURN NONE;

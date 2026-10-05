@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, replace
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, Sequence
 
 from surrealdb import RecordID
 
 from .queries import OwnerStatement, owner_statement
+from .timestamp import TaskTimestamp
 from .types import (
     TaskError, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskSnapshot, TaskTypeName,
     deterministic_work_context_id, parse_task_id, profile_record, server_record,
@@ -30,13 +30,13 @@ def native_task_id(value: uuid.UUID) -> uuid.UUID:
 
 @dataclass(frozen=True)
 class TaskPageCursor:
-    created_at: datetime
+    created_at: TaskTimestamp
     task_id: uuid.UUID
 
     def __post_init__(self) -> None:
         native_task_id(self.task_id)
-        if not isinstance(self.created_at, datetime) or self.created_at.utcoffset() is None:
-            raise TaskError("Task page cursor requires a timezone-aware timestamp")
+        if not isinstance(self.created_at, TaskTimestamp):
+            raise TaskError("Task page cursor requires a lossless typed timestamp")
 
 
 @dataclass(frozen=True)
@@ -111,7 +111,7 @@ class OwnerTaskQuery:
             if not isinstance(after, TaskPageCursor):
                 raise TaskError("Task page position must be a TaskPageCursor")
 
-            bindings.update({"after_created_at": after.created_at,
+            bindings.update({"after_created_at": after.created_at.driver_value(),
                              "after_task": task_record(after.task_id)})
         rows = await self.runtime.store.query(
             self._statement(OwnerStatement.PAGE, after=after is not None), bindings,
@@ -119,7 +119,7 @@ class OwnerTaskQuery:
         records = rows[0] or []
         items = tuple(_record_to_snapshot(record) for record in records[:limit])
         cursor = (
-            TaskPageCursor(items[-1].created_at, items[-1].task_id)
+            TaskPageCursor(items[-1].created_timestamp, items[-1].task_id)
             if len(records) > limit else None
         )
         return TaskPage(items, cursor)

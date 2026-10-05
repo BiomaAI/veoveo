@@ -1,1 +1,1 @@
-LET $person = SELECT id, display_name FROM ONLY $authority.principal;              RETURN { person: $person, tenant_name: $authority.tenant.name,              work_context_title: $authority.work_context.title };
+RETURN fn::kernel::identity::identity_labels_v1($authority.tenant, $authority.work_context, $authority.principal);

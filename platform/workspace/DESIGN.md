@@ -47,6 +47,18 @@ The module requires Agents because participant admission calls
 The browser application in `apps/workspace` consumes Workspace behavior and does not
 own the Rust schema declaration.
 
+Workspace reads principal metadata through Identity's version-one leaf functions,
+introduced in Identity lane zero. `principal_summaries_v1` supplies tenant-scoped
+historical names for selected member and inviter IDs. `search_enabled_users_v1`
+selects enabled humans; Workspace trims and lowercases search input, requires two
+characters and caps the input at 128 bytes. `identity_labels_v1` validates the
+principal and Work Context tenant relationships before returning display labels.
+Invitation admission calls `enabled_user_v1` inside the Workspace transaction.
+Workspace owns chat membership, invitation policy, expiry and sequence changes.
+Inbox selection limits pending invitations to 100 before one Identity metadata read;
+member names retain the 256-member selection cap. Run attribution uses the same
+tenant-scoped summaries without changing the run's frozen message sequence.
+
 ## Execution And Placement
 
 The default feature set is empty. Schema-only builds activate only `veoveo-modules`

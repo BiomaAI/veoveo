@@ -1,7 +1,6 @@
 #[path = "support/reads.rs"]
 mod fixture;
-#[path = "../../../testing/fixtures/module_lanes.rs"]
-mod module_lanes;
+use store::module_lanes;
 #[path = "../../../testing/fixtures/store.rs"]
 mod store;
 
@@ -20,6 +19,38 @@ use veoveo_optimization_mcp::{
     reads::OptimizationReads,
 };
 use veoveo_task_runtime::TaskRuntime;
+
+async fn rejected_task_shape(runtime: &TaskRuntime, task: veoveo_types::TaskId, statement: &str) {
+    use surrealdb::types::Value;
+    let id = veoveo_platform_store::task_record_id(task);
+    let before: Option<Value> = runtime
+        .platform_store()
+        .client()
+        .select(id.clone())
+        .await
+        .unwrap();
+    let error = runtime
+        .platform_store()
+        .client()
+        .query(statement)
+        .bind(("task", id.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("field"),
+        "unexpected schema error: {error}"
+    );
+    let after: Option<Value> = runtime
+        .platform_store()
+        .client()
+        .select(id.clone())
+        .await
+        .unwrap();
+    assert_eq!(after, before, "rejected control mutation changed Task");
+    let _: Option<Value> = runtime.platform_store().client().delete(id).await.unwrap();
+}
 
 #[tokio::test]
 async fn catalogs_and_completion_select_authorized_rows_before_limits() {
@@ -148,15 +179,15 @@ async fn ownership_envelope_and_context_must_agree_before_any_decoding() {
         let reads = OptimizationReads::new(&runtime).unwrap();
         let caller = owner(Some("tenant-a"), "owner", "route-plan", &["mission"]);
         for (number, (mutation, statement)) in [
-("request.owner.principal_key = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_1.surql")),
-("request.owner.profile = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_2.surql")),
-("request.owner.tenant_key = NONE", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_3.surql")),
-("request.owner.data_labels = ['mission','secret']", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_4.surql")),
-("request.owner.data_labels = NONE", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_5.surql")),
-("request.owner.data_labels = 'mission'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_6.surql")),
-("request.owner.data_labels = ['mission', NONE]", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_7.surql")),
-("request.owner.authority.work_context = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_8.surql")),
-("request.owner.authority.tenant = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_9.surql")),
+("owner_context.principal_key = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_1.surql")),
+("owner_context.profile = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_2.surql")),
+("owner_context.tenant_key = NONE", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_3.surql")),
+("owner_context.data_labels = ['mission','secret']", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_4.surql")),
+("owner_context.data_labels = NONE", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_5.surql")),
+("owner_context.data_labels = 'mission'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_6.surql")),
+("owner_context.data_labels = ['mission', NONE]", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_7.surql")),
+("owner_context.authority.work_context = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_8.surql")),
+("owner_context.authority.tenant = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_9.surql")),
 ("authority.context_key = 'other'", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_10.surql")),
 ("work_context = work_context:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_11.surql")),
 ("tenant = tenant:other", include_str!("queries/reads/ownership_envelope_and_context_must_agree_before_any_decoding_variant_12.surql")),
@@ -169,8 +200,11 @@ async fn ownership_envelope_and_context_must_agree_before_any_decoding() {
         .enumerate()
         {
             let row = create(&writer, &caller, number as u64 + 1).await;
-            let sql = statement;
-            update(&writer, row.task, sql).await;
+            if matches!(number, 4..=6) {
+                rejected_task_shape(&writer, row.task, statement).await;
+                continue;
+            }
+            update(&writer, row.task, statement).await;
             assert!(
                 reads
                     .problem(&caller, &row.problem)
@@ -351,14 +385,18 @@ async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows
             .bind(("output", veoveo_platform_store::OpenObject::new(result["structuredContent"].as_object().unwrap().clone().into_iter().collect())))
             .await.unwrap().check().unwrap();
         for (number, (mutation, statement)) in [
-("request.owner = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_1.surql")),
-("request.owner.authority = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_2.surql")),
-("request.owner.principal_key = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_3.surql")),
-("request.owner.profile = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_4.surql")),
-("request.owner.authority.work_context = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_5.surql")),
+("owner_context = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_1.surql")),
+("owner_context.authority = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_2.surql")),
+("owner_context.principal_key = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_3.surql")),
+("owner_context.profile = record_guard:owner", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_4.surql")),
+("owner_context.authority.work_context = record_guard:authority", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_5.surql")),
 ("request.input = record_guard:input", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_2_variant_6.surql"))
 ].into_iter().enumerate() {
             let row = create(&writer, &caller, number as u64 + 10).await;
+            if number < 5 {
+                rejected_task_shape(&writer, row.task, statement).await;
+                continue;
+            }
             update(&writer, row.task, statement).await;
             assert!(reads.run(&caller, &row.run).await.unwrap().is_none(), "accepted {mutation}");
             assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none(), "accepted {mutation}");

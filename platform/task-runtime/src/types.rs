@@ -143,6 +143,52 @@ pub struct TaskOwner {
     pub authority: InvocationAuthority,
 }
 
+impl TryFrom<&TaskOwner> for veoveo_platform_store::TaskOwnerRecord {
+    type Error = TaskError;
+    fn try_from(owner: &TaskOwner) -> Result<Self, Self::Error> {
+        fn field<T: std::str::FromStr>(value: &str) -> Result<T, TaskError>
+        where
+            T::Err: std::fmt::Display,
+        {
+            value.parse().map_err(|error| {
+                TaskError::InvalidRecord(format!("invalid Task owner identity: {error}"))
+            })
+        }
+        Ok(Self {
+            principal_key: field(&owner.principal_key)?,
+            principal_kind: owner.principal_kind,
+            issuer: field(&owner.issuer)?,
+            subject: field(&owner.subject)?,
+            profile: field(&owner.profile)?,
+            tenant_key: owner.tenant_key.as_deref().map(field).transpose()?,
+            data_labels: owner
+                .data_labels
+                .iter()
+                .map(|label| field(label))
+                .collect::<Result<_, _>>()?,
+            authority: owner.authority.clone(),
+        })
+    }
+}
+impl From<veoveo_platform_store::TaskOwnerRecord> for TaskOwner {
+    fn from(owner: veoveo_platform_store::TaskOwnerRecord) -> Self {
+        Self {
+            principal_key: owner.principal_key.to_string(),
+            principal_kind: owner.principal_kind,
+            issuer: owner.issuer.to_string(),
+            subject: owner.subject.to_string(),
+            profile: owner.profile.to_string(),
+            tenant_key: owner.tenant_key.map(|tenant| tenant.to_string()),
+            data_labels: owner
+                .data_labels
+                .into_iter()
+                .map(|label| label.to_string())
+                .collect(),
+            authority: owner.authority,
+        }
+    }
+}
+
 impl TaskOwner {
     pub fn tenant_key(&self) -> &str {
         self.tenant_key.as_deref().unwrap_or(INSTALLATION_TENANT)
@@ -439,25 +485,14 @@ pub enum TaskError {
     Json(#[from] serde_json::Error),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct RequestEnvelope {
-    pub input: Value,
-    pub owner: TaskOwner,
-    pub status_message: Option<String>,
-    pub ttl_ms: Option<u64>,
-    pub poll_interval_ms: Option<u64>,
-}
-
-impl RequestEnvelope {
-    pub(crate) fn into_open_object(self) -> Result<OpenObject, serde_json::Error> {
-        let Value::Object(values) = serde_json::to_value(self)? else {
-            unreachable!("request envelope serializes as an object")
-        };
-        Ok(OpenObject::new(values.into_iter().collect()))
-    }
-
-    pub(crate) fn from_open_object(value: OpenObject) -> Result<Self, serde_json::Error> {
-        serde_json::from_value(Value::Object(value.into_map().into_iter().collect()))
+impl From<&TaskSnapshot> for veoveo_platform_store::TaskRequestRecord {
+    fn from(snapshot: &TaskSnapshot) -> Self {
+        Self {
+            input: snapshot.request.clone(),
+            status_message: snapshot.status_message.clone(),
+            ttl_ms: snapshot.ttl_ms,
+            poll_interval_ms: snapshot.poll_interval_ms,
+        }
     }
 }
 
@@ -481,27 +516,29 @@ fn deserialize_present_result<'de, D: serde::Deserializer<'de>>(
 
 pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, TaskError> {
     let task_id = task_id_from_record(&record.id)?;
-    let envelope = RequestEnvelope::from_open_object(record.request)?;
-    let authority = crate::runtime::authority_record(&envelope.owner.authority);
+    let envelope = record.request;
+    let owner: TaskOwner = record.owner_context.into();
+    let authority = crate::runtime::authority_record(&owner.authority);
     let initiator = authority
         .initiator_key
         .as_deref()
         .map(|initiator| {
-            deterministic_principal_id(envelope.owner.tenant_key(), initiator)
+            deterministic_principal_id(owner.tenant_key(), initiator)
                 .map(|principal| principal.record_id())
         })
         .transpose()?;
-    if record.tenant != deterministic_tenant_id(envelope.owner.tenant_key())?.record_id()
+    if record.created_at_exact.timestamp() != record.created_at
+        || record.updated_at_exact.timestamp() != record.updated_at
+        || record.server.table.as_str() != "mcp_server"
+        || owner.authority.tenant.as_str() != owner.tenant_key()
+        || record.profile != RecordId::new("profile", owner.profile.clone())
+        || record.tenant != deterministic_tenant_id(owner.tenant_key())?.record_id()
         || record.owner
-            != deterministic_principal_id(
-                envelope.owner.tenant_key(),
-                &envelope.owner.principal_key,
-            )?
-            .record_id()
+            != deterministic_principal_id(owner.tenant_key(), &owner.principal_key)?.record_id()
         || record.work_context
             != deterministic_work_context_id(
-                envelope.owner.tenant_key(),
-                envelope.owner.authority.work_context.as_str(),
+                owner.tenant_key(),
+                owner.authority.work_context.as_str(),
             )?
             .record_id()
         || record.initiator != initiator
@@ -521,7 +558,7 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
         .transpose()?;
     Ok(TaskSnapshot {
         task_id,
-        owner: envelope.owner,
+        owner,
         server: record_key(&record.server)?,
         task_type: record.task_type,
         request: envelope.input,
@@ -635,3 +672,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "types/storage_tests.rs"]
+mod storage_tests;

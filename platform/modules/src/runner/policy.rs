@@ -455,6 +455,7 @@ impl<'a> Visitor<'a> {
                             "math::abs",
                             "math::floor",
                             "type::is_string",
+                            "type::string",
                             "time::now",
                             "rand::uuid::v7",
                             "rand::uuid",

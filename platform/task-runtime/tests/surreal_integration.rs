@@ -718,3 +718,14 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
     .await
     .expect("pruning_a_terminal_task_also_releases_its_idempotency_key exceeded 60 seconds");
 }
+
+#[path = "support/task_storage_interop.rs"]
+mod task_storage_interop;
+
+#[tokio::test]
+#[ignore = "SDK-driven: the Python fixture owns a fresh database and provides explicit exchange files"]
+async fn sdk_task_storage_interop() -> anyhow::Result<()> {
+    tokio::time::timeout(Duration::from_secs(90), task_storage_interop::exchange())
+        .await
+        .map_err(|_| anyhow::anyhow!("Task interoperability fixture exceeded 90 seconds"))?
+}

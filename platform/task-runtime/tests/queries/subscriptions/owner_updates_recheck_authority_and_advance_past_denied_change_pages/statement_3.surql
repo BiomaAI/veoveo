@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.data_labels = ['internal'], request.input = {value:7} RETURN NONE;
+UPDATE ONLY $task SET owner_context.data_labels = ['internal'], request.input = {value:7} RETURN NONE;

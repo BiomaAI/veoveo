@@ -352,9 +352,68 @@ async fn two_agents_have_isolated_context_fenced_publication_and_independent_can
         )
         .await
         .unwrap();
+    // Run attribution keeps disabled members but cannot disclose a foreign tenant name.
+    db.a.client()
+        .query(include_str!("../queries/workspace/people/configure.surql"))
+        .bind(("principal", bob.principal_id.record_id()))
+        .bind(("enabled", false))
+        .bind(("kind", "user"))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let foreign =
+        db.a.ensure_identity(
+            "workspace-foreign",
+            "foreign-run",
+            "https://identity.test",
+            "foreign-run",
+            PrincipalKind::User,
+        )
+        .await
+        .unwrap();
+    db.a.client()
+        .query(include_str!(
+            "../queries/workspace/people/foreign_member.surql"
+        ))
+        .bind((
+            "member",
+            surrealdb::types::RecordId::new(
+                "workspace_member",
+                surrealdb::types::Uuid::from(uuid::Uuid::new_v4()),
+            ),
+        ))
+        .bind(("chat", chat.record_id()))
+        .bind(("principal", foreign.principal_id.record_id()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     let frozen = WorkspaceRepository::new(db.a.clone())
         .workspace_run_context(&a, chat, run_id(&one))
         .await
+        .unwrap();
+    assert!(
+        frozen
+            .people
+            .iter()
+            .any(|person| person.id == bob.principal_id.record_id())
+    );
+    assert!(
+        !frozen
+            .people
+            .iter()
+            .any(|person| person.id == foreign.principal_id.record_id())
+    );
+    // Re-enable Bob for the remaining authorization assertions in this scenario.
+    db.a.client()
+        .query(include_str!("../queries/workspace/people/configure.surql"))
+        .bind(("principal", bob.principal_id.record_id()))
+        .bind(("enabled", true))
+        .bind(("kind", "user"))
+        .await
+        .unwrap()
+        .check()
         .unwrap();
     assert_eq!(frozen.messages.len(), 1);
     assert_eq!(frozen.messages[0].text, "Please discuss");

@@ -1,0 +1,1 @@
+UPDATE ONLY $task SET owner_context.authority.output_policy.initial_grants[0].subject.unexpected = true RETURN NONE;

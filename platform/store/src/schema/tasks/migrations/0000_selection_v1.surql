@@ -21,7 +21,7 @@ DEFINE FUNCTION fn::kernel::tasks::selection_v1(
     RETURN IF type::is_object($row) THEN {
         LET $request = $row.request;
         IF type::is_object($request) THEN {
-            LET $request_owner = $request.owner;
+            LET $request_owner = $row.owner_context;
             IF type::is_object($request_owner) THEN {
                 LET $labels_agree = IF type::is_array($request_owner.data_labels) THEN $request_owner.data_labels ALLINSIDE $labels ELSE false END;
                 LET $owner_agrees = $request_owner.principal_key = $principal_key

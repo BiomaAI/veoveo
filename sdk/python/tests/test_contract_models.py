@@ -134,3 +134,27 @@ def test_capability_secret_is_validated_and_redacted():
             idempotency_key=" leading",
             artifact=PutArtifactRequest(),
         )
+
+
+@pytest.mark.parametrize("model_name,payload", [
+    ("PrincipalAccessSubject", {"kind": "principal", "id": "alice"}),
+    ("GroupAccessSubject", {"kind": "group", "id": "team"}),
+    ("WorkContextGrant", {"subject": {"kind": "principal", "id": "alice"}, "level": "read"}),
+    ("WorkContextOutputPolicy", {"owner": {"kind": "group", "id": "team"}}),
+    ("DirectInvocationProvenance", {"mode": "direct", "initiator": "alice"}),
+    ("DelegatedInvocationProvenance", {"mode": "delegated", "initiator": "alice", "delegation_id": "grant-1"}),
+    ("AutomatedInvocationProvenance", {"mode": "automated"}),
+    ("InvocationAuthority", {
+        "work_context": "context", "tenant": "tenant", "membership": "owner",
+        "policy_revision": "v1", "output_policy": {"owner": {"kind": "principal", "id": "alice"}},
+        "provenance": {"mode": "automated"},
+    }),
+])
+def test_authority_models_preserve_valid_wire_and_reject_unknown_fields(model_name, payload):
+    from veoveo_mcp.contract import identity
+
+    model = getattr(identity, model_name)
+    admitted = model.model_validate(payload)
+    assert model.model_validate(admitted.model_dump(mode="json")) == admitted
+    with pytest.raises(ValueError):
+        model.model_validate({**payload, "unexpected": True})

@@ -6,10 +6,10 @@ import json
 from typing import Literal, Self
 
 from pydantic import (
-    AwareDatetime, BaseModel, ConfigDict, Field, UUID7, computed_field,
+    BaseModel, ConfigDict, Field, UUID7, computed_field,
     field_serializer, model_validator,
 )
-from veoveo_mcp.tasks import TaskPageCursor, TaskStatus
+from veoveo_mcp.tasks import TaskPageCursor, TaskStatus, TaskTimestamp
 
 PAGE_SIZE = 100
 
@@ -46,7 +46,7 @@ class _Cursor(BaseModel):
 
 class ReportCursor(_Cursor):
     collection: Literal["reports"] = "reports"
-    created_at: AwareDatetime
+    created_at: TaskTimestamp
     task_id: UUID7
 
     def position(self) -> TaskPageCursor:
@@ -73,7 +73,7 @@ class UsageEntry(BaseModel):
 class ReportEntry(UsageEntry):
     task_type: Literal["profile_dataset"]
     status: TaskStatus
-    created_at: AwareDatetime
+    created_at: TaskTimestamp
 
 
 class ReportPage(BaseModel):
@@ -87,7 +87,7 @@ class ReportPage(BaseModel):
         if self.next_cursor is not None and (
             len(self.items) != PAGE_SIZE
             or self.next_cursor.task_id != self.items[-1].task_id
-            or self.next_cursor.created_at != self.items[-1].created_at
+            or not self.next_cursor.created_at.same_instant(self.items[-1].created_at)
         ):
             raise ValueError("report continuation must follow the last item of a full page")
         return self

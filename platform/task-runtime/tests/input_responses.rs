@@ -131,14 +131,14 @@ async fn public_answers_roll_back_when_authority_or_status_changes_during_the_wr
 ("tenant case 2", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_02.surql")),
 ("owner case 3", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_03.surql")),
 ("profile case 4", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_04.surql")),
-("request.owner.principal_key case 5", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_05.surql")),
-("request.owner.profile case 6", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_06.surql")),
-("request.owner.tenant_key case 7", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_07.surql")),
-("request.owner.data_labels case 8", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_08.surql")),
+("owner_context.principal_key case 5", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_05.surql")),
+("owner_context.profile case 6", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_06.surql")),
+("owner_context.tenant_key case 7", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_07.surql")),
+("owner_context.data_labels case 8", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_08.surql")),
 ("work_context case 9", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_09.surql")),
 ("authority.context_key case 10", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_10.surql")),
-("request.owner.authority.work_context case 11", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_11.surql")),
-("request.owner.authority.tenant case 12", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_12.surql")),
+("owner_context.authority.work_context case 11", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_11.surql")),
+("owner_context.authority.tenant case 12", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_12.surql")),
 ("task_type case 13", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_13.surql")),
 ("status case 14", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_14.surql")),
 ("status case 15", include_str!("queries/input_responses/public_answers_roll_back_when_authority_or_status_changes_during_the_write/mutation_15.surql"))
@@ -199,7 +199,7 @@ async fn denied_malformed_tasks_are_rejected_before_decode_and_input_mutation() 
         let runtime = TaskRuntime::new(db.a.clone(), SERVER, "worker");
         let query = query(&runtime);
         for (_assignment, sql) in [
-("request.owner.data_labels case 1", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_01.surql")),
+("owner_context.data_labels case 1", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_01.surql")),
 ("task_type case 2", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_02.surql")),
 ("authority.context_key case 3", include_str!("queries/input_responses/denied_malformed_tasks_are_rejected_before_decode_and_input_mutation/mutation_03.surql"))
 ] {

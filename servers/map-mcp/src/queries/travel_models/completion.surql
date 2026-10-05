@@ -1,12 +1,12 @@
 SELECT VALUE result.payload.structuredContent.travel_model_id FROM task
                 WHERE server = $server AND tenant = $tenant AND owner = $owner
     AND profile = $profile AND work_context = $context
-    AND request.owner.principal_key = $principal_key AND request.owner.profile = $profile_key
-    AND (request.owner.tenant_key ?? NONE) = $tenant_key
-    AND request.owner.data_labels ALLINSIDE $labels
+    AND owner_context.principal_key = $principal_key AND owner_context.profile = $profile_key
+    AND (owner_context.tenant_key ?? NONE) = $tenant_key
+    AND owner_context.data_labels ALLINSIDE $labels
     AND authority.context_key = $context_key
-    AND request.owner.authority.work_context = $context_key
-    AND request.owner.authority.tenant = $authority_tenant
+    AND owner_context.authority.work_context = $context_key
+    AND owner_context.authority.tenant = $authority_tenant
     AND request.input.request.identity.actor.id = $principal_key
     AND request.input.request.identity.profile = $profile_key
     AND (request.input.request.identity.actor.tenant ?? NONE) = $tenant_key

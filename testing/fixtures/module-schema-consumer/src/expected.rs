@@ -167,11 +167,6 @@ pub(super) const TABLES: &[(&str, &str)] = &[
 ];
 
 pub(super) const FUNCTIONS: &[(&str, &str)] = &[
-    ("fn::kernel::identity::actor_admitted_v1", "identity"),
-    ("fn::kernel::identity::identity_enabled_v1", "identity"),
-    ("fn::kernel::gateway::task_retention_route_v1", "gateway"),
-    ("fn::kernel::tasks::release_retention_v1", "tasks"),
-    ("fn::kernel::tasks::selection_v1", "tasks"),
     ("fn::agent_catalog_authority", "agents"),
     ("fn::agent_chat_revision", "agents"),
     ("fn::agent_consume_results", "agents"),
@@ -180,6 +175,15 @@ pub(super) const FUNCTIONS: &[(&str, &str)] = &[
     ("fn::append_audit_indexing", "audit"),
     ("fn::artifact_upload_authority_matches", "artifacts"),
     ("fn::artifact_upload_profile_digest", "artifacts"),
+    ("fn::kernel::gateway::task_retention_route_v1", "gateway"),
+    ("fn::kernel::identity::actor_admitted_v1", "identity"),
+    ("fn::kernel::identity::enabled_user_v1", "identity"),
+    ("fn::kernel::identity::identity_enabled_v1", "identity"),
+    ("fn::kernel::identity::identity_labels_v1", "identity"),
+    ("fn::kernel::identity::principal_summaries_v1", "identity"),
+    ("fn::kernel::identity::search_enabled_users_v1", "identity"),
+    ("fn::kernel::tasks::release_retention_v1", "tasks"),
+    ("fn::kernel::tasks::selection_v1", "tasks"),
     ("fn::managed_agent_claim", "agents"),
     ("fn::managed_agent_editor", "agents"),
     ("fn::managed_agent_enabled", "agents"),
@@ -189,6 +193,6 @@ pub(super) const FUNCTIONS: &[(&str, &str)] = &[
 ];
 
 pub(super) const ANALYZERS: &[(&str, &str)] = &[
-    ("platform_search", "store"),
     ("knowledge_text", "knowledge"),
+    ("platform_search", "store"),
 ];

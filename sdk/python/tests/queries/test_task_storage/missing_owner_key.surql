@@ -1,0 +1,1 @@
+UPDATE $task SET owner_context.principal_key = NONE;

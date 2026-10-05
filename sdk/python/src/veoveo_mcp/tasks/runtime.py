@@ -15,11 +15,15 @@ from surrealdb import RecordID
 
 from .queries import OwnerStatement, query
 from .owner_query import OwnerTaskQuery
+from .records import AuthorityRecord, OwnerContextRecord, TaskRequestRecord
+from .timestamp import TaskTimestamp
 
 from .store import (
     MAX_TRANSACTION_ATTEMPTS,
     StoreError,
     SurrealStore,
+    _json_from_surreal,
+    _json_to_surreal,
     task_result_from_store,
     task_result_to_store,
 )
@@ -141,6 +145,14 @@ class TaskRuntime:
     async def create(self, draft: CreateTask) -> CreateTaskResult:
         if draft.server != self.server:
             raise WrongServer(draft.server)
+        TaskRequestRecord.model_validate({
+            "input": draft.request,
+            "ttl_ms": draft.ttl_ms,
+            "poll_interval_ms": draft.poll_interval_ms,
+        })
+        owner_context = _owner_context_record(draft.owner)
+        now = _now()
+        retention = default_retention_expiry(now, draft.ttl_ms)
         if draft.idempotency_key is not None:
             existing = await self._idempotent_task(draft.owner, draft.idempotency_key)
             if existing is not None:
@@ -149,14 +161,11 @@ class TaskRuntime:
         await self.store.ensure_identity(draft.owner)
 
         record = task_record(draft.task_id)
-        now = _now()
-        retention = default_retention_expiry(now, draft.ttl_ms)
         envelope = {
-            "input": draft.request,
-            "owner": draft.owner.to_json(),
+            "input": _json_to_surreal(draft.request),
             "status_message": "Queued",
-            "ttl_ms": draft.ttl_ms,
-            "poll_interval_ms": draft.poll_interval_ms,
+            "ttl_ms": _timing_to_surreal(draft.ttl_ms),
+            "poll_interval_ms": _timing_to_surreal(draft.poll_interval_ms),
         }
         content = {
             "tenant": draft.owner.tenant_record(),
@@ -173,6 +182,7 @@ class TaskRuntime:
             "status": TaskStatus.QUEUED.value,
             "recovery_class": draft.recovery_class.value,
             "request": envelope,
+            "owner_context": owner_context,
             "progress": 0.0,
             "result": None,
             "error": None,
@@ -305,11 +315,10 @@ class TaskRuntime:
             "responded_at": None,
         }
         envelope = {
-            "input": current.request,
-            "owner": current.owner.to_json(),
+            "input": _json_to_surreal(current.request),
             "status_message": "Waiting for input",
-            "ttl_ms": current.ttl_ms,
-            "poll_interval_ms": current.poll_interval_ms,
+            "ttl_ms": _timing_to_surreal(current.ttl_ms),
+            "poll_interval_ms": _timing_to_surreal(current.poll_interval_ms),
         }
         try:
             await self.store.query(
@@ -318,7 +327,9 @@ class TaskRuntime:
                     "task": task_record(current.task_id),
                     "request": envelope,
                     "now": now,
-                    "expected_updated_at": current.updated_at,
+                    "expected_updated_at": current._updated_at_exact.driver_value(),
+                    "expected_request": _request_record(current),
+                    "expected_owner_context": _owner_context_record(current.owner),
                     "server": server_record(self.server),
                     "tenant": current.owner.tenant_record(),
                     "owner": current.owner.principal_record(),
@@ -331,7 +342,12 @@ class TaskRuntime:
             if await self._input_exchange_by_id(input_id) is not None:
                 raise DuplicateInputKey(key) from error
             recheck = await self.get(task_id)
-            if recheck is None or recheck.updated_at != current.updated_at:
+            if (
+                recheck is None
+                or not recheck._updated_at_exact.same_instant(current._updated_at_exact)
+                or recheck.owner != current.owner
+                or _request_record(recheck) != _request_record(current)
+            ):
                 raise Conflict(task_id) from error
             raise
 
@@ -385,6 +401,8 @@ class TaskRuntime:
                             "now": now,
                             "task": task_record(current.task_id),
                             "server": server_record(self.server),
+                            "expected_request": _request_record(current),
+                            "expected_owner_context": _owner_context_record(current.owner),
                             **(owner_query.bindings() if owner_query is not None else {}),
                         },
                     )
@@ -434,11 +452,10 @@ class TaskRuntime:
             raise InvalidTransition(snapshot.status, TaskStatus.RUNNING)
         lease_expires_at = now + lease_duration
         envelope = {
-            "input": snapshot.request,
-            "owner": snapshot.owner.to_json(),
+            "input": _json_to_surreal(snapshot.request),
             "status_message": "Running",
-            "ttl_ms": snapshot.ttl_ms,
-            "poll_interval_ms": snapshot.poll_interval_ms,
+            "ttl_ms": _timing_to_surreal(snapshot.ttl_ms),
+            "poll_interval_ms": _timing_to_surreal(snapshot.poll_interval_ms),
         }
         results = await self.store.query(
             query("runtime/claim.surql"),
@@ -449,7 +466,9 @@ class TaskRuntime:
                 "lease_expires": lease_expires_at,
                 "now": now,
                 "expected": snapshot.status.value,
-                "expected_updated_at": snapshot.updated_at,
+                "expected_updated_at": snapshot._updated_at_exact.driver_value(),
+                "expected_request": _request_record(snapshot),
+                "expected_owner_context": _owner_context_record(snapshot.owner),
             },
         )
         updated = results[2]
@@ -503,7 +522,7 @@ class TaskRuntime:
         )
         if durable is None:
             raise TaskNotFound(task_id)
-        if durable.status != current.status or durable.updated_at != current.updated_at:
+        if durable.status != current.status or not durable._updated_at_exact.same_instant(current._updated_at_exact):
             raise Conflict(task_id)
         next_status = transition.status()
         if not allowed_transition(current.status, next_status):
@@ -526,11 +545,10 @@ class TaskRuntime:
         terminal = next_status.is_terminal()
         message = transition.message()
         envelope = {
-            "input": current.request,
-            "owner": current.owner.to_json(),
-            "status_message": message,
-            "ttl_ms": current.ttl_ms,
-            "poll_interval_ms": current.poll_interval_ms,
+            "input": _json_to_surreal(current.request),
+            "status_message": _json_to_surreal(message),
+            "ttl_ms": _timing_to_surreal(current.ttl_ms),
+            "poll_interval_ms": _timing_to_surreal(current.poll_interval_ms),
         }
         result = transition.result()
         failure = transition.failure()
@@ -556,7 +574,9 @@ class TaskRuntime:
                 "terminal": terminal,
                 "now": now,
                 "expected": current.status.value,
-                "expected_updated_at": current.updated_at,
+                "expected_updated_at": current._updated_at_exact.driver_value(),
+                "expected_request": _request_record(current),
+                "expected_owner_context": _owner_context_record(current.owner),
                 "server": server_record(self.server),
                 "tenant": current.owner.tenant_record(),
                 "owner": current.owner.principal_record(),
@@ -725,11 +745,10 @@ class TaskRuntime:
     ) -> TaskSnapshot:
         now = _now()
         envelope = {
-            "input": task.request,
-            "owner": task.owner.to_json(),
-            "status_message": message,
-            "ttl_ms": task.ttl_ms,
-            "poll_interval_ms": task.poll_interval_ms,
+            "input": _json_to_surreal(task.request),
+            "status_message": _json_to_surreal(message),
+            "ttl_ms": _timing_to_surreal(task.ttl_ms),
+            "poll_interval_ms": _timing_to_surreal(task.poll_interval_ms),
         }
         terminal = status == TaskStatus.FAILED
         results = await self.store.query(
@@ -742,7 +761,9 @@ class TaskRuntime:
                 "completed_at": now if terminal else None,
                 "now": now,
                 "expected": task.status.value,
-                "expected_updated_at": task.updated_at,
+                "expected_updated_at": task._updated_at_exact.driver_value(),
+                "expected_request": _request_record(task),
+                "expected_owner_context": _owner_context_record(task.owner),
             },
         )
         updated = results[2]
@@ -765,18 +786,51 @@ def _record_uuid(record: Any) -> str:
     raise InvalidRecord(f"task id has non-record key: {record!r}")
 
 
+def _owner_context_record(owner: TaskOwner) -> dict[str, Any]:
+    record = OwnerContextRecord.from_owner(owner).model_dump(mode="json")
+    record["data_labels"] = sorted(owner.data_labels)
+    record["authority"]["output_policy"]["data_labels"] = sorted(
+        owner.authority.output_policy.data_labels
+    )
+    return _json_to_surreal(record)
+
+
+def _timing_to_surreal(value: int | None) -> Any:
+    return _json_to_surreal(value)
+
+
+def _request_record(snapshot: TaskSnapshot) -> dict[str, Any]:
+    return {
+        "input": _json_to_surreal(snapshot.request),
+        "status_message": _json_to_surreal(snapshot.status_message),
+        "ttl_ms": _timing_to_surreal(snapshot.ttl_ms),
+        "poll_interval_ms": _timing_to_surreal(snapshot.poll_interval_ms),
+    }
+
+
 def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
+    if not isinstance(record["id"], RecordID) or record["id"].table_name != "task":
+        raise InvalidRecord("task identity must reference its own table")
     task_id = parse_task_id(_record_uuid(record["id"]))
     envelope = record["request"]
-    owner = TaskOwner.from_json(envelope["owner"])
-    tenant_key = owner.effective_tenant_key()
-    if _record_uuid(record["tenant"]) != str(
-        deterministic_tenant_id(tenant_key)
-    ) or _record_uuid(record["owner"]) != str(
-        deterministic_principal_id(tenant_key, owner.principal_key)
+    envelope = TaskRequestRecord.model_validate(_json_from_surreal(envelope))
+    owner = OwnerContextRecord.model_validate(record["owner_context"]).to_owner()
+    if (
+        record["tenant"] != owner.tenant_record()
+        or record["owner"] != owner.principal_record()
+        or record["profile"] != profile_record(owner.profile)
+        or record["work_context"] != _work_context_record(owner)
+        or record.get("initiator") != _initiator_record(owner)
+        or record["invocation_mode"] != owner.authority.invocation_mode
+        or record.get("delegation_id") != owner.authority.delegation_id
+        or record["policy_revision"] != owner.authority.policy_revision
+        or (
+            AuthorityRecord.model_validate(record["authority"])
+            != AuthorityRecord.model_validate(_authority_record(owner))
+        )
     ):
         raise InvalidRecord(
-            "task owner references do not match its canonical platform identity"
+            "task owner and invocation authority do not match canonical platform state"
         )
     error_value = record.get("error")
     error = (
@@ -786,16 +840,18 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
     )
     result_value = record.get("result")
     server = record["server"]
-    server_key = str(server.id) if isinstance(server, RecordID) else str(server)
+    if not isinstance(server, RecordID) or server.table_name != "mcp_server":
+        raise InvalidRecord("task server must reference the server table")
+    server_key = str(server.id)
     return TaskSnapshot(
         task_id=task_id,
         owner=owner,
         server=server_key,
         task_type=record["task_type"],
-        request=envelope["input"],
+        request=_json_from_surreal(envelope.input),
         recovery_class=RecoveryClass(record["recovery_class"]),
         status=TaskStatus(record["status"]),
-        status_message=envelope.get("status_message"),
+        status_message=envelope.status_message,
         progress=record["progress"],
         result=task_result_from_store(result_value),
         error=error,
@@ -804,13 +860,15 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
         lease_expires_at=record.get("lease_expires_at"),
         cancel_requested_at=record.get("cancel_requested_at"),
         created_at=record["created_at"],
+        _created_at_exact=TaskTimestamp(record["created_at_exact"]),
         updated_at=record["updated_at"],
+        _updated_at_exact=TaskTimestamp(record["updated_at_exact"]),
         started_at=record.get("started_at"),
         completed_at=record.get("completed_at"),
         retention_expires_at=record.get("retention_expires_at"),
         retention_pins=frozenset(record.get("retention_pins", [])),
-        ttl_ms=envelope.get("ttl_ms"),
-        poll_interval_ms=envelope.get("poll_interval_ms"),
+        ttl_ms=envelope.ttl_ms,
+        poll_interval_ms=envelope.poll_interval_ms,
     )
 
 

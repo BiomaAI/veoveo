@@ -5,6 +5,7 @@ the Rust workspace define the schema this package reads and writes.
 """
 
 from .runtime import TaskRuntime
+from .timestamp import TaskTimestamp
 from .owner_query import OwnerTaskQuery, TaskPage, TaskPageCursor
 from .owner_subscriptions import OwnerTaskSubscription
 from .owner_usage import OwnerTaskUsageQuery, TaskUsageCompletion, TaskUsagePage
@@ -46,6 +47,7 @@ from .types import (
 
 __all__ = [
     "TaskRuntime",
+    "TaskTimestamp",
     "OwnerTaskQuery",
     "OwnerTaskSubscription",
     "OwnerTaskUsageQuery",

@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.data_labels = ['internal', NONE], request.input = NONE RETURN NONE;
+UPDATE ONLY $task SET owner_context.data_labels = ['internal', NONE], request.input = { native: task_json_probe:opaque } RETURN NONE;

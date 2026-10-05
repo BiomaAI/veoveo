@@ -1,0 +1,1 @@
+SELECT owner_context.authority.output_policy.initial_grants AS grants FROM ONLY $task;

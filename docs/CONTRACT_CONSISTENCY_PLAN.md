@@ -59,7 +59,7 @@ statement-equivalence checks. The affected consumer builds, strict lint across
 Generated Audit readers and Console TypeScript pass their checks. Python Task query
 assets, packaged-wheel loading and the fresh kernel-lane fixture pass native and
 consumer checks. This qualifies the composed persistence batch for a source checkpoint;
-runtime kernel access, query-layout gaps and installed acceptance keep Phase 3 open.
+runtime kernel access and installed acceptance keep Phase 3 open.
 Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.
@@ -119,6 +119,18 @@ the authoritative stable release and compatibility before adding or upgrading a
 dependency. Metal is an unqualified proposed profile, not an implemented capability.
 
 ## Current Status
+
+The consolidation is closing Phase 3 ownership and implementing Phase 4 storage
+types. Persistence ownership is committed at `706f6bc0d`; runner and acceptance SQL
+placement is committed at `dbcfdbae8`. Both are pushed to `main` with their native
+checks. Workspace's Identity APIs, Frames' Task selections and the Rust/Python Task
+storage cut pass their native and consumer checks. Cross-language claims, lossless
+timestamp replay and pagination pass. UAV, Reason and Stream
+kernel access, the other Phase 4 field families and phases 5–10 still have required
+work. The cluster stays stopped during this development batch.
+
+The following installed checkpoints establish the accepted Foundations baseline.
+They do not qualify the subsequent consolidation changes.
 
 The sixteen Rust servers passed the shared-host installed batches, including
 discovery, authenticated documents, completion, Host admission and the requested
@@ -1071,11 +1083,14 @@ deliberately transform file-owned fixtures to exercise rejection; that test beha
 grants no runtime SQL construction API.
 
 Runtime ownership includes foreign-record dereferences as well as explicit table
-queries. Frames operation writes and reads still duplicate Task admission; both
-must use the existing Task selection export while preserving their owner-only
-access profile. Workspace needs Identity-owned metadata and search exports for
-people, invitation admission and run context. Workspace keeps chat policy and
-selected-member limits, and invitation admission stays inside its transaction.
+queries. The current source batch moves Frames operation writes and reads to the
+existing Task selection export, preserving their owner-only access profile.
+Workspace people, invitation admission and run context consume four Identity-owned
+metadata and search exports. Workspace keeps chat policy and selected-member limits,
+and invitation admission stays inside its transaction. Source review and SQL syntax
+checks pass, as do the Frames, Workspace and direct Identity export native suites.
+The affected consumer compile and strict lint checks pass. These owner APIs and the
+composed Task storage cut qualify together as a source checkpoint.
 
 UAV and Reason need distinct caller and maintenance profiles. UAV preserves its
 indexed mission-plan and execution lookup, while Tasks owns terminal settlement
@@ -1232,6 +1247,30 @@ Transactions that compare the expected request must also compare the expected
 `owner_context`, preserving rejection when ownership or authority has changed.
 Rust and Python snapshot decoding must enforce the same identity, Work Context and
 invocation-authority consistency checks.
+
+Task timestamps preserve nanoseconds across Rust, Python and native changefeed
+replay. The schema derives private `created_at_exact` and `updated_at_exact` strings
+from the native datetime columns because the pinned Python driver decodes datetimes
+at microsecond precision. Checked timestamp types retain those strings for keyset
+cursors and compare-and-set bindings through the driver's native datetime encoder.
+Public Task fields keep their existing RFC 3339 shape. Qualify cross-writer paging
+and stale-snapshot rejection when two timestamps differ within one microsecond;
+neither comparison may reduce the stored clock precision.
+
+The Task storage cut implements nominal driver
+IDs, closed authority decoding and all known Rust and Python consumers. Python unit,
+query syntax and current SDK/template wheel checks pass. Native Task storage checks pass for
+schema rejection and rollback, current-format reconnect, precise timing metadata and
+rejection of native database values inside JSON input. Grant array objects have
+explicit key assertions because nested unknown-field writes bypass the pinned
+database's ordinary object closure. Updated fixtures assert rejected writes while
+preserving SQL-before-decode checks with malformed values the schema admits.
+The SDK/database/template batch passes 217 tests, including real Rust/Python claims,
+exact timestamp replay, nanosecond stale-snapshot rejection and cross-writer keyset
+pagination. The affected Rust policy and result consumers pass 28 focused checks;
+the current 18-package compile/lint graph and isolated Store runtime build pass.
+Real installation commands, independent schema consumption and generated clients
+also pass. The other Phase 4 field families and installed acceptance remain open.
 
 ### Opaque Payloads And Declared Lookups
 
@@ -1502,7 +1541,7 @@ and 170 mixed. D1 moves most mixed types into the exempt identity family.
 |---|---|---|
 | Wire | camelCase keys, snake_case values | Tool inputs and outputs of every Veoveo server, resource bodies, HTTP APIs, SSE events, runner and helper protocols, cross-component artifacts, configuration files, `CallToolResult` structured content |
 | Stored copy of a wire document | Wire shape | Task request tool arguments, task results, artifact metadata, control-plane and knowledge documents, Map, Time and UAV `canonical_json`, Frames definitions, agent manifests |
-| Internal record | snake_case, unchanged | `SurrealValue` records, phase 4 declared fields, columns and lookup tables, task-runtime `RequestEnvelope` and `TaskOwner`, server durable task envelopes, computers bindings and sealed envelopes, BFF cookies, the recording forwarder queue |
+| Internal record | snake_case, unchanged | `SurrealValue` records, phase 4 declared fields, columns and lookup tables, Store `TaskRequestRecord` and `TaskOwnerRecord`, runtime `TaskOwner`, server durable task envelopes, computers bindings and sealed envelopes, BFF cookies, the recording forwarder queue |
 | JWT claim format | snake_case, unchanged (D1) | The identity family and the gateway token claim structs |
 | Frozen | unchanged (D4) | `AuditRecord`, `AuditDraftWire`, `AuditBlock`, `AuditBlockHead`, `AuditCheckpoint`, audit export configuration and payloads |
 | External | upstream spelling | 118 types: OAuth and OIDC bodies, OCSF, Kubernetes, S3 XML, GeoJSON and CQL2, WaveSpeed, Valhalla, ntpd-rs, Docker, k3d, Helm, cargo metadata, buildx, Rerun, OpenShell |

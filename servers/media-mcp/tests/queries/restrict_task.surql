@@ -1,2 +1,2 @@
-UPDATE ONLY $task SET request.owner.data_labels = ['mission','secret']
+UPDATE ONLY $task SET owner_context.data_labels = ['mission','secret']
 RETURN NONE;

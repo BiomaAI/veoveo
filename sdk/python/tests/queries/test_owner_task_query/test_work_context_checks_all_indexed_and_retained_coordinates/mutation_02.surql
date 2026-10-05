@@ -1,1 +1,1 @@
-UPDATE $task SET authority.context_key = 'wrong', request.input = NONE;
+UPDATE $task SET authority.context_key = 'wrong', request.input = 'opaque-scalar';

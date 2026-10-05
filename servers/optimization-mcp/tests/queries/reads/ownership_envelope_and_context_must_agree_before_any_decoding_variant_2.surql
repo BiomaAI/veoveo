@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET request.owner.profile = 'other', request.input.input = NONE RETURN NONE;
+UPDATE ONLY $task SET owner_context.profile = 'other', request.input.input = NONE RETURN NONE;

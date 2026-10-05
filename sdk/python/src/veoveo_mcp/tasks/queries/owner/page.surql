@@ -1,5 +1,5 @@
 SELECT * FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner
-    AND profile = $profile AND request.owner.principal_key = $principal_key
-    AND request.owner.profile = $profile_key
-    AND (request.owner.tenant_key ?? NONE) = $tenant_key
-    AND request.owner.data_labels ALLINSIDE $labels  ORDER BY created_at ASC, id ASC LIMIT $limit;
+    AND profile = $profile AND owner_context.principal_key = $principal_key
+    AND owner_context.profile = $profile_key
+    AND (owner_context.tenant_key ?? NONE) = $tenant_key
+    AND owner_context.data_labels ALLINSIDE $labels  ORDER BY created_at ASC, id ASC LIMIT $limit;

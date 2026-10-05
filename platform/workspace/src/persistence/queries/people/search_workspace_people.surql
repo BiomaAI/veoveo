@@ -1,1 +1,1 @@
-RETURN SELECT id, display_name FROM principal WHERE tenant = $authority.tenant              AND enabled = true AND kind = 'user'              AND string::contains(string::lowercase(display_name), $command.search)              ORDER BY display_name ASC LIMIT 20;
+RETURN fn::kernel::identity::search_enabled_users_v1($authority.tenant, $command.search);

@@ -1,1 +1,1 @@
-UPDATE $task SET request.owner.authority.tenant = 'wrong', request.input = NONE;
+UPDATE $task SET owner_context.authority.tenant = 'wrong', request.input = 'opaque-scalar';

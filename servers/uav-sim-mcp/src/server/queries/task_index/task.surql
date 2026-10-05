@@ -1,1 +1,1 @@
-SELECT * FROM ONLY $task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type IN $types;
+SELECT * FROM ONLY $task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (owner_context.tenant_key ?? NONE) = $tenant_key AND owner_context.data_labels ALLINSIDE $data_labels AND task_type IN $types;

@@ -1,1 +1,1 @@
-UPDATE $task SET request.owner.data_labels = ['restricted'];
+UPDATE $task SET owner_context.data_labels = ['restricted'];

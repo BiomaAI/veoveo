@@ -14,6 +14,7 @@ Artifact transport and development commands.
 | RFC 3986, [rfc3986 2.0.0](https://pypi.org/project/rfc3986/2.0.0/) | Concrete hierarchical URI syntax with input spelling preserved; owner resource components reject credentials, ports, fragments, malformed UTF-8 and repeated query names |
 | RFC 6570, [uri-template 1.3.0](https://pypi.org/project/uri-template/1.3.0/) | ASCII resource templates with a fixed scheme; component builders use simple, reserved, path and query expansion. Library-specific defaults, array notation and variable aliases are rejected. Partial expansion is not used |
 | RFC 6749 scope-token | Closed owner scope enums; external `ScopeName` values follow Veoveo's printable identifier profile |
+| RFC 3339 | Task compare-and-set timestamp strings preserve up to nine fractional digits |
 | RFC 9562 UUIDv7 | Task identities and nominal Artifact identities at wire admission |
 | `ai.veoveo/knowledge-source` | Embedded document collections, content digests, negotiated observations and conditional reads |
 
@@ -112,3 +113,38 @@ and migrate its planned kernel lanes. `VEOVEO_TEST_GATEWAY_BIN` selects that
 executable; the default is the repository's `target/debug/gateway`. Tests fail
 with a build prerequisite diagnostic when it is unavailable. They neither build
 the binary nor publish an installation control plane.
+
+## Stored Task Records
+
+The Task's `owner` column is its native Principal record reference. The required
+`owner_context` object stores the public TaskOwner snapshot, including its full
+invocation authority and caller clearance. The closed request envelope contains
+required opaque `input` and optional `status_message`, `ttl_ms` and
+`poll_interval_ms`. Provider input may contain arbitrary nested fields and JSON
+null. Public TaskOwner and TaskSnapshot wire forms keep their existing shapes.
+
+The decoder rejects unknown fields in the stored owner, request and shared
+authority models. It compares complete typed record references for Task, Tenant,
+Principal, profile, Work Context, initiator and server. It also checks the stored
+authority and indexed provenance against the owner snapshot. Caller clearance
+and output-policy labels describe separate permissions and may differ.
+
+Request replacement and input settlement compare both the expected request and
+expected owner context inside their transaction. An ownership change fails the
+comparison even when the Task timestamp has not changed. Stored timing metadata
+uses strict unsigned 64-bit admission. The existing Store decimal adapter preserves
+metadata and opaque JSON integers above the native signed integer range. Runtime create validates the
+expiration datetime before identity or Task writes. An absent TTL uses seven days;
+zero expires at creation.
+
+The schema derives private `created_at_exact` and `updated_at_exact` strings from
+the native Task datetimes on every write. This driver metadata also travels in
+native changefeed snapshots. The Python SDK's ordinary datetime view has microsecond
+precision; the checked Task timestamp preserves the original RFC3339 string and
+binds it through the SDK's `Datetime` type for exact compare-and-set checks.
+Snapshot wire round trips keep those strings in the existing `created_at` and
+`updated_at` fields. Owner page cursors retain the checked creation token and bind
+its full precision alongside the Task identity. Equivalent RFC3339 offsets and
+fractional spellings compare by exact seconds and nanoseconds. The private fields
+are not added to the public snapshot. Driver rows must carry both tokens; missing
+or invalid tokens fail decoding.

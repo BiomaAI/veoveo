@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use veoveo_platform_store::task_record_id;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
@@ -98,15 +98,6 @@ impl ProviderCancellationOutcome {
             }
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct TaskRequestEnvelope {
-    input: Value,
-    owner: TaskOwner,
-    status_message: Option<String>,
-    ttl_ms: Option<u64>,
-    poll_interval_ms: Option<u64>,
 }
 
 impl MediaState {
@@ -270,7 +261,7 @@ impl MediaState {
             now,
         );
 
-        let request = request_envelope(&waiting)?;
+        let request = veoveo_platform_store::TaskRequestRecord::from(&waiting);
         let result = self
             .store
             .client()
@@ -283,6 +274,15 @@ impl MediaState {
             .bind(("now", now))
             .bind(("expected_status", current.status))
             .bind(("expected_updated", current.updated_at))
+            .bind((
+                "expected_request",
+                veoveo_platform_store::TaskRequestRecord::from(&current),
+            ))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
+                    .map_err(task_store_error)?,
+            ))
             .bind(("worker", runtime.worker_id().to_owned()))
             .await
             .and_then(|response| response.check());
@@ -399,7 +399,9 @@ impl MediaState {
                 )
             });
 
-        let request = waiting.as_ref().map(request_envelope).transpose()?;
+        let request = waiting
+            .as_ref()
+            .map(veoveo_platform_store::TaskRequestRecord::from);
         let result = self
             .store
             .client()
@@ -419,6 +421,15 @@ impl MediaState {
             ))
             .bind(("now", now))
             .bind(("expected_updated", current.updated_at))
+            .bind((
+                "expected_request",
+                veoveo_platform_store::TaskRequestRecord::from(&current),
+            ))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
+                    .map_err(task_store_error)?,
+            ))
             .await
             .and_then(|response| response.check());
         if let Err(error) = result {
@@ -514,7 +525,7 @@ impl MediaState {
         completed.updated_at = now;
         completed.lease_owner = None;
         completed.lease_expires_at = None;
-        let request = request_envelope(&completed)?;
+        let request = veoveo_platform_store::TaskRequestRecord::from(&completed);
 
         let response = self
             .store
@@ -528,6 +539,15 @@ impl MediaState {
             .bind(("error", error))
             .bind(("now", now))
             .bind(("expected_updated", current.updated_at))
+            .bind((
+                "expected_request",
+                veoveo_platform_store::TaskRequestRecord::from(&current),
+            ))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
+                    .map_err(task_store_error)?,
+            ))
             .bind(("event", event.event_id.record_id()))
             .bind(("job", event.job.job_id.record_id()))
             .bind((
@@ -750,10 +770,22 @@ impl MediaState {
             .client()
             .query(include_str!("queries/wait_for_webhook.surql"))
             .bind(("task", task_record_id(current.task_id)))
-            .bind(("request", request_envelope(&waiting)?))
+            .bind((
+                "request",
+                veoveo_platform_store::TaskRequestRecord::from(&waiting),
+            ))
             .bind(("progress", waiting.progress))
             .bind(("now", now))
             .bind(("expected_updated", current.updated_at))
+            .bind((
+                "expected_request",
+                veoveo_platform_store::TaskRequestRecord::from(&current),
+            ))
+            .bind((
+                "expected_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(&current.owner)
+                    .map_err(task_store_error)?,
+            ))
             .await?
             .check()?;
         Ok(())
@@ -909,19 +941,6 @@ fn validate_webhook_replay(
             key: event.webhook_id.clone(),
         })
     }
-}
-
-fn request_envelope(snapshot: &TaskSnapshot) -> Result<OpenObject, StoreError> {
-    let envelope = TaskRequestEnvelope {
-        input: snapshot.request.clone(),
-        owner: snapshot.owner.clone(),
-        status_message: snapshot.status_message.clone(),
-        ttl_ms: snapshot.ttl_ms,
-        poll_interval_ms: snapshot.poll_interval_ms,
-    };
-    serde_json::to_value(envelope)
-        .map(open_object)
-        .map_err(json_store_error)
 }
 
 fn tenant_record(owner: &TaskOwner) -> Result<RecordId, StoreError> {

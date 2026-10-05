@@ -1,12 +1,10 @@
 BEGIN TRANSACTION;
 IF $task != NONE {
-    LET $admitted = SELECT VALUE id FROM task WHERE id = $task AND server = mcp_server:frames
-        AND tenant = $tenant AND owner = $owner AND profile = $profile
-        AND request.owner.principal_key = $principal_key
-        AND request.owner.profile = $profile_key
-        AND (request.owner.tenant_key ?? NONE) = $tenant_key
-        AND request.owner.data_labels ALLINSIDE $clearance LIMIT 1;
-    IF array::len($admitted) != 1 { THROW 'Frames operation Task authority does not match'; };
+    LET $admitted = fn::kernel::tasks::selection_v1(
+        $task, mcp_server:frames, $tenant, $owner, $profile,
+        $principal_key, $profile_key, $tenant_key, $clearance,
+        NONE, NONE, NONE, NONE);
+    IF $admitted = NONE { THROW 'Frames operation Task authority does not match'; };
 };
 LET $existing = SELECT * FROM ONLY $operation;
 IF $existing != NONE {

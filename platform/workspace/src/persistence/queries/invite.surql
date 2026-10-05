@@ -1,12 +1,10 @@
 LET $current_chat = SELECT * FROM ONLY $command.chat;
-LET $current_invitee = SELECT * FROM ONLY $command.invitee;
 IF !fn::workspace_member($authority, $command.chat) { THROW 'workspace_not_found'; };
 IF $current_chat.owner != $authority.principal AND !$current_chat.members_can_invite {
     THROW 'workspace_forbidden';
 };
 IF $authority.membership = 'viewer' { THROW 'workspace_forbidden'; };
-IF $current_invitee.tenant != $authority.tenant OR $current_invitee.enabled != true
-    OR $current_invitee.kind != 'user' { THROW 'workspace_not_found'; };
+IF !fn::kernel::identity::enabled_user_v1($authority.tenant, $command.invitee) { THROW 'workspace_not_found'; };
 LET $existing = SELECT * FROM ONLY $command.invitation;
 IF $existing != NONE {
     IF $existing.chat != $command.chat { THROW 'workspace_not_found'; };

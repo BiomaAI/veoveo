@@ -1,6 +1,7 @@
 //! Domain admission composes with the exact retained, unclaimed Task.
-use crate::{TaskError, TaskRuntime, TaskSnapshot, TaskStatus, types::RequestEnvelope};
-use surrealdb::types::{RecordId, Value};
+use crate::{TaskError, TaskRuntime, TaskSnapshot, TaskStatus};
+use surrealdb::types::{RecordId, SurrealValue, Value};
+use veoveo_platform_store::TaskRequestRecord;
 use veoveo_platform_store::{
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
     task_record_id,
@@ -36,9 +37,8 @@ impl TaskRuntime {
             ));
         }
         let owner = &snapshot.owner;
-        let envelope = RequestEnvelope {
+        let envelope = TaskRequestRecord {
             input: snapshot.request.clone(),
-            owner: owner.clone(),
             status_message: snapshot.status_message.clone(),
             ttl_ms: snapshot.ttl_ms,
             poll_interval_ms: snapshot.poll_interval_ms,
@@ -83,7 +83,11 @@ impl TaskRuntime {
             ))
             .bind(("_admission_updated", snapshot.updated_at))
             .bind(("_admission_kind", snapshot.task_type.to_string()))
-            .bind(("_admission_request", envelope.into_open_object()?))
+            .bind(("_admission_request", envelope.into_value()))
+            .bind((
+                "_admission_owner_context",
+                veoveo_platform_store::TaskOwnerRecord::try_from(owner)?,
+            ))
             .bind((
                 "_admission_pins",
                 snapshot

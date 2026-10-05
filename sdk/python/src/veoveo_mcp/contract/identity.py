@@ -101,14 +101,14 @@ class AccessLevel(str, Enum):
 
 
 class PrincipalAccessSubject(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["principal"]
     id: PrincipalId
 
 
 class GroupAccessSubject(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["group"]
     id: GroupId
@@ -127,14 +127,14 @@ class WorkContextMembershipLevel(str, Enum):
 
 
 class WorkContextGrant(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     subject: AccessSubject
     level: AccessLevel
 
 
 class WorkContextOutputPolicy(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     owner: AccessSubject
     initial_grants: tuple[WorkContextGrant, ...] = ()
@@ -143,14 +143,14 @@ class WorkContextOutputPolicy(BaseModel):
 
 
 class DirectInvocationProvenance(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: Literal["direct"]
     initiator: PrincipalId
 
 
 class DelegatedInvocationProvenance(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: Literal["delegated"]
     initiator: PrincipalId
@@ -158,7 +158,7 @@ class DelegatedInvocationProvenance(BaseModel):
 
 
 class AutomatedInvocationProvenance(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: Literal["automated"]
 
@@ -172,7 +172,7 @@ InvocationProvenance = Annotated[
 
 
 class InvocationAuthority(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     work_context: WorkContextId
     tenant: TenantId

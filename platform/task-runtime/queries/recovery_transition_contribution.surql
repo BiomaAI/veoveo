@@ -4,7 +4,7 @@ LET $updated = (
         status = $status, request = $request, error = $error,
         lease_owner = NONE, lease_expires_at = NONE,
         completed_at = $completed_at, updated_at = $now
-    WHERE status = $expected AND updated_at = $expected_updated_at
+    WHERE status = $expected AND updated_at = $expected_updated_at AND request = $expected_request AND owner_context = $expected_owner_context
         AND (lease_expires_at = NONE OR lease_expires_at <= $now)
     RETURN AFTER
 );

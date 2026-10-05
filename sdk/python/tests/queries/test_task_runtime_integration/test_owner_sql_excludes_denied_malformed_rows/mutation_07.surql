@@ -1,1 +1,1 @@
-UPDATE $task SET request.owner.tenant_key = 'other-tenant', request.owner.authority = {};
+UPDATE $task SET owner_context.tenant_key = 'other-tenant', authority.policy_revision = 'malformed';

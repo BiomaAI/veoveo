@@ -1,1 +1,1 @@
-UPDATE ONLY $id SET request.owner.principal_key = 'another-principal', request.input = NONE RETURN NONE;
+UPDATE ONLY $id SET owner_context.principal_key = 'another-principal', request.input = { native: task_json_probe:opaque } RETURN NONE;

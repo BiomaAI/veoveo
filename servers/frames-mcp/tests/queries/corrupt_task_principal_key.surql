@@ -1,2 +1,2 @@
-UPDATE ONLY $task SET request.owner.principal_key = 'other'
+UPDATE ONLY $task SET owner_context.principal_key = 'other'
 RETURN NONE;

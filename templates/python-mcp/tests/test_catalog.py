@@ -1,6 +1,5 @@
 import base64
 import json
-from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import mcp.types as types
@@ -12,7 +11,7 @@ from datasheet_mcp.catalog import ReportCursor, ReportEntry, ReportPage, UsageCu
 from datasheet_mcp.server import mcp_server
 from veoveo_mcp.types import ResourceUri
 from veoveo_mcp.contract.artifacts import ArtifactId
-from veoveo_mcp.tasks import TaskError, TaskPage, TaskPageCursor, TaskStatus, new_task_id
+from veoveo_mcp.tasks import TaskError, TaskPage, TaskPageCursor, TaskStatus, TaskTimestamp, new_task_id
 
 
 def token(value):
@@ -21,7 +20,7 @@ def token(value):
 
 def test_cursor_and_resource_round_trips_bind_the_collection():
     task_id = new_task_id()
-    now = datetime.now(timezone.utc)
+    now = TaskTimestamp("2026-10-05T00:00:00.123456789Z")
     report = ReportCursor(task_id=task_id, created_at=now)
     usage = UsageCursor(task_id=task_id)
     for resource in (uris.ReportCatalogResource(report), uris.UsageCatalogResource(usage)):
@@ -63,7 +62,7 @@ def test_cursor_rejects_extra_fields_versions_and_unbound_documents():
 
 
 def test_page_builder_rejects_wrong_continuation_and_oversize():
-    now = datetime.now(timezone.utc)
+    now = TaskTimestamp("2026-10-05T00:00:00.123456789Z")
     entry = ReportEntry(task_id=new_task_id(), task_type="profile_dataset", status=TaskStatus.QUEUED, created_at=now)
     with pytest.raises(ValidationError):
         ReportPage(items=(entry,) * 101)
@@ -90,9 +89,9 @@ async def test_discovery_never_reads_task_or_usage_state(monkeypatch):
 
 
 async def test_report_handler_follows_typed_cursor_and_emits_checked_pages(monkeypatch):
-    now = datetime.now(timezone.utc)
+    now = TaskTimestamp("2026-10-05T00:00:00.123456789Z")
     snapshots = tuple(SimpleNamespace(
-        task_id=new_task_id(), created_at=now, status=TaskStatus.QUEUED, task_type="profile_dataset",
+        task_id=new_task_id(), created_at=now.as_datetime(), created_timestamp=now, status=TaskStatus.QUEUED, task_type="profile_dataset",
     ) for _ in range(103))
     calls = []
 
@@ -118,3 +117,12 @@ async def test_report_handler_follows_typed_cursor_and_emits_checked_pages(monke
     assert len(second["items"]) == 3
     assert second["next_cursor"] is None and second["next_uri"] is None
     assert len(calls) == 2
+
+
+def test_report_cursor_and_schema_preserve_nanosecond_timestamp():
+    text = "2026-10-05T00:00:00.123456789Z"
+    cursor = ReportCursor(task_id=new_task_id(), created_at=TaskTimestamp(text))
+    decoded = ReportCursor.decode(cursor.encode())
+    assert str(decoded.created_at) == text
+    assert decoded.position().created_at.driver_value().dt == text
+    assert ReportCursor.model_json_schema()["properties"]["created_at"]["format"] == "date-time"

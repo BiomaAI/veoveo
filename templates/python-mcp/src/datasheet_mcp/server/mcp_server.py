@@ -213,7 +213,7 @@ def build_mcp_server(state: AppState) -> Server:
             response = ReportPage(
                 items=tuple(ReportEntry(
                     task_id=snapshot.task_id, task_type=snapshot.task_type,
-                    status=snapshot.status, created_at=snapshot.created_at,
+                    status=snapshot.status, created_at=snapshot.created_timestamp,
                 ) for snapshot in page.items),
                 next_cursor=ReportCursor(
                     task_id=page.next_cursor.task_id, created_at=page.next_cursor.created_at,

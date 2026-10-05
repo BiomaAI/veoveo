@@ -1,1 +1,1 @@
-UPDATE $task SET task_type = 'other', request.owner.authority = {};
+UPDATE $task SET task_type = 'other', authority.policy_revision = 'malformed';

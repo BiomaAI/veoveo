@@ -7,6 +7,8 @@ mod context_query_cases;
 mod fixture;
 #[path = "support/owner_query_cases.rs"]
 mod owner_query_cases;
+#[path = "support/task_storage_admission.rs"]
+mod task_storage_admission;
 use futures::StreamExt;
 use serde_json::json;
 use std::{collections::BTreeSet, time::Duration};
@@ -328,14 +330,14 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
             .unwrap();
         let mut ids = Vec::new();
         for (mutation, sql) in [
-("request.owner case 1", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_01.surql")),
-("request.owner.data_labels case 2", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_02.surql")),
-("request.owner.data_labels case 3", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_03.surql")),
-("request.owner.data_labels case 4", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_04.surql")),
-("request.owner.data_labels case 5", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_05.surql")),
-("request.owner.principal_key case 6", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_06.surql")),
-("request.owner.profile case 7", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_07.surql")),
-("request.owner.tenant_key case 8", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_08.surql")),
+("owner_context case 1", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_01.surql")),
+("owner_context.data_labels case 2", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_02.surql")),
+("owner_context.data_labels case 3", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_03.surql")),
+("owner_context.data_labels case 4", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_04.surql")),
+("owner_context.data_labels case 5", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_05.surql")),
+("owner_context.principal_key case 6", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_06.surql")),
+("owner_context.profile case 7", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_07.surql")),
+("owner_context.tenant_key case 8", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_08.surql")),
 ("owner case 9", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_09.surql")),
 ("profile case 10", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_10.surql")),
 ("tenant case 11", include_str!("queries/subscriptions/owner_reads_and_subscription_baselines_filter_before_decoding/mutation_11.surql")),
@@ -346,13 +348,18 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
                 .await
                 .unwrap()
                 .snapshot;
-            db.b.client()
+            let before = task_storage_admission::row(&db.b, task.task_id).await;
+            let result = db.b.client()
                 .query(sql)
                 .bind(("task", task_record_id(task.task_id)))
                 .await
                 .unwrap()
-                .check()
-                .unwrap();
+                .check();
+            if matches!(mutation, "owner_context case 1" | "owner_context.data_labels case 2" | "owner_context.data_labels case 3" | "owner_context.data_labels case 4") {
+                task_storage_admission::rejected(&db.b, task.task_id, before, result.unwrap_err()).await;
+                continue;
+            }
+            result.unwrap();
             assert!(
                 reader
                     .for_owner(&owner())
