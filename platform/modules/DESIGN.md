@@ -268,8 +268,11 @@ shape definitions, removals and alterations must be migration top-level statemen
 conditional blocks and deferred function/event bodies cannot grant or erase proof.
 Conditional field and index definitions cannot certify the stored shape and fail
 admission. Field/table
-removals, redefinitions and wildcard declarations invalidate the relevant proof;
-existing dependent indexes must be removed before a shape change. Redefining a parent
+removals and redefinitions invalidate the relevant proof. A wildcard declaration
+invalidates descendant proofs beneath its maximal static field prefix while preserving
+that prefix, its ancestors and unrelated paths. A leading wildcard or unresolved
+prefix invalidates all object proofs on the table. Existing indexes that depend on
+invalidated proofs must be removed before a shape change. Redefining a parent
 object cannot silently certify its previously declared descendants.
 
 Leaf signatures also admit native `datetime` parameters and literals. A service

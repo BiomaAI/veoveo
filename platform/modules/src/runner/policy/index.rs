@@ -46,8 +46,9 @@ impl Visitor<'_> {
                 "remove dependent object-path indexes before changing their field shape",
             ));
         }
-        self.object_fields
-            .retain(|(t, p)| t != table || !p.starts_with(path));
+        self.object_fields.retain(|(t, p)| {
+            t != table || !p.starts_with(path) || (preserves_object && p.len() == path.len())
+        });
         Ok(())
     }
     pub(super) fn field_proof(
@@ -57,8 +58,25 @@ impl Visitor<'_> {
     ) -> Result<(), RunnerError> {
         let table = self.name(&field.what)?.to_owned();
         let Some(path) = path(&field.name) else {
-            // Wildcards may change descendants; they cannot preserve another field's proof.
-            return self.clear_table_proof(&table, false);
+            // A wildcard affects descendants of its maximal static prefix, not the
+            // prefix's own shape or sibling objects. An unresolved/root prefix can
+            // affect every proof and keeps the conservative table-wide rule.
+            let prefix: Vec<String> = match &field.name {
+                Expr::Idiom(idiom) => idiom
+                    .0
+                    .iter()
+                    .map_while(|part| match part {
+                        Part::Field(name) => Some(name.as_str().to_owned()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            return if prefix.is_empty() {
+                self.clear_table_proof(&table, false)
+            } else {
+                self.invalidate_field(&table, &prefix, true)
+            };
         };
         let object = field
             .field_kind
@@ -114,5 +132,74 @@ impl Visitor<'_> {
             entry.extend(required);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unresolved_root_ast_preserves_conservative_table_invalidation() {
+        // Leading wildcards are not accepted by the pinned SQL grammar. Exercise
+        // the defensive bookkeeping with an explicit AST instead of malformed SQL.
+        let setup = ModuleSetup::builder(ModuleName::new("own").unwrap(), ModuleLayer::Kernel)
+            .execution(LaneExecution::new(ExecutionImage::new("gateway").unwrap(),
+                ExecutionCommand::new(vec!["module-lane".into()]).unwrap()).unwrap())
+            .ownership(vec![OwnershipClaim::Table(TableName::new("own").unwrap())])
+            .lane(MigrationLane::new(vec![Migration::new(MigrationVersion::new(0),
+                MigrationName::new("initial").unwrap(),
+                include_str!("../../../tests/queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/wildcard_preserves_ancestor_index.surql")
+            ).unwrap()]).unwrap()).build().unwrap();
+        let registry = ModuleRegistry::new(vec![setup]).unwrap();
+        let selection = registry.select(vec![]).unwrap();
+        let preparation = preparation::Preparation::new(&selection).unwrap();
+        let body = &preparation.bodies[0];
+        let selected = BTreeSet::from([body.module.name().clone()]);
+        let TopLevelExpr::Expr(Expr::Define(definition)) = &body.ast.expressions[1] else {
+            panic!("fixture must contain its field declaration")
+        };
+        let DefineStatement::Field(field) = definition.as_ref() else {
+            panic!("fixture must contain its field declaration")
+        };
+        let mut field = field.clone();
+        let Expr::Idiom(ref mut idiom) = field.name else {
+            panic!("field name idiom")
+        };
+        idiom.0 = vec![Part::All];
+        for dependent_index in [false, true] {
+            let mut visitor = Visitor::new(
+                &registry,
+                &selected,
+                &preparation,
+                body.module,
+                body.migration,
+                body.start,
+            );
+            visitor
+                .object_fields
+                .insert(("own".into(), vec!["identity".into()]));
+            visitor
+                .object_fields
+                .insert(("other".into(), vec!["identity".into()]));
+            if dependent_index {
+                visitor
+                    .index_fields
+                    .insert(("own".into(), "key".into()), vec![vec!["identity".into()]]);
+            }
+            let result = visitor.field_proof(&field, 1);
+            assert_eq!(result.is_err(), dependent_index);
+            assert_eq!(
+                visitor
+                    .object_fields
+                    .contains(&("own".into(), vec!["identity".into()])),
+                dependent_index
+            );
+            assert!(
+                visitor
+                    .object_fields
+                    .contains(&("other".into(), vec!["identity".into()]))
+            );
+        }
     }
 }

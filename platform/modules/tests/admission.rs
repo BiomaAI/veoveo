@@ -327,6 +327,12 @@ fn object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies
         include_str!(
             "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_48.surql"
         ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/wildcard_preserves_media_siblings.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/wildcard_preserves_ancestor_index.surql"
+        ),
     ] {
         assert!(admitted(sql), "{sql}");
     }
@@ -390,6 +396,9 @@ fn object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies
         ),
         include_str!(
             "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/statement_68.surql"
+        ),
+        include_str!(
+            "queries/admission/object_path_indexes_require_closed_preceding_schema_and_preserve_dependencies/wildcard_invalidates_dependent_index.surql"
         ),
     ] {
         assert!(!admitted(sql), "{sql}");
