@@ -21,6 +21,29 @@ pub(super) struct Render {
     pub plan: ModulePlanDocument,
     pub objects: Vec<Value>,
 }
+// Policies precede executable workloads; selection is shared with native rendering checks.
+fn managed_objects(objects: &[Value]) -> impl Iterator<Item = &Value> {
+    [
+        "ServiceAccount",
+        "Role",
+        "RoleBinding",
+        "ValidatingAdmissionPolicy",
+        "ValidatingAdmissionPolicyBinding",
+        "NetworkPolicy",
+        "ConfigMap",
+        "Service",
+        "Deployment",
+    ]
+    .into_iter()
+    .flat_map(move |kind| objects.iter().filter(move |object| object["kind"] == kind))
+    .filter(|object| {
+        !matches!(
+            object["metadata"]["labels"]["app.kubernetes.io/component"].as_str(),
+            Some("surrealdb" | "module-plan")
+        )
+    })
+}
+
 pub(super) struct Fixture {
     pub namespace: String,
     context: String,
@@ -443,56 +466,38 @@ impl Fixture {
         self.apply(&json!({"apiVersion":"v1","kind":"Secret","metadata":{"name":"veoveo-audit-signing-key"},"type":"Opaque","stringData":{"seed-b64":"BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="}}))?;
         self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"fixture-control-plane","namespace":namespace},"data":{"gateway.json":serde_json::to_string(&self.managed_config.plane)?,"jwks.json":self.managed_config.jwks}}))?;
         self.apply(&json!({"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":self.managed_config.template.workload.config_map,"namespace":namespace},"immutable":true,"data":self.managed_config.data}))?;
-        // Admission and egress policies precede every executable workload.
-        for kind in [
-            "ServiceAccount",
-            "Role",
-            "RoleBinding",
-            "ValidatingAdmissionPolicy",
-            "ValidatingAdmissionPolicyBinding",
-            "NetworkPolicy",
-            "ConfigMap",
-            "Service",
-            "Deployment",
-        ] {
-            for object in render.objects.iter().filter(|o| o["kind"] == kind) {
-                let component = object["metadata"]["labels"]["app.kubernetes.io/component"]
+        for object in managed_objects(&render.objects) {
+            let kind = object["kind"].as_str().context("managed object kind")?;
+            if kind.starts_with("ValidatingAdmissionPolicy") {
+                let name = object["metadata"]["name"]
                     .as_str()
-                    .unwrap_or("");
-                if component == "surrealdb" || component == "module-plan" {
-                    continue;
-                }
-                if kind.starts_with("ValidatingAdmissionPolicy") {
-                    let name = object["metadata"]["name"]
-                        .as_str()
-                        .context("cluster policy name")?;
-                    let path = format!(
-                        "/apis/admissionregistration.k8s.io/v1/{}/{name}",
-                        if kind == "ValidatingAdmissionPolicy" {
-                            "validatingadmissionpolicies"
-                        } else {
-                            "validatingadmissionpolicybindings"
-                        }
-                    );
-                    if !self.cluster_owned.iter().any(|(p, _)| p == &path) {
-                        let file = self.file(object)?;
-                        let bytes = process::checked(
-                            self.kubectl()
-                                .args(["create", "--filename"])
-                                .arg(file)
-                                .arg("--output=json"),
-                            30,
-                        )?;
-                        let created: Namespace = serde_json::from_slice(&bytes)?;
-                        ensure!(
-                            !created.metadata.uid.is_empty(),
-                            "cluster policy UID absent"
-                        );
-                        self.cluster_owned.push((path, created.metadata.uid));
+                    .context("cluster policy name")?;
+                let path = format!(
+                    "/apis/admissionregistration.k8s.io/v1/{}/{name}",
+                    if kind == "ValidatingAdmissionPolicy" {
+                        "validatingadmissionpolicies"
+                    } else {
+                        "validatingadmissionpolicybindings"
                     }
-                } else {
-                    self.apply(object)?;
+                );
+                if !self.cluster_owned.iter().any(|(p, _)| p == &path) {
+                    let file = self.file(object)?;
+                    let bytes = process::checked(
+                        self.kubectl()
+                            .args(["create", "--filename"])
+                            .arg(file)
+                            .arg("--output=json"),
+                        30,
+                    )?;
+                    let created: Namespace = serde_json::from_slice(&bytes)?;
+                    ensure!(
+                        !created.metadata.uid.is_empty(),
+                        "cluster policy UID absent"
+                    );
+                    self.cluster_owned.push((path, created.metadata.uid));
                 }
+            } else {
+                self.apply(object)?;
             }
         }
         Ok(())
@@ -582,7 +587,7 @@ impl Fixture {
             "diagnostic namespace ownership changed"
         );
         let mut output = String::new();
-        let mut diagnostic_namespaces = vec![self.namespace.as_str()];
+        let mut diagnostic_namespaces = Vec::new();
         if let Some(uid) = &self.agent_uid {
             let namespace: Namespace = serde_json::from_slice(&process::checked(
                 self.kubectl().args([
@@ -599,20 +604,46 @@ impl Fixture {
             );
             diagnostic_namespaces.push(&self.managed_config.namespace);
         }
+        diagnostic_namespaces.push(&self.namespace);
+        let mut inventories = Vec::new();
+        // Describe both owned namespaces before logs can consume the output budget.
         for namespace in diagnostic_namespaces {
-            let bytes = process::checked(
+            output.push_str(&format!("namespace {namespace}: owned\n"));
+            let controllers: Value = serde_json::from_slice(&process::checked(
+                self.kubectl_in(namespace)
+                    .args(["get", "deployments", "--output=json"]),
+                30,
+            )?)?;
+            let controllers = controllers["items"]
+                .as_array()
+                .context("diagnostic controller inventory")?;
+            output.push_str(&format!("deployments: {}\n", controllers.len()));
+            for controller in controllers {
+                output.push_str(&format!(
+                    "deployment {namespace}/{}: replicas={} ready={} available={}\n",
+                    controller["metadata"]["name"]
+                        .as_str()
+                        .context("diagnostic controller name")?,
+                    controller["spec"]["replicas"],
+                    controller["status"]["readyReplicas"],
+                    controller["status"]["availableReplicas"]
+                ));
+            }
+            let pods: Value = serde_json::from_slice(&process::checked(
                 self.kubectl_in(namespace)
                     .args(["get", "pods", "--output=json"]),
                 30,
-            )?;
-            let pods: Value = serde_json::from_slice(&bytes)?;
-            for pod in pods["items"]
+            )?)?;
+            let pods = pods["items"]
                 .as_array()
-                .context("diagnostic pod inventory")?
-            {
+                .context("diagnostic pod inventory")?;
+            output.push_str(&format!("pods: {}\n", pods.len()));
+            let mut names = Vec::new();
+            for pod in pods {
                 let name = pod["metadata"]["name"]
                     .as_str()
                     .context("diagnostic pod name")?;
+                names.push(name.to_owned());
                 output.push_str(&format!(
                     "pod {namespace}/{name}: {}\n",
                     pod["status"]["phase"]
@@ -622,13 +653,24 @@ impl Fixture {
                     .into_iter()
                     .flatten()
                 {
-                    let state = &status["state"];
-                    output.push_str(&format!("container {}: {}\n", status["name"], state));
+                    output.push_str(&format!(
+                        "container {}: {}\n",
+                        status["name"], status["state"]
+                    ));
                 }
+            }
+            inventories.push((namespace, names));
+        }
+        for (namespace, names) in inventories {
+            for name in names {
+                if output.len() >= 16384 {
+                    break;
+                }
+                output.push_str(&format!("logs {namespace}/{name}:\n"));
                 if let Ok(logs) = process::checked(
                     self.kubectl_in(namespace).args([
                         "logs",
-                        name,
+                        &name,
                         "--all-containers=true",
                         "--tail=10",
                         "--limit-bytes=4096",
@@ -638,12 +680,6 @@ impl Fixture {
                     output.push_str(&String::from_utf8_lossy(&logs));
                     output.push('\n');
                 }
-                if output.len() > 16384 {
-                    break;
-                }
-            }
-            if output.len() > 16384 {
-                break;
             }
         }
         Ok(self.redact_diagnostics(output))
@@ -945,6 +981,73 @@ mod tests {
             let rendered = fixture
                 .render(plan, &raw)
                 .with_context(|| format!("native generation {} chart", index + 1))?;
+            let applied = managed_objects(&rendered.objects).collect::<Vec<_>>();
+            let agent_namespace = fixture.managed_config.namespace.as_str();
+            for (kind, name) in [
+                ("ServiceAccount", "veoveo-agent-manager"),
+                ("ServiceAccount", "veoveo-agent-kernel"),
+                ("Role", "veoveo-agent-manager"),
+                ("RoleBinding", "veoveo-agent-manager"),
+                ("ConfigMap", "veoveo-agent-manager"),
+                ("NetworkPolicy", "managed-default-deny"),
+                ("NetworkPolicy", "managed-dns"),
+                ("NetworkPolicy", "managed-store"),
+                ("NetworkPolicy", "managed-controller-api"),
+                ("NetworkPolicy", "managed-kernel-gateway"),
+                ("Deployment", "veoveo-agent-manager"),
+            ] {
+                assert_eq!(
+                    applied
+                        .iter()
+                        .filter(|object| object["kind"] == kind
+                            && object["metadata"]["name"] == name
+                            && object["metadata"]["namespace"] == agent_namespace)
+                        .count(),
+                    1,
+                    "generation {} must apply {kind} {name}",
+                    index + 1
+                );
+            }
+            for kind in [
+                "ValidatingAdmissionPolicy",
+                "ValidatingAdmissionPolicyBinding",
+                "Service",
+            ] {
+                let expected = rendered
+                    .objects
+                    .iter()
+                    .filter(|object| {
+                        object["kind"] == kind
+                            && !matches!(
+                                object["metadata"]["labels"]["app.kubernetes.io/component"]
+                                    .as_str(),
+                                Some("surrealdb" | "module-plan")
+                            )
+                    })
+                    .count();
+                assert!(expected > 0);
+                assert_eq!(
+                    applied
+                        .iter()
+                        .filter(|object| object["kind"] == kind)
+                        .count(),
+                    expected
+                );
+            }
+            let first_deployment = applied
+                .iter()
+                .position(|object| object["kind"] == "Deployment")
+                .context("managed applied deployment")?;
+            assert!(
+                applied[first_deployment..]
+                    .iter()
+                    .all(|object| object["kind"] == "Deployment")
+            );
+            assert!(applied.iter().all(|object| object["kind"] != "Job"
+                && !matches!(
+                    object["metadata"]["labels"]["app.kubernetes.io/component"].as_str(),
+                    Some("surrealdb" | "module-plan")
+                )));
             assert!(
                 rendered
                     .objects

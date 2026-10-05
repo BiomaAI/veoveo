@@ -18,6 +18,7 @@ veoveo-types.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
 chrono.workspace = true
 uuid.workspace = true
+url.workspace = true
 base64.workspace = true
 futures.workspace = true
 # Matches the Store's qualified SDK; fixture-owned LIVE IDs are explicitly killed.

@@ -195,7 +195,7 @@ impl Managed {
                 fixture,
                 &resources.namespace,
                 &resources.workload,
-                "deployments",
+                observations::WorkloadKind::Deployments,
             )?;
             Ok::<_, anyhow::Error>((provisioned, pods, deployments))
         })();

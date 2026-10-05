@@ -190,35 +190,39 @@ fn record_retirement(metadata: &Metadata, retired: &mut Vec<Uuid>) {
         retired.push(metadata.uid);
     }
 }
-pub(super) struct PodWatch {
-    child: process::Background,
-    buffer: WatchBuffer,
-    pub pods: BTreeMap<Uuid, Pod>,
-    pub deleted: Vec<Uuid>,
-    pub added: Vec<Metadata>,
-    pub retired: Vec<Uuid>,
+#[derive(Clone, Copy)]
+pub(super) enum WorkloadKind {
+    Pods,
+    Deployments,
 }
-impl PodWatch {
-    pub fn start(fixture: &Fixture, namespace: &str, workload: &str) -> Result<Self> {
-        Self::start_resource(fixture, namespace, workload, "pods")
+impl WorkloadKind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Pods => "pods",
+            Self::Deployments => "deployments",
+        }
     }
-    pub fn start_resource(
-        fixture: &Fixture,
-        namespace: &str,
-        workload: &str,
-        kind: &str,
-    ) -> Result<Self> {
-        ensure!(
-            matches!(kind, "pods" | "deployments"),
-            "unsupported workload watch kind"
+    fn list_path(self, namespace: &str, workload: &str) -> Result<String> {
+        let mut endpoint = url::Url::parse(match self {
+            Self::Pods => "https://kubernetes.invalid/api/v1/namespaces/",
+            Self::Deployments => "https://kubernetes.invalid/apis/apps/v1/namespaces/",
+        })?;
+        endpoint
+            .path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("Kubernetes API cannot hold path segments"))?
+            .pop_if_empty()
+            .push(namespace)
+            .push(self.name());
+        endpoint.query_pairs_mut().append_pair(
+            "labelSelector",
+            &format!("veoveo.ai/managed-agent={workload}"),
         );
-        let selector = format!("veoveo.ai/managed-agent={workload}");
-        let list: PodList = serde_json::from_slice(&process::checked(
-            fixture
-                .kubectl_in(namespace)
-                .args(["get", kind, "--selector", &selector, "-o=json"]),
-            20,
-        )?)?;
+        Ok(endpoint[url::Position::BeforePath..].to_owned())
+    }
+}
+impl PodList {
+    fn admit(bytes: &[u8]) -> Result<Self> {
+        let list: Self = serde_json::from_slice(bytes)?;
         ensure!(
             !list.metadata.resource_version.is_empty(),
             "workload list resourceVersion absent"
@@ -230,6 +234,36 @@ impl PodWatch {
                 .all(|p| !p.metadata.resource_version.is_empty()),
             "listed workload resourceVersion absent"
         );
+        Ok(list)
+    }
+}
+
+pub(super) struct PodWatch {
+    child: process::Background,
+    buffer: WatchBuffer,
+    pub pods: BTreeMap<Uuid, Pod>,
+    pub deleted: Vec<Uuid>,
+    pub added: Vec<Metadata>,
+    pub retired: Vec<Uuid>,
+}
+impl PodWatch {
+    pub fn start(fixture: &Fixture, namespace: &str, workload: &str) -> Result<Self> {
+        Self::start_resource(fixture, namespace, workload, WorkloadKind::Pods)
+    }
+    pub fn start_resource(
+        fixture: &Fixture,
+        namespace: &str,
+        workload: &str,
+        kind: WorkloadKind,
+    ) -> Result<Self> {
+        let selector = format!("veoveo.ai/managed-agent={workload}");
+        // Normal kubectl output flattens empty lists and discards their resourceVersion.
+        // Read the single-resource API response intact before starting the watch at its revision.
+        let path = kind.list_path(namespace, workload)?;
+        let list = PodList::admit(&process::checked(
+            fixture.kubectl_in(namespace).args(["get", "--raw", &path]),
+            20,
+        )?)?;
         let mut retired = Vec::new();
         for p in &list.items {
             record_retirement(&p.metadata, &mut retired);
@@ -237,7 +271,7 @@ impl PodWatch {
         let child = process::Background::start(
             fixture.kubectl_in(namespace).args([
                 "get",
-                kind,
+                kind.name(),
                 "--selector",
                 &selector,
                 "--watch-only",
@@ -352,6 +386,43 @@ pub(super) fn witness(
 mod tests {
     use super::*;
     use serde_json::{Value, json};
+
+    #[test]
+    fn raw_workload_lists_preserve_empty_inventory_revision() -> Result<()> {
+        for (kind, route) in [
+            (WorkloadKind::Pods, "/api/v1/namespaces/agents/pods"),
+            (
+                WorkloadKind::Deployments,
+                "/apis/apps/v1/namespaces/agents/deployments",
+            ),
+        ] {
+            let path = kind.list_path("agents", "agent-fixture")?;
+            assert_eq!(
+                path,
+                format!("{route}?labelSelector=veoveo.ai%2Fmanaged-agent%3Dagent-fixture")
+            );
+            let encoded = kind.list_path("namespace/reserved", "agent +reserved")?;
+            let endpoint = url::Url::parse(&format!("https://kubernetes.invalid{encoded}"))?;
+            assert!(endpoint.path().contains("namespace%2Freserved"));
+            assert_eq!(
+                endpoint.query_pairs().collect::<Vec<_>>(),
+                [(
+                    "labelSelector".into(),
+                    "veoveo.ai/managed-agent=agent +reserved".into()
+                )]
+            );
+            let empty = PodList::admit(br#"{"metadata":{"resourceVersion":"3074"},"items":[]}"#)?;
+            assert!(empty.items.is_empty());
+            assert_eq!(empty.metadata.resource_version, "3074");
+        }
+        for invalid in [
+            br#"{"metadata":{"resourceVersion":""},"items":[]}"#.as_slice(),
+            br#"{"metadata":{},"items":[]}"#.as_slice(),
+        ] {
+            assert!(PodList::admit(invalid).is_err());
+        }
+        Ok(())
+    }
 
     fn event(kind: &str, uid: Uuid) -> Value {
         json!({"type":kind,"object":{

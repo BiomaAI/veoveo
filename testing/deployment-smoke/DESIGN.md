@@ -222,7 +222,8 @@ identities and watch errors fail qualification. The fixture writes a
 content witness to the retained PVC. Generation 2 rotates the actual database
 account and both owned runtime Secrets, verifies fresh connection rejection with
 the old credential, and observes foreground workload retirement. Pod and Deployment
-watches begin with resourceVersion-bearing lists; a replacement cannot overlap its
+watches begin with raw single-resource API lists whose resourceVersion survives
+an empty inventory; a replacement cannot overlap its
 old object in either ordered stream. A watch error, unknown identity or disconnected
 observer fails qualification.
 
@@ -265,6 +266,9 @@ Commands have deadlines, file-backed output capped at 2 MiB and owned process-gr
 cleanup on timeout; no blind mutation retries are added. Command failures identify
 the phase, program and exit status. The fixture-owned Helm render
 exposes stderr through the same secret replacement and 16 KiB cap as pod diagnostics.
+Failure diagnostics describe the UID-owned agent namespace before the installation
+namespace, summarize Deployment and Pod inventories before collecting logs, and
+apply the output cap after replacing every fixture-owned secret.
 Other command output and argv stay private.
 
 The harness pins `oci-spec` 0.10.0 with only its distribution feature for maintained

@@ -16588,6 +16588,7 @@ dependencies = [
  "surrealdb",
  "tempfile",
  "tokio",
+ "url",
  "uuid",
  "veoveo-agent-runtime",
  "veoveo-audit-contract",
