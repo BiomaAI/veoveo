@@ -1,13 +1,9 @@
 //! Current public Task authority. Read metadata without loading protected payloads.
-use crate::{
-    AcceptedAuthority, ComputerActor, ComputerError, ComputersStore, Result,
-    secrets::CommandBinding, task_access::TaskSelection,
-};
+use crate::{ComputerActor, ComputerError, ComputersStore, Result, task_access::TaskSelection};
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::TaskOwner;
 
@@ -51,8 +47,8 @@ struct Metadata {
     computer_id: Uuid,
     provider_instance_id: Uuid,
     actor_key: String,
-    binding: OpenObject,
-    authority: OpenObject,
+    binding: crate::secrets::CommandBinding,
+    authority: crate::AcceptedAuthority,
     task: RecordId,
 }
 
@@ -98,14 +94,7 @@ impl ComputersStore {
             .await?;
         let row: Option<Metadata> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let row = row.ok_or(ComputerError::NotFound)?;
-        let decode =
-            || -> std::result::Result<(CommandBinding, AcceptedAuthority), serde_json::Error> {
-                Ok((
-                    serde_json::from_value(serde_json::to_value(row.binding)?)?,
-                    serde_json::from_value(serde_json::to_value(row.authority)?)?,
-                ))
-            };
-        let (binding, accepted) = decode().map_err(|_| ComputerError::Unavailable)?;
+        let (binding, accepted) = (row.binding, row.authority);
         accepted
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;

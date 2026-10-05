@@ -22,8 +22,8 @@ struct Content {
     request_id: Uuid,
     fingerprint: String,
     input: OpenObject,
-    authority: OpenObject,
-    decision: OpenObject,
+    authority: crate::AcceptedAuthority,
+    decision: crate::ExecutionDecision,
     previous_progress: OpenObject,
 }
 #[derive(Deserialize, SurrealValue)]
@@ -191,15 +191,15 @@ impl ComputersStore {
                 request_id: input.request_id.as_uuid(),
                 fingerprint: fingerprint(input)?,
                 input: object(input)?,
-                authority: object(actor.accepted())?,
-                decision: object(&crate::ExecutionDecision {
+                authority: actor.accepted().clone(),
+                decision: crate::ExecutionDecision {
                     control_revision: authority.control_revision.clone(),
                     control_sha256: authority.control_sha256.clone(),
                     checked_at: authority.checked_at,
                     valid_until: authority.checked_at + TimeDelta::seconds(5),
                     decision,
                     automation: None,
-                })?,
+                },
                 previous_progress: object(&before.progress)?,
             };
 
@@ -243,7 +243,10 @@ impl ComputersStore {
                                 .into_value(),
                         ),
                         ("computer_updated_at", computer.updated_at.into_value()),
-                        ("source_owner", object(&computer.owner)?.into_value()),
+                        (
+                            "source_owner",
+                            crate::identity::stored_owner(&computer.owner)?.into_value(),
+                        ),
                         crate::audit::binding(
                             self.platform.audit_targets(),
                             actor.accepted(),

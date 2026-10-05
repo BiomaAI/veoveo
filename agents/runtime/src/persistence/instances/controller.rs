@@ -68,6 +68,11 @@ impl AgentRepository {
             startup: Option<chrono::DateTime<chrono::Utc>>,
             drain: Option<chrono::DateTime<chrono::Utc>>,
         }
+        impl super::super::validation::StoredProjection for Deadlines {
+            fn validate_stored(&self) -> Result<()> {
+                Ok(())
+            }
+        }
         let times: Deadlines = self
             .managed_query(
                 namespace.to_owned(),
@@ -189,7 +194,10 @@ impl AgentRepository {
 
     /// This helper is restricted to trusted service callers. HTTP management uses
     /// agent_query so current human/context authority is checked transactionally.
-    pub(super) async fn managed_query<C: SurrealValue + Clone, R: SurrealValue>(
+    pub(super) async fn managed_query<
+        C: SurrealValue + Clone,
+        R: SurrealValue + super::super::validation::StoredProjection,
+    >(
         &self,
         command: C,
         sql: &'static str,
@@ -217,7 +225,9 @@ impl AgentRepository {
             let value: Value = response
                 .take(last)
                 .map_err(|_| AgentManagementError::Unavailable)?;
-            return R::from_value(value).map_err(|_| AgentManagementError::Unavailable);
+            let row: R = super::super::validation::decode_stored(value)?;
+            row.validate_stored()?;
+            return Ok(row);
         }
         Err(AgentManagementError::Unavailable)
     }

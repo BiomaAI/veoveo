@@ -12,13 +12,13 @@ use crate::{
 };
 use serde::Deserialize;
 use surrealdb::types::SurrealValue;
-use veoveo_platform_store::OpenObject;
 use veoveo_task_runtime::ClaimedTask;
 
 #[derive(Deserialize, SurrealValue)]
 struct PolicyRecord {
     operation_id: uuid::Uuid,
-    envelope: OpenObject,
+    #[surreal(wrap)]
+    envelope: SealedMaintenanceCheckpoint,
 }
 impl ComputersStore {
     pub async fn complete_maintenance_capture(
@@ -63,10 +63,7 @@ impl ComputersStore {
         if row.operation_id != operation.operation_id.as_uuid() {
             return Err(ComputerError::Unavailable);
         }
-        let sealed: SealedMaintenanceCheckpoint = serde_json::from_value(
-            serde_json::to_value(row.envelope).map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
+        let sealed = row.envelope;
         keys.open_maintenance(&binding, &sealed)
     }
     async fn maintenance_binding(

@@ -162,6 +162,15 @@ impl FramesState {
             .bind(("digest", digest.hex().to_owned()))
             .bind(("root", validated.root_frame_id().to_string()))
             .bind((
+                "frame_ids",
+                validated
+                    .tree()
+                    .frames
+                    .iter()
+                    .map(|frame| frame.frame_id.to_string())
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
                 "tree",
                 object_from_value(serde_json::to_value(validated.into_tree())?)?,
             ))

@@ -258,7 +258,16 @@ async fn completed_command_has_one_canonical_governed_result_resource() {
         )
         .await
         .unwrap();
-    a.acknowledge_command_task(&completed).await.unwrap();
+    a.acknowledge_command_task(
+        &completed,
+        Some(&json!({
+            "content": [{"type":"text","text":"Command exited with code 7"},
+                {"type":"resource_link","name":"Command result","uri":uri}],
+            "structuredContent":result, "isError":true,
+        })),
+    )
+    .await
+    .unwrap();
     for token in [&actor_token, &owner_token] {
         let response = rpc(
             &client,

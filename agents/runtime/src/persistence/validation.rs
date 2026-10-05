@@ -155,3 +155,296 @@ pub(super) fn mutation(value: &AgentDefinitionMutation) -> Result<()> {
         _ => Ok(()),
     }
 }
+
+/// Every repository result declares its validation at the typed driver boundary.
+pub(super) trait StoredProjection {
+    fn validate_stored(&self) -> Result<()>;
+}
+impl<T: StoredProjection> StoredProjection for Vec<T> {
+    fn validate_stored(&self) -> Result<()> {
+        for row in self {
+            row.validate_stored()?;
+        }
+        Ok(())
+    }
+}
+impl<T: StoredProjection> StoredProjection for Option<T> {
+    fn validate_stored(&self) -> Result<()> {
+        if let Some(row) = self {
+            row.validate_stored()?;
+        }
+        Ok(())
+    }
+}
+impl StoredProjection for super::AgentDefinition {
+    fn validate_stored(&self) -> Result<()> {
+        self.draft.validate()?;
+        if self.draft_execution != self.draft.execution
+            || self.draft_model != self.draft.model
+            || self.draft_tools != self.draft.tools
+            || self.draft_digest != self.draft.digest()?
+        {
+            return Err(AgentManagementError::Invalid("stored draft projections"));
+        }
+        Ok(())
+    }
+}
+impl StoredProjection for super::AgentRevision {
+    fn validate_stored(&self) -> Result<()> {
+        self.content.validate()?;
+        let template_revision = match &self.content.execution {
+            AgentExecution::Chat => None,
+            AgentExecution::Managed {
+                template_revision, ..
+            } => Some(template_revision.clone()),
+        };
+        if self.execution != self.content.execution
+            || self.model != self.content.model
+            || self.tools != self.content.tools
+            || self.template_revision != template_revision
+            || self.digest != self.content.digest()?
+        {
+            return Err(AgentManagementError::Invalid("stored revision projections"));
+        }
+        Ok(())
+    }
+}
+impl StoredProjection for super::AgentExecutable {
+    fn validate_stored(&self) -> Result<()> {
+        self.revision.validate_stored()
+    }
+}
+// These typed records carry managed progress, rather than copied opaque content.
+impl StoredProjection for super::instances::ManagedAgentInstance {
+    fn validate_stored(&self) -> Result<()> {
+        if self.admission_count < 0 {
+            return Err(AgentManagementError::Invalid("stored admission count"));
+        }
+        Ok(())
+    }
+}
+impl StoredProjection for super::instances::ManagedAgentOperation {
+    fn validate_stored(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Admit field topology before any typed projection can hide undeclared fields.
+/// Native identities and scalars keep the driver's decoding; open typed maps keep
+/// their admitted keys in the encoding and therefore remain open.
+pub(super) fn decode_stored<T: surrealdb::types::SurrealValue>(
+    value: surrealdb::types::Value,
+) -> Result<T> {
+    let row = T::from_value(value.clone()).map_err(|_| AgentManagementError::Unavailable)?;
+    let encoded = row.into_value();
+    check_stored_fields(&value, &encoded)?;
+    T::from_value(encoded).map_err(|_| AgentManagementError::Unavailable)
+}
+
+fn check_stored_fields(
+    stored: &surrealdb::types::Value,
+    typed: &surrealdb::types::Value,
+) -> Result<()> {
+    use surrealdb::types::Value;
+    match (stored, typed) {
+        (Value::Object(stored), Value::Object(typed)) => {
+            for (name, value) in stored.iter() {
+                // The schema may materialize the managed variant's declared optional
+                // fields as NONE on a chat object. NULL is a concrete value.
+                if typed.get("kind") == Some(&Value::String("chat".into()))
+                    && matches!(
+                        name.as_str(),
+                        "template" | "template_revision" | "parameters" | "resource_subscriptions"
+                    )
+                    && matches!(value, Value::None)
+                {
+                    continue;
+                }
+                let admitted = typed.get(name).ok_or(AgentManagementError::Unavailable)?;
+                check_stored_fields(value, admitted)?;
+            }
+        }
+        (Value::Array(stored), Value::Array(typed)) => {
+            if stored.len() != typed.len() {
+                return Err(AgentManagementError::Unavailable);
+            }
+            for (value, admitted) in stored.iter().zip(typed.iter()) {
+                check_stored_fields(value, admitted)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+impl StoredProjection for super::instances::ManagedAgentRegistration {
+    fn validate_stored(&self) -> Result<()> {
+        self.instance.validate_stored()?;
+        self.revision.validate_stored()
+    }
+}
+impl StoredProjection for super::instances::ManagedAgentReconciliation {
+    fn validate_stored(&self) -> Result<()> {
+        self.instance.validate_stored()?;
+        self.revision.validate_stored()
+    }
+}
+impl StoredProjection for bool {
+    fn validate_stored(&self) -> Result<()> {
+        Ok(())
+    }
+}
+impl StoredProjection for i64 {
+    fn validate_stored(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+    use surrealdb::types::{SurrealValue, Value};
+
+    fn content() -> AgentContent {
+        AgentContent {
+            model: super::super::AgentModelReference {
+                id: "model".into(),
+                revision: "a".repeat(64),
+            },
+            instructions: "Instruction".into(),
+            tools: vec![],
+            budgets: super::super::AgentBudgets {
+                max_output_tokens: 1,
+                max_completion_calls: 1,
+                max_tool_calls: 0,
+                deadline_seconds: 1,
+            },
+            execution: AgentExecution::Chat,
+        }
+    }
+
+    #[test]
+    fn controlled_native_objects_reject_unknown_root_nested_and_array_fields() {
+        for path in [vec![], vec!["model"], vec!["budgets"], vec!["execution"]] {
+            for unknown in [true.into_value(), Value::Null, Value::None] {
+                let mut value = content().into_value();
+                let mut object = &mut value;
+                for key in &path {
+                    let Value::Object(fields) = object else {
+                        unreachable!()
+                    };
+                    object = fields.get_mut(*key).unwrap();
+                }
+                let Value::Object(fields) = object else {
+                    unreachable!()
+                };
+                fields.insert("undeclared", unknown);
+                assert!(
+                    decode_stored::<AgentContent>(value.clone()).is_err(),
+                    "{path:?}"
+                );
+                assert!(
+                    decode_stored::<Vec<AgentContent>>(Value::Array(vec![value].into())).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn managed_controls_reject_unknown_native_fields() {
+        use crate::persistence::instances::{
+            ManagedAgentIdentity, ManagedAgentPublicKey, ManagedAgentResources,
+        };
+        fn rejects<T: SurrealValue>(value: T) {
+            let value = value.into_value();
+            for unknown in [true.into_value(), Value::Null, Value::None] {
+                let mut stored = value.clone();
+                let Value::Object(fields) = &mut stored else {
+                    unreachable!()
+                };
+                fields.insert("undeclared", unknown);
+                assert!(decode_stored::<T>(stored).is_err());
+            }
+            assert!(decode_stored::<T>(value).is_ok());
+        }
+        rejects(ManagedAgentPublicKey {
+            kid: "key".into(),
+            n: "modulus".into(),
+            e: "exponent".into(),
+        });
+        rejects(ManagedAgentResources {
+            namespace: "agents".into(),
+            workload: "pilot".into(),
+            credential_secret: "key".into(),
+            volume_claim: "data".into(),
+            template_config_map: "template".into(),
+            image: "image".into(),
+            storage_gib: 2,
+        });
+        rejects(ManagedAgentIdentity {
+            client_id: "pilot".into(),
+            issuer: "issuer".into(),
+            authorization_server: "gateway".into(),
+            profile: "pilot".into(),
+            resource: "resource".into(),
+            scopes: vec![],
+            roles: vec![],
+            membership: veoveo_platform_store::WorkContextMembershipLevel::Contributor,
+        });
+    }
+
+    #[test]
+    fn chat_inactive_none_fields_and_open_managed_parameters_keep_native_semantics() {
+        let mut value = content().into_value();
+        let Value::Object(fields) = &mut value else {
+            unreachable!()
+        };
+        let Value::Object(execution) = fields.get_mut("execution").unwrap() else {
+            unreachable!()
+        };
+        for field in [
+            "template",
+            "template_revision",
+            "parameters",
+            "resource_subscriptions",
+        ] {
+            execution.insert(field, Value::None);
+        }
+        assert_eq!(
+            decode_stored::<AgentContent>(value.clone()).unwrap(),
+            content()
+        );
+        let Value::Object(fields) = &mut value else {
+            unreachable!()
+        };
+        let Value::Object(execution) = fields.get_mut("execution").unwrap() else {
+            unreachable!()
+        };
+        execution.insert("parameters", Value::Null);
+        assert!(decode_stored::<AgentContent>(value).is_err());
+        let mut managed = content();
+        managed.execution = AgentExecution::Managed {
+            template: "template".into(),
+            template_revision: "b".repeat(64),
+            parameters: [
+                (
+                    "arbitrary".into(),
+                    AgentTemplateParameter::Integer(i64::MAX),
+                ),
+                ("other".into(), AgentTemplateParameter::Boolean(true)),
+            ]
+            .into(),
+            resource_subscriptions: vec![],
+        };
+        assert_eq!(
+            decode_stored::<AgentContent>(managed.clone().into_value()).unwrap(),
+            managed
+        );
+        assert!(
+            decode_stored::<Option<AgentContent>>(Value::None)
+                .unwrap()
+                .is_none()
+        );
+        assert!(decode_stored::<Option<AgentContent>>(Value::Null).is_err());
+    }
+}

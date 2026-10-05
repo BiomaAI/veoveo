@@ -54,6 +54,8 @@ pub mod secrets;
 #[cfg(feature = "runtime")]
 pub mod session_grants;
 #[cfg(feature = "runtime")]
+mod storage_codec;
+#[cfg(feature = "runtime")]
 mod store;
 #[cfg(feature = "runtime")]
 mod task_access;

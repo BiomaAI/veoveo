@@ -750,7 +750,7 @@ resource limits and retained-home capacity. Set `VEOVEO_COMPUTERS_TRANSITION_CON
 `VEOVEO_COMPUTERS_TRANSITION_SOURCE` and `VEOVEO_COMPUTERS_TRANSITION_TARGET` alongside
 the existing native binary/image variables. The selected images must be published in
 the owned local registry. Run `cargo test -p veoveo-computers-mcp --test
-native_maintenance -- --ignored --nocapture` through the evidence recorder.
+native_maintenance -- --ignored --nocapture`.
 
 The scenario creates a real source through LifecycleWorker and upgrades through two
 continuous MaintenanceWorkers. It discards the original Stop response and injects an

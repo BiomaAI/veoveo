@@ -5,7 +5,7 @@ mod file_support;
 mod support;
 use file_support::command_fixture;
 use std::time::Duration;
-use surrealdb::types::RecordId;
+use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_computers::ComputerError;
 
 #[tokio::test]
@@ -20,8 +20,10 @@ async fn reservation_receipts_admit_owner_clearance_before_decoding_and_never_re
         };
         assert!(store.reserved_for_request(actor.owner(), input.request_id).await.unwrap().is_none());
         let computer = store.reserve(&actor, &input).await.unwrap();
-        db.a.client().query(include_str!("queries/sql_receipt_admission/reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again/statement_1.surql"))
-            .bind(("row", command_fixture::computer_record(computer.computer_id))).await.unwrap().check().unwrap();
+        let row = command_fixture::computer_record(computer.computer_id);
+        let poison_sql = include_str!("queries/sql_receipt_admission/reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again/statement_1.surql");
+        support::controlled_storage::reject_unchanged(&db, row.clone(), poison_sql, vec![("row", row.clone().into_value()), ("poison", 42_i64.into_value())]).await;
+        db.a.client().query(poison_sql).bind(("row", row)).bind(("poison", "")).await.unwrap().check().unwrap();
         assert!(matches!(store.reserved_for_request(actor.owner(), input.request_id).await, Err(ComputerError::NotFound)));
         assert!(matches!(store.reserve(&actor, &input).await, Err(ComputerError::NotFound)));
         let mut reply = db.a.client().query(include_str!("queries/sql_receipt_admission/reservation_receipts_admit_owner_clearance_before_decoding_and_never_reserve_again/statement_2.surql"))
@@ -81,12 +83,23 @@ async fn file_receipts_admit_the_accepted_actor_before_decoding_private_payloads
 }
 
 async fn corrupt_denied_target(db: &support::TestDb, row: RecordId) {
+    let sql = include_str!("queries/sql_receipt_admission/corrupt_denied_target/statement_1.surql");
+    support::controlled_storage::reject_unchanged(
+        db,
+        row.clone(),
+        sql,
+        vec![
+            ("row", row.clone().into_value()),
+            ("actor_key", "b".repeat(64).into_value()),
+            ("poison", 42_i64.into_value()),
+        ],
+    )
+    .await;
     db.a.client()
-        .query(include_str!(
-            "queries/sql_receipt_admission/corrupt_denied_target/statement_1.surql"
-        ))
+        .query(sql)
         .bind(("row", row))
         .bind(("actor_key", "b".repeat(64)))
+        .bind(("poison", "not-an-rfc3339-timestamp"))
         .await
         .unwrap()
         .check()

@@ -20,8 +20,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, GatewayRefreshRotationOutcome, GatewayRefreshTokenRecord,
-    OpenObject, RecordIdKey, RedactedSecret, gateway_refresh_family_record_id,
-    gateway_refresh_token_record_id,
+    RecordIdKey, RedactedSecret, gateway_refresh_family_record_id, gateway_refresh_token_record_id,
 };
 use veoveo_types::{ScopeName, WorkContextId};
 
@@ -456,6 +455,7 @@ fn refresh_delivery_aad(family: &GatewayRefreshFamilyRecord, generation: i64) ->
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct StoredRefreshPrincipal {
     principal: Principal,
     principal_display_name: PrincipalDisplayName,
@@ -464,15 +464,12 @@ struct StoredRefreshPrincipal {
 fn serialize_refresh_principal(
     principal: &Principal,
     principal_display_name: &PrincipalDisplayName,
-) -> Result<OpenObject> {
+) -> Result<veoveo_platform_store::GatewayRefreshPrincipalRecord> {
     let value = serde_json::to_value(StoredRefreshPrincipal {
         principal: principal.clone(),
         principal_display_name: principal_display_name.clone(),
     })?;
-    let serde_json::Value::Object(object) = value else {
-        anyhow::bail!("gateway refresh principal did not serialize as an object");
-    };
-    Ok(OpenObject::new(object.into_iter().collect()))
+    serde_json::from_value(value).context("invalid refresh Principal snapshot")
 }
 
 fn random_refresh_token() -> Result<OAuthRefreshToken> {

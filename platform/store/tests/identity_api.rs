@@ -143,7 +143,7 @@ async fn summaries_preserve_attribution_and_reject_oversized_inputs() {
     ] {
         let enabled: surrealdb::types::Value =
             db.a.client()
-                .query(include_str!("queries/identity_api/enabled.surql"))
+                .query(include_str!("queries/identity_api/enabled_user.surql"))
                 .bind(("tenant", alice.tenant_id.record_id()))
                 .bind(("principal", principal))
                 .await
@@ -296,4 +296,131 @@ async fn search_filters_before_limiting_and_labels_validate_both_relationships()
                 .unwrap();
         assert!(labels.is_none());
     }
+}
+
+async fn current_facts(
+    db: &TestDb,
+    enterprise: RecordId,
+    tenant: RecordId,
+    principal: RecordId,
+    slug: &str,
+) -> (
+    Option<veoveo_platform_store::CurrentTenant>,
+    Option<veoveo_platform_store::CurrentPrincipal>,
+    bool,
+) {
+    let mut rows =
+        db.a.client()
+            .query(include_str!("queries/identity_api/current_facts.surql"))
+            .bind(("enterprise", enterprise))
+            .bind(("tenant", tenant))
+            .bind(("principal", principal))
+            .bind(("slug", slug.to_owned()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    (
+        rows.take(0).unwrap(),
+        rows.take(1).unwrap(),
+        bool::from_value(rows.take::<surrealdb::types::Value>(2).unwrap()).unwrap(),
+    )
+}
+
+#[tokio::test]
+async fn current_directory_facts_preserve_exact_parent_identity_and_retained_revocation_behavior() {
+    tokio::time::timeout(std::time::Duration::from_secs(180), async {
+        let db = TestDb::new().await;
+        let alice = person(&db.a, "first", "alice", "Alice").await;
+        let bob = person(&db.a, "second", "bob", "Bob").await;
+        let enterprise = veoveo_platform_store::deterministic_enterprise_id().record_id();
+        let tenant = alice.tenant_id.record_id();
+        let principal = alice.principal_id.record_id();
+        let (current_tenant, current_principal, retained) = current_facts(
+            &db,
+            enterprise.clone(),
+            tenant.clone(),
+            principal.clone(),
+            "first",
+        )
+        .await;
+        assert_eq!(current_tenant.unwrap().slug.as_str(), "first");
+        let facts = current_principal.unwrap();
+        assert_eq!(facts.kind, PrincipalKind::User);
+        assert_eq!(facts.issuer.as_str(), "https://identity.test");
+        assert_eq!(facts.subject.as_str(), "alice");
+        assert!(retained);
+        assert!(
+            current_facts(
+                &db,
+                enterprise.clone(),
+                tenant.clone(),
+                bob.principal_id.record_id(),
+                "first"
+            )
+            .await
+            .1
+            .is_none()
+        );
+        assert!(
+            !current_facts(
+                &db,
+                enterprise.clone(),
+                tenant.clone(),
+                principal.clone(),
+                "second"
+            )
+            .await
+            .2
+        );
+        for record in [enterprise.clone(), tenant.clone()] {
+            db.a.client()
+                .query(include_str!("queries/identity_api/enabled.surql"))
+                .bind(("record", record.clone()))
+                .bind(("enabled", false))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let (admitted, _, retained) = current_facts(
+                &db,
+                enterprise.clone(),
+                tenant.clone(),
+                principal.clone(),
+                "first",
+            )
+            .await;
+            assert!(admitted.is_none());
+            assert!(
+                retained,
+                "directory revocation erased retained identity association"
+            );
+            db.a.client()
+                .query(include_str!("queries/identity_api/enabled.surql"))
+                .bind(("record", record))
+                .bind(("enabled", true))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        let absent_parent = RecordId::new(
+            "enterprise",
+            surrealdb::types::Uuid::from(uuid::Uuid::new_v4()),
+        );
+        db.a.client()
+            .query(include_str!("queries/identity_api/set_parent.surql"))
+            .bind(("record", tenant.clone()))
+            .bind(("parent", absent_parent))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let (admitted, _, retained) =
+            current_facts(&db, enterprise, tenant, principal, "first").await;
+        assert!(admitted.is_none());
+        assert!(!retained);
+    })
+    .await
+    .expect("directory fact qualification exceeded three minutes");
 }

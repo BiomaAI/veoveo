@@ -344,16 +344,20 @@ Production statements live in `src/state/queries/`, including the world transact
 scripts in `queries/worlds/` and operation writes in `queries/operations/`.
 Native fixture scripts live in `tests/queries/`. Each call embeds a complete named
 statement and binds its values. Revision reads and completions repeat the same
-linked-world predicates in their fixed statements, preserving one response slot
-per read and selection before decoding.
+linked-world predicates in their fixed statements, preserving declared response
+slots and selection before decoding.
 
 World reads select the caller's tenant and require every world label in the caller's
 clearance inside SQL. World visibility is shared within a tenant; publication requires
 the world owner. Revision reads check the linked world's tenant, key, owner, and current
 labels in the same query. Missing or inconsistent parents cannot authorize a revision.
 Head reads additionally require the linked record, revision key, and revision number
-to agree. Direct frame resources select only their requested node in SQL; coordinate
-conversion loads the visible complete revision to resolve the transform chain.
+to agree. Publication derives `frame_ids` from the validated tree in its revision
+transaction.
+Frame resource membership, completion search, ordering and limits use that declared
+array. The selected revision is decoded as `FrameWorldTree` and verifies the array,
+root and digest before returning typed nodes or completion IDs. Coordinate conversion
+uses that same validated revision to resolve the transform chain.
 
 World creation validates bounded metadata and the caller's typed data labels. A visible
 world with identical metadata satisfies a repeated create within the tenant's sharing

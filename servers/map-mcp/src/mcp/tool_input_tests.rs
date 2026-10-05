@@ -77,7 +77,12 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
                 "https://map.test/dark.json",
             )
             .unwrap(),
-            tasks: veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "map", "strict-input"),
+            tasks: crate::task_lookup::bind(veoveo_task_runtime::TaskRuntime::new(
+                db.a.clone(),
+                "map",
+                "strict-input",
+            ))
+            .unwrap(),
             catalog: catalog.clone(),
             analytics: analytics.clone(),
             authoring: crate::authoring::AuthoringService::new(db.a.clone(), analytics.clone()),

@@ -93,6 +93,61 @@ pub struct MapRouteDraft {
     pub arrival_time: Option<DateTime<Utc>>,
     pub cache_digest_sha256: String,
     pub canonical_json: String,
+    pub base_release_ids: Vec<crate::contract::DatasetReleaseId>,
+    pub restriction_ids: Vec<crate::contract::RestrictionId>,
+    pub facility_ids: Vec<crate::contract::FacilityId>,
+}
+
+/// The route owns all three dependency collections; callers cannot supply a
+/// different lookup view beside its serialized document.
+pub(super) struct RouteLookups {
+    pub(super) base_release_ids: Vec<crate::contract::DatasetReleaseId>,
+    pub(super) restriction_ids: Vec<crate::contract::RestrictionId>,
+    pub(super) facility_ids: Vec<crate::contract::FacilityId>,
+}
+impl RouteLookups {
+    pub(super) fn from_document(key: &str, document: &str) -> Result<Self, MapStoreError> {
+        let route: crate::contract::RoutePlan = serde_json::from_str(document)
+            .map_err(|_| invalid_map("canonical_json", "invalid route plan"))?;
+        if route.route_id.as_str() != key || route.route_uri.id() != &route.route_id {
+            return Err(invalid_map(
+                "route projection",
+                "route identity differs from document",
+            ));
+        }
+        Ok(Self {
+            base_release_ids: route.provenance.base_release_ids.into_iter().collect(),
+            restriction_ids: route.restriction_ids.into_iter().collect(),
+            facility_ids: route.facility_ids.into_iter().collect(),
+        })
+    }
+    pub(super) fn verify_record(&self, row: &MapRouteRecord) -> Result<(), MapStoreError> {
+        if row.base_release_ids
+            != self
+                .base_release_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+            || row.restriction_ids
+                != self
+                    .restriction_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            || row.facility_ids
+                != self
+                    .facility_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+        {
+            return Err(invalid_map(
+                "route projection",
+                "stored dependencies differ from document",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -225,6 +280,9 @@ struct MapRouteContent {
     arrival_time: Option<DateTime<Utc>>,
     cache_digest_sha256: String,
     canonical_json: String,
+    base_release_ids: Vec<String>,
+    restriction_ids: Vec<String>,
+    facility_ids: Vec<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -762,6 +820,16 @@ impl MapRepository {
             &draft.canonical_json,
             MAX_ROUTE_JSON_BYTES,
         )?;
+        let lookup = RouteLookups::from_document(&draft.route_key, &draft.canonical_json)?;
+        if draft.base_release_ids != lookup.base_release_ids
+            || draft.restriction_ids != lookup.restriction_ids
+            || draft.facility_ids != lookup.facility_ids
+        {
+            return Err(invalid_map(
+                "route projection",
+                "route dependencies differ from document",
+            ));
+        }
         let now = Utc::now();
         let content = MapRouteContent {
             tenant: draft.identity.tenant_id.record_id(),
@@ -775,6 +843,17 @@ impl MapRepository {
             arrival_time: draft.arrival_time,
             cache_digest_sha256: draft.cache_digest_sha256,
             canonical_json: draft.canonical_json,
+            base_release_ids: draft
+                .base_release_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            restriction_ids: draft
+                .restriction_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            facility_ids: draft.facility_ids.iter().map(ToString::to_string).collect(),
             created_at: now,
             updated_at: now,
         };

@@ -4,7 +4,6 @@ use serde::Deserialize;
 use std::time::Instant;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 
 pub struct SessionGrantTicket {
     pub computer_id: veoveo_computers_contract::ComputerId,
@@ -52,7 +51,7 @@ pub(super) struct Record {
     pub computer_id: Uuid,
     pub owner_key: String,
     pub provider_instance_id: Uuid,
-    pub authority: OpenObject,
+    pub authority: crate::AcceptedAuthority,
     pub family: RecordId,
     pub ticket_expires_at: DateTime<Utc>,
     pub connection_id: Option<Uuid>,
@@ -69,10 +68,7 @@ impl Record {
         crate::api::ComputerId::try_from(self.computer_id).map_err(|_| ComputerError::Unavailable)
     }
     pub fn accepted(&self) -> Result<AcceptedAuthority> {
-        let accepted: AcceptedAuthority = serde_json::from_value(
-            serde_json::to_value(&self.authority).map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
+        let accepted = self.authority.clone();
         accepted.validate()?;
         let family_id = accepted
             .request_context

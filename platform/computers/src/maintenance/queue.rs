@@ -19,6 +19,16 @@ impl ComputersStore {
                 vec![
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
                     (
+                        "enterprise",
+                        veoveo_platform_store::deterministic_enterprise_id()
+                            .record_id()
+                            .into_value(),
+                    ),
+                    (
+                        "server",
+                        surrealdb::types::RecordId::new("mcp_server", "computers").into_value(),
+                    ),
+                    (
                         "after",
                         after.map(veoveo_types::TaskId::as_uuid).into_value(),
                     ),
@@ -47,9 +57,23 @@ impl ComputersStore {
                 ("task", task_record_id(operation.task_id()).into_value()),
                 ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("status", status.into_value()),
+                (
+                    "server",
+                    surrealdb::types::RecordId::new("mcp_server", "computers").into_value(),
+                ),
+                (
+                    "task_tenant",
+                    crate::identity::task_tenant(&operation.actor)?.into_value(),
+                ),
+                (
+                    "task_types",
+                    vec![crate::api::ComputerTaskKind::Maintenance.name().to_string()].into_value(),
+                ),
             ],
         )
         .await?;
         Ok(())
     }
 }
+
+use veoveo_types::TaskTypeDefinition;

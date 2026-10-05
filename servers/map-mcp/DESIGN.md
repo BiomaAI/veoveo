@@ -314,6 +314,15 @@ SurrealDB is the canonical operational catalog. It stores:
 - immutable publication products, map composition heads, and composition
   revisions.
 
+Route creation and invalidation derive declared release, restriction and facility ID
+arrays from the typed `RoutePlan` in the same write. Dependency pages use those
+arrays and verify them against the selected document before consumption.
+Travel-model Tasks atomically contribute `map_travel_model_task` creation and terminal
+rows. The lookup declares retained actor, profile, tenant, clearance and Work Context
+facts. Task selection, whole-input equality and lifecycle/result agreement precede
+read and completion limits; one typed decoder verifies selected product identities.
+Whole immutable input and MCP result receipts are opaque integrity values.
+
 DuckDB Spatial is the local analytical projection. The service opens one
 configured database instance for its lifetime and clones connections inside
 that instance for concurrent work. Read paths begin explicit read-only
@@ -1041,7 +1050,8 @@ runtime behavior is unchanged. The declaration claims `map_*`.
 It requires Tasks, including earlier kernel lanes through transitive requirements.
 
 The version-zero lane installs the current Map schema from
-`servers/map-mcp/src/schema/migrations/0000_current.surql`. The composition root supplies
+`servers/map-mcp/src/schema/migrations/0000_current.surql` and the typed travel-model
+Task lookup lane body beside it. The composition root supplies
 its checked execution image and command. Gateway composition prepares runtime
 credentials and executes selected owner lanes through `module-migrate`. The
 runtime opens the shared authenticated Store connection without applying schema.

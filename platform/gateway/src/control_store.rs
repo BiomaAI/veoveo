@@ -41,7 +41,7 @@ pub struct GatewayControlStore {
 #[derive(Debug)]
 struct ControlPlaneObjectRow {
     tenant: Option<String>,
-    kind: String,
+    kind: veoveo_types::ExtensionName,
     id: String,
     document: OpenObject,
 }
@@ -210,7 +210,7 @@ impl GatewayControlStore {
             .map(|row| GatewayControlObjectContent {
                 revision: revision_record.clone(),
                 tenant: row.tenant,
-                object_kind: row.kind.to_owned(),
+                object_kind: row.kind.as_str().to_owned(),
                 object_id: row.id,
                 document: row.document,
             })
@@ -528,7 +528,7 @@ fn object_row(
 ) -> Result<ControlPlaneObjectRow> {
     Ok(ControlPlaneObjectRow {
         tenant,
-        kind: kind.into(),
+        kind: veoveo_types::ExtensionName::parse(kind.into())?,
         id: id.into(),
         document: serialize_object(value)?,
     })
@@ -562,6 +562,24 @@ mod tests {
     };
     use veoveo_types::{GroupId, PolicyVersion, WorkContextId};
     use veoveo_types::{WorkContextGrant, WorkContextOutputPolicy};
+
+    #[test]
+    fn owner_control_kinds_use_the_shared_extension_name_admission() {
+        let row = object_row(
+            None,
+            "vendor/fleet-v2",
+            "record",
+            serde_json::json!({"value":true}),
+        )
+        .unwrap();
+        assert_eq!(row.kind.as_str(), "vendor/fleet-v2");
+        for kind in ["", "bad name", "bad?name", "nonascii-é"] {
+            assert!(
+                object_row(None, kind, "record", serde_json::json!({"value":true})).is_err(),
+                "accepted invalid control kind {kind:?}"
+            );
+        }
+    }
 
     #[test]
     fn revision_source_round_trips_seed_file() {
@@ -659,20 +677,22 @@ mod tests {
 
         assert!(
             rows.iter()
-                .any(|row| row.kind == "tenant" && row.id == "tenant-fixture")
+                .any(|row| row.kind.as_str() == "tenant" && row.id == "tenant-fixture")
         );
         assert!(
             rows.iter()
-                .any(|row| row.kind == "policy" && row.id == "policy-fixture")
+                .any(|row| row.kind.as_str() == "policy" && row.id == "policy-fixture")
         );
         assert!(rows.iter().any(|row| {
-            row.kind == "work_context"
+            row.kind.as_str() == "work_context"
                 && row.id == "mission"
                 && row.tenant.as_deref() == Some("tenant-fixture")
         }));
         let rule = rows
             .iter()
-            .find(|row| row.kind == "policy_rule" && row.id == "policy-fixture/allow-fixture")
+            .find(|row| {
+                row.kind.as_str() == "policy_rule" && row.id == "policy-fixture/allow-fixture"
+            })
             .expect("policy rule row");
         assert_eq!(rule.tenant.as_deref(), Some("tenant-fixture"));
 

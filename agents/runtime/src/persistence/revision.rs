@@ -62,3 +62,20 @@ impl AgentRepository {
         digest(&rows)
     }
 }
+
+impl super::validation::StoredProjection for DefinitionRevision {
+    fn validate_stored(&self) -> Result<()> {
+        super::validation::key(&self.key)?;
+        Ok(())
+    }
+}
+impl super::validation::StoredProjection for ManagementRevision {
+    fn validate_stored(&self) -> Result<()> {
+        self.catalog.validate_stored()?;
+        self.definitions.validate_stored()?;
+        for instance in &self.instances {
+            super::validation::key(&instance.key)?;
+        }
+        Ok(())
+    }
+}

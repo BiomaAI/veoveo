@@ -1,9 +1,9 @@
 BEGIN TRANSACTION;
 LET $now = time::now();
-LET $family_state = SELECT * FROM ONLY $family;
+LET $family_state = fn::kernel::gateway::refresh_family_current_v1($family, $now);
 LET $current = SELECT * FROM ONLY $computer;
 IF $current = NONE OR $current.owner_key != $owner_key { THROW "computer_not_found"; };
-IF $admission_expires_at <= $now OR $family_state = NONE OR $family_state.revoked_at != NONE
+IF $admission_expires_at <= $now OR $family_state = NONE
   OR $family_state.expires_at <= $now { THROW "computer_authority_expired"; };
 UPSERT $guard SET revision = (revision ?? 0) + 1;
 LET $recent = SELECT VALUE pairing_id FROM computer_cli_pairing

@@ -103,9 +103,7 @@ impl ComputersStore {
         };
         let result_value =
             object(serde_json::to_value(result).map_err(|_| ComputerError::Unavailable)?)?;
-        let binding = object(
-            serde_json::to_value(&operation.binding).map_err(|_| ComputerError::Unavailable)?,
-        )?;
+        let binding = operation.binding.clone().into_value();
         operation.result = Some(result);
         self.commit_command(
             claim,

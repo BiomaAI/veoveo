@@ -208,15 +208,6 @@ pub struct AgentInputRequestRecord {
     pub revision: i64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct AgentOwnerEdge {
-    pub id: RecordId,
-    pub r#in: RecordId,
-    pub out: RecordId,
-    pub role: String,
-    pub created_at: DateTime<Utc>,
-}
-
 #[cfg(test)]
 #[path = "vocabulary_baseline.rs"]
 mod vocabulary_baseline;

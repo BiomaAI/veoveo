@@ -1,13 +1,12 @@
 //! Frames owns its read policy and typed query inputs. Store owns the connection
 //! and driver records; it does not import the Frames runtime or domain contract.
 use super::records::{FrameWorldRecord, FrameWorldRevisionRecord};
-use super::{FrameScope, FramesState, value_from_object, world_revision, world_summary};
+use super::{FrameScope, FramesState, world_revision, world_summary};
 use crate::contract::{
     FRAME_WORLD_PAGE_SIZE, FrameNode, FrameWorldCursor, FrameWorldId, FrameWorldPage,
     FrameWorldRevision, FrameWorldRevisionUri, FrameWorldSummary, WorldFrameUri,
 };
-use anyhow::{Context, Result, bail};
-use veoveo_platform_store::OpenObject;
+use anyhow::{Result, bail};
 
 // Checking the linked parent in the same query prevents deleted, cross-tenant,
 // or mismatched world records from authorizing a revision through its copied key.
@@ -154,16 +153,24 @@ impl FramesState {
             ))
             .await?
             .check()?;
-        let matches: Vec<Vec<OpenObject>> = response.take(0)?;
-        let mut frames = matches.into_iter().flatten();
+        let matches: Vec<FrameWorldRevisionRecord> = response.take(0)?;
+        let mut frames = Vec::new();
+        for revision in matches {
+            let revision = world_revision(revision)?;
+            frames.extend(
+                revision
+                    .tree()
+                    .frames
+                    .iter()
+                    .filter(|frame| frame.frame_id == frame_uri.frame_id())
+                    .cloned(),
+            );
+        }
+        let mut frames = frames.into_iter();
         let frame = frames.next();
         if frames.next().is_some() {
             bail!("frame world revision contains duplicate frame identities");
         }
-        frame
-            .map(|frame| {
-                serde_json::from_value(value_from_object(frame)).context("decoding world frame")
-            })
-            .transpose()
+        Ok(frame)
     }
 }

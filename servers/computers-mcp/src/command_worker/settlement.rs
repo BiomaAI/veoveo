@@ -103,29 +103,10 @@ impl CommandWorker {
             .outcome()
             .ok_or(CommandWorkerError::Configuration)?
         {
-            CommandOutcome::Completed(result) => {
-                let mut response = rmcp::model::CallToolResult::structured(
-                    serde_json::to_value(result).map_err(|_| CommandWorkerError::Configuration)?,
-                );
-                response.is_error = Some(result.exit_code() != 0);
-                response.content = vec![rmcp::model::ContentBlock::text(format!(
-                    "Command exited with code {}",
-                    result.exit_code()
-                ))];
-                response
-                    .content
-                    .push(rmcp::model::ContentBlock::resource_link(
-                        rmcp::model::Resource::new(
-                            String::from(result.result_uri()),
-                            "Command result",
-                        ),
-                    ));
-                TaskTransition::Succeeded {
-                    message: "Command completed".into(),
-                    result: serde_json::to_value(response)
-                        .map_err(|_| CommandWorkerError::Configuration)?,
-                }
-            }
+            CommandOutcome::Completed(result) => TaskTransition::Succeeded {
+                message: "Command completed".into(),
+                result: completed_output(result)?,
+            },
             CommandOutcome::Undispatched(CommandRefusal::CancelledBeforeDispatch)
             | CommandOutcome::Terminated(CommandInterruption::Cancelled) => {
                 TaskTransition::Cancelled
@@ -173,7 +154,16 @@ impl CommandWorker {
         self.acknowledge(operation).await
     }
     pub(super) async fn acknowledge(&self, operation: &CommandOperation) -> Result<()> {
-        self.store.acknowledge_command_task(operation).await?;
+        let expected_output = match operation
+            .outcome()
+            .ok_or(CommandWorkerError::Configuration)?
+        {
+            CommandOutcome::Completed(result) => Some(completed_output(result)?),
+            _ => None,
+        };
+        self.store
+            .acknowledge_command_task(operation, expected_output.as_ref())
+            .await?;
         self.tasks
             .acknowledge_retention_pin(
                 operation.task_id(),
@@ -222,4 +212,22 @@ fn reached(operation: &CommandOperation, observation: Observation) -> ReachedSta
             ReachedPhase::Ready
         },
     }
+}
+
+fn completed_output(result: veoveo_computers::api::ExecutionResult) -> Result<serde_json::Value> {
+    let mut response = rmcp::model::CallToolResult::structured(
+        serde_json::to_value(result).map_err(|_| CommandWorkerError::Configuration)?,
+    );
+    response.is_error = Some(result.exit_code() != 0);
+    response.content = vec![rmcp::model::ContentBlock::text(format!(
+        "Command exited with code {}",
+        result.exit_code()
+    ))];
+    response
+        .content
+        .push(rmcp::model::ContentBlock::resource_link(
+            rmcp::model::Resource::new(String::from(result.result_uri()), "Command result"),
+        ));
+
+    serde_json::to_value(response).map_err(|_| CommandWorkerError::Configuration)
 }

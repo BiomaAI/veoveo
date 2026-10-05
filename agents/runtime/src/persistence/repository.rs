@@ -145,12 +145,42 @@ impl AgentRepository {
         after: Option<&str>,
         limit: u32,
     ) -> Result<Vec<AgentCatalogEntry>> {
-        self.agent_query(
-            authority,
-            page(after, limit)?,
-            include_str!("queries/catalog.surql"),
-        )
-        .await
+        #[derive(SurrealValue)]
+        struct CatalogRow {
+            entry: AgentCatalogEntry,
+            revision: AgentRevision,
+        }
+        impl validation::StoredProjection for CatalogRow {
+            fn validate_stored(&self) -> Result<()> {
+                self.revision.validate_stored()?;
+                let kind = match &self.revision.execution {
+                    super::AgentExecution::Chat => super::AgentExecutionKind::Chat,
+                    super::AgentExecution::Managed { .. } => super::AgentExecutionKind::Managed,
+                };
+                if self.entry.digest != self.revision.digest
+                    || self.entry.model != self.revision.model
+                    || self.entry.tools != self.revision.tools
+                    || self.entry.execution_kind != kind
+                {
+                    return Err(AgentManagementError::Invalid("stored catalog projections"));
+                }
+                Ok(())
+            }
+        }
+        let rows: Vec<CatalogRow> = self
+            .agent_query(
+                authority,
+                page(after, limit)?,
+                include_str!("queries/catalog.surql"),
+            )
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                drop(row.revision);
+                row.entry
+            })
+            .collect())
     }
 
     /// Resolve an explicitly admitted revision. Archive preserves existing use;
@@ -231,7 +261,10 @@ impl AgentRepository {
         .await
     }
 
-    async fn agent_query<C: SurrealValue + Clone, R: SurrealValue>(
+    async fn agent_query<
+        C: SurrealValue + Clone,
+        R: SurrealValue + validation::StoredProjection,
+    >(
         &self,
         authority: &AgentCatalogAuthority,
         command: C,
@@ -261,7 +294,9 @@ impl AgentRepository {
             let value: Value = response
                 .take(last)
                 .map_err(|_| AgentManagementError::Unavailable)?;
-            return R::from_value(value).map_err(|_| AgentManagementError::Unavailable);
+            let row: R = validation::decode_stored(value)?;
+            row.validate_stored()?;
+            return Ok(row);
         }
         Err(AgentManagementError::Unavailable)
     }

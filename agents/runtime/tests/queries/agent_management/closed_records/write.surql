@@ -1,0 +1,1 @@
+UPDATE ONLY $record CONTENT $content RETURN NONE;

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use surrealdb::types::RecordId;
+use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
 use crate::identity::PLATFORM_ID_NAMESPACE;
@@ -836,4 +836,76 @@ async fn retry_backoff(attempt: u32) {
     let floor = 1_u64 << attempt;
     let jitter = u64::from(Uuid::now_v7().as_bytes()[15]) % floor;
     tokio::time::sleep(Duration::from_millis(floor + jitter)).await;
+}
+
+/// Closed normalized Principal snapshot retained for refresh-token decisions.
+#[derive(
+    Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, surrealdb::types::SurrealValue,
+)]
+#[serde(deny_unknown_fields)]
+pub struct GatewayRefreshPrincipalRecord {
+    pub principal: GatewayRefreshActorRecord,
+    pub principal_display_name: String,
+}
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GatewayRefreshActorRecord {
+    pub id: veoveo_types::PrincipalId,
+    pub kind: crate::PrincipalKind,
+    pub issuer: veoveo_types::TokenIssuer,
+    pub subject: veoveo_types::TokenSubject,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<veoveo_types::TenantId>,
+    #[serde(default)]
+    pub groups: Vec<veoveo_types::GroupId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub group_roles: Vec<GatewayRefreshGroupRoleRecord>,
+    #[serde(default)]
+    pub roles: Vec<veoveo_types::RoleId>,
+    #[serde(default)]
+    pub scopes: Vec<veoveo_types::ScopeName>,
+    #[serde(default)]
+    pub data_labels: Vec<veoveo_types::DataLabelId>,
+    #[serde(default)]
+    pub assurances: Vec<GatewayRefreshAssurance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authenticated_at: Option<DateTime<Utc>>,
+}
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GatewayRefreshGroupRoleRecord {
+    pub group: veoveo_types::GroupId,
+    pub role: GatewayRefreshGroupRole,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum GatewayRefreshGroupRole {
+    #[vocabulary(rename = "read")]
+    Read,
+    #[vocabulary(rename = "write")]
+    Write,
+    #[vocabulary(rename = "admin")]
+    Admin,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum GatewayRefreshAssurance {
+    #[vocabulary(rename = "us_person")]
+    UsPerson,
+}
+impl surrealdb::types::SurrealValue for GatewayRefreshActorRecord {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Object
+    }
+    fn is_value(value: &surrealdb::types::Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        crate::json_value::into_surreal(
+            serde_json::to_value(self).expect("refresh Principal serialization"),
+        )
+    }
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::types::Error> {
+        serde_json::from_value(crate::json_value::from_surreal_json(value)?).map_err(|_| {
+            surrealdb::types::Error::internal("invalid stored refresh Principal".into())
+        })
+    }
 }

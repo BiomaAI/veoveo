@@ -216,7 +216,10 @@ async fn refresh_family_deletion_cascades_only_its_tokens_and_rolls_back_togethe
                 principal_id: "alice".into(),
                 tenant: Some("tenant-relations".into()),
                 scopes: vec![],
-                principal: Default::default(),
+                principal: serde_json::from_value(serde_json::json!({
+                    "principal": {"id":"alice", "kind":"user", "issuer":"https://identity.test", "subject":"alice", "tenant":"tenant-relations", "groups":[], "roles":[], "scopes":[], "data_labels":[], "assurances":[]},
+                    "principal_display_name":"Alice"
+                })).unwrap(),
                 current_generation: 0,
                 issued_at: now,
                 expires_at: now + TimeDelta::hours(1),

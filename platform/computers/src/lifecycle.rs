@@ -96,10 +96,7 @@ impl ComputersStore {
             return Err(ComputerError::StateConflict);
         }
         let permit = self.authorize_execution(&before).await?;
-        let evidence = serde_json::from_value::<veoveo_platform_store::OpenObject>(
-            serde_json::to_value(&permit.evidence).map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
+        let evidence = permit.evidence.clone().into_value();
         let expires_at = permit.evidence.valid_until;
         before.dispatch_authority = Some(permit.evidence);
         let id = Uuid::now_v7();
@@ -128,11 +125,7 @@ impl ComputersStore {
             ("automation", permit.automation.is_some().into_value()),
             (
                 "expected_owner_context",
-                serde_json::from_value::<veoveo_platform_store::OpenObject>(
-                    serde_json::to_value(&before.owner).map_err(|_| ComputerError::Unavailable)?,
-                )
-                .map_err(|_| ComputerError::Unavailable)?
-                .into_value(),
+                crate::identity::stored_owner(&before.owner)?.into_value(),
             ),
             (
                 "owner_key",

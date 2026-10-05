@@ -220,6 +220,7 @@ async fn fresh_selected_lanes_exclude_disabled_owners_and_replay_without_reapply
                     BTreeSet::from([
                         "reason_analysis",
                         "stream_run",
+                        "map_travel_model_task",
                         "principal",
                         "task",
                         "artifact_blob",

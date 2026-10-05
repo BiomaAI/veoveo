@@ -68,7 +68,7 @@ impl ComputersStore {
             ("grant_id", grant_id.as_uuid().into_value()),
             ("owner_key", owner_key(&computer.owner)?.into_value()),
             ("provider", self.provider_instance_id.as_uuid().into_value()),
-            ("authority", super::object(actor.accepted())?.into_value()),
+            ("authority", actor.accepted().clone().into_value()),
             ("family", family.into_value()),
             ("ticket_hash", hash.into_value()),
             ("resource", computer.provider_resource_id.into_value()),

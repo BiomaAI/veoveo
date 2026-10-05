@@ -1,1 +1,1 @@
-SELECT * FROM map_route WHERE tenant = $tenant AND status != 'invalidated' AND (encoding::json::decode(canonical_json).restriction_ids ?? []) CONTAINS $dependency AND ($after = NONE OR route_key > $after) ORDER BY route_key ASC LIMIT $limit;
+SELECT * FROM map_route WHERE tenant = $tenant AND status != 'invalidated' AND restriction_ids CONTAINS $dependency AND ($after = NONE OR route_key > $after) ORDER BY route_key ASC LIMIT $limit;

@@ -1,0 +1,1 @@
+RETURN (SELECT * FROM ONLY $row);

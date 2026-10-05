@@ -3,7 +3,6 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_task_runtime::TaskOwner;
 
 /// Internal state, not an HTTP response or an authority token.
@@ -39,7 +38,7 @@ impl Computer {
 pub(crate) struct ComputerRecord {
     pub computer_id: Uuid,
     pub owner_key: String,
-    pub owner_context: OpenObject,
+    pub owner_context: veoveo_platform_store::TaskOwnerRecord,
     pub provider_instance_id: Uuid,
     pub template_id: String,
     pub template_fingerprint: String,

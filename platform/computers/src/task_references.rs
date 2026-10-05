@@ -5,7 +5,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{SurrealValue, Value};
-use veoveo_platform_store::{OpenObject, task_record_id};
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::ClaimedTask;
 use veoveo_types::{TaskId, TaskTypeDefinition};
 
@@ -51,10 +51,7 @@ pub(crate) fn worker_bindings(
     if task.as_uuid().get_version_num() != 7 || claim.snapshot.task_id != task {
         return Err(ComputerError::StateConflict);
     }
-    let actor: OpenObject = serde_json::from_value(
-        serde_json::to_value(&claim.snapshot.owner).map_err(|_| ComputerError::Unavailable)?,
-    )
-    .map_err(|_| ComputerError::Unavailable)?;
+    let actor = crate::identity::stored_owner(&claim.snapshot.owner)?;
     Ok(vec![
         ("task", task_record_id(task).into_value()),
         ("task_id", task.as_uuid().into_value()),

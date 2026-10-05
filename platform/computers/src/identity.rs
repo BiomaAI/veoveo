@@ -106,3 +106,39 @@ pub(crate) fn quota_key(owner: &TaskOwner) -> Result<String> {
         &owner.subject,
     ))
 }
+
+/// Admit the same typed owner snapshot used by the shared Task producer.
+pub(crate) fn stored_owner(
+    owner: &veoveo_task_runtime::TaskOwner,
+) -> crate::Result<veoveo_platform_store::TaskOwnerRecord> {
+    veoveo_platform_store::TaskOwnerRecord::try_from(owner)
+        .map_err(|_| crate::ComputerError::InvalidInput)
+}
+
+/// Preserve the native tenant selected by the shared Task admission producer.
+pub(crate) fn task_tenant(
+    owner: &veoveo_task_runtime::TaskOwner,
+) -> crate::Result<veoveo_platform_store::RecordId> {
+    owner_key(owner)?;
+    veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())
+        .map(|tenant| tenant.record_id())
+        .map_err(|_| crate::ComputerError::InvalidInput)
+}
+
+pub(crate) fn task_output(value: Option<&serde_json::Value>) -> Result<surrealdb::types::Value> {
+    use surrealdb::types::SurrealValue;
+    let Some(value) = value else {
+        return Ok(surrealdb::types::Value::None);
+    };
+    if !value.is_object() {
+        return Err(ComputerError::InvalidInput);
+    }
+    let surrealdb::types::Value::Object(mut envelope) =
+        veoveo_platform_store::TaskResultRecord::new(value.clone()).into_value()
+    else {
+        unreachable!()
+    };
+    envelope
+        .remove("payload")
+        .ok_or(ComputerError::InvalidInput)
+}

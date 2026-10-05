@@ -19,7 +19,7 @@ DEFINE FIELD OVERWRITE created_at ON coordinate_operation TYPE datetime PERMISSI
 
 DEFINE FIELD OVERWRITE id ON coordinate_operation TYPE uuid PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE kind ON coordinate_operation TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE kind ON coordinate_operation TYPE 'frame_conversion' | 'crs_transform' | 'local_frame_derivation' | 'geodesic_inverse' | 'geodesic_direct' | 'geofence_validation' | 'batch' PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE labels ON coordinate_operation TYPE array<string> DEFAULT [] PERMISSIONS FULL;
 
@@ -77,6 +77,7 @@ DEFINE INDEX frame_world_tenant_key_unique ON frame_world FIELDS tenant, world_k
 
 DEFINE FIELD OVERWRITE created_at ON frame_world_revision TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE frame_ids ON frame_world_revision TYPE array<string> ASSERT array::len($value) > 0;
 DEFINE FIELD OVERWRITE definition ON frame_world_revision TYPE object FLEXIBLE PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE id ON frame_world_revision TYPE uuid DEFAULT `rand`::uuid() PERMISSIONS FULL;

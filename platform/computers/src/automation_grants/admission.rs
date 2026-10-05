@@ -7,15 +7,12 @@ use crate::{
     },
     identity::{digest, owner_key},
     model::computer_record,
-    session_grants::object,
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{
-    OpenObject, PrincipalKind, PrincipalRecord, deterministic_principal_id,
-};
+use veoveo_platform_store::{CurrentPrincipal, PrincipalKind, deterministic_principal_id};
 
 #[derive(Serialize, SurrealValue)]
 struct Content {
@@ -23,7 +20,7 @@ struct Content {
     computer_id: Uuid,
     owner_key: String,
     provider_instance_id: Uuid,
-    authority: OpenObject,
+    authority: crate::AcceptedAuthority,
     grantee: RecordId,
     principal_id: String,
     oauth_client_id: String,
@@ -32,7 +29,8 @@ struct Content {
     grantee_kind: PrincipalKind,
     name: String,
     permissions: Vec<String>,
-    execution_limits: Option<OpenObject>,
+    #[surreal(wrap)]
+    execution_limits: Option<crate::api::AutomationExecutionLimits>,
     expires_at: DateTime<Utc>,
 }
 
@@ -131,15 +129,15 @@ impl ComputersStore {
         let mut read = self
             .query(
                 include_str!("../../queries/automation_grants/admission/grantee.surql"),
-                vec![("grantee", grantee_id.clone().into_value())],
+                vec![
+                    ("grantee", grantee_id.clone().into_value()),
+                    ("tenant", owner.snapshot.tenant.clone().into_value()),
+                ],
             )
             .await?;
-        let grantee: Option<PrincipalRecord> =
+        let grantee: Option<CurrentPrincipal> =
             read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let grantee = grantee.ok_or(ComputerError::NotFound)?;
-        if !grantee.enabled || grantee.id != grantee_id || grantee.tenant != owner.snapshot.tenant {
-            return Err(ComputerError::NotFound);
-        }
         if let Some(expected) = super::management::service_principal_id(&owner.snapshot, client)?
             && (principal != &expected || grantee.kind != PrincipalKind::Service)
         {
@@ -151,12 +149,12 @@ impl ComputersStore {
             computer_id: input.computer_id.as_uuid(),
             owner_key: key.clone(),
             provider_instance_id: self.provider_instance_id.as_uuid(),
-            authority: object(actor.accepted())?,
-            grantee: grantee.id,
+            authority: actor.accepted().clone(),
+            grantee: grantee_id,
             principal_id: principal.to_string(),
             oauth_client_id: input.oauth_client_id.to_string(),
-            grantee_issuer: grantee.issuer,
-            grantee_subject: grantee.subject,
+            grantee_issuer: grantee.issuer.to_string(),
+            grantee_subject: grantee.subject.to_string(),
             grantee_kind: grantee.kind,
             name: input.name.clone(),
             permissions: input
@@ -164,7 +162,7 @@ impl ComputersStore {
                 .iter()
                 .map(|p| model::permission_name(*p).to_owned())
                 .collect(),
-            execution_limits: input.execution_limits.as_ref().map(object).transpose()?,
+            execution_limits: input.execution_limits,
             expires_at: input.expires_at,
         };
         let mut params = owner.bindings(actor)?;

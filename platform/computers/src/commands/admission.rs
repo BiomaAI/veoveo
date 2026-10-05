@@ -10,7 +10,6 @@ use crate::{
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 
 #[derive(Serialize, SurrealValue)]
@@ -19,20 +18,17 @@ struct Content {
     computer_id: Uuid,
     provider_instance_id: Uuid,
     actor_key: String,
-    binding: OpenObject,
-    authority: OpenObject,
+    binding: crate::secrets::CommandBinding,
+    authority: crate::AcceptedAuthority,
     payload: RecordId,
     task: RecordId,
+    task_tenant: RecordId,
 }
 #[derive(SurrealValue)]
 struct Payload {
     journal: RecordId,
     #[surreal(wrap)]
     sealed: SealedCommand,
-}
-fn object(value: &impl Serialize) -> Result<OpenObject> {
-    serde_json::from_value(serde_json::to_value(value).map_err(|_| ComputerError::Unavailable)?)
-        .map_err(|_| ComputerError::Unavailable)
 }
 impl ComputersStore {
     /// Consume current named authority and atomically reserve its one command slot.
@@ -142,10 +138,11 @@ impl ComputersStore {
             computer_id: computer_id.as_uuid(),
             provider_instance_id: self.provider_instance_id.as_uuid(),
             actor_key: actor_key.clone(),
-            binding: object(&binding)?,
-            authority: object(actor.accepted())?,
+            binding: binding.clone(),
+            authority: actor.accepted().clone(),
             payload: super::payload_record(binding.execution_id),
             task: task_record_id(binding.execution_id.task_id()),
+            task_tenant: crate::identity::task_tenant(actor.owner())?,
         };
 
         let mut params = authority.transaction_bindings()?;
@@ -174,7 +171,7 @@ impl ComputersStore {
             ("expected_updated_at", computer.updated_at.into_value()),
             (
                 "expected_owner_context",
-                object(&computer.owner)?.into_value(),
+                crate::identity::stored_owner(&computer.owner)?.into_value(),
             ),
             crate::audit::binding(
                 self.platform.audit_targets(),

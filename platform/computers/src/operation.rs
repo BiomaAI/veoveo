@@ -7,7 +7,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::TaskId;
@@ -74,10 +73,11 @@ pub(crate) struct OperationRecord {
     operation_id: Uuid,
     computer_id: Uuid,
     task: RecordId,
-    actor_context: OpenObject,
-    owner_context: OpenObject,
+    task_tenant: RecordId,
+    actor_context: veoveo_platform_store::TaskOwnerRecord,
+    owner_context: veoveo_platform_store::TaskOwnerRecord,
     automation_grant_id: Option<Uuid>,
-    execution_authority: OpenObject,
+    execution_authority: crate::AcceptedAuthority,
     provider_instance_id: Uuid,
     template_fingerprint: String,
     replacement_instance_id: Option<Uuid>,
@@ -89,7 +89,7 @@ pub(crate) struct OperationRecord {
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     dispatch_id: Option<Uuid>,
-    dispatch_authority: Option<OpenObject>,
+    dispatch_authority: Option<crate::ExecutionDecision>,
     dispatched_at: Option<DateTime<Utc>>,
     observation_deadline: Option<DateTime<Utc>>,
     observation_reads: u32,
@@ -131,9 +131,7 @@ impl TryFrom<OperationRecord> for Operation {
                 actor: serde_json::from_value(serde_json::to_value(value.actor_context)?)?,
                 owner: serde_json::from_value(serde_json::to_value(value.owner_context)?)?,
                 automation_grant_id,
-                execution_authority: serde_json::from_value(serde_json::to_value(
-                    value.execution_authority,
-                )?)?,
+                execution_authority: value.execution_authority,
                 provider_instance_id,
                 template_fingerprint: value.template_fingerprint,
                 replacement_instance_id: value.replacement_instance_id,
@@ -147,10 +145,7 @@ impl TryFrom<OperationRecord> for Operation {
                 created_at: value.created_at,
                 updated_at: value.updated_at,
                 dispatch_id: value.dispatch_id,
-                dispatch_authority: value
-                    .dispatch_authority
-                    .map(|value| serde_json::from_value(serde_json::to_value(value)?))
-                    .transpose()?,
+                dispatch_authority: value.dispatch_authority,
                 dispatched_at: value.dispatched_at,
                 observation_deadline: value.observation_deadline,
                 observation_reads: value.observation_reads,
@@ -171,7 +166,9 @@ impl TryFrom<OperationRecord> for Operation {
             .execution_authority
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
-        if operation.execution_authority.task_owner() != operation.actor {
+        if value.task_tenant != crate::identity::task_tenant(&operation.actor)?
+            || operation.execution_authority.task_owner() != operation.actor
+        {
             return Err(ComputerError::Unavailable);
         }
         match operation.automation_grant_id {

@@ -13,8 +13,7 @@ WHERE
   AND revoked_at = NONE
   AND expires_at > time::now()
   AND idle_expires_at > time::now()
-  AND family.revoked_at = NONE
-  AND family.expires_at > time::now()
+  AND fn::kernel::gateway::refresh_family_current_v1(family, time::now()) != NONE
   AND (
     connection_id != NONE
     OR ticket_expires_at > time::now()

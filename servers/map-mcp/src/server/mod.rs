@@ -70,6 +70,7 @@ async fn serve(args: Args) -> Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
+    let tasks = crate::task_lookup::bind(tasks)?;
     let recovery = tasks.recover().await?;
 
     let catalog = MapCatalog::new(tasks.platform_store().clone());

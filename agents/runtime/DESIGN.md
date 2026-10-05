@@ -64,6 +64,18 @@ Gateway projections and colocated fixtures embed their statements from the match
 families under `src/queries/`. Native integration fixtures use `tests/queries/`.
 Fixture mutations select complete statements and keep their values bound.
 
+Both human-authorized and trusted managed repository queries admit stored field
+names against the typed native encoding before checking executable digests and
+copied projections. This catches undeclared root and nested fields that the SDK's
+native derive otherwise ignores. Typed template parameter maps preserve their
+arbitrary keys. Chat execution admits the schema's four inactive managed fields
+only when their values are `NONE`; `NULL` does not represent an absent field.
+Native identities, timestamps and integer values use the driver's typed decoding.
+Registration and controller reconciliation validate the revision's content,
+digest, execution, model, tools and template revision before consumers receive it.
+SQL authorization and claim fencing run before this repository decoding profile.
+The profile governs repository results, rather than direct use of SDK derives.
+
 ## Readiness And Recovery
 
 The kernel records readiness only after connecting and installing its tools.
@@ -93,6 +105,14 @@ lease. They recheck dispatch at the known lease expiry and close on source failu
 Input-request waits observe their own table and retain the caller's maximum wait.
 Work Context observation needs only an identity and a current authority read, so its
 feed does not retain prior row contents.
+
+Definitions and published revisions copy typed execution, model and tool fields in
+same-transaction writes. Managed template revision is a declared revision field;
+parameters remain an opaque whole value for update comparisons. Repository result
+types validate these fields against admitted content and its digest. Catalog wrappers
+check their selected revision before exposing metadata. Managed identity, resources
+and public keys declare their known children, reject missing values and unknown keys,
+and enforce the client/workload uniqueness indexes.
 
 ## Persistence Module Declaration
 

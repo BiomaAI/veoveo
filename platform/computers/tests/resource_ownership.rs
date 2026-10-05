@@ -165,7 +165,7 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
         .bind((
             "owner",
             serde_json::from_value::<veoveo_platform_store::OpenObject>(
-                serde_json::to_value(retained).unwrap(),
+                support::controlled_storage::owner_json(&retained),
             )
             .unwrap(),
         ))

@@ -241,3 +241,229 @@ async fn payload_failure_rolls_back_journal_slot_request_and_audit() {
         }
     }).await.expect("payload rollback qualification exceeded two minutes");
 }
+
+fn controlled_object_mut<'a>(
+    value: &'a mut Value,
+    path: &[&str],
+) -> &'a mut surrealdb::types::Object {
+    let Value::Object(object) = value else {
+        panic!("fixture controlled field is not an object")
+    };
+    if let Some((head, tail)) = path.split_first() {
+        controlled_object_mut(object.get_mut(*head).expect("fixture field missing"), tail)
+    } else {
+        object
+    }
+}
+
+async fn journal_value(db: &support::TestDb, journal: &RecordId) -> Value {
+    db.a.client()
+        .query(include_str!(
+            "queries/journal_payloads/controlled_snapshots/read.surql"
+        ))
+        .bind(("journal", journal.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap()
+        .take(0)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn controlled_authority_fields_reject_unknown_missing_and_null_values_atomically() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        for kind in [Kind::Command, Kind::File] {
+            let db = support::database().await;
+            let (store, journal) = kind.admit(&db).await.unwrap();
+            let original = journal_value(&db, &journal).await;
+            let Value::Object(row) = &original else {
+                panic!("journal missing")
+            };
+            let authority = row.get("authority").unwrap().clone();
+            for (path, key, value) in [
+                (vec![], "unknown", Some(Value::Bool(true))),
+                (vec!["actor"], "unknown", Some(Value::Bool(true))),
+                (vec!["actor"], "issuer", None),
+                (vec!["actor"], "subject", Some(Value::Null)),
+                (vec!["invocation"], "policy_revision", None),
+                (vec!["invocation", "output_policy"], "owner", None),
+                (
+                    vec!["request_context", "access_token"],
+                    "unknown",
+                    Some(Value::Bool(true)),
+                ),
+                (
+                    vec!["request_context", "principal"],
+                    "unknown",
+                    Some(Value::Bool(true)),
+                ),
+            ] {
+                let mut invalid = authority.clone();
+                let object = controlled_object_mut(&mut invalid, &path);
+                if let Some(value) = value {
+                    object.insert(key, value);
+                } else {
+                    object.remove(key);
+                }
+                let response =
+                    db.a.client()
+                        .query(include_str!(
+                            "queries/journal_payloads/controlled_snapshots/authority.surql"
+                        ))
+                        .bind(("journal", journal.clone()))
+                        .bind(("invalid", invalid))
+                        .await
+                        .unwrap();
+                assert!(
+                    response.check().is_err(),
+                    "accepted forbidden field {path:?}.{key}"
+                );
+                assert_eq!(
+                    journal_value(&db, &journal).await,
+                    original,
+                    "rejected write changed the row"
+                );
+            }
+            let original_tenant = row.get("task_tenant").unwrap().clone();
+            let wrong_kind = Value::RecordId(RecordId::new(
+                "principal",
+                surrealdb::types::Uuid::from(uuid::Uuid::now_v7()),
+            ));
+            assert!(
+                db.a.client()
+                    .query(include_str!(
+                        "queries/journal_payloads/controlled_snapshots/task_tenant.surql"
+                    ))
+                    .bind(("journal", journal.clone()))
+                    .bind(("tenant", wrong_kind))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err()
+            );
+            assert_eq!(journal_value(&db, &journal).await, original);
+            let foreign =
+                db.a.ensure_identity(
+                    "foreign",
+                    "foreign",
+                    "https://identity.test",
+                    "foreign",
+                    veoveo_platform_store::PrincipalKind::User,
+                )
+                .await
+                .unwrap();
+            db.a.client()
+                .query(include_str!(
+                    "queries/journal_payloads/controlled_snapshots/task_tenant.surql"
+                ))
+                .bind(("journal", journal.clone()))
+                .bind(("tenant", foreign.tenant_id.record_id()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let count = match kind {
+                Kind::Command => store.pending_commands(None, 100).await.unwrap().len(),
+                Kind::File => store.pending_file_transfers(None, 100).await.unwrap().len(),
+            };
+            assert_eq!(
+                count, 0,
+                "foreign retained tenant was admitted before queue limit"
+            );
+            db.a.client()
+                .query(include_str!(
+                    "queries/journal_payloads/controlled_snapshots/task_tenant.surql"
+                ))
+                .bind(("journal", journal.clone()))
+                .bind(("tenant", original_tenant))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let task = row.get("task").unwrap().clone();
+            db.a.client()
+                .query(include_str!(
+                    "queries/journal_payloads/controlled_snapshots/task_kind.surql"
+                ))
+                .bind(("task", task.clone()))
+                .bind(("kind", "unrelated.operation"))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let count = match kind {
+                Kind::Command => store.pending_commands(None, 100).await.unwrap().len(),
+                Kind::File => store.pending_file_transfers(None, 100).await.unwrap().len(),
+            };
+            assert_eq!(
+                count, 0,
+                "present wrong-operation Task was treated as repairable absence"
+            );
+            db.a.client()
+                .query(include_str!(
+                    "queries/journal_payloads/controlled_snapshots/delete_task.surql"
+                ))
+                .bind(("task", task))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            let count = match kind {
+                Kind::Command => store.pending_commands(None, 100).await.unwrap().len(),
+                Kind::File => store.pending_file_transfers(None, 100).await.unwrap().len(),
+            };
+            assert_eq!(
+                count, 1,
+                "missing initial Task lost legitimate repair discovery"
+            );
+            match kind {
+                Kind::Command => {
+                    let pending = store.pending_commands(None, 100).await.unwrap();
+                    store.ensure_command_task(&pending[0]).await.unwrap();
+                }
+                Kind::File => {
+                    let pending = store.pending_file_transfers(None, 100).await.unwrap();
+                    store.ensure_file_task(&pending[0]).await.unwrap();
+                }
+            }
+            // Existing producers and explicit absent classification remain readable.
+            let tenant = row.get("task_tenant").unwrap().clone();
+            for record in [
+                tenant,
+                Value::RecordId(veoveo_platform_store::deterministic_enterprise_id().record_id()),
+            ] {
+                db.a.client()
+                    .query(include_str!(
+                        "queries/journal_payloads/controlled_snapshots/enabled.surql"
+                    ))
+                    .bind(("record", record.clone()))
+                    .bind(("enabled", false))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+                let count = match kind {
+                    Kind::Command => store.pending_commands(None, 100).await.unwrap().len(),
+                    Kind::File => store.pending_file_transfers(None, 100).await.unwrap().len(),
+                };
+                assert_eq!(
+                    count, 1,
+                    "directory revocation hid retained worker recovery"
+                );
+                db.a.client()
+                    .query(include_str!(
+                        "queries/journal_payloads/controlled_snapshots/enabled.surql"
+                    ))
+                    .bind(("record", record))
+                    .bind(("enabled", true))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            }
+        }
+    })
+    .await
+    .expect("controlled authority qualification exceeded three minutes");
+}

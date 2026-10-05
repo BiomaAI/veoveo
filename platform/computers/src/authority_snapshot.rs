@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use std::time::Instant;
 use veoveo_mcp_contract::{GatewayControlPlane, PolicyDecision, PolicyTarget, Principal, TraceId};
 use veoveo_platform_store::{
-    EnterpriseRecord, PrincipalKind, PrincipalRecord, RecordId, TenantRecord,
-    deterministic_enterprise_id, deterministic_principal_id, deterministic_tenant_id,
+    CurrentPrincipal, CurrentTenant, PrincipalKind, RecordId, deterministic_enterprise_id,
+    deterministic_principal_id, deterministic_tenant_id,
 };
 use veoveo_policy::{PolicyCatalog, PolicyCatalogView, PolicyRequest, decide};
 use veoveo_types::WorkContextMembershipLevel;
@@ -153,24 +153,15 @@ impl ComputersStore {
             .map_err(|_| ComputerError::Unavailable)?
             .check()
             .map_err(|_| ComputerError::Unavailable)?;
-        let enterprise: Option<EnterpriseRecord> =
+        let tenant_record: Option<CurrentTenant> =
             current.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let tenant_record: Option<TenantRecord> =
+        let source_record: Option<CurrentPrincipal> =
             current.take(1).map_err(|_| ComputerError::Unavailable)?;
-        let source_record: Option<PrincipalRecord> =
+        let actor_record: Option<CurrentPrincipal> =
             current.take(2).map_err(|_| ComputerError::Unavailable)?;
-        let actor_record: Option<PrincipalRecord> =
-            current.take(3).map_err(|_| ComputerError::Unavailable)?;
-        if !enterprise
-            .is_some_and(|r| r.enabled && r.id == deterministic_enterprise_id().record_id())
-            || !tenant_record.is_some_and(|r| {
-                r.enabled
-                    && r.id == tenant
-                    && r.enterprise == deterministic_enterprise_id().record_id()
-                    && r.slug == accepted.invocation.tenant.as_str()
-            })
-            || !enabled_principal(source_record, source, &tenant)
-            || !enabled_principal(actor_record, &accepted.actor, &tenant)
+        if !tenant_record.is_some_and(|r| r.slug == accepted.invocation.tenant)
+            || !enabled_principal(source_record, source)
+            || !enabled_principal(actor_record, &accepted.actor)
         {
             return Err(ComputerError::Forbidden);
         }
@@ -190,20 +181,12 @@ impl ComputersStore {
     }
 }
 
-fn enabled_principal(
-    record: Option<PrincipalRecord>,
-    expected: &Principal,
-    tenant: &RecordId,
-) -> bool {
+fn enabled_principal(record: Option<CurrentPrincipal>, expected: &Principal) -> bool {
     let kind = match expected.kind {
         veoveo_mcp_contract::PrincipalKind::User => PrincipalKind::User,
         veoveo_mcp_contract::PrincipalKind::Service => PrincipalKind::Service,
     };
     record.is_some_and(|r| {
-        r.enabled
-            && r.tenant == *tenant
-            && r.kind == kind
-            && r.issuer == expected.issuer.as_str()
-            && r.subject == expected.subject.as_str()
+        r.kind == kind && r.issuer == expected.issuer && r.subject == expected.subject
     })
 }

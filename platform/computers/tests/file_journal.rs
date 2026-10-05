@@ -174,7 +174,11 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 .await
                 .is_err()
         );
-        assert!(a.acknowledge_file_task(&completed).await.is_err());
+        assert!(
+            a.acknowledge_file_task(&completed, expected_task_output(&completed).as_ref())
+                .await
+                .is_err()
+        );
         if scenario == "reject" {
             assert_eq!(
                 completed.outcome(),
@@ -212,7 +216,11 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 .unwrap()
                 .check()
                 .unwrap();
-            assert!(b.acknowledge_file_task(&completed).await.is_err());
+            assert!(
+                b.acknowledge_file_task(&completed, expected_task_output(&completed).as_ref())
+                    .await
+                    .is_err()
+            );
             db.a.client()
                 .query(include_str!("queries/file_journal/known_import_export_and_rejection_release_the_slot_and_preserve_exact_results/statement_2.surql"))
                 .bind(("task", task_record_id(completed.task_id())))
@@ -222,7 +230,37 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 .check()
                 .unwrap();
         }
-        b.acknowledge_file_task(&completed).await.unwrap();
+        if expected_task_output(&completed).is_some() {
+            db.a.client()
+                .query(include_str!(
+                    "queries/file_journal/task_error_changed.surql"
+                ))
+                .bind(("task", task_record_id(completed.task_id())))
+                .bind(("error", true))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                b.acknowledge_file_task(&completed, expected_task_output(&completed).as_ref())
+                    .await
+                    .is_err(),
+                "changed whole Task tool-error result was acknowledged"
+            );
+            db.a.client()
+                .query(include_str!(
+                    "queries/file_journal/task_error_changed.surql"
+                ))
+                .bind(("task", task_record_id(completed.task_id())))
+                .bind(("error", false))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        b.acknowledge_file_task(&completed, expected_task_output(&completed).as_ref())
+            .await
+            .unwrap();
         assert_eq!(b.pending_file_transfers(None, 100).await.unwrap().len(), 1);
         let pin = TaskRetentionPin::new(format!(
             "computer-file-transfer/{}",

@@ -18,11 +18,14 @@ WHERE
       AND owner_context.subject = $owner_subject
       AND owner_context.authority.work_context = $owner_context
       AND owner_context.data_labels ALLINSIDE $owner_labels
-      AND (
-        owner_context.authority.output_policy.data_labels ?? []
-      ) ALLINSIDE $owner_labels
+      AND type::is_object(owner_context.authority)
+  AND type::is_object(owner_context.authority.output_policy)
+  AND (
+    owner_context.authority.output_policy.data_labels
+  ) ALLINSIDE $owner_labels
       AND (
         owner_context.authority.output_policy.classification = NONE
+        OR owner_context.authority.output_policy.classification = NULL
         OR owner_context.authority.output_policy.classification IN $owner_labels
       )
     )
@@ -38,11 +41,14 @@ WHERE
       AND actor_context.subject = $owner_subject
       AND actor_context.authority.work_context = $owner_context
       AND actor_context.data_labels ALLINSIDE $owner_labels
-      AND (
-        actor_context.authority.output_policy.data_labels ?? []
-      ) ALLINSIDE $owner_labels
+      AND type::is_object(actor_context.authority)
+  AND type::is_object(actor_context.authority.output_policy)
+  AND (
+    actor_context.authority.output_policy.data_labels
+  ) ALLINSIDE $owner_labels
       AND (
         actor_context.authority.output_policy.classification = NONE
+        OR actor_context.authority.output_policy.classification = NULL
         OR actor_context.authority.output_policy.classification IN $owner_labels
       )
     )

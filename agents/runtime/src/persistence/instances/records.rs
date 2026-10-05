@@ -94,6 +94,8 @@ pub struct ManagedAgentInstance {
     pub active_revision: Option<RecordId>,
     pub generation: i64,
     pub active_generation: i64,
+    /// Episodes admitted by the managed generation fence, counted in storage.
+    pub admission_count: i64,
     pub dispatch_epoch: i64,
     pub desired: ManagedAgentDesired,
     pub observed: ManagedAgentPhase,

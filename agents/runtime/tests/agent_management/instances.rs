@@ -852,6 +852,7 @@ async fn controller_inventory_is_namespace_scoped_and_recovers_settled_generatio
         .await
         .unwrap();
     assert_eq!(snapshot.instance.generation, 1);
+    assert_eq!(snapshot.instance.admission_count, 0);
     assert!(snapshot.runtime.is_none());
     assert!(!snapshot.episode_running);
     assert_eq!(snapshot.revision.digest, definition.draft_digest);
@@ -949,4 +950,274 @@ async fn manager_deadlines_follow_claims_startup_and_draining_leases() {
             .bind(("tenant", actor.tenant.clone())).await.unwrap().check().unwrap();
         assert_eq!(AgentRepository::new(db.a.clone()).next_managed_agent_delay("agents").await.unwrap(), None);
     }).await.expect("manager scheduling qualification deadline");
+}
+
+#[tokio::test]
+async fn managed_records_reject_missing_unknown_nested_fields_and_duplicate_identities() {
+    use surrealdb::types::{SurrealValue, Value};
+    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        let db = TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                fixture::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let actor = identity(&db.a, "managed-closed", "alice").await;
+        context(&db.a, &actor, "operations").await;
+        let authority = authority(&db.a, &actor, "operations").await;
+        let definition = managed_definition(&db.a, &authority).await;
+        let repo = AgentRepository::new(db.a.clone());
+        repo.mutate_managed_agent(
+            &authority,
+            "one",
+            Uuid::now_v7(),
+            None,
+            plan(&definition, "one"),
+            LIMITS,
+        )
+        .await
+        .unwrap();
+        let instance = repo.managed_agent(&authority, "one").await.unwrap();
+        let mut response =
+            db.a.client()
+                .query(include_str!(
+                    "../queries/agent_management/closed_records/read.surql"
+                ))
+                .bind(("record", instance.id.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let original: Value = response.take(0).unwrap();
+        for case in 0..7 {
+            let mut content = original.clone();
+            let Value::Object(ref mut fields) = content else {
+                unreachable!()
+            };
+            let field = if case < 3 { "identity" } else { "resources" };
+            let Value::Object(nested) = fields.get_mut(field).unwrap() else {
+                unreachable!()
+            };
+            match case {
+                0 => {
+                    nested.remove("client_id");
+                }
+                1 => {
+                    nested.insert("unknown", true.into_value());
+                }
+                2 => {
+                    nested.insert("membership", "invented".into_value());
+                }
+                3 => {
+                    nested.remove("namespace");
+                }
+                4 => {
+                    nested.insert("unknown", true.into_value());
+                }
+                5 => {
+                    nested.insert("storage_gib", (-1_i64).into_value());
+                }
+                _ => {
+                    fields.insert("public_key", malformed_public_key());
+                }
+            }
+            assert!(
+                db.a.client()
+                    .query(include_str!(
+                        "../queries/agent_management/closed_records/write.surql"
+                    ))
+                    .bind(("record", instance.id.clone()))
+                    .bind(("content", content))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err(),
+                "closed managed record {case}"
+            );
+            let mut response =
+                db.b.client()
+                    .query(include_str!(
+                        "../queries/agent_management/closed_records/read.surql"
+                    ))
+                    .bind(("record", instance.id.clone()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            assert_eq!(response.take::<Value>(0).unwrap(), original);
+        }
+        let ManagedAgentMutation::Provision { mut plan } = plan(&definition, "two") else {
+            unreachable!()
+        };
+        plan.identity.client_id = "managed-one".into();
+        assert!(
+            repo.mutate_managed_agent(
+                &authority,
+                "two",
+                Uuid::now_v7(),
+                None,
+                ManagedAgentMutation::Provision { plan },
+                LIMITS
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(
+            repo.managed_agents(&authority, None, 20)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    })
+    .await
+    .unwrap();
+}
+fn malformed_public_key() -> surrealdb::types::Value {
+    use surrealdb::types::{Object, SurrealValue};
+    let mut key = Object::new();
+    key.insert("kid", "fixture".into_value());
+    key.insert("n", "modulus".into_value());
+    key.insert("e", "AQAB".into_value());
+    key.insert("unknown", true.into_value());
+    key.into_value()
+}
+
+#[tokio::test]
+async fn registration_and_reconciliation_reject_stored_revision_fields_and_projection_mismatch() {
+    use surrealdb::types::{SurrealValue, Value};
+    tokio::time::timeout(std::time::Duration::from_secs(120), async {
+        let db = TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                fixture::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let alice = identity(&db.a, "managed-decoder", "alice").await;
+        context(&db.a, &alice, "operations").await;
+        let actor = authority(&db.a, &alice, "operations").await;
+        let definition = managed_definition(&db.a, &actor).await;
+        let repo = AgentRepository::new(db.a.clone());
+        let operation = repo
+            .mutate_managed_agent(
+                &actor,
+                "one",
+                Uuid::now_v7(),
+                None,
+                plan(&definition, "one"),
+                LIMITS,
+            )
+            .await
+            .unwrap();
+        let claim = claim(&db.a, &operation).await;
+        let revision = definition.published.unwrap();
+        let mut response =
+            db.a.client()
+                .query(include_str!(
+                    "../queries/agent_management/closed_records/read.surql"
+                ))
+                .bind(("record", revision.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let original: Value = response.take(0).unwrap();
+        for case in 0..6 {
+            let mut value = original.clone();
+            let Value::Object(fields) = &mut value else {
+                unreachable!()
+            };
+            match case {
+                0..=2 => {
+                    let Value::Object(content) = fields.get_mut("content").unwrap() else {
+                        unreachable!()
+                    };
+                    if case == 0 {
+                        content.insert("undeclared", true.into_value());
+                    } else {
+                        let field = if case == 1 { "budgets" } else { "execution" };
+                        let Value::Object(nested) = content.get_mut(field).unwrap() else {
+                            unreachable!()
+                        };
+                        nested.insert("undeclared", true.into_value());
+                    }
+                }
+                3 => {
+                    let Value::Object(model) = fields.get_mut("model").unwrap() else {
+                        unreachable!()
+                    };
+                    model.insert("id", "different".into_value());
+                }
+                4 => {
+                    fields.insert("tools", vec!["time__now".to_owned()].into_value());
+                }
+                _ => {
+                    let Value::Object(execution) = fields.get_mut("execution").unwrap() else {
+                        unreachable!()
+                    };
+                    execution.insert(
+                        "parameters",
+                        std::collections::BTreeMap::from([("arbitrary".to_owned(), true)])
+                            .into_value(),
+                    );
+                }
+            }
+            db.a.client()
+                .query(include_str!(
+                    "../queries/agent_management/closed_records/replace_revision.surql"
+                ))
+                .bind(("record", revision.clone()))
+                .bind(("content", value))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                matches!(
+                    repo.managed_agent_registration("managed-one").await,
+                    Err(AgentManagementError::Unavailable)
+                        | Err(AgentManagementError::Invalid("stored revision projections"))
+                ),
+                "registration {case}"
+            );
+            assert!(
+                matches!(
+                    repo.managed_agent_reconciliation(&claim).await,
+                    Err(AgentManagementError::Unavailable)
+                        | Err(AgentManagementError::Invalid("stored revision projections"))
+                ),
+                "reconciliation {case}"
+            );
+            let mut denied = claim.clone();
+            denied.fence += 1;
+            assert!(
+                matches!(
+                    repo.managed_agent_reconciliation(&denied).await,
+                    Err(AgentManagementError::Conflict)
+                ),
+                "claim admission precedes decode {case}"
+            );
+        }
+        db.a.client()
+            .query(include_str!(
+                "../queries/agent_management/closed_records/replace_revision.surql"
+            ))
+            .bind(("record", revision))
+            .bind(("content", original))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            repo.managed_agent_registration("managed-one")
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(repo.managed_agent_reconciliation(&claim).await.is_ok());
+    })
+    .await
+    .expect("managed stored revision qualification deadline");
 }

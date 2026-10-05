@@ -22,6 +22,16 @@ impl ComputersStore {
                 vec![
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
                     (
+                        "enterprise",
+                        veoveo_platform_store::deterministic_enterprise_id()
+                            .record_id()
+                            .into_value(),
+                    ),
+                    (
+                        "server",
+                        surrealdb::types::RecordId::new("mcp_server", "computers").into_value(),
+                    ),
+                    (
                         "after",
                         after.map(crate::api::FileTransferId::as_uuid).into_value(),
                     ),
@@ -75,13 +85,32 @@ impl ComputersStore {
 
     /// A terminal shared Task acknowledges delivery; its retention pin is released
     /// afterward. Discovery retains a lost pin acknowledgement without recreating work.
-    pub async fn acknowledge_file_task(&self, file: &FileOperation) -> Result<()> {
+    pub async fn acknowledge_file_task(
+        &self,
+        file: &FileOperation,
+        expected_output: Option<&serde_json::Value>,
+    ) -> Result<()> {
         let (stage, status) = match file.stage() {
             super::FileTransferStage::Failed => ("failed", "failed"),
             super::FileTransferStage::Cancelled => ("cancelled", "cancelled"),
             super::FileTransferStage::Completed => ("completed", "succeeded"),
             _ => return Err(ComputerError::InvalidState),
         };
+        let expected_domain = match file.outcome().ok_or(ComputerError::InvalidState)? {
+            super::FileOutcome::Completed(result) => {
+                if expected_output.is_none() {
+                    return Err(ComputerError::InvalidInput);
+                }
+                crate::session_grants::object(&result)?.into_value()
+            }
+            _ => {
+                if expected_output.is_some() {
+                    return Err(ComputerError::InvalidInput);
+                }
+                surrealdb::types::Value::None
+            }
+        };
+        let tenant = crate::identity::task_tenant(&file.actor())?;
         self.query(
             include_str!("../../queries/acknowledge_file_task.surql"),
             vec![
@@ -90,6 +119,25 @@ impl ComputersStore {
                 ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("status", status.into_value()),
                 ("stage", stage.into_value()),
+                (
+                    "server",
+                    surrealdb::types::RecordId::new("mcp_server", "computers").into_value(),
+                ),
+                ("task_tenant", tenant.into_value()),
+                (
+                    "task_types",
+                    vec![
+                        crate::api::ComputerTaskKind::FileTransfer
+                            .name()
+                            .to_string(),
+                    ]
+                    .into_value(),
+                ),
+                (
+                    "expected_result",
+                    crate::identity::task_output(expected_output)?,
+                ),
+                ("expected_domain", expected_domain),
             ],
         )
         .await?;
@@ -108,11 +156,8 @@ impl ComputersStore {
                         super::record(operation.transfer_id()).into_value(),
                     ),
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
-                    ("binding", super::object(&operation.binding)?.into_value()),
-                    (
-                        "authority",
-                        super::object(&operation.authority)?.into_value(),
-                    ),
+                    ("binding", operation.binding.clone().into_value()),
+                    ("authority", operation.authority.clone().into_value()),
                 ],
             )
             .await?;

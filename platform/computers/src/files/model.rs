@@ -110,19 +110,22 @@ pub(super) struct Record {
     provider_instance_id: Uuid,
     actor_key: String,
     owner_key: String,
-    binding: OpenObject,
-    authority: OpenObject,
+    binding: crate::secrets::FileTransferBinding,
+    authority: crate::AcceptedAuthority,
     #[surreal(wrap)]
     sealed: SealedFileTransfer,
-    artifact_access: Option<OpenObject>,
+    #[surreal(wrap)]
+    artifact_access: Option<crate::secrets::SealedFileTransferAccess>,
     task: RecordId,
+    task_tenant: RecordId,
     stage: String,
     created_at: DateTime<Utc>,
     dispatch_id: Option<Uuid>,
     dispatched_at: Option<DateTime<Utc>>,
     execution_deadline: Option<DateTime<Utc>>,
-    effective_limits: Option<OpenObject>,
-    dispatch_authority: Option<OpenObject>,
+    #[surreal(wrap)]
+    effective_limits: Option<crate::api::FileTransferLimits>,
+    dispatch_authority: Option<super::FileDispatchDecision>,
     containment_id: Option<Uuid>,
     interruption: Option<String>,
     containment_dispatch_id: Option<Uuid>,
@@ -144,26 +147,17 @@ impl TryFrom<Record> for FileOperation {
     fn try_from(row: Record) -> Result<Self> {
         let decode = || -> std::result::Result<_, serde_json::Error> {
             Ok(Self {
-                binding: serde_json::from_value(serde_json::to_value(row.binding)?)?,
-                authority: serde_json::from_value(serde_json::to_value(row.authority)?)?,
+                binding: row.binding,
+                authority: row.authority,
                 sealed: row.sealed,
-                access: row
-                    .artifact_access
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
+                access: row.artifact_access,
                 created_at: row.created_at,
                 stage: serde_json::from_value(serde_json::Value::String(row.stage))?,
                 dispatch_id: row.dispatch_id,
                 dispatched_at: row.dispatched_at,
                 execution_deadline: row.execution_deadline,
-                effective_limits: row
-                    .effective_limits
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
-                dispatch_authority: row
-                    .dispatch_authority
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
+                effective_limits: row.effective_limits,
+                dispatch_authority: row.dispatch_authority,
                 containment_id: row.containment_id,
                 interruption: row
                     .interruption
@@ -207,6 +201,7 @@ impl TryFrom<Record> for FileOperation {
             || row.actor_key != super::actor_key(&file.authority)?
             || file.binding.actor_key != row.actor_key
             || file.binding.owner_key != row.owner_key
+            || row.task_tenant != crate::identity::task_tenant(&file.actor())?
             || row.task != task_record_id(file.task_id())
         {
             return Err(ComputerError::Unavailable);

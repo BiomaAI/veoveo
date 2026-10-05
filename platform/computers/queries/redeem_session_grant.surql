@@ -3,13 +3,13 @@ LET $now = time::now();
 LET $current = SELECT * FROM ONLY $grant;
 IF $current = NONE { THROW "computer_not_found"; };
 LET $state = SELECT * FROM ONLY $computer;
-LET $family = SELECT * FROM ONLY $current.family;
+LET $family = fn::kernel::gateway::refresh_family_current_v1($current.family, $now);
 LET $limits = SELECT * FROM ONLY $policy;
 IF $admission_expires_at <= $now OR $current = NONE OR $current.owner_key != $owner_key
   OR $current.ticket_hash != $ticket_hash OR $current.connection_id != NONE
   OR $current.revoked_at != NONE OR $current.ticket_expires_at <= $now
   OR $current.expires_at <= $now OR $current.idle_expires_at <= $now
-  OR $family = NONE OR $family.revoked_at != NONE OR $family.expires_at <= $now
+  OR $family = NONE OR $family.expires_at <= $now
   OR $limits = NONE OR $limits.max_grants = 0 {
   THROW "computer_authority_expired";
 };

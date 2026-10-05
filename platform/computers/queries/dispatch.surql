@@ -1,17 +1,12 @@
-LET $policy_head = SELECT * FROM ONLY gateway_control_active:current;
-LET $policy_revision = SELECT * FROM ONLY $authority_revision;
-LET $enterprise = SELECT * FROM ONLY $authority_enterprise;
-LET $tenant = SELECT * FROM ONLY $authority_tenant;
-LET $source = SELECT * FROM ONLY $authority_source;
-LET $actor = SELECT * FROM ONLY $authority_actor;
+LET $revision_current = fn::kernel::gateway::control_revision_current_v1($authority_revision, $dispatch_authority.control_revision, $dispatch_authority.control_sha256);
+LET $tenant = fn::kernel::identity::tenant_current_v1($authority_enterprise, $authority_tenant);
+LET $source = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_source);
+LET $actor = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_actor);
 IF $authority_expires_at <= time::now()
-  OR $policy_head = NONE OR $policy_head.revision != $authority_revision
-  OR $policy_head.revision_id != $dispatch_authority.control_revision
-  OR $policy_revision = NONE OR $policy_revision.sha256 != $dispatch_authority.control_sha256
-  OR $enterprise = NONE OR $enterprise.enabled != true
-  OR $tenant = NONE OR $tenant.enabled != true
-  OR $source = NONE OR $source.enabled != true
-  OR $actor = NONE OR $actor.enabled != true {
+  OR !$revision_current
+  OR $tenant = NONE
+  OR $source = NONE
+  OR $actor = NONE {
   THROW "computer_current_authority_changed";
 };
 LET $current = SELECT * FROM ONLY $operation;
@@ -34,9 +29,9 @@ IF $current = NONE OR $computer_state = NONE
 };
 IF $automation {
   LET $now = time::now();
-  LET $owner_source = SELECT * FROM ONLY $authority_owner_source;
-  LET $owner_actor = SELECT * FROM ONLY $authority_owner_actor;
-  IF $grant_expires_at <= $now OR $owner_source.enabled != true OR $owner_actor.enabled != true
+  LET $owner_source = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_owner_source);
+  LET $owner_actor = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_owner_actor);
+  IF $grant_expires_at <= $now OR $owner_source = NONE OR $owner_actor = NONE
     { THROW "computer_authority_expired"; };
   LET $grant_state = (UPDATE ONLY $grant SET revision = revision
     WHERE revision = $grant_revision AND revoked_at = NONE AND expires_at > $now RETURN AFTER);

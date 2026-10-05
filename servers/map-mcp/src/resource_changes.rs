@@ -6,6 +6,7 @@ use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_platform_store::{PlatformStore, PlatformTable};
 
 pub(crate) const TABLES: &[crate::MapObservationTable] = &[
+    crate::MapObservationTable::MapTravelModelTask,
     crate::MapObservationTable::MapSource,
     crate::MapObservationTable::MapDatasetRelease,
     crate::MapObservationTable::MapActiveRelease,

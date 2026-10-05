@@ -798,7 +798,7 @@ pub struct GatewayRefreshFamilyRecord {
     pub principal_id: String,
     pub tenant: Option<String>,
     pub scopes: Vec<String>,
-    pub principal: OpenObject,
+    pub principal: crate::GatewayRefreshPrincipalRecord,
     pub current_generation: i64,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
@@ -819,15 +819,6 @@ pub struct GatewayRefreshTokenRecord {
     pub replay_detected_at: Option<DateTime<Utc>>,
     pub delivery_envelope: Option<RedactedSecret>,
     pub delivery_expires_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct MembershipEdge {
-    pub id: RecordId,
-    pub r#in: RecordId,
-    pub out: RecordId,
-    pub role: String,
-    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]

@@ -1,20 +1,16 @@
 LET $now = time::now();
-LET $head = SELECT * FROM ONLY gateway_control_active:current;
-LET $revision = SELECT * FROM ONLY $authority_revision;
-LET $enterprise = SELECT * FROM ONLY $authority_enterprise;
-LET $tenant = SELECT * FROM ONLY $authority_tenant;
-LET $source = SELECT * FROM ONLY $authority_source;
-LET $actor = SELECT * FROM ONLY $authority_actor;
-LET $owner_source = SELECT * FROM ONLY $authority_owner_source;
-LET $owner_actor = SELECT * FROM ONLY $authority_owner_actor;
+LET $revision_current = fn::kernel::gateway::control_revision_current_v1($authority_revision, $authority_revision_id, $authority_sha256);
+LET $tenant = fn::kernel::identity::tenant_current_v1($authority_enterprise, $authority_tenant);
+LET $source = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_source);
+LET $actor = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_actor);
+LET $owner_source = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_owner_source);
+LET $owner_actor = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_owner_actor);
 IF $authority_expires_at <= $now OR $grant_expires_at <= $now
-  OR $head = NONE OR $head.revision != $authority_revision OR $head.revision_id != $authority_revision_id
-  OR $revision = NONE OR $revision.sha256 != $authority_sha256
-  OR $enterprise.enabled != true OR $tenant.enabled != true OR $source.enabled != true OR $actor.enabled != true
-  OR $owner_source.enabled != true OR $owner_actor.enabled != true { THROW "computer_authority_expired"; };
+  OR !$revision_current OR $tenant = NONE OR $source = NONE OR $actor = NONE
+  OR $owner_source = NONE OR $owner_actor = NONE { THROW "computer_authority_expired"; };
 IF $family != NONE {
-  LET $family_state = SELECT * FROM ONLY $family;
-  IF $family_state = NONE OR $family_state.revoked_at != NONE OR $family_state.expires_at <= $now { THROW "computer_authority_expired"; };
+  LET $family_state = fn::kernel::gateway::refresh_family_current_v1($family, $now);
+  IF $family_state = NONE OR $family_state.expires_at <= $now { THROW "computer_authority_expired"; };
 };
 LET $current = SELECT * FROM ONLY $execution;
 LET $computer_state = SELECT * FROM ONLY $computer;

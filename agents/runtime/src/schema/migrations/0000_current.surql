@@ -14,7 +14,6 @@ DEFINE TABLE agent_episode TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NO
 
 DEFINE TABLE agent_input_request TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
-DEFINE TABLE agent_owner TYPE RELATION IN agent OUT principal | principal_group ENFORCED SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
 DEFINE TABLE agent_task TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
@@ -217,6 +216,18 @@ DEFINE FIELD OVERWRITE description ON agent_definition TYPE string PERMISSIONS F
 
 DEFINE FIELD OVERWRITE disabled ON agent_definition TYPE bool DEFAULT false PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE draft_model ON agent_definition TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['id', 'revision'] AND $value.id != NONE AND $value.revision != NONE ELSE false END;
+DEFINE FIELD OVERWRITE draft_model.id ON agent_definition TYPE string;
+DEFINE FIELD OVERWRITE draft_model.revision ON agent_definition TYPE string;
+DEFINE FIELD OVERWRITE draft_tools ON agent_definition TYPE array<string>;
+
+DEFINE FIELD OVERWRITE draft_execution ON agent_definition TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['kind', 'template', 'template_revision', 'parameters', 'resource_subscriptions'] AND (($value.kind = 'chat' AND $value.template = NONE AND $value.template_revision = NONE AND $value.parameters = NONE AND $value.resource_subscriptions = NONE) OR ($value.kind = 'managed' AND $value.template != NONE AND $value.template_revision != NONE AND $value.parameters != NONE AND $value.resource_subscriptions != NONE)) ELSE false END;
+DEFINE FIELD OVERWRITE draft_execution.kind ON agent_definition TYPE 'chat' | 'managed';
+DEFINE FIELD OVERWRITE draft_execution.template ON agent_definition TYPE option<string>;
+DEFINE FIELD OVERWRITE draft_execution.template_revision ON agent_definition TYPE option<string>;
+DEFINE FIELD OVERWRITE draft_execution.parameters ON agent_definition TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE draft_execution.resource_subscriptions ON agent_definition TYPE option<array<string>>;
+
 DEFINE FIELD OVERWRITE draft ON agent_definition TYPE object FLEXIBLE PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE draft_digest ON agent_definition TYPE string PERMISSIONS FULL;
@@ -262,6 +273,20 @@ DEFINE FIELD OVERWRITE result ON agent_definition_receipt TYPE object FLEXIBLE P
 DEFINE FIELD OVERWRITE tenant ON agent_definition_receipt TYPE record<tenant> PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE work_context ON agent_definition_receipt TYPE record<work_context> PERMISSIONS FULL;
+
+DEFINE FIELD OVERWRITE model ON agent_definition_revision TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['id', 'revision'] AND $value.id != NONE AND $value.revision != NONE ELSE false END;
+DEFINE FIELD OVERWRITE model.id ON agent_definition_revision TYPE string;
+DEFINE FIELD OVERWRITE model.revision ON agent_definition_revision TYPE string;
+DEFINE FIELD OVERWRITE tools ON agent_definition_revision TYPE array<string>;
+
+DEFINE FIELD OVERWRITE execution ON agent_definition_revision TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['kind', 'template', 'template_revision', 'parameters', 'resource_subscriptions'] AND (($value.kind = 'chat' AND $value.template = NONE AND $value.template_revision = NONE AND $value.parameters = NONE AND $value.resource_subscriptions = NONE) OR ($value.kind = 'managed' AND $value.template != NONE AND $value.template_revision != NONE AND $value.parameters != NONE AND $value.resource_subscriptions != NONE)) ELSE false END;
+DEFINE FIELD OVERWRITE execution.kind ON agent_definition_revision TYPE 'chat' | 'managed';
+DEFINE FIELD OVERWRITE execution.template ON agent_definition_revision TYPE option<string>;
+DEFINE FIELD OVERWRITE execution.template_revision ON agent_definition_revision TYPE option<string>;
+DEFINE FIELD OVERWRITE execution.parameters ON agent_definition_revision TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE execution.resource_subscriptions ON agent_definition_revision TYPE option<array<string>>;
+
+DEFINE FIELD OVERWRITE template_revision ON agent_definition_revision TYPE option<string> VALUE { LET $execution: object = $this.execution; RETURN $execution.template_revision; };
 
 DEFINE FIELD OVERWRITE content ON agent_definition_revision TYPE object FLEXIBLE READONLY PERMISSIONS FULL;
 
@@ -345,19 +370,12 @@ DEFINE FIELD OVERWRITE tenant ON agent_input_request TYPE record<tenant> PERMISS
 
 DEFINE INDEX agent_input_request_state ON agent_input_request FIELDS agent, state, requested_at;
 
-DEFINE FIELD OVERWRITE created_at ON agent_owner TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE id ON agent_owner TYPE uuid DEFAULT `rand`::uuid() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE in ON agent_owner TYPE record<agent> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE out ON agent_owner TYPE record<principal | principal_group> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE role ON agent_owner TYPE string PERMISSIONS FULL;
 
-DEFINE INDEX agent_owner_endpoints_unique ON agent_owner FIELDS in, out UNIQUE;
 
-DEFINE INDEX agent_owner_subject ON agent_owner FIELDS out, role;
 
 DEFINE FIELD OVERWRITE agent ON agent_task TYPE record<agent> PERMISSIONS FULL;
 
@@ -435,7 +453,15 @@ DEFINE FIELD OVERWRITE generation ON managed_agent TYPE int ASSERT $value > 0 PE
 
 DEFINE FIELD OVERWRITE id ON managed_agent TYPE uuid PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE identity ON managed_agent TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE identity ON managed_agent TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['client_id', 'issuer', 'authorization_server', 'profile', 'resource', 'scopes', 'roles', 'membership'] AND $value.client_id != NONE AND $value.issuer != NONE AND $value.authorization_server != NONE AND $value.profile != NONE AND $value.resource != NONE AND $value.scopes != NONE AND $value.roles != NONE AND $value.membership != NONE ELSE false END;
+DEFINE FIELD OVERWRITE identity.client_id ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE identity.issuer ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE identity.authorization_server ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE identity.profile ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE identity.resource ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE identity.scopes ON managed_agent TYPE array<string>;
+DEFINE FIELD OVERWRITE identity.roles ON managed_agent TYPE array<string>;
+DEFINE FIELD OVERWRITE identity.membership ON managed_agent TYPE 'viewer' | 'contributor' | 'custodian' | 'owner';
 
 DEFINE FIELD OVERWRITE key ON managed_agent TYPE string PERMISSIONS FULL;
 
@@ -449,11 +475,21 @@ DEFINE FIELD OVERWRITE owner ON managed_agent TYPE record<principal> PERMISSIONS
 
 DEFINE FIELD OVERWRITE principal ON managed_agent TYPE record<principal> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE public_key ON managed_agent TYPE none | object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE public_key ON managed_agent TYPE option<object> ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['kid', 'n', 'e'] AND $value.kid != NONE AND $value.n != NONE AND $value.e != NONE ELSE $value = NONE END;
+DEFINE FIELD OVERWRITE public_key.kid ON managed_agent TYPE option<string>;
+DEFINE FIELD OVERWRITE public_key.n ON managed_agent TYPE option<string>;
+DEFINE FIELD OVERWRITE public_key.e ON managed_agent TYPE option<string>;
 
 DEFINE FIELD OVERWRITE requested_revision ON managed_agent TYPE record<agent_definition_revision> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE resources ON managed_agent TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE resources ON managed_agent TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['namespace', 'workload', 'credential_secret', 'volume_claim', 'template_config_map', 'image', 'storage_gib'] AND $value.namespace != NONE AND $value.workload != NONE AND $value.credential_secret != NONE AND $value.volume_claim != NONE AND $value.template_config_map != NONE AND $value.image != NONE AND $value.storage_gib != NONE ELSE false END;
+DEFINE FIELD OVERWRITE resources.namespace ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE resources.workload ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE resources.credential_secret ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE resources.volume_claim ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE resources.template_config_map ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE resources.image ON managed_agent TYPE string;
+DEFINE FIELD OVERWRITE resources.storage_gib ON managed_agent TYPE int ASSERT $value >= 0 AND $value <= 4294967295;
 
 DEFINE FIELD OVERWRITE tenant ON managed_agent TYPE record<tenant> PERMISSIONS FULL;
 

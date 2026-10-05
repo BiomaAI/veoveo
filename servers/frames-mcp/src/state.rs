@@ -100,13 +100,22 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
     let revision_id = FrameWorldRevisionId::parse(record.revision_key)?;
     let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
     let root_frame_id = crate::contract::FrameId::parse(record.root_frame_key)?;
+    let tree: crate::contract::FrameWorldTree =
+        serde_json::from_value(value_from_object(record.definition))
+            .context("decoding frame world revision")?;
+    anyhow::ensure!(
+        tree.frames
+            .iter()
+            .map(|frame| frame.frame_id.as_str())
+            .eq(record.frame_ids.iter().map(String::as_str)),
+        "frame identities differ from revision projection"
+    );
     Ok(FrameWorldRevision::from_parts(
         revision_uri.clone(),
         u64::try_from(record.revision)
             .context("negative frame world revision")?
             .try_into()?,
-        serde_json::from_value(value_from_object(record.definition))
-            .context("decoding frame world revision")?,
+        tree,
         WorldFrameUri::new(&revision_uri, &root_frame_id),
         veoveo_types::Sha256Digest::from_hex(record.spec_sha256)?,
         record.created_at,

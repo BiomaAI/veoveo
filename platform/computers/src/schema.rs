@@ -5,7 +5,11 @@ use veoveo_modules::{
     ModuleSetup, OwnershipClaim, TableName, TablePrefix,
 };
 
-pub const CURRENT_SCHEMA: &str = include_str!("schema/migrations/0000_current.surql");
+pub const CURRENT_SCHEMA: &str = concat!(
+    include_str!("schema/migrations/0000_current.surql"),
+    include_str!("schema/migrations/0000_controlled_fields.surql"),
+    include_str!("schema/migrations/0000_indexes.surql"),
+);
 
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
 pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, DeclarationError> {

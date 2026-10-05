@@ -86,13 +86,9 @@ DEFINE FIELD OVERWRITE tenant_key ON computer TYPE string PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE updated_at ON computer TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE INDEX computer_active_operation ON computer FIELDS active_operation;
 
-DEFINE INDEX computer_identity ON computer FIELDS computer_id UNIQUE;
 
-DEFINE INDEX computer_owner_page ON computer FIELDS owner_key, computer_id;
 
-DEFINE INDEX computer_resource_owner ON computer FIELDS tenant_key, owner_context.principal_key, owner_context.authority.work_context, computer_id;
 
 DEFINE FIELD OVERWRITE authority ON computer_automation_grant TYPE object FLEXIBLE PERMISSIONS FULL;
 
@@ -132,11 +128,8 @@ DEFINE FIELD OVERWRITE revision ON computer_automation_grant TYPE int DEFAULT 0 
 
 DEFINE FIELD OVERWRITE revoked_at ON computer_automation_grant TYPE none | datetime PERMISSIONS FULL;
 
-DEFINE INDEX computer_automation_grant_grantee ON computer_automation_grant FIELDS grantee, computer_id, grant_id;
 
-DEFINE INDEX computer_automation_grant_id ON computer_automation_grant FIELDS grant_id UNIQUE;
 
-DEFINE INDEX computer_automation_grant_owner ON computer_automation_grant FIELDS owner_key, computer_id, grant_id;
 
 DEFINE FIELD OVERWRITE revision ON computer_automation_guard TYPE int ASSERT $value >= 0 PERMISSIONS FULL;
 
@@ -180,7 +173,6 @@ DEFINE FIELD OVERWRITE process_id ON computer_cli_connection TYPE string PERMISS
 
 DEFINE FIELD OVERWRITE provider_resource_id ON computer_cli_connection TYPE string PERMISSIONS FULL;
 
-DEFINE INDEX computer_cli_connection_active ON computer_cli_connection FIELDS grant_id, expires_at;
 
 DEFINE FIELD OVERWRITE authority ON computer_cli_grant TYPE object FLEXIBLE PERMISSIONS FULL;
 
@@ -210,9 +202,7 @@ DEFINE FIELD OVERWRITE provider_instance_id ON computer_cli_grant TYPE uuid PERM
 
 DEFINE FIELD OVERWRITE revoked_at ON computer_cli_grant TYPE none | datetime PERMISSIONS FULL;
 
-DEFINE INDEX computer_cli_grant_id ON computer_cli_grant FIELDS grant_id UNIQUE;
 
-DEFINE INDEX computer_cli_grant_page ON computer_cli_grant FIELDS owner_key, computer_id, grant_id;
 
 DEFINE FIELD OVERWRITE binding_hash ON computer_cli_pairing TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
@@ -236,9 +226,7 @@ DEFINE FIELD OVERWRITE owner_key ON computer_cli_pairing TYPE string ASSERT stri
 
 DEFINE FIELD OVERWRITE pairing_id ON computer_cli_pairing TYPE uuid PERMISSIONS FULL;
 
-DEFINE INDEX computer_cli_pairing_code ON computer_cli_pairing FIELDS owner_key, computer_id, code_hash;
 
-DEFINE INDEX computer_cli_pairing_rate ON computer_cli_pairing FIELDS owner_key, issued_at;
 
 DEFINE FIELD OVERWRITE revision ON computer_cli_pairing_guard TYPE int ASSERT $value >= 0 PERMISSIONS FULL;
 
@@ -296,6 +284,8 @@ DEFINE FIELD OVERWRITE stage ON computer_execution TYPE 'queued' | 'dispatched' 
 
 DEFINE FIELD OVERWRITE task ON computer_execution TYPE record<task> PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE task_tenant ON computer_execution TYPE record<tenant> PERMISSIONS FULL;
+
 DEFINE FIELD OVERWRITE task_projected_at ON computer_execution TYPE none | datetime PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE terminated_at ON computer_execution TYPE none | datetime PERMISSIONS FULL;
@@ -304,11 +294,8 @@ DEFINE FIELD OVERWRITE termination_evidence ON computer_execution TYPE none | ob
 
 DEFINE FIELD OVERWRITE updated_at ON computer_execution TYPE datetime PERMISSIONS FULL;
 
-DEFINE INDEX execution_actor ON computer_execution FIELDS actor_key, computer_id, execution_id;
 
-DEFINE INDEX execution_identity ON computer_execution FIELDS execution_id UNIQUE;
 
-DEFINE INDEX execution_pending ON computer_execution FIELDS provider_instance_id, execution_id;
 
 DEFINE FIELD OVERWRITE journal ON computer_execution_payload TYPE record<computer_execution> READONLY ASSERT record::id($value) = record::id($this.id) REFERENCE ON DELETE CASCADE PERMISSIONS FULL;
 
@@ -320,7 +307,6 @@ DEFINE FIELD OVERWRITE computer_id ON computer_execution_slot TYPE uuid PERMISSI
 
 DEFINE FIELD OVERWRITE execution ON computer_execution_slot TYPE record<computer_execution | computer_file_transfer> PERMISSIONS FULL;
 
-DEFINE INDEX execution_computer_slot ON computer_execution_slot FIELDS computer_id UNIQUE;
 
 DEFINE FIELD OVERWRITE actor_key ON computer_file_transfer TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
@@ -378,6 +364,8 @@ DEFINE FIELD OVERWRITE stage ON computer_file_transfer TYPE 'queued' | 'dispatch
 
 DEFINE FIELD OVERWRITE task ON computer_file_transfer TYPE record<task> PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE task_tenant ON computer_file_transfer TYPE record<tenant> PERMISSIONS FULL;
+
 DEFINE FIELD OVERWRITE task_projected_at ON computer_file_transfer TYPE none | datetime PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE terminated_at ON computer_file_transfer TYPE none | datetime PERMISSIONS FULL;
@@ -388,13 +376,9 @@ DEFINE FIELD OVERWRITE transfer_id ON computer_file_transfer TYPE uuid PERMISSIO
 
 DEFINE FIELD OVERWRITE updated_at ON computer_file_transfer TYPE datetime PERMISSIONS FULL;
 
-DEFINE INDEX file_transfer_actor ON computer_file_transfer FIELDS actor_key, computer_id, transfer_id;
 
-DEFINE INDEX file_transfer_identity ON computer_file_transfer FIELDS transfer_id UNIQUE;
 
-DEFINE INDEX file_transfer_owner ON computer_file_transfer FIELDS owner_key, computer_id, transfer_id;
 
-DEFINE INDEX file_transfer_pending ON computer_file_transfer FIELDS provider_instance_id, transfer_id;
 
 DEFINE FIELD OVERWRITE journal ON computer_file_transfer_payload TYPE record<computer_file_transfer> READONLY ASSERT record::id($value) = record::id($this.id) REFERENCE ON DELETE CASCADE PERMISSIONS FULL;
 
@@ -422,6 +406,8 @@ DEFINE FIELD OVERWRITE request_id ON computer_maintenance TYPE uuid PERMISSIONS 
 
 DEFINE FIELD OVERWRITE source ON computer_maintenance TYPE object FLEXIBLE PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE source_kind ON computer_maintenance TYPE 'ready' | 'stopped' | 'initial_failure' PERMISSIONS FULL;
+
 DEFINE FIELD OVERWRITE source_instance_id ON computer_maintenance TYPE uuid PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE source_template_fingerprint ON computer_maintenance TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
@@ -438,15 +424,14 @@ DEFINE FIELD OVERWRITE target_template_id ON computer_maintenance TYPE string AS
 
 DEFINE FIELD OVERWRITE task ON computer_maintenance TYPE record<task> PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE task_tenant ON computer_maintenance TYPE record<tenant> PERMISSIONS FULL;
+
 DEFINE FIELD OVERWRITE task_projected_at ON computer_maintenance TYPE none | datetime PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE updated_at ON computer_maintenance TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE INDEX computer_maintenance_identity ON computer_maintenance FIELDS operation_id UNIQUE;
 
-DEFINE INDEX computer_maintenance_pending ON computer_maintenance FIELDS provider_instance_id, stage, operation_id;
 
-DEFINE INDEX computer_maintenance_task ON computer_maintenance FIELDS task UNIQUE;
 
 DEFINE FIELD OVERWRITE created_at ON computer_maintenance_policy TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
@@ -454,7 +439,6 @@ DEFINE FIELD OVERWRITE envelope ON computer_maintenance_policy TYPE object FLEXI
 
 DEFINE FIELD OVERWRITE operation_id ON computer_maintenance_policy TYPE uuid PERMISSIONS FULL;
 
-DEFINE INDEX computer_maintenance_policy_identity ON computer_maintenance_policy FIELDS operation_id UNIQUE;
 
 DEFINE FIELD OVERWRITE fingerprint ON computer_maintenance_request TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
@@ -476,7 +460,6 @@ DEFINE FIELD OVERWRITE previous_progress ON computer_maintenance_resume TYPE obj
 
 DEFINE FIELD OVERWRITE request_id ON computer_maintenance_resume TYPE uuid PERMISSIONS FULL;
 
-DEFINE INDEX computer_maintenance_resume_operation ON computer_maintenance_resume FIELDS operation_id, created_at;
 
 DEFINE FIELD OVERWRITE action ON computer_operation TYPE 'create' | 'start' | 'stop' PERMISSIONS FULL;
 
@@ -530,19 +513,17 @@ DEFINE FIELD OVERWRITE stage ON computer_operation TYPE 'queued' | 'dispatched' 
 
 DEFINE FIELD OVERWRITE task ON computer_operation TYPE record<task> PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE task_tenant ON computer_operation TYPE record<tenant> PERMISSIONS FULL;
+
 DEFINE FIELD OVERWRITE task_projected_at ON computer_operation TYPE none | datetime PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE template_fingerprint ON computer_operation TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE updated_at ON computer_operation TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE INDEX computer_operation_identity ON computer_operation FIELDS operation_id UNIQUE;
 
-DEFINE INDEX computer_operation_provider ON computer_operation FIELDS provider_instance_id, operation_id;
 
-DEFINE INDEX computer_operation_stage ON computer_operation FIELDS stage, operation_id;
 
-DEFINE INDEX computer_operation_task ON computer_operation FIELDS task UNIQUE;
 
 DEFINE FIELD OVERWRITE fingerprint ON computer_operation_request TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
@@ -584,9 +565,7 @@ DEFINE FIELD OVERWRITE ticket_expires_at ON computer_session_grant TYPE datetime
 
 DEFINE FIELD OVERWRITE ticket_hash ON computer_session_grant TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
-DEFINE INDEX computer_session_grant_id ON computer_session_grant FIELDS grant_id UNIQUE;
 
-DEFINE INDEX computer_session_grant_page ON computer_session_grant FIELDS owner_key, computer_id, grant_id;
 
 DEFINE FIELD OVERWRITE revision ON computer_session_grant_guard TYPE int ASSERT $value >= 0 PERMISSIONS FULL;
 

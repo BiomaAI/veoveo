@@ -94,7 +94,10 @@ impl ComputersStore {
             ("progress", object(&after.progress)?.into_value()),
             ("stage", enum_value(after.stage)?),
             ("computer_updated_at", computer.updated_at.into_value()),
-            ("source_owner", object(&computer.owner)?.into_value()),
+            (
+                "source_owner",
+                crate::identity::stored_owner(&computer.owner)?.into_value(),
+            ),
             crate::audit::binding(
                 self.platform.audit_targets(),
                 &before.execution_authority,

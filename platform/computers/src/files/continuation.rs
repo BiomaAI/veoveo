@@ -3,7 +3,6 @@ use crate::{ComputerError, ComputersStore, Result};
 use chrono::{DateTime, TimeDelta, Utc};
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{ClaimedTask, TaskRuntime, TaskStatus};
 
@@ -52,9 +51,6 @@ impl ComputersStore {
         {
             return Err(ComputerError::InvalidState);
         }
-        let object = |value: serde_json::Value| -> Result<OpenObject> {
-            serde_json::from_value(value).map_err(|_| ComputerError::Unavailable)
-        };
         let began = Instant::now();
         // Compare immutable metadata in the database. Never fetch or decrypt the
         // encrypted file intent and capability on every refresh.
@@ -77,22 +73,8 @@ impl ComputersStore {
                         }
                         .into_value(),
                     ),
-                    (
-                        "binding",
-                        object(
-                            serde_json::to_value(&operation.binding)
-                                .map_err(|_| ComputerError::Unavailable)?,
-                        )?
-                        .into_value(),
-                    ),
-                    (
-                        "authority",
-                        object(
-                            serde_json::to_value(&operation.authority)
-                                .map_err(|_| ComputerError::Unavailable)?,
-                        )?
-                        .into_value(),
-                    ),
+                    ("binding", operation.binding.clone().into_value()),
+                    ("authority", operation.authority.clone().into_value()),
                     (
                         "limits",
                         operation

@@ -2,7 +2,7 @@ use super::{CliPairing, PairedCliGrant, model, secret};
 use crate::{
     ComputerActor, ComputerError, ComputersStore, Result,
     identity::owner_key,
-    session_grants::{authority, object, policy::StoredPolicy},
+    session_grants::{authority, policy::StoredPolicy},
 };
 use chrono::{DateTime, Utc};
 use std::time::Duration;
@@ -146,7 +146,7 @@ impl ComputersStore {
                 ),
                 ("owner_key", owner.into_value()),
                 ("provider", self.provider_instance_id.as_uuid().into_value()),
-                ("authority", object(actor.accepted())?.into_value()),
+                ("authority", actor.accepted().clone().into_value()),
                 ("family", family.into_value()),
                 ("binding_hash", binding.into_value()),
                 ("credential_hash", hash.into_value()),

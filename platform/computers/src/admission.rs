@@ -2,7 +2,7 @@ use crate::{Computer, ComputerError, ComputersStore, Result, identity::*, model:
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{OpenObject, deterministic_tenant_id};
+use veoveo_platform_store::deterministic_tenant_id;
 use veoveo_task_runtime::TaskOwner;
 
 /// Installation policy, never a caller-controlled request field. Zero closes admission.
@@ -41,7 +41,7 @@ struct Content {
     owner_key: String,
     tenant_key: String,
     // Shared TaskOwner envelope is typed on both sides of this store adapter.
-    owner_context: OpenObject,
+    owner_context: veoveo_platform_store::TaskOwnerRecord,
     provider_instance_id: Uuid,
     template_id: String,
     template_fingerprint: String,
@@ -107,7 +107,7 @@ impl ComputersStore {
             computer_id: id.as_uuid(),
             owner_key: key.clone(),
             tenant_key: owner.tenant_key().into(),
-            owner_context: object(owner)?,
+            owner_context: crate::identity::stored_owner(owner)?,
             provider_instance_id: self.provider_instance_id.as_uuid(),
             template_id: input.template_id.to_string(),
             template_fingerprint: input.template_fingerprint.clone(),
@@ -154,13 +154,4 @@ impl ComputersStore {
             .await?
             .ok_or(ComputerError::Unavailable)
     }
-}
-
-fn object(value: &impl Serialize) -> Result<OpenObject> {
-    let serde_json::Value::Object(fields) =
-        serde_json::to_value(value).map_err(|_| ComputerError::InvalidInput)?
-    else {
-        return Err(ComputerError::InvalidInput);
-    };
-    Ok(OpenObject::new(fields.into_iter().collect()))
 }

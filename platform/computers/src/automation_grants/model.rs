@@ -10,7 +10,7 @@ use serde::Deserialize;
 use std::collections::BTreeSet;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{OpenObject, PrincipalKind, deterministic_principal_id};
+use veoveo_platform_store::{PrincipalKind, deterministic_principal_id};
 use veoveo_types::{OAuthClientId, PrincipalId};
 
 pub(super) fn scope(
@@ -81,7 +81,7 @@ pub(super) struct Record {
     computer_id: Uuid,
     owner_key: String,
     provider_instance_id: Uuid,
-    authority: OpenObject,
+    authority: crate::AcceptedAuthority,
     grantee: RecordId,
     principal_id: String,
     oauth_client_id: String,
@@ -90,7 +90,8 @@ pub(super) struct Record {
     grantee_kind: PrincipalKind,
     name: String,
     permissions: Vec<String>,
-    execution_limits: Option<OpenObject>,
+    #[surreal(wrap)]
+    execution_limits: Option<crate::api::AutomationExecutionLimits>,
     issued_at: DateTime<Utc>,
     expires_at: DateTime<Utc>,
     revoked_at: Option<DateTime<Utc>>,
@@ -110,19 +111,7 @@ pub(super) struct Grant {
 impl TryFrom<Record> for Grant {
     type Error = ComputerError;
     fn try_from(row: Record) -> Result<Self> {
-        let decode = || -> std::result::Result<_, serde_json::Error> {
-            Ok((
-                serde_json::from_value::<AcceptedAuthority>(serde_json::to_value(row.authority)?)?,
-                row.execution_limits
-                    .map(|value| {
-                        serde_json::from_value::<AutomationExecutionLimits>(serde_json::to_value(
-                            value,
-                        )?)
-                    })
-                    .transpose()?,
-            ))
-        };
-        let (authority, limits) = decode().map_err(|_| ComputerError::Unavailable)?;
+        let (authority, limits) = (row.authority, row.execution_limits);
         authority
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;

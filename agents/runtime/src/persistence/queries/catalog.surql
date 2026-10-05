@@ -1,12 +1,8 @@
 RETURN SELECT
-  key,
-  name,
-  description,
-  revision,
-  published.digest AS digest,
-  published.content.model AS model,
-  published.content.tools AS tools,
-  published.content.execution.kind AS execution_kind
+  { key: key, name: name, description: description, revision: revision,
+    digest: published.digest, model: published.model, tools: published.tools,
+    execution_kind: published.execution.kind } AS entry,
+  published.* AS revision
 FROM agent_definition
 WHERE
   tenant = $authority.tenant

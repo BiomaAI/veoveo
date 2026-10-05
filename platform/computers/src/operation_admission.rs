@@ -11,7 +11,6 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
@@ -21,10 +20,11 @@ struct Content {
     operation_id: Uuid,
     computer_id: Uuid,
     task: RecordId,
-    actor_context: OpenObject,
-    owner_context: OpenObject,
+    task_tenant: RecordId,
+    actor_context: veoveo_platform_store::TaskOwnerRecord,
+    owner_context: veoveo_platform_store::TaskOwnerRecord,
     automation_grant_id: Option<Uuid>,
-    execution_authority: OpenObject,
+    execution_authority: crate::AcceptedAuthority,
     provider_instance_id: Uuid,
     template_fingerprint: String,
     replacement_instance_id: Option<Uuid>,
@@ -147,10 +147,11 @@ impl ComputersStore {
             operation_id: id.as_uuid(),
             computer_id: computer_id.as_uuid(),
             task: task_record_id(id),
-            actor_context: object(caller)?,
-            owner_context: object(&computer.owner)?,
+            task_tenant: crate::identity::task_tenant(caller)?,
+            actor_context: crate::identity::stored_owner(caller)?,
+            owner_context: crate::identity::stored_owner(&computer.owner)?,
             automation_grant_id: grant_id.map(crate::api::AutomationGrantId::as_uuid),
-            execution_authority: object(actor.accepted())?,
+            execution_authority: actor.accepted().clone(),
             provider_instance_id: computer.provider_instance_id.as_uuid(),
             template_fingerprint: computer.template_fingerprint,
             replacement_instance_id: computer.replacement_instance_id,
@@ -172,7 +173,7 @@ impl ComputersStore {
             ("owner_key", key.into_value()),
             (
                 "expected_owner_context",
-                object(&computer.owner)?.into_value(),
+                crate::identity::stored_owner(&computer.owner)?.into_value(),
             ),
             ("automation", grant_id.is_some().into_value()),
             ("operation", operation_record(id).into_value()),
@@ -306,13 +307,4 @@ fn phase(value: ComputerPhase) -> String {
         ComputerPhase::RecoveryRequired => "recovery_required",
     }
     .into()
-}
-
-fn object(value: &impl Serialize) -> Result<OpenObject> {
-    let serde_json::Value::Object(fields) =
-        serde_json::to_value(value).map_err(|_| ComputerError::InvalidInput)?
-    else {
-        return Err(ComputerError::InvalidInput);
-    };
-    Ok(OpenObject::new(fields.into_iter().collect()))
 }

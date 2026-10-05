@@ -8,7 +8,6 @@ use crate::{
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 
 #[derive(Serialize, SurrealValue)]
@@ -18,10 +17,11 @@ struct Content {
     provider_instance_id: Uuid,
     owner_key: String,
     actor_key: String,
-    binding: OpenObject,
-    authority: OpenObject,
+    binding: crate::secrets::FileTransferBinding,
+    authority: crate::AcceptedAuthority,
     payload: RecordId,
     task: RecordId,
+    task_tenant: RecordId,
 }
 #[derive(SurrealValue)]
 struct Payload {
@@ -113,10 +113,11 @@ impl ComputersStore {
             provider_instance_id: self.provider_instance_id.as_uuid(),
             owner_key: binding.owner_key.clone(),
             actor_key: actor_key.clone(),
-            binding: super::object(&binding)?,
-            authority: super::object(actor.accepted())?,
+            binding: binding.clone(),
+            authority: actor.accepted().clone(),
             payload: super::payload_record(binding.transfer_id),
             task: task_record_id(binding.transfer_id.task_id()),
+            task_tenant: crate::identity::task_tenant(actor.owner())?,
         };
 
         let mut params = authority.transaction_bindings()?;
@@ -157,7 +158,7 @@ impl ComputersStore {
             ("expected_updated_at", computer.updated_at.into_value()),
             (
                 "expected_owner_context",
-                super::object(&computer.owner)?.into_value(),
+                crate::identity::stored_owner(&computer.owner)?.into_value(),
             ),
             ("policy", self.automation_policy_record().into_value()),
         ]);

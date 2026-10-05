@@ -1,0 +1,1 @@
+UPDATE ONLY $lookup CONTENT $content RETURN NONE;

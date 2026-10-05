@@ -141,7 +141,7 @@ impl ComputersStore {
                         .ok_or(ComputerError::StateConflict)?
                         .into_value(),
                 ),
-                ("binding", super::object(&operation.binding)?.into_value()),
+                ("binding", operation.binding.clone().into_value()),
                 ("result", result_value.into_value()),
                 ("rejection", rejection_value.into_value()),
                 (

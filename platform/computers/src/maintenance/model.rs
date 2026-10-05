@@ -48,7 +48,25 @@ pub enum MaintenanceSource {
     /// that its initial admission never acquired a writer. Current absence cannot.
     InitialFailure { operation_id: veoveo_types::TaskId },
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+pub(super) enum MaintenanceSourceKind {
+    #[vocabulary(rename = "ready")]
+    Ready,
+    #[vocabulary(rename = "stopped")]
+    Stopped,
+    #[vocabulary(rename = "initial_failure")]
+    InitialFailure,
+}
+
 impl MaintenanceSource {
+    pub(super) fn kind(&self) -> MaintenanceSourceKind {
+        match self {
+            Self::Ready { .. } => MaintenanceSourceKind::Ready,
+            Self::Stopped { .. } => MaintenanceSourceKind::Stopped,
+            Self::InitialFailure { .. } => MaintenanceSourceKind::InitialFailure,
+        }
+    }
+
     pub(super) fn validate(&self) -> Result<()> {
         let valid = match self {
             Self::Ready {
@@ -116,14 +134,17 @@ pub(super) struct MaintenanceRecord {
     request_id: Uuid,
     computer_id: Uuid,
     task: RecordId,
+    task_tenant: RecordId,
     owner_key: String,
-    actor_context: OpenObject,
-    execution_authority: OpenObject,
+    actor_context: veoveo_platform_store::TaskOwnerRecord,
+    execution_authority: crate::AcceptedAuthority,
     provider_instance_id: Uuid,
     source_instance_id: Uuid,
     source_template_id: String,
     source_template_fingerprint: String,
     source: OpenObject,
+    #[surreal(wrap)]
+    source_kind: MaintenanceSourceKind,
     target_instance_id: Uuid,
     target_template_id: String,
     target_template_fingerprint: String,
@@ -136,6 +157,7 @@ pub(super) struct MaintenanceRecord {
 impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
     type Error = ComputerError;
     fn try_from(row: MaintenanceRecord) -> Result<Self> {
+        let source_kind = row.source_kind;
         let computer_id = crate::api::ComputerId::try_from(row.computer_id)
             .map_err(|_| ComputerError::Unavailable)?;
         let provider_instance_id =
@@ -157,9 +179,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
                 request_id,
                 computer_id,
                 actor: serde_json::from_value(serde_json::to_value(row.actor_context)?)?,
-                execution_authority: serde_json::from_value(serde_json::to_value(
-                    row.execution_authority,
-                )?)?,
+                execution_authority: row.execution_authority,
                 provider_instance_id,
                 source_instance_id: row.source_instance_id,
                 source_template_id,
@@ -187,7 +207,9 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
         op.source
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
-        if op.operation_id.as_uuid().get_version_num() != 7
+        if row.task_tenant != crate::identity::task_tenant(&op.actor)?
+            || op.source.kind() != source_kind
+            || op.operation_id.as_uuid().get_version_num() != 7
             || [op.source_instance_id, op.target_instance_id]
                 .iter()
                 .any(Uuid::is_nil)

@@ -128,3 +128,9 @@ pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdenti
         expires_at: now + chrono::TimeDelta::minutes(1),
     }
 }
+
+#[allow(
+    dead_code,
+    reason = "Each fixture selects its required corruption controls"
+)]
+pub mod controlled_storage;

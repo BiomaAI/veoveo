@@ -1,1 +1,1 @@
-UPDATE ONLY $record SET status = 'invalidated', canonical_json = $canonical_json, updated_at = time::now() WHERE tenant = $tenant AND status != 'invalidated' RETURN AFTER;
+UPDATE ONLY $record SET status = 'invalidated', canonical_json = $canonical_json, base_release_ids = $base_release_ids, restriction_ids = $restriction_ids, facility_ids = $facility_ids, updated_at = time::now() WHERE tenant = $tenant AND status != 'invalidated' RETURN AFTER;

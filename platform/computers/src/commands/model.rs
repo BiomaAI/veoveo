@@ -115,19 +115,22 @@ pub(super) struct Record {
     computer_id: Uuid,
     provider_instance_id: Uuid,
     actor_key: String,
-    binding: OpenObject,
-    authority: OpenObject,
+    binding: crate::secrets::CommandBinding,
+    authority: crate::AcceptedAuthority,
     #[surreal(wrap)]
     sealed: SealedCommand,
-    output_access: Option<OpenObject>,
+    #[surreal(wrap)]
+    output_access: Option<crate::secrets::SealedOutputAccess>,
     task: RecordId,
+    task_tenant: RecordId,
     stage: String,
     created_at: DateTime<Utc>,
     dispatch_id: Option<Uuid>,
     dispatched_at: Option<DateTime<Utc>>,
     execution_deadline: Option<DateTime<Utc>>,
-    effective_limits: Option<OpenObject>,
-    dispatch_authority: Option<OpenObject>,
+    #[surreal(wrap)]
+    effective_limits: Option<crate::api::AutomationExecutionLimits>,
+    dispatch_authority: Option<super::CommandDispatchDecision>,
     containment_id: Option<Uuid>,
     interruption: Option<String>,
     containment_dispatch_id: Option<Uuid>,
@@ -148,26 +151,17 @@ impl TryFrom<Record> for CommandOperation {
     fn try_from(row: Record) -> Result<Self> {
         let decode = || -> std::result::Result<_, serde_json::Error> {
             Ok(Self {
-                binding: serde_json::from_value(serde_json::to_value(row.binding)?)?,
-                authority: serde_json::from_value(serde_json::to_value(row.authority)?)?,
+                binding: row.binding,
+                authority: row.authority,
                 sealed: row.sealed,
-                output_access: row
-                    .output_access
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
+                output_access: row.output_access,
                 created_at: row.created_at,
                 stage: serde_json::from_value(serde_json::Value::String(row.stage))?,
                 dispatch_id: row.dispatch_id,
                 dispatched_at: row.dispatched_at,
                 execution_deadline: row.execution_deadline,
-                effective_limits: row
-                    .effective_limits
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
-                dispatch_authority: row
-                    .dispatch_authority
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
+                effective_limits: row.effective_limits,
+                dispatch_authority: row.dispatch_authority,
                 containment_id: row.containment_id,
                 interruption: row
                     .interruption
@@ -207,6 +201,7 @@ impl TryFrom<Record> for CommandOperation {
             || command.binding.provider_instance_id.as_uuid() != row.provider_instance_id
             || row.actor_key != super::actor_key(&command.authority)?
             || command.binding.actor_key != row.actor_key
+            || row.task_tenant != crate::identity::task_tenant(&command.actor())?
             || row.task != task_record_id(command.task_id())
         {
             return Err(ComputerError::Unavailable);

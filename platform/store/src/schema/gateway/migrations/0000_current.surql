@@ -104,7 +104,7 @@ DEFINE FIELD OVERWRITE id ON gateway_control_object TYPE uuid DEFAULT `rand`::uu
 
 DEFINE FIELD OVERWRITE object_id ON gateway_control_object TYPE string READONLY PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE object_kind ON gateway_control_object TYPE string READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE object_kind ON gateway_control_object TYPE string ASSERT $value = /^[A-Za-z0-9_.:\/-]{1,128}$/ READONLY PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE revision ON gateway_control_object TYPE record<gateway_control_revision> READONLY PERMISSIONS FULL;
 
@@ -172,7 +172,25 @@ DEFINE FIELD OVERWRITE issued_at ON gateway_refresh_family TYPE datetime PERMISS
 
 DEFINE FIELD OVERWRITE oauth_client_id ON gateway_refresh_family TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE principal ON gateway_refresh_family TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE principal ON gateway_refresh_family TYPE object ASSERT object::keys($value) ALLINSIDE ['principal', 'principal_display_name'] AND $value.principal != NONE AND $value.principal_display_name != NONE;
+DEFINE FIELD OVERWRITE principal.principal_display_name ON gateway_refresh_family TYPE string;
+DEFINE FIELD OVERWRITE principal.principal ON gateway_refresh_family TYPE object ASSERT object::keys($value) ALLINSIDE ['id', 'kind', 'issuer', 'subject', 'tenant', 'groups', 'group_roles', 'roles', 'scopes', 'data_labels', 'assurances', 'authenticated_at'] AND $value.id != NONE AND $value.kind != NONE AND $value.issuer != NONE AND $value.subject != NONE AND $value.groups != NONE AND $value.roles != NONE AND $value.scopes != NONE AND $value.data_labels != NONE AND $value.assurances != NONE;
+DEFINE FIELD OVERWRITE principal.principal.id ON gateway_refresh_family TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.kind ON gateway_refresh_family TYPE 'user' | 'service';
+DEFINE FIELD OVERWRITE principal.principal.issuer ON gateway_refresh_family TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.subject ON gateway_refresh_family TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.tenant ON gateway_refresh_family TYPE option<string>;
+DEFINE FIELD OVERWRITE principal.principal.groups ON gateway_refresh_family TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.group_roles ON gateway_refresh_family TYPE option<array<object>>;
+DEFINE FIELD OVERWRITE principal.principal.roles ON gateway_refresh_family TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.scopes ON gateway_refresh_family TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.data_labels ON gateway_refresh_family TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.assurances ON gateway_refresh_family TYPE array<'us_person'>;
+DEFINE FIELD OVERWRITE principal.principal.authenticated_at ON gateway_refresh_family TYPE option<string>;
+DEFINE FIELD OVERWRITE principal.principal.group_roles.* ON gateway_refresh_family TYPE object ASSERT object::keys($value) ALLINSIDE ['group', 'role'] AND $value.group != NONE AND $value.role != NONE;
+DEFINE FIELD OVERWRITE principal.principal.group_roles.*.group ON gateway_refresh_family TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.group_roles.*.role ON gateway_refresh_family TYPE 'read' | 'write' | 'admin';
+
 
 DEFINE FIELD OVERWRITE principal_id ON gateway_refresh_family TYPE string PERMISSIONS FULL;
 

@@ -353,7 +353,11 @@ async fn queued_cancellation_releases_only_an_undispatched_slot() {
         ComputerPhase::Ready
     );
     assert!(a.begin_file_dispatch(&claim, &keys()).await.is_err());
-    assert!(a.acknowledge_file_task(&terminal).await.is_err());
+    assert!(
+        a.acknowledge_file_task(&terminal, expected_task_output(&terminal).as_ref())
+            .await
+            .is_err()
+    );
     let tasks = TaskRuntime::new(db.a.clone(), "computers", "file-worker");
     tasks
         .transition(
@@ -362,10 +366,14 @@ async fn queued_cancellation_releases_only_an_undispatched_slot() {
         )
         .await
         .unwrap();
-    a.acknowledge_file_task(&terminal).await.unwrap();
+    a.acknowledge_file_task(&terminal, expected_task_output(&terminal).as_ref())
+        .await
+        .unwrap();
     assert_eq!(a.pending_file_transfers(None, 100).await.unwrap().len(), 1);
     // Another worker can repair a crash between the delivery marker and pin acknowledgement.
-    a.acknowledge_file_task(&terminal).await.unwrap();
+    a.acknowledge_file_task(&terminal, expected_task_output(&terminal).as_ref())
+        .await
+        .unwrap();
     tasks
         .acknowledge_retention_pin(
             terminal.task_id(),

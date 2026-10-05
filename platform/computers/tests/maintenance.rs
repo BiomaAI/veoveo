@@ -49,6 +49,68 @@ async fn ready(
 }
 
 #[tokio::test]
+async fn maintenance_source_projection_mismatch_rejects_reads_and_worker_claims() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = support::database().await;
+        let (a, b, actor, computer_id) = ready(&db).await;
+        let operation = a
+            .queue_maintenance(
+                &actor,
+                computer_id,
+                veoveo_computers::api::RequestId::new(),
+                &target(),
+            )
+            .await
+            .unwrap();
+        let runtime = TaskRuntime::new(db.a.clone(), "computers", "projection-check");
+        let claim = runtime
+            .claim_observation(operation.task_id(), Duration::from_secs(60))
+            .await
+            .unwrap();
+        for kind in ["stopped", "ready"] {
+            db.a.client()
+                .query(include_str!("queries/maintenance/source_kind.surql"))
+                .bind((
+                    "operation",
+                    RecordId::new(
+                        "computer_maintenance",
+                        StoreUuid::from(operation.operation_id.as_uuid()),
+                    ),
+                ))
+                .bind(("source_kind", kind))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            if kind == "stopped" {
+                assert!(matches!(
+                    b.maintenance(actor.owner(), operation.operation_id).await,
+                    Err(ComputerError::Unavailable)
+                ));
+                assert!(matches!(
+                    a.maintenance_for_claim(&claim).await,
+                    Err(ComputerError::Unavailable)
+                ));
+            } else {
+                assert_eq!(
+                    b.maintenance(actor.owner(), operation.operation_id)
+                        .await
+                        .unwrap()
+                        .source,
+                    operation.source
+                );
+                assert_eq!(
+                    a.maintenance_for_claim(&claim).await.unwrap().source,
+                    operation.source
+                );
+            }
+        }
+    })
+    .await
+    .expect("maintenance source projection checks exceeded 180 seconds");
+}
+
+#[tokio::test]
 async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     let db = support::database().await;
     let (a, b, actor, computer_id) = ready(&db).await;

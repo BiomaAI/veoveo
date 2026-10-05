@@ -32,5 +32,6 @@ pub(super) struct FrameWorldRevisionRecord {
     pub(super) spec_sha256: String,
     pub(super) root_frame_key: String,
     pub(super) definition: OpenObject,
+    pub(super) frame_ids: Vec<String>,
     pub(super) created_at: DateTime<Utc>,
 }

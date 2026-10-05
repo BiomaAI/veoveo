@@ -131,9 +131,28 @@ consumer pass. Affected compilation, strict lint and isolated contract/runtime b
 pass, including correction of Recording Video's runtime dependency gate. Independent
 review found no remaining definite issue in this source batch.
 
-Map and Computers still need their remaining kernel-query cuts. Other Phase 4 field
-families and phases 5–10 also have required work. This source checkpoint does not
-qualify the installation cut. The cluster stays stopped during development.
+The normalized identity cut is committed as `6312fd086`: Rust and Python reject
+unknown Principal and group-membership fields, and Rust closes the outer policy
+decision. Native MCP and Python contract/authentication checks pass.
+
+Map's retained Task lookups, Computers' Task/Gateway/Identity calls and controlled
+storage fields in Computers, Frames, Agents and Gateway now pass native qualification.
+Computers' affected 31 test targets pass, including policy before decoding and paging,
+grant revocation, worker recovery and HTTP/MCP consumers. Agent repository reads reject
+undeclared fields and mismatched revision content in both management and controller
+paths; its management, gateway and decoder suites pass. The composed schema,
+installation-command lifecycle and independent schema consumer pass. Affected
+compilation, strict lint, formatting and source-policy checks pass. Independent review
+findings are resolved. This qualifies the batch for a source checkpoint.
+
+Next are Media's shared webhook journal and settlement APIs, the remaining Agent
+Identity operations and Artifact subscription deadlines. Computers' real provider
+process suites still require a configured, qualified native execution profile before
+publication; the current tests do not close that Phase 10 requirement.
+The remaining [Phase 3](#phase-3-module-ownership-of-persistence-and-queries) owner
+APIs, [Phase 4](#phase-4-database-field-types) field families and phases 5–10 keep
+the plan open. These source checkpoints do not qualify the installation cut.
+The cluster stays stopped during development.
 
 The following installed checkpoints establish the accepted Foundations baseline.
 They do not qualify the subsequent consolidation changes.
@@ -343,7 +362,7 @@ nine optional modules.
 | Layer | Module | Tables |
 |---|---|---|
 | Kernel | Store base | `changefeed_checkpoint`, `platform_schema_migration`, `platform_downstream_migration` |
-| Kernel | Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `membership`, `work_context`, `oauth_client` |
+| Kernel | Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `work_context`, `oauth_client` |
 | Kernel | Policy and gateway | `policy_revision`, `profile`, `profile_server`, `gateway_*` (11), `mcp_server`, `mcp_interaction` |
 | Kernel | Artifacts | `artifact_*` (12), `share_link` |
 | Kernel | Tasks | `task`, `task_input`, `task_idempotency`, `task_produced_artifact`, `task_used_artifact`, `provider_job`, `provider_event`, `domain_usage` |
@@ -1109,8 +1128,44 @@ The export calls do not replace Computers' policy decisions or provider fences.
 Its operation, execution, transfer and maintenance journals also need a declared
 Task tenant record derived from the same owner used for Task admission. This lets
 cross-tenant worker queues use Task lifecycle selection without copying Identity's
-record-ID construction into SQL. Qualify missing, disabled, foreign and changed
-records along with grant expiry and current-result acknowledgment.
+record-ID construction into SQL. Worker recovery checks retained tenant identity
+without requiring the tenant or enterprise to stay enabled. Disabling authority
+must still allow workers to contain dispatched effects, settle results and release
+acknowledged retention pins. New admission requires enabled authority. Qualify
+missing, disabled, foreign and changed records along with grant expiry and
+current-result acknowledgment.
+
+Media's remaining kernel access includes provider-job and event writes, Task
+waiting and settlement, prediction and generation reads, and billing selection.
+Move the shared journal transactions into typed Tasks-owned APIs. Media owns the
+provider payload interpretation and the declared prediction/result lookup fields;
+its SQL must not inspect `provider_payload` or the Task result envelope. Preserve
+webhook deduplication, event/job/Task correlation, cancellation semantics and atomic
+settlement with the existing fake-provider tests. Media uses `WebhookWait`; the
+`ProviderWait` observation-lease API cannot represent its authenticated callbacks.
+The new journal transactions check Task, tenant and provider associations and update
+Media's lookup when the provider assigns an external identity. Terminal settlement
+also runs the owner's Task contribution. Billing selects provider completion even
+when the local Task was cancelled. Preserve the first authenticated terminal
+provider observation independently of Task settlement: a local Artifact publication
+failure cannot rewrite a successful provider outcome. Qualify concurrent receipt,
+submission binding and cancellation with transaction-level correlation checks;
+checks performed before the transaction do not protect a later journal write.
+The creation contribution's identity stays immutable. A later provider identity
+enters through a checked owner projection in the journal transaction, with the
+same rollback and replay guarantees as the Task contribution.
+Artifact's subscription deadline
+query also belongs behind its owning Store API. Reuse current Artifact admission
+for retention and grant-expiry selection before returning the next deadline.
+
+Agents' managed-instance provisioning still creates an Identity principal and checks
+the OAuth client table directly. Definition publication compares Work Context policy
+snapshots, ownership transfer admits a principal, and executable reads resolve the
+publisher's name. Registration and reconciliation also read Identity metadata
+through record links. Move these operations behind Identity APIs while preserving
+each enclosing transaction, identity collisions, capacity rollback and current
+dispatch checks. Moving the Agent tables into their own lane did not finish this
+runtime access cut.
 
 UAV and Reason need distinct caller and maintenance profiles. UAV preserves its
 indexed mission-plan and execution lookup, while Tasks owns terminal settlement
@@ -1280,6 +1335,14 @@ the Rust type that writes them. `option<…>` appears only where the Rust field 
 | Gateway sessions | `gateway_refresh_family.principal` |
 | Managed agents | `managed_agent.{identity, resources, public_key}`; the UNIQUE indexes on `identity.client_id`, `resources.workload`, `resources.credential_secret` and `resources.volume_claim` then always apply |
 
+The normalized `Principal` and its group memberships have a controlled shape.
+Close their Rust and Python decoders together; Python's extra-field preservation
+and Rust's silent dropping must not produce different stored authority snapshots.
+Close the outer `PolicyDecision` while preserving registered owner targets. Raw
+external JWT claims keep their existing handling before normalization. Qualify
+both normalized-field rejection and external-claim acceptance with the affected
+generated consumers.
+
 The `TaskOwner` snapshot moves out of the FLEXIBLE `task.request` into a declared
 `task.owner_context` object. Keep `task.owner` as the existing `record<principal>`
 link and preserve its indexes. Update every `request.owner.*` query to use
@@ -1341,6 +1404,15 @@ phase 2 task hooks.
 | `source.kind` (`maintenance_commit.surql`) | `computer_maintenance.source_kind`, a literal type | Computers |
 | `encoding::json::decode(canonical_json).provenance.base_release_ids`, `restriction_ids`, `facility_ids` (Map store `owned.rs`) | `map_route.base_release_ids`, `restriction_ids`, `facility_ids`, declared string arrays written in the same transaction as `canonical_json` | Map |
 
+Task completion supplies an optional typed `ResourceUri` alongside its opaque result.
+Persist that address in `task.result_uri` in the settlement transaction and preserve
+it through Rust and Python snapshots. The MCP adapter validates the C02 product
+address against the completion payload; the Task storage implementation does not
+interpret MCP keys or server-owned result schemas. Qualify product completions,
+completions without a product, tool errors, malformed or mismatched addresses and
+replayed settlement. Update every writer in the same cut, including Media's webhook
+settlement and owner contributions.
+
 The 28 JSON-in-string columns stay as text. `canonical_json` serves byte-exact
 idempotency comparisons in Map, Time and UAV, `geometry_json` carries GeoJSON, and
 `schema_json` and `style_json` carry user documents. After phase 4 no query decodes
@@ -1355,14 +1427,16 @@ execution-kind constraint as well.
 
 ### Literal Types And Bound Values
 
-The owner review narrows the original ten-field literal inventory to eight closed
-vocabularies: `membership.role`, `coordinate_operation.kind`, `map_acquisition.phase`,
+The owner review narrows the original ten-field literal inventory to seven closed
+vocabularies: `coordinate_operation.kind`, `map_acquisition.phase`,
 `map_restriction.kind`, `map_restriction.effect_kind`, `map_source.adapter_kind`,
 `map_source.authority_class` and `time_acquisition.phase`. The database already
 uses 150 literal types.
 
-Remove the unused `agent_owner` relation and `AgentOwnerEdge` with the fresh schema
-cut; neither has a producer or consumer that defines a role vocabulary.
+Remove the unused `agent_owner` and `membership` relations with their
+`AgentOwnerEdge` and `MembershipEdge` records in the fresh schema cut. Neither has a
+producer or consumer that defines a role vocabulary. Configured group roles and
+Work Context membership use their existing contracts.
 `gateway_control_object.object_kind` accepts owner-registered catalog extensions.
 Keep that field extensible, validate the shared `ExtensionName` syntax, and qualify
 an independent owner's kind. A kernel enum would require core edits for new owners.
@@ -1372,7 +1446,10 @@ Known sites are the artifact upload descriptor, layout and manifest compared in 
 artifact upload queries, the gateway profile bound to
 `fn::artifact_upload_profile_digest` (migration `0050`), workspace operation commands
 (`$command.run_fence`, `app_uri`), time activation expectations and agent mutation
-plans. Each owner lists every `.bind` and classifies the bound type.
+plans. Computers' maintenance source and progress also still cross the driver
+through `OpenObject` despite having controlled Rust types. Their typed adapters
+must preserve the existing whole-value comparisons and native encoding. Each owner
+lists every `.bind` and classifies the bound type.
 
 ### Migration And Gates
 
@@ -1531,6 +1608,11 @@ Owner types supply actual numeric admission: cuOpt's nonnegative scalar exposes 
 existing lower bound, and Reason's private limits use fixed-width integers. Contextual
 filesystem, task, source-range and grounding checks remain with their owners. Installed
 process and hardware acceptance remain open.
+
+The SDK's normalized Principal still accepts arbitrary assurance strings while Rust
+uses `PrincipalAssurance`. Align that controlled vocabulary and qualify known and
+unknown values in the shared identity fixtures; external JWT claim parsing keeps its
+separate normalization step.
 
 | Consumer | Change |
 |---|---|

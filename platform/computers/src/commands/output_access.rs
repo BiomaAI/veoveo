@@ -114,8 +114,12 @@ impl ComputersStore {
                     super::record(saved.execution_id()).into_value(),
                 ),
                 ("provider", self.provider_instance_id.as_uuid().into_value()),
-                ("binding", object(&saved.binding)?.into_value()),
-                ("authority", object(&saved.authority)?.into_value()),
+                (
+                    "task_tenant",
+                    crate::identity::task_tenant(&saved.actor())?.into_value(),
+                ),
+                ("binding", saved.binding.clone().into_value()),
+                ("authority", saved.authority.clone().into_value()),
                 (
                     "expected_output",
                     saved

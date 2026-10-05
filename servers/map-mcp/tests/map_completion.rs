@@ -1,7 +1,11 @@
 //! Native SQL completion bounds and catalog visibility.
 use chrono::Utc;
-use std::time::Duration;
+use std::{collections::BTreeSet, time::Duration};
 use uuid::Uuid;
+use veoveo_map_mcp::contract::{
+    MapRouteUri, Meters, MobilityProfileVersion, Ratio, RouteCost, RoutePlan, RouteProvenance,
+    RouteStatus, Seconds,
+};
 use veoveo_map_mcp::persistence::MapRepository;
 use veoveo_map_mcp::persistence::{
     MapCatalogCompletion, MapReleaseDraft, MapReleaseState, MapRouteDraft, MapRouteMatrixDraft,
@@ -21,8 +25,8 @@ async fn source(store: &PlatformStore, identity: &PlatformIdentity, key: String,
             source_key: key,
             dataset_key: dataset.into(),
             name: "Fixture".into(),
-            adapter_kind: "fixture".into(),
-            authority_class: "reference".into(),
+            adapter_kind: "authority_vector".into(),
+            authority_class: "synthetic_test".into(),
             map_families: vec!["land".into()],
             enabled: true,
             canonical_json: "{}".into(),
@@ -59,6 +63,38 @@ async fn route_and_matrix(store: &PlatformStore, identity: &PlatformIdentity) ->
     let matrix = key("matrix");
     let profile = key("mobility");
     let snapshot = key("snapshot");
+    let now = Utc::now();
+    let route_id: veoveo_map_mcp::contract::RouteId = route.parse().unwrap();
+    let plan = RoutePlan {
+        route_uri: MapRouteUri::new(route_id.clone()),
+        route_id,
+        status: RouteStatus::Validated,
+        mobility_profile_id: profile.parse().unwrap(),
+        mobility_profile_version: MobilityProfileVersion::FIRST,
+        departure_time: now,
+        arrival_time: None,
+        legs: Vec::new(),
+        alternatives: Vec::new(),
+        summary: RouteCost {
+            distance: Meters::new(0.).unwrap(),
+            duration: Seconds::new(0.).unwrap(),
+            energy: None,
+            fuel: None,
+            monetary_minor_units: None,
+            risk: Ratio::new(0.).unwrap(),
+        },
+        crossed_boundary_ids: BTreeSet::new(),
+        facility_ids: BTreeSet::new(),
+        restriction_ids: BTreeSet::new(),
+        validation_id: key("validation").parse().unwrap(),
+        provenance: RouteProvenance {
+            base_release_ids: BTreeSet::new(),
+            operational_snapshot_id: snapshot.parse().unwrap(),
+            planner_version: "fixture".into(),
+            cost_model_version: "fixture".into(),
+        },
+        created_at: now,
+    };
     MapRepository::new(store.clone())
         .create_map_route(MapRouteDraft {
             identity: identity.clone(),
@@ -67,10 +103,13 @@ async fn route_and_matrix(store: &PlatformStore, identity: &PlatformIdentity) ->
             mobility_profile_key: profile.clone(),
             mobility_profile_version: 1,
             operational_snapshot_key: snapshot.clone(),
-            departure_time: Utc::now(),
-            arrival_time: None,
+            departure_time: plan.departure_time,
+            arrival_time: plan.arrival_time,
             cache_digest_sha256: "b".repeat(64),
-            canonical_json: "{}".into(),
+            canonical_json: serde_json::to_string(&plan).unwrap(),
+            base_release_ids: plan.provenance.base_release_ids.iter().cloned().collect(),
+            facility_ids: plan.facility_ids.iter().cloned().collect(),
+            restriction_ids: plan.restriction_ids.iter().cloned().collect(),
         })
         .await
         .unwrap();

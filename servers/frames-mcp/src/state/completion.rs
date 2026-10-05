@@ -1,7 +1,8 @@
 //! Database matching precedes the completion limit and uses typed parent identities.
-use super::{FrameScope, FramesState};
+use super::{FrameScope, FramesState, records::FrameWorldRevisionRecord, world_revision};
 use crate::contract::{FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri};
 use anyhow::{Result, ensure};
+use surrealdb::types::SurrealValue;
 
 const LIMIT: usize = 101;
 
@@ -99,10 +100,30 @@ impl FramesState {
             .bind(("limit", LIMIT))
             .await?
             .check()?;
-        response
-            .take::<Vec<String>>(0)?
+        #[derive(SurrealValue)]
+        struct Selection {
+            revision: FrameWorldRevisionRecord,
+            ids: Vec<String>,
+        }
+        let Some(selected) = response.take::<Option<Selection>>(1)? else {
+            return Ok(Vec::new());
+        };
+        let revision = world_revision(selected.revision)?;
+        selected
+            .ids
             .into_iter()
-            .map(|value| Ok(FrameId::parse(value)?))
+            .map(|value| {
+                let id = FrameId::parse(value)?;
+                ensure!(
+                    revision
+                        .tree()
+                        .frames
+                        .iter()
+                        .any(|node| node.frame_id == id),
+                    "frame completion differs from revision"
+                );
+                Ok(id)
+            })
             .collect()
     }
 }

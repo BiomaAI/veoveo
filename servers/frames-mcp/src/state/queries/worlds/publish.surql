@@ -16,7 +16,7 @@ IF $world.head_revision_key != $expected_head { THROW 'frame world head conflict
 LET $revision = CREATE ONLY $revision_record CONTENT {
     tenant: $tenant, owner: $owner, world: $world.id, world_key: $world_key,
     revision_key: $revision_key, revision: $world.revision + 1,
-    spec_sha256: $digest, root_frame_key: $root, definition: $tree, created_at: $now
+    spec_sha256: $digest, root_frame_key: $root, definition: $tree, frame_ids: $frame_ids, created_at: $now
 };
 LET $published = UPDATE ONLY $world.id SET head_revision = $revision_record,
     head_revision_key = $revision_key, revision = $world.revision + 1, updated_at = $now;

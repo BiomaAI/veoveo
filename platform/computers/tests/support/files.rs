@@ -117,3 +117,14 @@ pub async fn queue(
         .await
         .unwrap()
 }
+
+pub fn expected_task_output(
+    operation: &veoveo_computers::files::FileOperation,
+) -> Option<serde_json::Value> {
+    match operation.outcome()? {
+        veoveo_computers::files::FileOutcome::Completed(result) => Some(serde_json::json!({
+            "content": [], "structuredContent": result, "isError": false
+        })),
+        _ => None,
+    }
+}

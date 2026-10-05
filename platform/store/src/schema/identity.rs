@@ -8,7 +8,10 @@ pub const CURRENT_SCHEMA: &str = concat!(
     include_str!("identity/migrations/principal_summaries_v1.surql"),
     include_str!("identity/migrations/search_enabled_users_v1.surql"),
     include_str!("identity/migrations/enabled_user_v1.surql"),
-    include_str!("identity/migrations/identity_labels_v1.surql")
+    include_str!("identity/migrations/identity_labels_v1.surql"),
+    include_str!("identity/migrations/tenant_current_v1.surql"),
+    include_str!("identity/migrations/principal_current_v1.surql"),
+    include_str!("identity/migrations/tenant_matches_v1.surql")
 );
 
 fn actor_admitted_v1_api() -> Result<KernelSqlApi, DeclarationError> {
@@ -127,10 +130,74 @@ fn identity_labels_v1_api() -> Result<KernelSqlApi, DeclarationError> {
     )
 }
 
+fn tenant_current_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::tenant_current_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("enterprise", SqlType::Record(TableName::new("enterprise")?))?,
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+            ],
+            SqlType::Option(Box::new(SqlType::Object)),
+        )?,
+        SqlReadProfile::new(vec![
+            TableName::new("enterprise")?,
+            TableName::new("tenant")?,
+        ])?,
+        include_str!("identity/migrations/tenant_current_v1.surql"),
+    )
+}
+
+fn principal_current_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::principal_current_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("principal", SqlType::Record(TableName::new("principal")?))?,
+            ],
+            SqlType::Option(Box::new(SqlType::Object)),
+        )?,
+        SqlReadProfile::new(vec![TableName::new("principal")?])?,
+        include_str!("identity/migrations/principal_current_v1.surql"),
+    )
+}
+
+fn tenant_matches_v1_api() -> Result<KernelSqlApi, DeclarationError> {
+    KernelSqlApi::new(
+        FunctionName::new("fn::kernel::identity::tenant_matches_v1")?,
+        MigrationVersion::new(0),
+        SqlSignature::new(
+            vec![
+                SqlParameter::new("enterprise", SqlType::Record(TableName::new("enterprise")?))?,
+                SqlParameter::new("tenant", SqlType::Record(TableName::new("tenant")?))?,
+                SqlParameter::new("slug", SqlType::String)?,
+            ],
+            SqlType::Bool,
+        )?,
+        SqlReadProfile::new(vec![
+            TableName::new("enterprise")?,
+            TableName::new("tenant")?,
+        ])?,
+        include_str!("identity/migrations/tenant_matches_v1.surql"),
+    )
+}
+
 /// Declare target ownership and dependencies without applying the mixed Store catalog.
 pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, DeclarationError> {
     ModuleSetup::builder(ModuleName::new("identity")?, ModuleLayer::Kernel)
         .ownership(vec![
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::tenant_matches_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::tenant_current_v1",
+            )?),
+            OwnershipClaim::Function(FunctionName::new(
+                "fn::kernel::identity::principal_current_v1",
+            )?),
             OwnershipClaim::Function(FunctionName::new(
                 "fn::kernel::identity::principal_summaries_v1",
             )?),
@@ -151,7 +218,6 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Table(TableName::new("enterprise")?),
             OwnershipClaim::Table(TableName::new("principal")?),
             OwnershipClaim::Table(TableName::new("principal_group")?),
-            OwnershipClaim::Table(TableName::new("membership")?),
             OwnershipClaim::Table(TableName::new("work_context")?),
             OwnershipClaim::Table(TableName::new("oauth_client")?),
         ])
@@ -161,6 +227,9 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             CURRENT_SCHEMA,
         )?])?)
         .sql_apis(vec![
+            tenant_matches_v1_api()?,
+            tenant_current_v1_api()?,
+            principal_current_v1_api()?,
             actor_admitted_v1_api()?,
             identity_enabled_v1_api()?,
             principal_summaries_v1_api()?,

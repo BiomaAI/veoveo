@@ -14,14 +14,14 @@ IF $mutation.kind = 'create' {
     IF $capacity.definitions > $authority.definition_limit { THROW 'agent_capacity'; };
     CREATE ONLY $command.definition SET tenant = $authority.tenant, work_context = $authority.work_context,
         owner = $authority.principal, key = $command.key, name = $mutation.name, description = $mutation.description,
-        revision = 1, status = 'enabled', disabled = false, audience = [], draft = $mutation.content, draft_digest = $command.content_digest;
+        revision = 1, status = 'enabled', disabled = false, audience = [], draft = $mutation.content, draft_execution = $mutation.content.execution, draft_model = $mutation.content.model, draft_tools = $mutation.content.tools, draft_digest = $command.content_digest;
 } ELSE {
     IF $definition = NONE { THROW 'agent_not_found'; };
     IF $definition.revision != $command.expected_revision { THROW 'agent_conflict'; };
     IF $definition.status = 'archived' AND $mutation.kind NOT IN ['transfer', 'status'] { THROW 'agent_conflict'; };
     IF $mutation.kind = 'draft' {
-        IF $mutation.content.execution.kind != $definition.draft.execution.kind { THROW 'agent_conflict'; };
-        UPDATE ONLY $command.definition SET draft = $mutation.content, draft_digest = $command.content_digest;
+        IF $mutation.content.execution.kind != $definition.draft_execution.kind { THROW 'agent_conflict'; };
+        UPDATE ONLY $command.definition SET draft = $mutation.content, draft_execution = $mutation.content.execution, draft_model = $mutation.content.model, draft_tools = $mutation.content.tools, draft_digest = $command.content_digest;
     } ELSE IF $mutation.kind = 'metadata' {
         UPDATE ONLY $command.definition SET name = $mutation.name, description = $mutation.description;
     } ELSE IF $mutation.kind = 'publish' {
@@ -34,7 +34,7 @@ IF $mutation.kind = 'create' {
         LET $existing = array::first(SELECT id FROM agent_definition_revision WHERE definition = $command.definition AND digest = $mutation.digest LIMIT 1);
         LET $published = IF $existing = NONE {
             LET $created = CREATE ONLY agent_definition_revision SET definition = $command.definition, digest = $mutation.digest,
-                content = $definition.draft, created_by = $authority.principal;
+                content = $definition.draft, execution = $definition.draft_execution, model = $definition.draft_model, tools = $definition.draft_tools, created_by = $authority.principal;
             RETURN $created.id;
         } ELSE { RETURN $existing.id; };
         UPDATE ONLY $command.definition SET published = $published, audience = $mutation.audience.map(|$target| $target.work_context);

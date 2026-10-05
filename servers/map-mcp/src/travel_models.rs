@@ -4,8 +4,8 @@ use crate::contract::{
     MapTravelModelCursor, MapTravelModelPage, MapTravelModelsUri, TRAVEL_MODEL_PAGE_SIZE,
     TravelModelId, TravelModelRecord,
 };
-use anyhow::{Result, ensure};
-use serde::{Deserialize, de::DeserializeOwned};
+use anyhow::{Context, Result, ensure};
+use surrealdb::types::SurrealValue;
 use veoveo_platform_store::{
     PlatformStore, RecordId, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id,
@@ -28,7 +28,7 @@ impl<'a> TravelModelReads<'a> {
         address: &MapTravelModelsUri,
     ) -> Result<MapTravelModelPage> {
         let mut rows = self
-            .select::<PageRow>(owner, Selection::Page(address.cursor()))
+            .select(owner, Selection::Page(address.cursor()))
             .await?;
         let more = rows.len() > TRAVEL_MODEL_PAGE_SIZE;
         rows.truncate(TRAVEL_MODEL_PAGE_SIZE);
@@ -61,11 +61,9 @@ impl<'a> TravelModelReads<'a> {
         owner: &TaskOwner,
         id: &TravelModelId,
     ) -> Result<Option<TravelModelRecord>> {
-        let records = self
-            .select::<TravelModelRecord>(owner, Selection::Exact(id))
-            .await?;
+        let records = self.select(owner, Selection::Exact(id)).await?;
         ensure!(records.len() <= 1, "duplicate Map travel-model identity");
-        let record = records.into_iter().next();
+        let record = records.into_iter().next().map(|row| row.record);
         if let Some(record) = &record {
             record.validate_identity()?;
         }
@@ -78,14 +76,15 @@ impl<'a> TravelModelReads<'a> {
             needle.len() <= 512 && !needle.chars().any(char::is_control),
             "invalid completion search text"
         );
-        self.select(owner, Selection::Completion(needle)).await
+        Ok(self
+            .select(owner, Selection::Completion(needle))
+            .await?
+            .into_iter()
+            .map(|row| row.record.travel_model_id)
+            .collect())
     }
 
-    async fn select<T: DeserializeOwned>(
-        &self,
-        owner: &TaskOwner,
-        selection: Selection<'_>,
-    ) -> Result<Vec<T>> {
+    async fn select(&self, owner: &TaskOwner, selection: Selection<'_>) -> Result<Vec<PageRow>> {
         ensure!(
             owner.authority.tenant.as_str() == owner.tenant_key(),
             "Map owner and Work Context belong to different tenants"
@@ -138,10 +137,23 @@ impl<'a> TravelModelReads<'a> {
             Selection::Completion(needle) => query.bind(("needle", needle.to_lowercase())),
         };
         let mut response = query.await?.check()?;
-        let rows: Vec<serde_json::Value> = response.take(0)?;
-        rows.into_iter()
-            .map(|row| serde_json::from_value(row).map_err(Into::into))
-            .collect()
+        let rows = if matches!(selection, Selection::Completion(_)) {
+            let groups: Vec<CompletionRow> = response.take(0)?;
+            groups
+                .into_iter()
+                .map(|group| {
+                    ensure!(
+                        group.model_id == group.record.identity.travel_model_id,
+                        "Map completion group differs from its lookup"
+                    );
+                    decode(group.record)
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            let rows: Vec<crate::task_lookup::Row> = response.take(0)?;
+            rows.into_iter().map(decode).collect::<Result<Vec<_>>>()?
+        };
+        Ok(rows)
     }
 }
 enum Selection<'a> {
@@ -153,8 +165,49 @@ enum Selection<'a> {
 #[cfg(test)]
 mod tests;
 
-#[derive(Deserialize)]
 struct PageRow {
     task_id: veoveo_types::TaskId,
     record: TravelModelRecord,
+}
+
+#[derive(SurrealValue)]
+struct CompletionRow {
+    #[surreal(wrap)]
+    model_id: TravelModelId,
+    record: crate::task_lookup::Row,
+}
+fn decode(row: crate::task_lookup::Row) -> Result<PageRow> {
+    crate::task_lookup::verify_projection(&row.identity)?;
+    let envelope: rmcp::model::CallToolResult = serde_json::from_value(crate::task_lookup::json(
+        row.settlement
+            .expected_result
+            .context("Map product has no integrity result")?,
+    )?)?;
+    ensure!(
+        envelope.is_error != Some(true),
+        "Map product is a tool error"
+    );
+    let record: TravelModelRecord = serde_json::from_value(
+        envelope
+            .structured_content
+            .context("Map product has no structured content")?,
+    )?;
+    record.validate_identity()?;
+    ensure!(
+        record.travel_model_id == row.identity.travel_model_id
+            && record.created_by == row.identity.created_by
+            && record.work_context == row.identity.work_context,
+        "Map travel lookup differs from its retained product"
+    );
+    ensure!(
+        row.task.table.as_str() == "task",
+        "Map lookup has wrong Task table"
+    );
+    let veoveo_platform_store::RecordIdKey::Uuid(id) = row.task.key else {
+        anyhow::bail!("Map lookup has wrong Task identity")
+    };
+    Ok(PageRow {
+        task_id: veoveo_types::TaskId::parse(id.to_string())?,
+        record,
+    })
 }

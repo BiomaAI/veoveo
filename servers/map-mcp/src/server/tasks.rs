@@ -96,14 +96,7 @@ struct DurableRasterDerivationRequest {
     artifact_write_capability: IssuedArtifactWriteCapability,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct DurableTravelModelRequest {
-    input: BuildTravelModelRequest,
-    identity: GatewayInternalIdentity,
-    travel_model_id: TravelModelId,
-    created_at: chrono::DateTime<Utc>,
-    artifact_write_capability: IssuedArtifactWriteCapability,
-}
+use crate::task_lookup::DurableTravelModelRequest;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "request", rename_all = "snake_case")]

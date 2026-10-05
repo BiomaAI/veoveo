@@ -5,7 +5,7 @@ mod file_support;
 use file_support::command_fixture as command_support;
 mod support;
 use std::time::Duration;
-use surrealdb::types::RecordId;
+use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, Reservation, api::*, cli_grants::CliGrantCredential,
@@ -16,11 +16,21 @@ fn record(table: &str, id: Uuid) -> RecordId {
     RecordId::new(table, surrealdb::types::Uuid::from(id))
 }
 async fn corrupt_authority(db: &support::TestDb, row: RecordId) {
+    let sql = include_str!("queries/sql_task_admission/corrupt_authority/statement_1.surql");
+    support::controlled_storage::reject_unchanged(
+        db,
+        row.clone(),
+        sql,
+        vec![
+            ("row", row.clone().into_value()),
+            ("poison", 42_i64.into_value()),
+        ],
+    )
+    .await;
     db.a.client()
-        .query(include_str!(
-            "queries/sql_task_admission/corrupt_authority/statement_1.surql"
-        ))
+        .query(sql)
         .bind(("row", row))
+        .bind(("poison", "not-an-rfc3339-timestamp"))
         .await
         .unwrap()
         .check()
@@ -75,8 +85,10 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
         let tasks = veoveo_task_runtime::TaskRuntime::new(db.a.clone(), "computers", "sql-worker");
         let claim = tasks.claim_observation(operation.task_id(), Duration::from_secs(30)).await.unwrap();
         store.operation_for_claim(&claim).await.unwrap();
-        db.a.client().query(include_str!("queries/sql_task_admission/operation_policy_and_participant_checks_precede_private_state_decoding/statement_1.surql"))
-            .bind(("row", record("computer_operation", operation.operation_id.as_uuid()))).await.unwrap().check().unwrap();
+        let row = record("computer_operation", operation.operation_id.as_uuid());
+        let poison_sql = include_str!("queries/sql_task_admission/operation_policy_and_participant_checks_precede_private_state_decoding/statement_1.surql");
+        support::controlled_storage::reject_unchanged(&db, row.clone(), poison_sql, vec![("row", row.clone().into_value()), ("poison", 42_i64.into_value())]).await;
+        db.a.client().query(poison_sql).bind(("row", row)).bind(("poison", "not-an-rfc3339-timestamp")).await.unwrap().check().unwrap();
         for denied in mismatched_claims(&claim) {
             assert!(matches!(store.operation_for_claim(&denied).await, Err(ComputerError::StateConflict)));
         }

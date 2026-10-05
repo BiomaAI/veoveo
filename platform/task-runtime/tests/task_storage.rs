@@ -364,3 +364,69 @@ async fn trusted_lifecycle_selects_exact_identity_without_exposing_payloads() {
         }
     }).await.unwrap();
 }
+
+#[tokio::test]
+async fn trusted_input_equality_and_presence_reveal_no_task_payload() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let runtime = TaskRuntime::new(db.a.clone(), "storage-test", "input-proof");
+        let input = serde_json::json!({"opaque":[null, 1.5, {"nested":"value"}]});
+        let task = runtime.create(draft(input.clone())).await.unwrap().snapshot;
+        #[derive(Debug, SurrealValue)]
+        struct Facts {
+            exists: bool,
+            matches: bool,
+        }
+        for (id, expected, exists, matches) in [
+            (task.task_id, input.clone(), true, true),
+            (
+                task.task_id,
+                serde_json::json!({"opaque":[null, 1.5, {"nested":"changed"}]}),
+                true,
+                false,
+            ),
+            (TaskId::new(), input.clone(), false, false),
+        ] {
+            let mut payload = veoveo_platform_store::TaskRequestRecord {
+                input: expected,
+                status_message: None,
+                ttl_ms: None,
+                poll_interval_ms: None,
+            }
+            .into_value();
+            let Value::Object(ref mut object) = payload else {
+                unreachable!()
+            };
+            let expected = object.remove("input").unwrap();
+            let mut response =
+                db.a.client()
+                    .query(include_str!("queries/storage/input_exists.surql"))
+                    .bind(("task", task_record_id(id)))
+                    .bind(("expected_input", expected))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            let facts = Facts::from_value(response.take::<Value>(0).unwrap()).unwrap();
+            assert_eq!((facts.exists, facts.matches), (exists, matches));
+        }
+        let scalar = runtime
+            .create(draft(serde_json::json!(null)))
+            .await
+            .unwrap()
+            .snapshot;
+        let mut response =
+            db.a.client()
+                .query(include_str!("queries/storage/input_exists.surql"))
+                .bind(("task", task_record_id(scalar.task_id)))
+                .bind(("expected_input", surrealdb::types::Object::new()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let facts = Facts::from_value(response.take::<Value>(0).unwrap()).unwrap();
+        assert!(facts.exists && !facts.matches);
+    })
+    .await
+    .unwrap();
+}

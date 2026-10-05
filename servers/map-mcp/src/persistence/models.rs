@@ -165,6 +165,9 @@ pub struct MapRouteRecord {
     pub arrival_time: Option<DateTime<Utc>>,
     pub cache_digest_sha256: String,
     pub canonical_json: String,
+    pub base_release_ids: Vec<String>,
+    pub restriction_ids: Vec<String>,
+    pub facility_ids: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

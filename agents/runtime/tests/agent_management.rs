@@ -42,8 +42,77 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
             .await,
         Err(AgentManagementError::NotFound)
     );
+    {
+        use surrealdb::types::{SurrealValue, Value};
+        let mut response =
+            db.a.client()
+                .query(include_str!(
+                    "queries/agent_management/closed_records/read.surql"
+                ))
+                .bind(("record", initial.id.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let original: Value = response.take(0).unwrap();
+        for case in 0..3 {
+            let mut content = original.clone();
+            let Value::Object(ref mut fields) = content else {
+                unreachable!()
+            };
+            match case {
+                0 => {
+                    fields.remove("draft_execution");
+                }
+                1 => {
+                    let Value::Object(model) = fields.get_mut("draft_model").unwrap() else {
+                        unreachable!()
+                    };
+                    model.insert("unknown", true.into_value());
+                }
+                _ => {
+                    let Value::Object(execution) = fields.get_mut("draft_execution").unwrap()
+                    else {
+                        unreachable!()
+                    };
+                    execution.insert("kind", "invented".into_value());
+                }
+            }
+            assert!(
+                db.a.client()
+                    .query(include_str!(
+                        "queries/agent_management/closed_records/write.surql"
+                    ))
+                    .bind(("record", initial.id.clone()))
+                    .bind(("content", content))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err(),
+                "draft projection control {case}"
+            );
+            assert_eq!(
+                AgentRepository::new(db.b.clone())
+                    .agent_definition(&a, "researcher")
+                    .await
+                    .unwrap(),
+                initial
+            );
+        }
+    }
     let first = publish(&db.a, &a, &initial).await;
     assert!(first.published.is_some());
+    let revision = AgentRepository::new(db.b.clone())
+        .agent_authored_revision(&a, "researcher", &initial.draft_digest)
+        .await
+        .unwrap();
+    assert_eq!(revision.execution, initial.draft.execution);
+    assert_eq!(revision.model, initial.draft.model);
+    assert_eq!(revision.tools, initial.draft.tools);
+    assert_eq!(revision.template_revision, None);
+    assert_eq!(initial.draft_execution, initial.draft.execution);
+    assert_eq!(initial.draft_model, initial.draft.model);
+    assert_eq!(initial.draft_tools, initial.draft.tools);
     assert_eq!(first.audience, vec![a.work_context.clone()]);
     let catalog = AgentRepository::new(db.b.clone())
         .agent_catalog(&b, None, 20)
@@ -681,4 +750,95 @@ async fn catalog_sql_admission_excludes_malformed_hidden_publications_before_dec
     })
     .await
     .expect("catalog SQL admission exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn private_draft_unknown_fields_are_rejected_after_sql_admission() {
+    use surrealdb::types::{SurrealValue, Value};
+    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        let db = TestDb::with_modules(vec![
+            veoveo_agent_runtime::schema::module_setup(
+                fixture::module_lanes::execution("agents").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let alice = identity(&db.a, "draft-decoder", "alice").await;
+        let bob = identity(&db.a, "draft-decoder", "bob").await;
+        context(&db.a, &alice, "operations").await;
+        let admitted = authority(&db.a, &alice, "operations").await;
+        let denied = authority(&db.a, &bob, "operations").await;
+        let definition = create(&db.a, &admitted, "private").await;
+        let mut response =
+            db.a.client()
+                .query(include_str!(
+                    "queries/agent_management/closed_records/read.surql"
+                ))
+                .bind(("record", definition.id.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let original: Value = response.take(0).unwrap();
+        let repo = AgentRepository::new(db.b.clone());
+        for nested in [None, Some("model"), Some("budgets"), Some("execution")] {
+            let mut value = original.clone();
+            let Value::Object(fields) = &mut value else {
+                unreachable!()
+            };
+            let Value::Object(draft) = fields.get_mut("draft").unwrap() else {
+                unreachable!()
+            };
+            let target = if let Some(key) = nested {
+                let Value::Object(target) = draft.get_mut(key).unwrap() else {
+                    unreachable!()
+                };
+                target
+            } else {
+                draft
+            };
+            target.insert("undeclared", true.into_value());
+            db.a.client()
+                .query(include_str!(
+                    "queries/agent_management/closed_records/write.surql"
+                ))
+                .bind(("record", definition.id.clone()))
+                .bind(("content", value))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert_eq!(
+                repo.agent_definition(&denied, "private").await,
+                Err(AgentManagementError::NotFound)
+            );
+            assert!(
+                repo.agent_definitions(&denied, None, 20)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+            assert_eq!(
+                repo.agent_definition(&admitted, "private").await,
+                Err(AgentManagementError::Unavailable),
+                "{nested:?}"
+            );
+        }
+        db.a.client()
+            .query(include_str!(
+                "queries/agent_management/closed_records/write.surql"
+            ))
+            .bind(("record", definition.id.clone()))
+            .bind(("content", original))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert_eq!(
+            repo.agent_definition(&admitted, "private").await.unwrap(),
+            definition
+        );
+    })
+    .await
+    .expect("private draft decoder qualification deadline");
 }

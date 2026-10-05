@@ -22,6 +22,16 @@ impl ComputersStore {
                 vec![
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
                     (
+                        "enterprise",
+                        veoveo_platform_store::deterministic_enterprise_id()
+                            .record_id()
+                            .into_value(),
+                    ),
+                    (
+                        "server",
+                        surrealdb::types::RecordId::new("mcp_server", "computers").into_value(),
+                    ),
+                    (
                         "after",
                         after.map(crate::api::ExecutionId::as_uuid).into_value(),
                     ),
@@ -51,14 +61,8 @@ impl ComputersStore {
                         super::record(command.execution_id()).into_value(),
                     ),
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
-                    (
-                        "binding",
-                        crate::session_grants::object(&command.binding)?.into_value(),
-                    ),
-                    (
-                        "authority",
-                        crate::session_grants::object(&command.authority)?.into_value(),
-                    ),
+                    ("binding", command.binding.clone().into_value()),
+                    ("authority", command.authority.clone().into_value()),
                 ],
             )
             .await?;
@@ -103,13 +107,32 @@ impl ComputersStore {
 
     /// A terminal shared Task acknowledges delivery; its retention pin is released
     /// afterward. Discovery retains a lost pin acknowledgement without recreating work.
-    pub async fn acknowledge_command_task(&self, command: &CommandOperation) -> Result<()> {
+    pub async fn acknowledge_command_task(
+        &self,
+        command: &CommandOperation,
+        expected_output: Option<&serde_json::Value>,
+    ) -> Result<()> {
         let (stage, status) = match command.stage() {
             super::CommandStage::Failed => ("failed", "failed"),
             super::CommandStage::Cancelled => ("cancelled", "cancelled"),
             super::CommandStage::Completed => ("completed", "succeeded"),
             _ => return Err(ComputerError::InvalidState),
         };
+        let expected_domain = match command.outcome().ok_or(ComputerError::InvalidState)? {
+            super::CommandOutcome::Completed(result) => {
+                if expected_output.is_none() {
+                    return Err(ComputerError::InvalidInput);
+                }
+                crate::session_grants::object(&result)?.into_value()
+            }
+            _ => {
+                if expected_output.is_some() {
+                    return Err(ComputerError::InvalidInput);
+                }
+                surrealdb::types::Value::None
+            }
+        };
+        let tenant = crate::identity::task_tenant(&command.actor())?;
         self.query(
             include_str!("../../queries/acknowledge_command_task.surql"),
             vec![
@@ -121,6 +144,20 @@ impl ComputersStore {
                 ("provider", self.provider_instance_id.as_uuid().into_value()),
                 ("status", status.into_value()),
                 ("stage", stage.into_value()),
+                (
+                    "server",
+                    surrealdb::types::RecordId::new("mcp_server", "computers").into_value(),
+                ),
+                ("task_tenant", tenant.into_value()),
+                (
+                    "task_types",
+                    vec![crate::api::ComputerTaskKind::Execution.name().to_string()].into_value(),
+                ),
+                (
+                    "expected_result",
+                    crate::identity::task_output(expected_output)?,
+                ),
+                ("expected_domain", expected_domain),
             ],
         )
         .await?;

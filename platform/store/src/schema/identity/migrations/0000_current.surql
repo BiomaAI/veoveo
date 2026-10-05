@@ -2,7 +2,6 @@
 
 DEFINE TABLE enterprise TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
-DEFINE TABLE membership TYPE RELATION IN principal OUT principal_group ENFORCED SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
 DEFINE TABLE oauth_client TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
@@ -28,19 +27,12 @@ DEFINE FIELD OVERWRITE updated_at ON enterprise TYPE datetime DEFAULT time::now(
 
 DEFINE INDEX enterprise_slug_unique ON enterprise FIELDS slug UNIQUE;
 
-DEFINE FIELD OVERWRITE created_at ON membership TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE id ON membership TYPE uuid DEFAULT `rand`::uuid() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE in ON membership TYPE record<principal> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE out ON membership TYPE record<principal_group> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE role ON membership TYPE string PERMISSIONS FULL;
 
-DEFINE INDEX membership_endpoints_unique ON membership FIELDS in, out UNIQUE;
 
-DEFINE INDEX membership_group ON membership FIELDS out, role;
 
 DEFINE FIELD OVERWRITE client_id ON oauth_client TYPE string PERMISSIONS FULL;
 

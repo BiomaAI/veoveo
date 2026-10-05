@@ -1,1 +1,1 @@
-RETURN $authority.tenant.slug;
+RETURN {slug: $authority.tenant.slug};

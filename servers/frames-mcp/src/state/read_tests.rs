@@ -391,7 +391,7 @@ async fn native_head_reads_require_consistent_pointer_key_and_revision() {
 }
 
 #[tokio::test]
-async fn native_frame_reads_select_only_the_requested_node() {
+async fn native_frame_reads_select_membership_and_validate_the_revision() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = TestDb::with_modules(vec![
             crate::schema::module_setup(
@@ -416,8 +416,8 @@ async fn native_frame_reads_select_only_the_requested_node() {
             WorldFrameUri::new(revision.revision_uri(), &FrameId::parse("missing").unwrap());
         assert!(reader.get_frame(&owner, &missing).await.unwrap().is_none());
         let root = revision.frame(&revision.root_frame_uri()).unwrap();
-        // An invalid unrelated node proves resource selection happens in SQL,
-        // before decoding a full tree at the application boundary.
+        // Membership is selected in SQL. The admitted complete tree supplies the
+        // typed node and must still satisfy its revision digest and relationships.
         for unrelated in [
             serde_json::json!({"frame_id": "bad", "basis": {"kind": "invalid"}}),
             serde_json::to_value(root).unwrap(),
@@ -435,28 +435,18 @@ async fn native_frame_reads_select_only_the_requested_node() {
                 .unwrap()
                 .check()
                 .unwrap();
-            if unrelated["frame_id"] == "bad" {
-                assert_eq!(
-                    reader
-                        .get_frame(&owner, &revision.root_frame_uri())
-                        .await
-                        .unwrap(),
-                    Some(root.clone())
-                );
-                assert!(
-                    reader
-                        .get_revision(&owner, revision.revision_uri())
-                        .await
-                        .is_err()
-                );
-            } else {
-                assert!(
-                    reader
-                        .get_frame(&owner, &revision.root_frame_uri())
-                        .await
-                        .is_err()
-                );
-            }
+            assert!(
+                reader
+                    .get_frame(&owner, &revision.root_frame_uri())
+                    .await
+                    .is_err()
+            );
+            assert!(
+                reader
+                    .get_revision(&owner, revision.revision_uri())
+                    .await
+                    .is_err()
+            );
         }
     })
     .await
@@ -612,12 +602,12 @@ async fn native_dynamic_references_round_trip_and_reject_malformed_retained_node
             );
             assert!(reader.get_head_revision(&owner, &world_id).await.is_err());
             assert!(reader.get_frame(&owner, &node_uri).await.is_err());
+            // Root lookup validates the complete retained revision too.
             assert!(
                 reader
                     .get_frame(&owner, &revision.root_frame_uri())
                     .await
-                    .unwrap()
-                    .is_some()
+                    .is_err()
             );
             let retained: Vec<FrameWorldRevisionRecord> =
                 db.b.client()
@@ -640,4 +630,66 @@ async fn native_dynamic_references_round_trip_and_reject_malformed_retained_node
     })
     .await
     .expect("dynamic reference qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
+async fn frame_id_projection_is_required_and_checked_by_reads_and_completion() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let writer = FramesState::new(db.a.clone());
+        let reader = FramesState::new(db.b.clone());
+        let owner = scope(&db.a, "frame-projection", "owner", &[]).await;
+        let world = create(&writer, &owner, "world").await;
+        let revision = publish(&writer, &owner, &world).await;
+        let invalid =
+            db.a.client()
+                .query(include_str!("../../tests/queries/remove_frame_ids.surql"))
+                .bind(("tenant", owner.identity.tenant_id.record_id()))
+                .bind(("revision_key", revision.revision_id().to_string()))
+                .await
+                .unwrap()
+                .check();
+        assert!(invalid.is_err());
+        assert_eq!(
+            reader
+                .get_revision(&owner, revision.revision_uri())
+                .await
+                .unwrap(),
+            Some(revision.clone())
+        );
+        db.a.client()
+            .query(include_str!("../../tests/queries/corrupt_frame_ids.surql"))
+            .bind(("tenant", owner.identity.tenant_id.record_id()))
+            .bind(("revision_key", revision.revision_id().to_string()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            reader
+                .get_revision(&owner, revision.revision_uri())
+                .await
+                .is_err()
+        );
+        assert!(
+            reader
+                .get_frame(&owner, &revision.root_frame_uri())
+                .await
+                .is_err()
+        );
+        assert!(
+            reader
+                .complete_frames(&owner, revision.revision_uri(), "")
+                .await
+                .is_err()
+        );
+    })
+    .await
+    .unwrap();
 }

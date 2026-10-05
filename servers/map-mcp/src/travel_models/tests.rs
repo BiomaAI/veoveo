@@ -55,7 +55,8 @@ async fn travel_reads_exclude_inconsistent_authority_and_unfinished_results_in_s
                 .unwrap(),
         ])
         .await;
-        let runtime = TaskRuntime::new(db.a.clone(), "map", "writer");
+        let runtime =
+            crate::task_lookup::bind(TaskRuntime::new(db.a.clone(), "map", "writer")).unwrap();
         let reads = TravelModelReads::new(&db.b);
         let caller = owner("tenant", "context", "owner", "profile", &[]);
         for (number, mutation) in [
@@ -125,7 +126,8 @@ async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked()
                 .unwrap(),
         ])
         .await;
-        let runtime = TaskRuntime::new(db.a.clone(), "map", "writer");
+        let runtime =
+            crate::task_lookup::bind(TaskRuntime::new(db.a.clone(), "map", "writer")).unwrap();
         let reads = TravelModelReads::new(&db.b);
         let explicit = owner("installation", "context", "owner", "profile", &[]);
         let mut implicit = explicit.clone();
@@ -200,26 +202,58 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
     let id = TaskId::new();
     let principal = veoveo_types::PrincipalId::parse(owner.principal_key.clone()).unwrap();
     let context = owner.authority.work_context.clone();
+    let now = chrono::Utc::now();
+    let input_cases: serde_json::Value =
+        serde_json::from_str(include_str!("../../testdata/controlled-inputs.json")).unwrap();
+    let identity = veoveo_mcp_contract::GatewayInternalIdentity {
+        issuer: "veoveo-internal".parse().unwrap(),
+        profile: owner.profile.parse().unwrap(),
+        server: "map".parse().unwrap(),
+        actor: veoveo_mcp_contract::Principal {
+            id: owner.principal_key.parse().unwrap(),
+            kind: veoveo_mcp_contract::PrincipalKind::User,
+            issuer: owner.issuer.parse().unwrap(),
+            subject: owner.subject.parse().unwrap(),
+            tenant: owner.tenant_key.as_ref().map(|v| v.parse().unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles: BTreeSet::new(),
+            scopes: BTreeSet::new(),
+            data_labels: owner
+                .data_labels
+                .iter()
+                .map(|v| v.parse().unwrap())
+                .collect(),
+            assurances: BTreeSet::new(),
+            authenticated_at: Some(now),
+        },
+        authority: owner.authority.clone(),
+        request_context: None,
+        jwt_id: "fixture".parse().unwrap(),
+        issued_at: now,
+        not_before: now,
+        expires_at: now + chrono::TimeDelta::hours(1),
+    };
+    let request = crate::task_lookup::DurableTravelModelRequest {
+        input: serde_json::from_value(input_cases[0]["arguments"].clone()).unwrap(),
+        identity, travel_model_id: key.map(|v|v.parse().unwrap()).unwrap_or_default(), created_at:now,
+        artifact_write_capability: serde_json::from_value(serde_json::json!({"capability_id":uuid::Uuid::now_v7().to_string(),"secret":"inert_fixture_capability_not_issued_000000000000","task_id":id.to_string(),"expires_at":now+chrono::TimeDelta::hours(1)})).unwrap(),
+    };
     runtime
-            .create(CreateTask {
-                task_id: id,
-                owner: owner.clone(),
-                server: "map".into(),
-                task_type: const { veoveo_types::TaskTypeName::from_static("build_travel_model") },
-                // Only retained fields consumed by this reader; this fixture never runs a worker.
-                request: serde_json::json!({"kind":"build_travel_model", "request": {
-                    "travel_model_id":key,
-                    "identity":{"actor":{"id":owner.principal_key,"tenant":owner.tenant_key,"data_labels":owner.data_labels},
-                        "profile":owner.profile,"authority":owner.authority}
-                }}),
-                recovery_class: RecoveryClass::InterruptedIndeterminate,
-                idempotency_key: None,
-                ttl_ms: None,
-                poll_interval_ms: None,
-                retention_pins: BTreeSet::new(),
-            })
-            .await
-            .unwrap();
+        .create(CreateTask {
+            task_id: id,
+            owner: owner.clone(),
+            server: "map".into(),
+            task_type: MapTaskKind::BuildTravelModel.name(),
+            request: serde_json::json!({"kind":"build_travel_model","request":request}),
+            recovery_class: RecoveryClass::InterruptedIndeterminate,
+            idempotency_key: None,
+            ttl_ms: None,
+            poll_interval_ms: None,
+            retention_pins: BTreeSet::new(),
+        })
+        .await
+        .unwrap();
     if let Some(key) = key {
         let now = chrono::Utc::now();
         let artifact_id = veoveo_artifact_contract::ArtifactId::new();
@@ -249,20 +283,20 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
             work_context: context,
             created_at: now,
         };
-        let result = veoveo_platform_store::TaskResultRecord::new(serde_json::json!({
-            "structuredContent": serde_json::to_value(record).unwrap(),
-        }));
+        let result = serde_json::to_value(rmcp::model::CallToolResult::structured(
+            serde_json::to_value(record).unwrap(),
+        ))
+        .unwrap();
+        runtime.claim(id, Duration::from_secs(30)).await.unwrap();
         runtime
-            .platform_store()
-            .client()
-            .query(include_str!(
-                "../queries/travel_models/tests/task/statement_1.surql"
-            ))
-            .bind(("task", veoveo_platform_store::task_record_id(id)))
-            .bind(("result", result))
+            .transition(
+                id,
+                veoveo_task_runtime::TaskTransition::Succeeded {
+                    message: "fixture".into(),
+                    result,
+                },
+            )
             .await
-            .unwrap()
-            .check()
             .unwrap();
     }
     id
@@ -283,7 +317,8 @@ async fn qualify() {
             .unwrap(),
     ])
     .await;
-    let runtime = TaskRuntime::new(db.a.clone(), "map", "completion-test");
+    let runtime =
+        crate::task_lookup::bind(TaskRuntime::new(db.a.clone(), "map", "completion-test")).unwrap();
     let reads = TravelModelReads::new(&db.b);
     let reader = owner("map-completion", "operations", "author", "profile-a", &[]);
     for hidden in [
@@ -414,4 +449,211 @@ async fn qualify() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn retained_input_policy_and_lookup_integrity_survive_task_changes() {
+    use surrealdb::types::{SurrealValue, Value};
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
+        let runtime =
+            crate::task_lookup::bind(TaskRuntime::new(db.a.clone(), "map", "lookup-controls"))
+                .unwrap();
+        let reads = TravelModelReads::new(&db.b);
+        let owner = owner("lookup", "context", "owner", "profile", &["secret"]);
+        let model: TravelModelId = key(900).parse().unwrap();
+        let id = task(&runtime, owner.clone(), Some(model.as_str())).await;
+        update(
+            &runtime,
+            id,
+            include_str!("../queries/travel_models/tests/changed_profile.surql"),
+        )
+        .await;
+        let mut changed = owner.clone();
+        changed.profile = "changed-profile".into();
+        assert!(reads.get(&changed, &model).await.unwrap().is_none());
+        assert!(reads.complete(&changed, "").await.unwrap().is_empty());
+        let model: TravelModelId = key(901).parse().unwrap();
+        let id = task(&runtime, owner.clone(), Some(model.as_str())).await;
+        update(
+            &runtime,
+            id,
+            include_str!("../queries/travel_models/tests/lowered_clearance.surql"),
+        )
+        .await;
+        let mut lowered = owner.clone();
+        lowered.data_labels.clear();
+        assert!(reads.get(&lowered, &model).await.unwrap().is_none());
+        assert!(
+            reads
+                .page(&lowered, &MapTravelModelsUri::new(None))
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        let model: TravelModelId = key(902).parse().unwrap();
+        let id = task(&runtime, owner.clone(), Some(model.as_str())).await;
+        let lookup = RecordId::new("map_travel_model_task", id.to_string());
+        let mut response =
+            db.a.client()
+                .query(include_str!(
+                    "../queries/travel_models/tests/read_lookup.surql"
+                ))
+                .bind(("lookup", lookup.clone()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let original: Value = response.take(0).unwrap();
+        for case in 0..3 {
+            let mut content = original.clone();
+            let Value::Object(ref mut row) = content else {
+                unreachable!()
+            };
+            let Value::Object(identity) = row.get_mut("identity").unwrap() else {
+                unreachable!()
+            };
+            match case {
+                0 => {
+                    identity.remove("profile");
+                }
+                1 => {
+                    identity.insert("unknown", true.into_value());
+                }
+                _ => {
+                    identity.remove("expected_input");
+                }
+            }
+            assert!(
+                db.a.client()
+                    .query(include_str!(
+                        "../queries/travel_models/tests/write_lookup.surql"
+                    ))
+                    .bind(("lookup", lookup.clone()))
+                    .bind(("content", content))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err(),
+                "lookup control {case}"
+            );
+            let mut response =
+                db.b.client()
+                    .query(include_str!(
+                        "../queries/travel_models/tests/read_lookup.surql"
+                    ))
+                    .bind(("lookup", lookup.clone()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            assert_eq!(response.take::<Value>(0).unwrap(), original);
+        }
+        let wrong: TravelModelId = key(903).parse().unwrap();
+        let mut content = original;
+        let Value::Object(ref mut row) = content else {
+            unreachable!()
+        };
+        let Value::Object(identity) = row.get_mut("identity").unwrap() else {
+            unreachable!()
+        };
+        identity.insert("travel_model_id", wrong.to_string().into_value());
+        db.a.client()
+            .query(include_str!(
+                "../queries/travel_models/tests/write_lookup.surql"
+            ))
+            .bind(("lookup", lookup))
+            .bind(("content", content))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(reads.get(&owner, &wrong).await.is_err());
+        assert!(
+            reads
+                .page(&owner, &MapTravelModelsUri::new(None))
+                .await
+                .is_err()
+        );
+        assert!(reads.complete(&owner, wrong.as_str()).await.is_err());
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn terminal_contributions_distinguish_tool_error_failure_and_cancellation() {
+    use surrealdb::types::{SurrealValue, Value};
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = crate::test_store::TestDb::with_modules(vec![
+            crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap())
+                .unwrap(),
+        ])
+        .await;
+        let runtime =
+            crate::task_lookup::bind(TaskRuntime::new(db.a.clone(), "map", "terminal-controls"))
+                .unwrap();
+        let caller = owner("terminal", "context", "owner", "profile", &[]);
+        for (transition, outcome) in [
+            (
+                veoveo_task_runtime::TaskTransition::Succeeded {
+                    message: "tool error".into(),
+                    result: serde_json::json!({"content":[],"isError":true}),
+                },
+                crate::task_lookup::Outcome::ToolError,
+            ),
+            (
+                veoveo_task_runtime::TaskTransition::Failed(veoveo_task_runtime::TaskFailure::new(
+                    "fixture",
+                    "known failure",
+                )),
+                crate::task_lookup::Outcome::Failed,
+            ),
+            (
+                veoveo_task_runtime::TaskTransition::Cancelled,
+                crate::task_lookup::Outcome::Cancelled,
+            ),
+        ] {
+            let id = task(&runtime, caller.clone(), None).await;
+            runtime.claim(id, Duration::from_secs(30)).await.unwrap();
+            if matches!(transition, veoveo_task_runtime::TaskTransition::Cancelled) {
+                runtime.cancel(id).await.unwrap();
+            }
+            runtime.transition(id, transition).await.unwrap();
+            let mut response =
+                db.a.client()
+                    .query(include_str!(
+                        "../queries/travel_models/tests/read_lookup.surql"
+                    ))
+                    .bind((
+                        "lookup",
+                        RecordId::new("map_travel_model_task", id.to_string()),
+                    ))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap();
+            let row =
+                crate::task_lookup::Row::from_value(response.take::<Value>(0).unwrap()).unwrap();
+            assert!(row.settlement.outcome == outcome);
+            assert!(row.settlement.expected_result.is_none());
+        }
+        let reads = TravelModelReads::new(&db.b);
+        assert!(reads.complete(&caller, "").await.unwrap().is_empty());
+        assert!(
+            reads
+                .page(&caller, &MapTravelModelsUri::new(None))
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+    })
+    .await
+    .unwrap();
 }

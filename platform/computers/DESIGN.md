@@ -717,6 +717,14 @@ must have that key. The envelope has a closed object schema and is read-only.
 Its Rust persistence field uses `SealedCommand` or `SealedFileTransfer` through the
 driver's serde adapter, preserving the crypto codec's types and wire representation.
 
+Accepted authority, dispatch decisions and command/file bindings use the Computers
+storage codec. It preserves public JSON nulls and omits database NONE object fields,
+but rejects native record references, dates and absent array members in these JSON
+contracts. Authority writers materialize default arrays and nullable classification
+before persistence. Expected-value comparisons use the same encoder, so schema
+defaults do not change retry or attachment equality. Encrypted envelopes keep their
+separate crypto adapter and authenticated serialization.
+
 Admission creates the journal, payload, request claim, execution slot and audit record
 in one transaction. Private reads select `payload.sealed` explicitly when reconstructing
 an operation. Missing input fails recovery and preserves the execution fence. Active
@@ -1063,16 +1071,17 @@ the command slot for containment or recovery.
 Domain completion precedes Task projection. Both command and lifecycle acknowledgement
 wrap their guard and delivery-marker update in one transaction. A thrown statement
 outside a transaction does not stop later statements in a SurrealDB batch. The command
-acknowledgement checks the Task's completed
-status, exact structured result and tool-error flag before marking delivery. A missing
+acknowledgement compares the current typed journal outcome and the complete retained
+Task output before marking delivery. The worker constructs that output once from
+the typed outcome for both settlement and replay acknowledgement. A missing
 pin acknowledgement remains discoverable; a delivered command cannot recreate a Task.
 All command readers must understand Completed before public command admission. Native
 worker execution, real Artifact publication and the public end-to-end journey remain
 integration gates.
 
 Completed journals and their successful shared Task projection carry the canonical
-execution result address. Delivery checks the Computers execution identity, structured
-result and error bit against the journal before acknowledging projection. Exact result
+execution result address. Delivery checks the Computers execution identity and
+complete output against the journal before acknowledging projection. Exact result
 reads use current command Task authority, with distinct actual actor and direct owner
 oversight. Compatible command readers/writers are required; the fresh lane provides
 no downgrade decoder or historical result conversion.
@@ -1141,7 +1150,26 @@ vocabulary, serialization and schema libraries. Domain contracts, Store and runt
 services require their own features. The declaration claims `computer_*` and the explicit `computer` table.
 It requires Audit, whose transitive requirements include Tasks, Artifacts, Gateway and Identity.
 
-The version-zero lane installs `src/schema/migrations/0000_current.surql`.
+The version-zero lane composes `src/schema/migrations/0000_current.surql`,
+`src/schema/migrations/0000_controlled_fields.surql` and
+`src/schema/migrations/0000_indexes.surql`. Indexes follow the complete field definitions.
+Controlled owner, actor, authority, binding, limit, decision and encrypted-access
+objects declare their complete fields and variant requirements. Optional objects
+use native NONE with omitted serialized members; SurrealDB 3.3 cannot declare child
+fields under a nullable object union. Optional scalar fields admit NONE and JSON
+null; required values reject both. Provider payloads and progress keep their
+separate opaque representation.
+
+The operation, maintenance, execution and file journals store `task_tenant` as a
+required typed tenant lookup from the Task admission owner. Decoding and delivery
+transactions check that association. Discovery calls the Task lifecycle and
+existence APIs before ordering or limiting rows; a present Task with a different
+server, tenant or operation cannot become a missing-Task repair. Identity's
+`tenant_matches_v1` verifies the retained tenant parent and slug without an enabled
+predicate, allowing containment and delivery repair after authority revocation.
+Admission uses enabled directory facts and current Gateway revision/family APIs.
+Maintenance declares `source_kind` for its source-state decisions and checks it
+against the typed source snapshot.
 The composition root supplies its checked execution image and command.
 `installation-prepare` establishes runtime credentials, and `module-migrate`
 executes the selected lane after its prerequisites. Installed image and Job

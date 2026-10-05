@@ -23,6 +23,7 @@ pub struct FileDispatchDecision {
     pub checked_at: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub source: PolicyDecision,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<PolicyDecision>,
 }
 impl FileDispatchDecision {
@@ -156,8 +157,7 @@ impl ComputersStore {
         let as_object = |value: serde_json::Value| -> Result<veoveo_platform_store::OpenObject> {
             serde_json::from_value(value).map_err(|_| ComputerError::Unavailable)
         };
-        let evidence =
-            as_object(serde_json::to_value(&decision).map_err(|_| ComputerError::Unavailable)?)?;
+        let evidence = decision.clone().into_value();
         operation.dispatch_authority = Some(decision);
         let id = Uuid::now_v7();
         let mut params = permit.transaction_bindings()?;
@@ -183,14 +183,7 @@ impl ComputersStore {
                 surrealdb::types::Duration::from_secs(u64::from(super::FILE_PUBLICATION_SECONDS))
                     .into_value(),
             ),
-            (
-                "expected_binding",
-                as_object(
-                    serde_json::to_value(&operation.binding)
-                        .map_err(|_| ComputerError::Unavailable)?,
-                )?
-                .into_value(),
-            ),
+            ("expected_binding", operation.binding.clone().into_value()),
             ("decision", evidence.into_value()),
             (
                 "effective_limits",
@@ -206,10 +199,7 @@ impl ComputersStore {
             ),
             (
                 "expected_owner_context",
-                as_object(
-                    serde_json::to_value(&current.owner).map_err(|_| ComputerError::Unavailable)?,
-                )?
-                .into_value(),
+                crate::identity::stored_owner(&current.owner)?.into_value(),
             ),
         ]);
         self.commit_file(

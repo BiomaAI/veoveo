@@ -4,9 +4,9 @@ LET $current = (UPDATE ONLY $grant SET connections_revision += 1
   WHERE credential_hash = $credential_hash AND computer_id = $computer_id
   AND revoked_at = NONE AND expires_at > $now AND idle_expires_at > $now RETURN AFTER);
 IF $current = NONE OR $authority_expires_at <= $now { THROW "computer_authority_expired"; };
-LET $family = SELECT * FROM ONLY $current.family;
+LET $family = fn::kernel::gateway::refresh_family_current_v1($current.family, $now);
 LET $policy_state = SELECT * FROM ONLY $policy;
-IF $family = NONE OR $family.revoked_at != NONE OR $family.expires_at <= $now
+IF $family = NONE OR $family.expires_at <= $now
   OR $policy_state = NONE OR $policy_state.max_grants = 0 { THROW "computer_authority_expired"; };
 LET $state = SELECT * FROM ONLY $computer;
 IF $state = NONE OR $state.owner_key != $current.owner_key OR $state.phase != "ready"

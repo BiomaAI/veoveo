@@ -3,8 +3,7 @@ FROM ONLY $grant
 WHERE
   provider_instance_id = $provider
   AND ticket_hash = $ticket_hash
-  AND family.revoked_at = NONE
-  AND family.expires_at > time::now()
+  AND fn::kernel::gateway::refresh_family_current_v1(family, time::now()) != NONE
   AND connection_id = NONE
   AND revoked_at = NONE
   AND ticket_expires_at > time::now()

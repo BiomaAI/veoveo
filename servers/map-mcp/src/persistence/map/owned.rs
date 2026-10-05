@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 
 use super::{
-    MAX_ROUTE_JSON_BYTES, invalid_map, map_record, validate_json, validate_public_key,
-    validate_text,
+    MAX_ROUTE_JSON_BYTES, RouteLookups, invalid_map, map_record, validate_json,
+    validate_public_key, validate_text,
 };
 use crate::persistence::{
     MapAcquisitionRecord, MapDependencyKind, MapRepository, MapRouteMatrixRecord, MapRouteRecord,
@@ -39,7 +39,12 @@ impl MapRepository {
         key: &str,
     ) -> Result<Option<MapRouteRecord>, MapStoreError> {
         validate_public_key("route_key", key, "route-")?;
-        select_owned(self, identity, map_record("map_route", key)).await
+        let row: Option<MapRouteRecord> =
+            select_owned(self, identity, map_record("map_route", key)).await?;
+        if let Some(row) = &row {
+            RouteLookups::from_document(key, &row.canonical_json)?.verify_record(row)?;
+        }
+        Ok(row)
     }
 
     pub async fn map_route_matrix(
@@ -187,7 +192,11 @@ impl MapRepository {
             .bind(("limit", limit))
             .await?
             .check()?;
-        Ok(response.take(0)?)
+        let rows: Vec<MapRouteRecord> = response.take(0)?;
+        for row in &rows {
+            RouteLookups::from_document(&row.route_key, &row.canonical_json)?.verify_record(row)?;
+        }
+        Ok(rows)
     }
 
     /// The domain supplies the same invalidated state in its complete route document.
@@ -199,6 +208,7 @@ impl MapRepository {
     ) -> Result<bool, MapStoreError> {
         validate_public_key("route_key", key, "route-")?;
         validate_json("canonical_json", &canonical_json, MAX_ROUTE_JSON_BYTES)?;
+        let route = RouteLookups::from_document(key, &canonical_json)?;
         let mut response = self
             .client()
             .query(include_str!(
@@ -207,6 +217,30 @@ impl MapRepository {
             .bind(("record", map_record("map_route", key)))
             .bind(("tenant", tenant.record_id()))
             .bind(("canonical_json", canonical_json))
+            .bind((
+                "base_release_ids",
+                route
+                    .base_release_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "restriction_ids",
+                route
+                    .restriction_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
+            .bind((
+                "facility_ids",
+                route
+                    .facility_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            ))
             .await?
             .check()?;
         Ok(response.take::<Option<MapRouteRecord>>(0)?.is_some())

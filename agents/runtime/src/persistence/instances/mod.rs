@@ -130,7 +130,18 @@ impl AgentRepository {
         }
         let (definition, principal) = if let ManagedAgentMutation::Provision { plan } = &mutation {
             // The actual slug is a server-owned field of the current tenant.
-            let slug: String = self
+            #[derive(SurrealValue)]
+            struct TenantSlug {
+                #[surreal(wrap)]
+                slug: veoveo_types::TenantId,
+            }
+            impl super::validation::StoredProjection for TenantSlug {
+                fn validate_stored(&self) -> Result<()> {
+                    // The nominal decoder admits the installation tenant slug.
+                    Ok(())
+                }
+            }
+            let tenant: TenantSlug = self
                 .agent_query(
                     authority,
                     false,
@@ -138,7 +149,7 @@ impl AgentRepository {
                 )
                 .await?;
             let principal = deterministic_principal_id(
-                &slug,
+                tenant.slug.as_str(),
                 &format!("{}#{}", plan.identity.issuer, plan.identity.client_id),
             )
             .map_err(|_| AgentManagementError::Invalid("identity"))?

@@ -56,7 +56,7 @@ DEFINE FIELD OVERWRITE idempotency_key ON map_acquisition TYPE string PERMISSION
 
 DEFINE FIELD OVERWRITE owner ON map_acquisition TYPE record<principal> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE phase ON map_acquisition TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE phase ON map_acquisition TYPE 'queued' | 'downloading' | 'verifying' | 'normalizing' | 'building_graph' | 'validating' | 'publishing_artifacts' | 'staging_release' | 'complete' PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE record_version ON map_acquisition TYPE int PERMISSIONS FULL;
 
@@ -756,11 +756,11 @@ DEFINE FIELD OVERWRITE canonical_json ON map_restriction TYPE string PERMISSIONS
 
 DEFINE FIELD OVERWRITE created_at ON map_restriction TYPE datetime PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE effect_kind ON map_restriction TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE effect_kind ON map_restriction TYPE 'prohibit' | 'require' | 'limit' | 'penalize' | 'advise' PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE id ON map_restriction TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE kind ON map_restriction TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE kind ON map_restriction TYPE 'closure' | 'access' | 'dimensional_limit' | 'weight_limit' | 'hazardous_cargo' | 'speed_limit' | 'environmental' | 'protected_area' | 'navigational_warning' | 'airspace' | 'weather' | 'other' PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE owner ON map_restriction TYPE record<principal> PERMISSIONS FULL;
 
@@ -784,6 +784,9 @@ DEFINE FIELD OVERWRITE arrival_time ON map_route TYPE none | datetime PERMISSION
 
 DEFINE FIELD OVERWRITE cache_digest_sha256 ON map_route TYPE string PERMISSIONS FULL;
 
+DEFINE FIELD OVERWRITE base_release_ids ON map_route TYPE array<string>;
+DEFINE FIELD OVERWRITE restriction_ids ON map_route TYPE array<string>;
+DEFINE FIELD OVERWRITE facility_ids ON map_route TYPE array<string>;
 DEFINE FIELD OVERWRITE canonical_json ON map_route TYPE string PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE created_at ON map_route TYPE datetime PERMISSIONS FULL;
@@ -854,9 +857,9 @@ DEFINE FIELD OVERWRITE tenant ON map_route_matrix TYPE record<tenant> PERMISSION
 
 DEFINE INDEX map_matrix_tenant_key_unique ON map_route_matrix FIELDS tenant, matrix_key UNIQUE;
 
-DEFINE FIELD OVERWRITE adapter_kind ON map_source TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE adapter_kind ON map_source TYPE 'open_street_map' | 'authority_vector' | 'gtfs_schedule' | 'gtfs_realtime' | 's57_enc' | 's100' | 'aixm' | 'faa_nasr' | 'environmental' PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE authority_class ON map_source TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE authority_class ON map_source TYPE 'regulator' | 'infrastructure_operator' | 'hydrographic_office' | 'air_navigation_service_provider' | 'transport_operator' | 'commercial_provider' | 'community' | 'derived' | 'synthetic_test' PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE canonical_json ON map_source TYPE string PERMISSIONS FULL;
 

@@ -67,22 +67,8 @@ impl ComputersStore {
                     ("provider", self.provider_instance_id.as_uuid().into_value()),
                     ("task", task_record_id(operation.task_id()).into_value()),
                     ("dispatch_id", operation.dispatch_id.into_value()),
-                    (
-                        "binding",
-                        object(
-                            serde_json::to_value(&operation.binding)
-                                .map_err(|_| ComputerError::Unavailable)?,
-                        )?
-                        .into_value(),
-                    ),
-                    (
-                        "authority",
-                        object(
-                            serde_json::to_value(&operation.authority)
-                                .map_err(|_| ComputerError::Unavailable)?,
-                        )?
-                        .into_value(),
-                    ),
+                    ("binding", operation.binding.clone().into_value()),
+                    ("authority", operation.authority.clone().into_value()),
                     (
                         "limits",
                         object(

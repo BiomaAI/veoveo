@@ -238,6 +238,7 @@ designs above.
 | `platform/computers/tests/journal_cost.rs` | encrypted command admission, metadata-update feed volume and container-attributed writes; [separated-payload measurement](../platform/store/measurements/journal-separated-2026-10-01.md) |
 | `platform/computers/tests/journal_payloads.rs` | private command/file payload lifetime, atomic admission failure, read-only enforcement, metadata-only feeds and missing-input fencing |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |
+| `platform/computers/src/storage_codec.rs` | controlled JSON storage adapters for accepted authority, dispatch decisions and command/file bindings; shared encoding for writes and whole-value comparisons |
 | `platform/computers/src/control_session.rs` | signed browser session-family read and shared binding decision; logout and family expiry stop new control without cancelling accepted work |
 | `platform/computers/` | Computer records, tenant/principal/Work Context ownership across clients, immutable creation and encryption bindings, capacity and fence admission, Task linking, dispatch receipts, observation budgets and settlement; `tests/{resource_ownership,cross_client_effects}.rs` cover client isolation; worker integration lives in `servers/computers-mcp` |
 | `platform/computers/src/session_grants/` and `queries/*session_grant*` | browser tickets, owner inventory, installation grant limits, one-use redemption, renewal against the current session family, policy and run, and parent-bound revocation; terminal composition lives in `servers/computers-mcp`; named automation grants have a separate ledger |
@@ -641,6 +642,7 @@ Domain runtimes can own private queries and driver records over these connection
 | [`schema/`](../platform/store/src/schema/DESIGN.md) | current SurrealDB 3.3.0 kernel lanes; composition selects and executes owner declarations through the module runner |
 | [`src/queries/`](../platform/store/src/queries/DESIGN.md) | complete Store persistence statements, finite query selections and narrowly typed native grammar substitutions |
 | `models.rs` | persisted Rust record and enum definitions |
+| `kernel_facts.rs` | typed tenant and principal results from Identity's current-directory SQL exports |
 | `task_request.rs` | closed Task owner snapshot and request control driver records, with opaque JSON input and unsigned metadata |
 | `task_timestamp.rs` | checked lossless creation and update timestamp tokens for Task driver clients |
 | `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
@@ -656,7 +658,9 @@ Domain runtimes can own private queries and driver records over these connection
 | `platform/recordings/store/src/recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
 | `administration.rs` | explicit database-scoped runtime credential administration; connection startup applies no schema |
 | `identity.rs`, `queries/identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
-| `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, tenant-scoped principal summaries, enabled-human search and identity labels; Workspace owns its chat and invitation policy |
+| `schema/identity.rs`, `schema/identity/migrations/` | Identity-owned SQL exports for admission, tenant-scoped principal summaries, enabled-human search, identity labels and current-directory facts; retained tenant matching supports worker recovery after revocation |
+| `schema/gateway/migrations/` | Gateway-owned SQL exports for active control-revision agreement, unrevoked refresh-family expiry and Task retention routes |
+| `schema/tasks/migrations/` | Tasks-owned SQL exports for caller selection, trusted lifecycle selection, whole-input agreement, existence and retention release |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `artifacts/reads.rs`, `queries/artifacts/read_page.surql` and `schema/artifacts/migrations/read_v1.surql` | typed Artifact scope bindings, exact and paged reads, and the kernel export for current read admission, observation facts and expiry deadlines |
@@ -1171,6 +1175,7 @@ domain vocabulary.
 | `servers/map-mcp/src/contract/product_uri.rs` | typed dataset release, source feature, raster, derivation and route addresses shared with View; domain ID admission, parent components and discovery templates |
 | `servers/map-mcp/src/contract/route_handoff.rs` | checked route handoff builder and JSON admission, typed route/profile addresses, digest, geometry and provenance; UAV adds execution policy |
 | `servers/map-mcp/src/travel_models.rs` | completed travel-model exact reads, pages and completion, with owner, context and retained-identity agreement in SQL before limits |
+| `servers/map-mcp/src/task_lookup.rs` and `src/schema/migrations/0000_travel_model_task.surql` | Map-owned travel-model Task lookup and transactional creation/terminal contributions; typed product validation follows kernel Task admission |
 | `servers/optimization-mcp/tests/map_travel_model.rs` | cross-server artifact wire compatibility and consumption of Map-owned addresses and collection templates |
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |

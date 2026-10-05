@@ -14,7 +14,7 @@ IF $mutation.kind = 'provision' {
     LET $revision = SELECT * FROM ONLY $definition.published;
     IF $definition = NONE OR $definition.tenant != $authority.tenant OR $definition.disabled
         OR $definition.status = 'archived' OR $authority.work_context NOT IN $definition.audience
-        OR $revision.digest != $plan.revision OR $revision.content.execution.kind != 'managed' { THROW 'agent_not_found'; };
+        OR $revision.digest != $plan.revision OR $revision.execution.kind != 'managed' { THROW 'agent_not_found'; };
     IF record::exists($command.principal)
         OR array::len(SELECT id FROM agent WHERE tenant = $authority.tenant AND agent_key = $command.key LIMIT 1) > 0
         OR array::len(SELECT id FROM managed_agent WHERE identity.client_id = $plan.identity.client_id LIMIT 1) > 0
@@ -44,10 +44,10 @@ IF $mutation.kind = 'provision' {
         IF !fn::managed_agent_enabled($instance.id) { THROW 'agent_forbidden'; };
         LET $revision = array::first(SELECT * FROM agent_definition_revision WHERE definition = $instance.definition AND digest = $mutation.digest LIMIT 1);
         LET $old = SELECT * FROM ONLY $instance.requested_revision;
-        IF $revision = NONE OR $revision.content.execution.kind != 'managed'
-            OR $revision.content.execution.template != $old.content.execution.template
-            OR $revision.content.execution.parameters != $old.content.execution.parameters { THROW 'agent_conflict'; };
-        IF $revision.content.execution.template_revision = $old.content.execution.template_revision
+        IF $revision = NONE OR $revision.execution.kind != 'managed'
+            OR $revision.execution.template != $old.execution.template
+            OR $revision.execution.parameters != $old.execution.parameters { THROW 'agent_conflict'; };
+        IF $revision.template_revision = $old.template_revision
             AND $mutation.image != $instance.resources.image { THROW 'agent_conflict'; };
         UPDATE ONLY $command.instance SET requested_revision = $revision.id, resources.image = $mutation.image;
     } ELSE IF $mutation.kind = 'stop' {

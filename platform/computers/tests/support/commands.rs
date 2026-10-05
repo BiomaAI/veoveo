@@ -95,3 +95,14 @@ pub fn output_capability(
         expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(10),
     }
 }
+
+pub fn expected_task_output(
+    operation: &veoveo_computers::commands::CommandOperation,
+) -> Option<serde_json::Value> {
+    match operation.outcome()? {
+        veoveo_computers::commands::CommandOutcome::Completed(result) => Some(serde_json::json!({
+            "content": [], "structuredContent": result, "isError": result.exit_code() != 0
+        })),
+        _ => None,
+    }
+}

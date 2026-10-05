@@ -9,8 +9,15 @@ async fn maintenance_admits_actor_parent_provider_and_claim_before_private_state
         let id = operation.operation_id;
         let caller = &operation.actor;
         let row = RecordId::new("computer_maintenance", StoreUuid::from(id.as_uuid()));
+        let retained_sql = include_str!("../queries/maintenance/reads/maintenance_admits_actor_parent_provider_and_claim_before_private_state/retained_row.surql");
+        let before: surrealdb::types::Value = db.a.client().query(retained_sql).bind(("row", row.clone())).await.unwrap().check().unwrap().take(0).unwrap();
+        assert!(db.a.client().query(include_str!("../queries/maintenance/reads/maintenance_admits_actor_parent_provider_and_claim_before_private_state/statement_1.surql"))
+            .bind(("row", row.clone())).bind(("expiry", 42_i64)).await.unwrap().check().is_err());
+        let after: surrealdb::types::Value = db.a.client().query(retained_sql).bind(("row", row.clone())).await.unwrap().check().unwrap().take(0).unwrap();
+        assert_eq!(before, after, "rejected controlled-field write must preserve the row");
+        // A string remains schema-admitted but violates the typed timestamp decoder.
         db.a.client().query(include_str!("../queries/maintenance/reads/maintenance_admits_actor_parent_provider_and_claim_before_private_state/statement_1.surql"))
-            .bind(("row", row.clone())).await.unwrap().check().unwrap();
+            .bind(("row", row.clone())).bind(("expiry", "not-an-rfc3339-timestamp")).await.unwrap().check().unwrap();
         assert!(matches!(a.maintenance(caller, id).await, Err(ComputerError::Unavailable)));
         assert!(matches!(a.maintenance(&owner("bob"), id).await, Err(ComputerError::NotFound)));
         let mut other_context = caller.clone();

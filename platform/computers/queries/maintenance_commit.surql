@@ -8,21 +8,17 @@ IF $current = NONE OR $home = NONE OR $current.operation_id != $operation_id
   OR $home.updated_at != $computer_updated_at OR $home.owner_context != $source_owner
   OR $home.template_fingerprint != $current.source_template_fingerprint OR $home.template_id != $current.source_template_id
   OR ($home.replacement_instance_id ?? $home.computer_id) != $current.source_instance_id
-  OR ($current.source.kind IN ["ready", "stopped"] AND ($home.provider_resource_id != $current.source.resource_id OR $home.process_id != $current.source.process_id))
-  OR ($current.source.kind = "initial_failure" AND ($home.provider_resource_id != NONE OR $home.process_id != NONE)) {
+  OR ($current.source_kind IN ["ready", "stopped"] AND ($home.provider_resource_id != $current.source.resource_id OR $home.process_id != $current.source.process_id))
+  OR ($current.source_kind = "initial_failure" AND ($home.provider_resource_id != NONE OR $home.process_id != NONE)) {
   THROW "computer_state_conflict";
 };
 IF $policy != NONE {
-  LET $head = SELECT * FROM ONLY gateway_control_active:current;
-  LET $revision = SELECT * FROM ONLY $authority_revision;
-  LET $enterprise = SELECT * FROM ONLY $authority_enterprise;
-  LET $tenant = SELECT * FROM ONLY $authority_tenant;
-  LET $source = SELECT * FROM ONLY $authority_source;
-  LET $actor = SELECT * FROM ONLY $authority_actor;
+    LET $revision_current = fn::kernel::gateway::control_revision_current_v1($authority_revision, $policy.control_revision, $policy.control_sha256);
+    LET $tenant = fn::kernel::identity::tenant_current_v1($authority_enterprise, $authority_tenant);
+  LET $source = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_source);
+  LET $actor = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_actor);
   IF <datetime>$policy.valid_until <= $now
-    OR $head = NONE OR $head.revision != $authority_revision OR $head.revision_id != $policy.control_revision
-    OR $revision = NONE OR $revision.sha256 != $policy.control_sha256
-    OR $enterprise.enabled != true OR $tenant.enabled != true OR $source.enabled != true OR $actor.enabled != true {
+    OR !$revision_current OR $tenant = NONE OR $source = NONE OR $actor = NONE {
     THROW "computer_authority_expired";
   };
 };

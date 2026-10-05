@@ -35,6 +35,10 @@ pub use governance::WorkContextSnapshot;
 #[cfg(feature = "runtime")]
 mod identity;
 #[cfg(feature = "runtime")]
+mod kernel_facts;
+#[cfg(feature = "runtime")]
+pub use kernel_facts::{CurrentPrincipal, CurrentTenant};
+#[cfg(feature = "runtime")]
 mod ids;
 #[cfg(feature = "runtime")]
 mod json_value;
@@ -87,10 +91,12 @@ pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentia
 pub use error::{StoreConfigError, StoreError};
 #[cfg(feature = "runtime")]
 pub use gateway_runtime::{
-    GatewayRefreshRedelivery, GatewayRefreshRetentionSummary, GatewayRefreshRotation,
-    GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,
-    gateway_authorization_request_record_id, gateway_jwt_revocation_record_id,
-    gateway_refresh_family_record_id, gateway_refresh_token_record_id, gateway_replay_record_id,
+    GatewayRefreshActorRecord, GatewayRefreshAssurance, GatewayRefreshGroupRole,
+    GatewayRefreshGroupRoleRecord, GatewayRefreshPrincipalRecord, GatewayRefreshRedelivery,
+    GatewayRefreshRetentionSummary, GatewayRefreshRotation, GatewayRefreshRotationOutcome,
+    gateway_authorization_code_record_id, gateway_authorization_request_record_id,
+    gateway_jwt_revocation_record_id, gateway_refresh_family_record_id,
+    gateway_refresh_token_record_id, gateway_replay_record_id,
     gateway_resource_subscription_record_id,
 };
 #[cfg(feature = "runtime")]

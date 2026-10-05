@@ -95,7 +95,7 @@ impl ComputersStore {
             ),
             (
                 "retained_owner",
-                crate::session_grants::object(retained_owner)?.into_value(),
+                crate::identity::stored_owner(retained_owner)?.into_value(),
             ),
         ]);
         let mut response = self

@@ -1,6 +1,7 @@
 //! SQL visibility precedes protected decoding and the public page limit.
 mod support;
 use std::time::Duration;
+use surrealdb::types::SurrealValue;
 use veoveo_computers::{ComputerActor, ComputerError, ComputersStore, Reservation, api::*};
 use veoveo_platform_store::{OpenObject, RecordId};
 use veoveo_task_runtime::TaskOwner;
@@ -23,6 +24,24 @@ async fn reserve(store: &ComputersStore, owner: &TaskOwner) -> ComputerId {
         .computer_id
 }
 async fn replace_owner(db: &support::TestDb, id: ComputerId, value: serde_json::Value) {
+    let sql = include_str!("queries/sql_admission/replace_owner/statement_1.surql");
+    let mut rejected = value.clone();
+    rejected["profile"] = serde_json::json!(42);
+    support::controlled_storage::reject_unchanged(
+        db,
+        record(id),
+        sql,
+        vec![
+            ("computer", record(id).into_value()),
+            (
+                "owner",
+                serde_json::from_value::<OpenObject>(rejected)
+                    .unwrap()
+                    .into_value(),
+            ),
+        ],
+    )
+    .await;
     db.a.client()
         .query(include_str!(
             "queries/sql_admission/replace_owner/statement_1.surql"
@@ -59,7 +78,7 @@ async fn owned_reads_filter_complete_identity_and_clearance_before_decoding_and_
         let mut ids = [first, second];
         ids.sort();
         let [hidden, visible] = ids;
-        let base = serde_json::to_value(actor.owner()).unwrap();
+        let base = support::controlled_storage::owner_json(actor.owner());
         let changes = [
             (vec!["principal_key"], serde_json::json!("foreign")),
             (vec!["principal_kind"], serde_json::json!("service")),
@@ -89,7 +108,7 @@ async fn owned_reads_filter_complete_identity_and_clearance_before_decoding_and_
             }
             *field = value;
             // This field cannot decode as TaskOwner. SQL must exclude the row first.
-            denied["profile"] = serde_json::json!(42);
+            denied["profile"] = serde_json::json!("not a profile");
             replace_owner(&db, hidden, denied).await;
             assert!(
                 matches!(
@@ -115,7 +134,7 @@ async fn owned_reads_filter_complete_identity_and_clearance_before_decoding_and_
             );
         }
         let mut corrupt = base;
-        corrupt["profile"] = serde_json::json!(42);
+        corrupt["profile"] = serde_json::json!("not a profile");
         replace_owner(&db, hidden, corrupt).await;
         assert!(matches!(
             store.get(actor.owner(), hidden).await,
@@ -143,13 +162,14 @@ async fn granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_
         read_grant(&store, &owner, classified).await;
         let wrong_grant = read_grant(&store, &owner, foreign).await;
         read_grant(&store, &owner, visible).await;
-        let mut retained = serde_json::to_value(owner.owner()).unwrap();
+        let mut retained = support::controlled_storage::owner_json(owner.owner());
         retained["data_labels"] = serde_json::json!(["private"]);
-        retained["profile"] = serde_json::json!(42);
+        retained["profile"] = serde_json::json!("not a profile");
         replace_owner(&db, classified, retained).await;
-        db.a.client().query(include_str!("queries/sql_admission/granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_the_next_computer/statement_1.surql"))
-            .bind(("grant", RecordId::new("computer_automation_grant", surrealdb::types::Uuid::from(wrong_grant.grant_id.as_uuid()))))
-            .await.unwrap().check().unwrap();
+        let grant = RecordId::new("computer_automation_grant", surrealdb::types::Uuid::from(wrong_grant.grant_id.as_uuid()));
+        support::controlled_storage::reject_unchanged(&db, grant.clone(), include_str!("queries/sql_admission/granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_the_next_computer/statement_1.surql"), vec![("grant", grant.clone().into_value())]).await;
+        db.a.client().query(include_str!("queries/sql_admission/granted_pages_skip_denied_keys_without_decoding_private_rows_or_losing_the_next_computer/admitted_poison.surql"))
+            .bind(("grant", grant)).await.unwrap().check().unwrap();
         let control = store.control_authority(&agent).await.unwrap();
         for hidden in [classified, foreign] {
             assert!(matches!(store.read_computer_access(&agent, &control, hidden).await, Err(ComputerError::NotFound)));
@@ -189,8 +209,8 @@ async fn current_owner_policy_is_resolved_before_decoding_granted_computer_state
             [veoveo_types::PrincipalId::parse(owner.owner().principal_key.clone()).unwrap()].into();
         policy.policies[0].rules.push(deny);
         support::policy::install(&db.a, policy).await;
-        let mut corrupt = serde_json::to_value(owner.owner()).unwrap();
-        corrupt["profile"] = serde_json::json!(42);
+        let mut corrupt = support::controlled_storage::owner_json(owner.owner());
+        corrupt["profile"] = serde_json::json!("not a profile");
         replace_owner(&db, hidden, corrupt).await;
         let control = store.control_authority(&agent).await.unwrap();
         assert!(matches!(
@@ -275,8 +295,8 @@ async fn reduced_grant_lifetime_denies_before_decoding_its_computer() {
         let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
         read_grant(&store, &owner, computer).await;
-        let mut corrupt = serde_json::to_value(owner.owner()).unwrap();
-        corrupt["profile"] = serde_json::json!(42);
+        let mut corrupt = support::controlled_storage::owner_json(owner.owner());
+        corrupt["profile"] = serde_json::json!("not a profile");
         replace_owner(&db, computer, corrupt).await;
         tokio::time::sleep(Duration::from_millis(1200)).await;
         store

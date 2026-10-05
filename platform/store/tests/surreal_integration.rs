@@ -772,3 +772,6 @@ async fn changefeed_replay_contract_is_pinned() {
          ({update_versionstamp}) across tables"
     );
 }
+
+#[path = "surreal_integration/gateway_snapshots.rs"]
+mod gateway_snapshots;

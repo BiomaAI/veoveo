@@ -324,6 +324,9 @@ impl MapCatalog {
                 arrival_time: route.arrival_time,
                 cache_digest_sha256,
                 canonical_json: encode(route)?,
+                base_release_ids: route.provenance.base_release_ids.iter().cloned().collect(),
+                restriction_ids: route.restriction_ids.iter().cloned().collect(),
+                facility_ids: route.facility_ids.iter().cloned().collect(),
             })
             .await?;
         for release_id in &route.provenance.base_release_ids {

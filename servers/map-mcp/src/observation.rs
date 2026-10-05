@@ -3,6 +3,8 @@ use veoveo_modules::{ChangefeedRetention, ObservationReplay, ObservationTable, T
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
 pub enum MapObservationTable {
+    #[vocabulary(rename = "map_travel_model_task")]
+    MapTravelModelTask,
     #[vocabulary(rename = "map_source")]
     MapSource,
     #[vocabulary(rename = "map_dataset_release")]

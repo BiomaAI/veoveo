@@ -1,35 +1,25 @@
 BEGIN TRANSACTION;
   LET $now = time::now();
-  LET $head = SELECT * FROM ONLY gateway_control_active:current;
-  LET $revision = SELECT * FROM ONLY $authority_revision;
-  LET $enterprise = SELECT * FROM ONLY $authority_enterprise;
-  LET $tenant = SELECT * FROM ONLY $authority_tenant;
-  LET $source = SELECT * FROM ONLY $authority_source;
-  LET $actor = SELECT * FROM ONLY $authority_actor;
+    LET $revision_current = fn::kernel::gateway::control_revision_current_v1($authority_revision, $authority_revision_id, $authority_sha256);
+    LET $tenant = fn::kernel::identity::tenant_current_v1($authority_enterprise, $authority_tenant);
+  LET $source = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_source);
+  LET $actor = fn::kernel::identity::principal_current_v1($authority_tenant, $authority_actor);
   IF $authority_expires_at <= $now
-  OR $head = NONE
-  OR $head.revision != $authority_revision
-  OR $head.revision_id != $authority_revision_id
-  OR $revision = NONE
-  OR $revision.sha256 != $authority_sha256
-  OR $enterprise.enabled != true
-  OR $tenant.enabled != true
-  OR $source.enabled != true
-  OR $actor.enabled != true
-  OR $source.tenant != $authority_tenant
+  OR !$revision_current
+  OR $tenant = NONE
+  OR $source = NONE
+  OR $actor = NONE
   OR $source.kind != $grantee_kind
   OR $source.issuer != $grantee_issuer
   OR $source.subject != $grantee_subject
-  OR $actor.tenant != $authority_tenant
   OR $actor.kind != $owner_kind
   OR $actor.issuer != $owner_issuer
   OR $actor.subject != $owner_subject {
     THROW "computer_authority_expired";
   };
   IF $family != NONE {
-    LET $family_state = SELECT * FROM ONLY $family;
+    LET $family_state = fn::kernel::gateway::refresh_family_current_v1($family, $now);
     IF $family_state = NONE
-    OR $family_state.revoked_at != NONE
     OR $family_state.expires_at <= $now {
       THROW "computer_authority_expired";
     };
@@ -59,8 +49,8 @@ BEGIN TRANSACTION;
     AND grant.authority.actor.kind = computer.owner_context.principal_kind
     AND grant.authority.actor.issuer = computer.owner_context.issuer
     AND grant.authority.actor.subject = computer.owner_context.subject
-    AND owner_source.enabled = true
-    AND owner_actor.enabled = true
+    AND fn::kernel::identity::principal_current_v1($authority_tenant, owner_source) != NONE
+    AND fn::kernel::identity::principal_current_v1($authority_tenant, owner_actor) != NONE
     AND $limits.max_grants > 0
     AND $limits.fingerprint = policy_fingerprint;
   LET $admitted = SELECT *
@@ -81,11 +71,14 @@ BEGIN TRANSACTION;
         AND owner_context.subject = $owner_subject
         AND owner_context.authority.work_context = $owner_context
         AND owner_context.data_labels ALLINSIDE $owner_labels
-        AND (
-          owner_context.authority.output_policy.data_labels ?? []
-        ) ALLINSIDE $owner_labels
+        AND type::is_object(owner_context.authority)
+  AND type::is_object(owner_context.authority.output_policy)
+  AND (
+    owner_context.authority.output_policy.data_labels
+  ) ALLINSIDE $owner_labels
         AND (
           owner_context.authority.output_policy.classification = NONE
+          OR owner_context.authority.output_policy.classification = NULL
           OR owner_context.authority.output_policy.classification IN $owner_labels
         )
       )
@@ -93,11 +86,14 @@ BEGIN TRANSACTION;
         id IN $granted
         AND tenant_key = $grantee_tenant
         AND owner_context.data_labels ALLINSIDE $grantee_labels
-        AND (
-          owner_context.authority.output_policy.data_labels ?? []
-        ) ALLINSIDE $grantee_labels
+        AND type::is_object(owner_context.authority)
+  AND type::is_object(owner_context.authority.output_policy)
+  AND (
+    owner_context.authority.output_policy.data_labels
+  ) ALLINSIDE $grantee_labels
         AND (
           owner_context.authority.output_policy.classification = NONE
+          OR owner_context.authority.output_policy.classification = NULL
           OR owner_context.authority.output_policy.classification IN $grantee_labels
         )
       )

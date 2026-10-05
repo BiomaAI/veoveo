@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::time::Instant;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_platform_store::{OpenObject, gateway_refresh_family_record_id};
+use veoveo_platform_store::gateway_refresh_family_record_id;
 
 pub struct CliPairing {
     pub pairing_id: crate::api::CliPairingId,
@@ -79,7 +79,7 @@ pub(super) struct Grant {
     pub computer_id: Uuid,
     pub owner_key: String,
     pub provider_instance_id: Uuid,
-    pub authority: OpenObject,
+    pub authority: crate::AcceptedAuthority,
     pub family: RecordId,
     pub name: String,
     pub issued_at: DateTime<Utc>,
@@ -93,10 +93,7 @@ impl Grant {
         crate::api::ComputerId::try_from(self.computer_id).map_err(|_| ComputerError::Unavailable)
     }
     pub fn accepted(&self) -> Result<AcceptedAuthority> {
-        let accepted: AcceptedAuthority = serde_json::from_value(
-            serde_json::to_value(&self.authority).map_err(|_| ComputerError::Unavailable)?,
-        )
-        .map_err(|_| ComputerError::Unavailable)?;
+        let accepted = self.authority.clone();
         accepted.validate()?;
         let family = family(&accepted)?;
         if self.id

@@ -61,7 +61,11 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
             a.get(owner.owner(), computer).await.unwrap().phase,
             ComputerPhase::Ready
         );
-        assert!(a.acknowledge_command_task(&completed).await.is_err());
+        assert!(
+            a.acknowledge_command_task(&completed, expected_task_output(&completed).as_ref())
+                .await
+                .is_err()
+        );
         let tasks = TaskRuntime::new(db.a.clone(), "computers", "command-worker");
         let task = tasks.get(completed.task_id()).await.unwrap().unwrap();
         assert!(!task.is_terminal());
@@ -82,7 +86,11 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
             .unwrap()
             .check()
             .unwrap();
-        assert!(b.acknowledge_command_task(&completed).await.is_err());
+        assert!(
+            b.acknowledge_command_task(&completed, expected_task_output(&completed).as_ref())
+                .await
+                .is_err()
+        );
         assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
             .query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_2.surql"))
@@ -100,7 +108,11 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
             .unwrap()
             .check()
             .unwrap();
-        assert!(b.acknowledge_command_task(&completed).await.is_err());
+        assert!(
+            b.acknowledge_command_task(&completed, expected_task_output(&completed).as_ref())
+                .await
+                .is_err()
+        );
         assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
             .query(include_str!("queries/command_completion/known_exit_and_outputs_settle_once_before_task_projection_and_allow_the_next_command/statement_4.surql"))
@@ -110,12 +122,52 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
             .unwrap()
             .check()
             .unwrap();
+        db.a.client()
+            .query(include_str!(
+                "queries/command_completion/journal_result_changed.surql"
+            ))
+            .bind((
+                "journal",
+                surrealdb::types::RecordId::new(
+                    "computer_execution",
+                    surrealdb::types::Uuid::from(completed.execution_id().as_uuid()),
+                ),
+            ))
+            .bind(("code", code + 1))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            b.acknowledge_command_task(&completed, expected_task_output(&completed).as_ref())
+                .await
+                .is_err(),
+            "changed journal outcome was acknowledged from a stale typed operation"
+        );
+        db.a.client()
+            .query(include_str!(
+                "queries/command_completion/journal_result_changed.surql"
+            ))
+            .bind((
+                "journal",
+                surrealdb::types::RecordId::new(
+                    "computer_execution",
+                    surrealdb::types::Uuid::from(completed.execution_id().as_uuid()),
+                ),
+            ))
+            .bind(("code", code))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
         for _ in 0..2 {
             assert_eq!(
                 b.command_for_claim(&claim).await.unwrap().outcome(),
                 completed.outcome()
             );
-            b.acknowledge_command_task(&completed).await.unwrap();
+            b.acknowledge_command_task(&completed, expected_task_output(&completed).as_ref())
+                .await
+                .unwrap();
         }
         let still_pending = b.pending_commands(None, 100).await.unwrap();
         assert!(

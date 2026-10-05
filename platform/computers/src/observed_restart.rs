@@ -63,7 +63,7 @@ impl ComputersStore {
                 ),
                 (
                     "owner_context",
-                    crate::session_grants::object(&before.owner)?.into_value(),
+                    crate::identity::stored_owner(&before.owner)?.into_value(),
                 ),
                 (
                     "provider",

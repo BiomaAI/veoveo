@@ -235,6 +235,29 @@ async fn qualify() {
     let matrix = key("matrix", 1124).parse().unwrap();
     let job = key("acquisition", 1124).parse().unwrap();
     assert!(reader.route(&owner, &route).await.unwrap().is_some());
+    db.a.client()
+        .query(include_str!(
+            "../../queries/catalog/owned/tests/corrupt_route_projection.surql"
+        ))
+        .bind(("tenant", owner.identity.tenant_id.record_id()))
+        .bind(("route_key", route.to_string()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(reader.route(&owner, &route).await.is_err());
+    db.a.client()
+        .query(include_str!(
+            "../../queries/catalog/owned/tests/restore_route_projection.surql"
+        ))
+        .bind(("tenant", owner.identity.tenant_id.record_id()))
+        .bind(("route_key", route.to_string()))
+        .bind(("release", key("release", 1)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
     assert!(reader.matrix(&owner, &matrix).await.unwrap().is_some());
     assert!(reader.acquisition(&owner, &job).await.unwrap().is_some());
     for denied in [&peer, &foreign] {
@@ -299,9 +322,38 @@ async fn qualify() {
     // The query selects the owner's row; the decoded product must name that row.
     let mut mismatched = plan(9000, 1);
     mismatched.route_uri = MapRouteUri::new(key("route", 9001).parse().unwrap());
+    assert!(
+        writer
+            .persist_route(&owner, &mismatched, "a".repeat(64))
+            .await
+            .is_err()
+    );
+    assert!(
+        reader
+            .route(&owner, &mismatched.route_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
     writer
-        .persist_route(&owner, &mismatched, "a".repeat(64))
+        .persist_route(&owner, &plan(9000, 1), "a".repeat(64))
         .await
+        .unwrap();
+    db.a.client()
+        .query(include_str!(
+            "../../queries/catalog/owned/tests/corrupt_route_document.surql"
+        ))
+        .bind((
+            "route",
+            surrealdb::types::RecordId::new("map_route", mismatched.route_id.to_string()),
+        ))
+        .bind((
+            "canonical_json",
+            serde_json::to_string(&mismatched).unwrap(),
+        ))
+        .await
+        .unwrap()
+        .check()
         .unwrap();
     assert!(
         reader
@@ -309,7 +361,7 @@ async fn qualify() {
             .await
             .unwrap_err()
             .to_string()
-            .contains("selected identity")
+            .contains("route identity")
     );
     assert!(
         reader
@@ -542,13 +594,21 @@ async fn qualify_invalidation(
     );
     assert!(
         !MapRepository::new(writer.store().clone())
-            .invalidate_map_route(owner.identity.tenant_id, &key("route", 1124), "{}".into())
+            .invalidate_map_route(
+                owner.identity.tenant_id,
+                &key("route", 1124),
+                serde_json::to_string(&plan(1124, 1)).unwrap()
+            )
             .await
             .unwrap()
     );
     assert!(
         !MapRepository::new(writer.store().clone())
-            .invalidate_map_route(foreign.identity.tenant_id, &key("route", 4000), "{}".into())
+            .invalidate_map_route(
+                foreign.identity.tenant_id,
+                &key("route", 4000),
+                serde_json::to_string(&plan(4000, 1)).unwrap()
+            )
             .await
             .unwrap()
     );
