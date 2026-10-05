@@ -11,6 +11,7 @@ pub(super) use configuration::Configuration;
 use futures::{StreamExt, stream::BoxStream};
 use serde::Serialize;
 use std::{
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -42,11 +43,10 @@ struct ResourceCreation {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 pub(super) struct Managed {
-    runtime: tokio::runtime::Runtime,
+    runtime: Arc<tokio::runtime::Runtime>,
     store: PlatformStore,
     provisioned: provision::Provisioned,
-    live: BoxStream<'static, Result<Notification<AgentRecord>, surrealdb::Error>>,
-    live_id: Option<LiveId>,
+    live: AgentLive,
     forward: process::Background,
     pods: observations::PodWatch,
     deployments: observations::PodWatch,
@@ -55,6 +55,85 @@ pub(super) struct Managed {
     after: Option<observations::Ready>,
     recovery: Option<Recovery>,
 }
+// The SDK stream's Drop spawns a KILL task. This owner retains its runtime
+// through stream destruction, including errors before Managed is constructed.
+struct AgentLive {
+    store: PlatformStore,
+    stream: Option<BoxStream<'static, Result<Notification<AgentRecord>, surrealdb::Error>>>,
+    id: Option<LiveId>,
+    runtime: Arc<tokio::runtime::Runtime>,
+}
+impl AgentLive {
+    fn start(runtime: Arc<tokio::runtime::Runtime>, store: PlatformStore) -> Result<Self> {
+        let (id, stream) = database(&runtime, async {
+            let mut response = store
+                .client()
+                .query("LIVE SELECT * FROM agent;")
+                .await?
+                .check()?;
+            let id: Option<LiveId> = response.take(0)?;
+            let id = id.context("fixture LIVE identity")?;
+            let stream = match response.stream::<Notification<AgentRecord>>(0) {
+                Ok(stream) => stream.boxed(),
+                Err(error) => {
+                    let cleanup = async {
+                        store
+                            .client()
+                            .query("KILL $query;")
+                            .bind(("query", id))
+                            .await?
+                            .check()?;
+                        Ok::<_, anyhow::Error>(())
+                    }
+                    .await;
+                    return Err(setup_failure(error.into(), cleanup));
+                }
+            };
+            Ok::<_, anyhow::Error>((id, stream))
+        })?;
+        Ok(Self {
+            store,
+            stream: Some(stream),
+            id: Some(id),
+            runtime,
+        })
+    }
+    fn finish_setup<T>(&mut self, result: Result<T>) -> Result<T> {
+        result.map_err(|error| setup_failure(error, self.close()))
+    }
+    fn close(&mut self) -> Result<()> {
+        let result = if let Some(id) = self.id.take() {
+            database(&self.runtime, async {
+                self.store
+                    .client()
+                    .query("KILL $query;")
+                    .bind(("query", id))
+                    .await?
+                    .check()?;
+                Ok::<_, anyhow::Error>(())
+            })
+        } else {
+            Ok(())
+        };
+        // Destruction must also run here when explicit KILL failed or timed out.
+        // The SDK has no public close method to disable its Drop cleanup.
+        let _entered = self.runtime.enter();
+        drop(self.stream.take());
+        result
+    }
+}
+impl Drop for AgentLive {
+    fn drop(&mut self) {
+        let _ = self.close();
+    }
+}
+fn setup_failure(error: anyhow::Error, cleanup: Result<()>) -> anyhow::Error {
+    match cleanup {
+        Ok(()) => error,
+        Err(cleanup) => error.context(format!("owned LIVE cleanup also failed: {cleanup:#}")),
+    }
+}
+
 impl Managed {
     pub fn start(fixture: &Fixture) -> Result<Self> {
         let mut forward = process::Background::start(
@@ -87,37 +166,18 @@ impl Managed {
             );
             thread::sleep(Duration::from_millis(50));
         };
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()?;
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()?,
+        );
         let store = database(
             &runtime,
             PlatformStore::connect(fixture.store_config(&format!("ws://127.0.0.1:{port}"))?),
         )
         .map_err(|_| anyhow::anyhow!("privileged fixture Store connection failed"))?;
-        let (live_id, live) = database(&runtime, async {
-            let mut response = store
-                .client()
-                .query("LIVE SELECT * FROM agent;")
-                .await?
-                .check()?;
-            let id: Option<LiveId> = response.take(0)?;
-            let id = id.context("fixture LIVE identity")?;
-            let stream = match response.stream::<Notification<AgentRecord>>(0) {
-                Ok(stream) => stream.boxed(),
-                Err(error) => {
-                    store
-                        .client()
-                        .query("KILL $query;")
-                        .bind(("query", id))
-                        .await?
-                        .check()?;
-                    return Err(error.into());
-                }
-            };
-            Ok::<_, anyhow::Error>((id, stream))
-        })?;
+        let mut live = AgentLive::start(Arc::clone(&runtime), store.clone())?;
         // From this point every error must retain the physical connection until
         // the registered LIVE ID is killed; setup failure uses the same owner.
         let prepared = (|| {
@@ -139,27 +199,12 @@ impl Managed {
             )?;
             Ok::<_, anyhow::Error>((provisioned, pods, deployments))
         })();
-        let (provisioned, pods, deployments) = match prepared {
-            Ok(p) => p,
-            Err(error) => {
-                database(&runtime, async {
-                    store
-                        .client()
-                        .query("KILL $query;")
-                        .bind(("query", live_id))
-                        .await?
-                        .check()?;
-                    Ok::<_, anyhow::Error>(())
-                })?;
-                return Err(error);
-            }
-        };
+        let (provisioned, pods, deployments) = live.finish_setup(prepared)?;
         Ok(Self {
             runtime,
             store,
             provisioned,
             live,
-            live_id: Some(live_id),
             forward,
             pods,
             deployments,
@@ -174,8 +219,15 @@ impl Managed {
         database(&self.runtime, async {
             // This is delivery from the owner-scoped native LIVE stream. Timeout
             // means there is no additional event now, never that a lease drained.
-            while let Ok(next) =
-                tokio::time::timeout(Duration::from_millis(5), self.live.next()).await
+            while let Ok(next) = tokio::time::timeout(
+                Duration::from_millis(5),
+                self.live
+                    .stream
+                    .as_mut()
+                    .context("fixture Agent LIVE already closed; drain is unknown")?
+                    .next(),
+            )
+            .await
             {
                 let record = next
                     .context("fixture Agent LIVE ended; drain is unknown")??
@@ -556,24 +608,7 @@ impl Managed {
         Ok(())
     }
     pub fn close_live(&mut self) -> Result<()> {
-        if let Some(id) = self.live_id {
-            database(&self.runtime, async {
-                self.store
-                    .client()
-                    .query("KILL $query;")
-                    .bind(("query", id))
-                    .await?
-                    .check()?;
-                Ok::<_, anyhow::Error>(())
-            })?;
-            self.live_id = None;
-        }
-        Ok(())
-    }
-}
-impl Drop for Managed {
-    fn drop(&mut self) {
-        let _ = self.close_live();
+        self.live.close()
     }
 }
 

@@ -249,7 +249,10 @@ Namespace and cluster policy deletion send their created UIDs as Kubernetes
 DeleteOptions preconditions. A failed final observation is recorded while cleanup
 still attempts every owned resource. The database stays available for the final
 episode read after kernel workloads exit. Fixture database futures have a 30-second
-transport budget, watches reject gaps, and background observers own their process
+transport budget. Each LIVE stream keeps its Tokio runtime alive and is destroyed
+inside that runtime after an explicit KILL attempt, including failed setup and
+teardown. Setup diagnostics preserve the primary error when LIVE cleanup also
+fails. Watches reject gaps, and background observers own their process
 groups. Readiness, recovery and terminal archive each have a 180-second observation
 budget; individual native commands retain their own shorter deadlines.
 Commands have deadlines, file-backed output capped at 2 MiB and owned process-group

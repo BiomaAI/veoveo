@@ -174,3 +174,50 @@ fn generated_configuration_is_admitted_and_der_key_signs_gateway_assertion() {
         BTreeSet::from(["operator:use".parse().unwrap()])
     );
 }
+
+#[path = "../../../../fixtures/store.rs"]
+mod database;
+
+#[test]
+fn sdk_live_teardown_outside_block_on_preserves_setup_errors() -> anyhow::Result<()> {
+    use super::{AgentLive, setup_failure};
+    use std::{sync::Arc, time::Duration};
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()?,
+    );
+    let fixture = runtime.block_on(async {
+        tokio::time::timeout(Duration::from_secs(180), database::TestDb::new()).await
+    })?;
+    let store = runtime.block_on(fixture.admin());
+    // Real SDK streams are registered while entered, then all three teardown
+    // paths execute on this ordinary test thread with no Tokio context.
+    assert!(tokio::runtime::Handle::try_current().is_err());
+    let mut explicit = AgentLive::start(Arc::clone(&runtime), store.clone())?;
+    explicit.close()?;
+    assert!(explicit.stream.is_none());
+    explicit.close()?;
+    drop(explicit);
+    let mut failed = AgentLive::start(Arc::clone(&runtime), store.clone())?;
+    let error = failed
+        .finish_setup::<()>(Err(anyhow::anyhow!("watch setup sentinel")))
+        .unwrap_err();
+    assert_eq!(error.to_string(), "watch setup sentinel");
+    assert!(failed.stream.is_none());
+    drop(failed);
+    let cleanup_error = setup_failure(
+        anyhow::anyhow!("primary setup sentinel"),
+        Err(anyhow::anyhow!("cleanup sentinel")),
+    );
+    let diagnostic = format!("{cleanup_error:#}");
+    assert!(diagnostic.contains("primary setup sentinel"));
+    assert!(diagnostic.contains("cleanup sentinel"));
+    let automatic = AgentLive::start(Arc::clone(&runtime), store)?;
+    drop(runtime); // The LIVE owner is now the sole runtime owner.
+    drop(automatic);
+    drop(fixture);
+    assert!(tokio::runtime::Handle::try_current().is_err());
+    Ok(())
+}
