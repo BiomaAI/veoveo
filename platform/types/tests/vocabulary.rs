@@ -13,7 +13,7 @@ mod owner_result_alias {
 
     #[test]
     fn generated_results_do_not_resolve_to_the_owner_alias() {
-        let result: Result<Permission> = Ok("owner:read".parse().unwrap());
+        let result: Result<Permission> = "owner:read".parse().map_err(|_| "invalid permission");
         let permission = result.unwrap();
         assert_eq!(
             serde_json::to_string(&permission).unwrap(),
