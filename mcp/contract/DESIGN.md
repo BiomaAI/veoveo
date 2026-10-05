@@ -771,3 +771,8 @@ App dependency DTOs, discovery failure values and their metadata keys are owned 
 [Gateway Contract](../../platform/gateway/contract/DESIGN.md). This crate keeps the
 MCP MetaObject conversion and sorted/deduplicated degradation wrapper. Consumers
 import the transport-free values directly from their owner.
+
+Normalized `Principal`, group membership and outer `PolicyDecision` objects reject
+unknown fields during decoding. Raw external JWT claims keep their own admission
+profile. Policy target decoding still admits owner registrations and preserves
+unadmitted target payloads until their owner registry checks them.

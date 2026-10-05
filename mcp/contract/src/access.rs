@@ -59,6 +59,7 @@ impl GroupRole {
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
+#[serde(deny_unknown_fields)]
 pub struct GroupMembership {
     pub group: GroupId,
     pub role: GroupRole,

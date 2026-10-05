@@ -64,6 +64,7 @@ pub enum PolicyEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Principal {
     pub id: PrincipalId,
     pub kind: PrincipalKind,
@@ -190,6 +191,7 @@ pub struct AccessTokenSubject {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PolicyDecision {
     pub effect: PolicyEffect,
     pub reason: PolicyReasonCode,

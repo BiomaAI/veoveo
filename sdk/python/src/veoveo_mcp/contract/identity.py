@@ -63,14 +63,14 @@ class GroupRole(str, Enum):
 
 
 class GroupMembership(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     group: GroupId
     role: GroupRole
 
 
 class Principal(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     id: PrincipalId
     kind: PrincipalKind

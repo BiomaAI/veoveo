@@ -2200,3 +2200,36 @@ fn app_resource_dependencies_bind_exact_apps_to_registered_resource_families() {
         GatewayControlPlaneError::InvalidAppResourceDependency { .. }
     ));
 }
+
+#[test]
+fn normalized_identity_and_decision_reject_unknown_fields() {
+    let principal = serde_json::json!({
+        "id": "alice", "kind": "user", "issuer": "https://idp.example.com",
+        "subject": "alice"
+    });
+    let admitted: Principal = serde_json::from_value(principal.clone()).unwrap();
+    let mut unknown = principal;
+    unknown["external_claim"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<Principal>(unknown).is_err());
+    assert!(
+        serde_json::from_value::<crate::access::GroupMembership>(serde_json::json!({
+            "group": "engineering", "role": "read", "unexpected": true
+        }))
+        .is_err()
+    );
+    let decision = PolicyDecision::deny(
+        GatewayProfileId::parse("default").unwrap(),
+        veoveo_gateway_contract::GatewayAction::ToolsCall,
+        PolicyTarget::Gateway,
+        PolicyReasonCode::PolicyDeny,
+        TraceId::parse("trace-normalized").unwrap(),
+    );
+    let mut wire = serde_json::to_value(&decision).unwrap();
+    assert!(serde_json::from_value::<PolicyDecision>(wire.clone()).is_ok());
+    wire["unexpected"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<PolicyDecision>(wire).is_err());
+    assert_eq!(
+        serde_json::from_value::<Principal>(serde_json::to_value(&admitted).unwrap()).unwrap(),
+        admitted
+    );
+}

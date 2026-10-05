@@ -134,6 +134,15 @@ def test_verifies_a_valid_gateway_assertion():
     assert identity.request_context is None
 
 
+def test_external_jwt_claims_do_not_extend_the_normalized_principal():
+    pem, jwks = _keypair()
+    identity = _verifier(jwks).verify(
+        _token(pem, _claims(external_claim={"provider": "example"}))
+    )
+    assert identity.actor.kind.value == "service"
+    assert "external_claim" not in identity.actor.model_dump()
+
+
 def _request_context_fixtures():
     return json.loads(
         (Path(__file__).parents[3] / "testing/fixtures/gateway-request-context.json").read_text()

@@ -158,3 +158,15 @@ def test_authority_models_preserve_valid_wire_and_reject_unknown_fields(model_na
     assert model.model_validate(admitted.model_dump(mode="json")) == admitted
     with pytest.raises(ValueError):
         model.model_validate({**payload, "unexpected": True})
+
+
+def test_normalized_principal_and_group_membership_reject_unknown_fields():
+    from veoveo_mcp.contract.identity import GroupMembership, Principal
+
+    principal = {"id": "alice", "kind": "user", "issuer": "https://idp.example.com", "subject": "alice"}
+    admitted = Principal.model_validate(principal)
+    assert Principal.model_validate(admitted.model_dump()) == admitted
+    with pytest.raises(ValueError, match="extra_forbidden"):
+        Principal.model_validate({**principal, "external_claim": True})
+    with pytest.raises(ValueError, match="extra_forbidden"):
+        GroupMembership.model_validate({"group": "engineering", "role": "read", "unexpected": True})
