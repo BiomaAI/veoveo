@@ -247,20 +247,20 @@ class TaskFailure:
     code: str
     message: str
     details: Any | None = None
+    _details_present: bool = dataclass_field(default=False, repr=False)
 
     def to_json(self) -> dict[str, Any]:
         value: dict[str, Any] = {"code": self.code, "message": self.message}
-        if self.details is not None:
+        if self.details is not None or self._details_present:
             value["details"] = self.details
         return value
 
     @classmethod
     def from_json(cls, value: dict[str, Any]) -> "TaskFailure":
-        return cls(
-            code=value["code"],
-            message=value["message"],
-            details=value.get("details"),
-        )
+        from .records import TaskFailureRecord
+        record = TaskFailureRecord.model_validate(value)
+        return cls(code=record.code, message=record.message, details=record.details,
+                   _details_present="details" in record.model_fields_set)
 
     @classmethod
     def interrupted_indeterminate(cls) -> "TaskFailure":
@@ -609,7 +609,7 @@ def validate_input_key(key: str) -> None:
 
 
 def validate_input_method(method: str) -> None:
-    if not method or len(method) > 256 or any(ch < " " or ch == "\x7f" for ch in method):
+    if not isinstance(method, str) or not method or len(method.encode("utf-8")) > 256 or any(ord(ch) < 32 or 127 <= ord(ch) <= 159 for ch in method):
         raise InvalidRecord(
             "task input method is empty, too long, or contains a control character"
         )

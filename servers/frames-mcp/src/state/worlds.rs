@@ -8,7 +8,7 @@ use surrealdb::{
 };
 
 use super::records::{FrameWorldRecord, FrameWorldRevisionRecord};
-use super::{FrameScope, FramesState, object_from_value, world_revision, world_summary};
+use super::{FrameScope, FramesState, world_revision, world_summary};
 use crate::contract::{
     CreateWorldRequest, FrameWorldRevisionId, FrameWorldSummary, PublishWorldOutput,
     PublishWorldRequest, ValidatedWorldTree,
@@ -172,7 +172,7 @@ impl FramesState {
             ))
             .bind((
                 "tree",
-                object_from_value(serde_json::to_value(validated.into_tree())?)?,
+                super::storage_codec::WorldTree(validated.into_tree()),
             ))
             .bind(("now", Utc::now()))
             .await

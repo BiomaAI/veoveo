@@ -5,6 +5,7 @@
 //! Contract types live in `types`; process and protocol wiring stay in their
 //! owning crates.
 
+use crate::persistence::{AgentTaskOutcome, DeferredTaskDescriptor, InputWakePhase, WakePayload};
 use std::sync::{
     Arc,
     atomic::{AtomicI64, Ordering},
@@ -29,7 +30,7 @@ use veoveo_task_runtime::TaskRetentionPin;
 use crate::types::{
     AgentInstanceId, AgentLease, AgentRuntimeError, AgentSpec, AgentTaskResult, ClaimedAgentTask,
     ClaimedWake, EpisodeCompletion, EpisodeHandle, InputRequestAnswer, NewAgentTask,
-    NewInputRequest, NewWake, PendingInputRequest, Result, checked_i64, object, uuid_from_record,
+    NewInputRequest, NewWake, PendingInputRequest, Result, checked_i64, uuid_from_record,
 };
 use veoveo_mcp_contract::CanonicalTaskId;
 
@@ -67,7 +68,7 @@ struct WakeContent {
     kind: WakeKind,
     state: WakeState,
     dedupe_key: Option<String>,
-    payload: OpenObject,
+    payload: WakePayload,
     available_at: DateTime<Utc>,
     claimed_by: Option<String>,
     claimed_at: Option<DateTime<Utc>>,
@@ -89,10 +90,10 @@ struct AgentTaskContent {
     agent: RecordId,
     task_id: String,
     tool_name: String,
-    descriptor: OpenObject,
+    descriptor: DeferredTaskDescriptor,
     descriptor_complete: bool,
     state: AgentTaskWatchState,
-    result: Option<OpenObject>,
+    result: Option<AgentTaskOutcome>,
     result_is_error: bool,
     result_wake: Option<RecordId>,
     retention_pin: String,
@@ -378,6 +379,12 @@ impl AgentRuntime {
 
     /// Persist an accepted wake before native changefeed delivery.
     pub async fn enqueue_wake(&self, wake: NewWake) -> Result<WakeId> {
+        if wake.kind != wake.payload.kind() {
+            return Err(AgentRuntimeError::InvalidField {
+                field: "wake.kind",
+                reason: "does not match payload".into(),
+            });
+        }
         let now = Utc::now();
         let content = self.wake_content(&wake, now);
 
@@ -467,6 +474,15 @@ impl AgentRuntime {
     }
 
     pub async fn record_task(&self, draft: NewAgentTask) -> Result<AgentTaskId> {
+        if !draft
+            .descriptor
+            .validate(draft.descriptor_complete, draft.task_id.as_ref())
+        {
+            return Err(AgentRuntimeError::InvalidField {
+                field: "agent_task.descriptor",
+                reason: "descriptor completeness or execution identity mismatch".into(),
+            });
+        }
         self.fence()?;
         if let Some(existing) = self.task_by_task_id(draft.task_id.clone()).await? {
             if existing.retention_pin != draft.retention_pin.to_string()
@@ -545,8 +561,14 @@ impl AgentRuntime {
     pub async fn complete_task_descriptor(
         &self,
         task_id: CanonicalTaskId,
-        descriptor: OpenObject,
+        descriptor: DeferredTaskDescriptor,
     ) -> Result<()> {
+        if !descriptor.validate(true, task_id.as_ref()) {
+            return Err(AgentRuntimeError::InvalidField {
+                field: "agent_task.descriptor",
+                reason: "descriptor execution identity mismatch".into(),
+            });
+        }
         let now = Utc::now();
         let mut response = self
             .store
@@ -662,13 +684,17 @@ impl AgentRuntime {
     pub async fn resolve_task(
         &self,
         task: &ClaimedAgentTask,
-        result: OpenObject,
+        result: AgentTaskOutcome,
         is_error: bool,
     ) -> Result<WakeId> {
         self.settle_task(task, result, is_error).await
     }
 
-    pub async fn fail_task(&self, task: &ClaimedAgentTask, result: OpenObject) -> Result<WakeId> {
+    pub async fn fail_task(
+        &self,
+        task: &ClaimedAgentTask,
+        result: AgentTaskOutcome,
+    ) -> Result<WakeId> {
         self.settle_task(task, result, true).await
     }
 
@@ -676,7 +702,7 @@ impl AgentRuntime {
         &self,
         task_id: CanonicalTaskId,
         episode_id: AgentEpisodeId,
-        result: OpenObject,
+        result: AgentTaskOutcome,
         is_error: bool,
     ) -> Result<()> {
         let existing = self
@@ -780,13 +806,7 @@ impl AgentRuntime {
         let wake = NewWake::now(
             WakeKind::InputRequest,
             Some(format!("input_request:{}:pending", draft.input_request_id)),
-            object([
-                (
-                    "input_request_id".to_owned(),
-                    serde_json::json!(draft.input_request_id),
-                ),
-                ("phase".to_owned(), serde_json::json!("pending")),
-            ]),
+            WakePayload::input(draft.input_request_id, InputWakePhase::Pending),
         );
         let wake_content = self.wake_content(&wake, now);
 
@@ -823,13 +843,7 @@ impl AgentRuntime {
         let wake = NewWake::now(
             WakeKind::InputRequest,
             Some(format!("input_request:{input_request_id}:answered")),
-            object([
-                (
-                    "input_request_id".to_owned(),
-                    serde_json::json!(input_request_id),
-                ),
-                ("phase".to_owned(), serde_json::json!("answered")),
-            ]),
+            WakePayload::input(input_request_id, InputWakePhase::Answered),
         );
         let wake_content = self.wake_content(&wake, now);
 
@@ -881,7 +895,7 @@ impl AgentRuntime {
     async fn settle_task(
         &self,
         task: &ClaimedAgentTask,
-        result: OpenObject,
+        result: AgentTaskOutcome,
         is_error: bool,
     ) -> Result<WakeId> {
         let fence = self.fence()?;
@@ -889,7 +903,9 @@ impl AgentRuntime {
         let wake = NewWake::now(
             WakeKind::TaskResult,
             Some(format!("task:{}", task.task_id)),
-            object([("task_id".to_owned(), serde_json::json!(task.task_id))]),
+            WakePayload::TaskResult {
+                task_id: task.task_id.clone(),
+            },
         );
         let wake_content = self.wake_content(&wake, now);
         let state = if is_error {
@@ -1248,6 +1264,12 @@ fn task_lease_owner(instance_id: AgentInstanceId, fence: i64) -> String {
 }
 
 fn claimed_wake(record: WakeRecord) -> Result<ClaimedWake> {
+    if record.kind != record.payload.kind() {
+        return Err(AgentRuntimeError::InvalidField {
+            field: "wake.kind",
+            reason: "stored kind does not match payload".into(),
+        });
+    }
     Ok(ClaimedWake {
         wake_id: wake_id_from_record(&record.id)?,
         kind: record.kind,
@@ -1258,6 +1280,15 @@ fn claimed_wake(record: WakeRecord) -> Result<ClaimedWake> {
 }
 
 fn claimed_task(record: AgentTaskRecord) -> Result<ClaimedAgentTask> {
+    if !record
+        .descriptor
+        .validate(record.descriptor_complete, &record.task_id)
+    {
+        return Err(AgentRuntimeError::InvalidField {
+            field: "agent_task.descriptor",
+            reason: "stored completeness or execution identity mismatch".into(),
+        });
+    }
     Ok(ClaimedAgentTask {
         agent_task_id: agent_task_id_from_record(&record.id)?,
         task_id: CanonicalTaskId::parse(record.task_id).map_err(|error| {

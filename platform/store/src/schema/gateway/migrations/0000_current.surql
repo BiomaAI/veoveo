@@ -22,7 +22,6 @@ DEFINE TABLE gateway_resource_subscription TYPE NORMAL SCHEMAFULL CHANGEFEED 12w
 
 DEFINE TABLE gateway_task_route TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
-DEFINE TABLE mcp_interaction TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
 DEFINE TABLE mcp_server TYPE NORMAL SCHEMAFULL CHANGEFEED 4w2d PERMISSIONS NONE;
 
@@ -46,9 +45,8 @@ DEFINE FIELD OVERWRITE oauth_client_id ON gateway_authorization_code TYPE string
 
 DEFINE FIELD OVERWRITE oidc_client ON gateway_authorization_code TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE payload ON gateway_authorization_code TYPE object FLEXIBLE PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE principal ON gateway_authorization_code TYPE string PERMISSIONS FULL;
+
 
 DEFINE FIELD OVERWRITE profile ON gateway_authorization_code TYPE string PERMISSIONS FULL;
 
@@ -56,7 +54,30 @@ DEFINE FIELD OVERWRITE redirect_uri ON gateway_authorization_code TYPE string PE
 
 DEFINE FIELD OVERWRITE work_context ON gateway_authorization_code TYPE string PERMISSIONS FULL;
 
-DEFINE INDEX gateway_authorization_code_client ON gateway_authorization_code FIELDS profile, oauth_client_id, principal, issued_at;
+DEFINE FIELD OVERWRITE principal ON gateway_authorization_code TYPE object ASSERT object::keys($value) ALLINSIDE ['principal', 'principal_display_name'] AND $value.principal != NONE AND $value.principal_display_name != NONE;
+DEFINE FIELD OVERWRITE principal.principal_display_name ON gateway_authorization_code TYPE string;
+DEFINE FIELD OVERWRITE principal.principal ON gateway_authorization_code TYPE object ASSERT object::keys($value) ALLINSIDE ['id', 'kind', 'issuer', 'subject', 'tenant', 'groups', 'group_roles', 'roles', 'scopes', 'data_labels', 'assurances', 'authenticated_at'] AND $value.id != NONE AND $value.kind != NONE AND $value.issuer != NONE AND $value.subject != NONE AND $value.groups != NONE AND $value.roles != NONE AND $value.scopes != NONE AND $value.data_labels != NONE AND $value.assurances != NONE;
+DEFINE FIELD OVERWRITE principal.principal.id ON gateway_authorization_code TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.kind ON gateway_authorization_code TYPE 'user' | 'service';
+DEFINE FIELD OVERWRITE principal.principal.issuer ON gateway_authorization_code TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.subject ON gateway_authorization_code TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.tenant ON gateway_authorization_code TYPE option<string>;
+DEFINE FIELD OVERWRITE principal.principal.groups ON gateway_authorization_code TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.group_roles ON gateway_authorization_code TYPE option<array<object>>;
+DEFINE FIELD OVERWRITE principal.principal.roles ON gateway_authorization_code TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.scopes ON gateway_authorization_code TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.data_labels ON gateway_authorization_code TYPE array<string>;
+DEFINE FIELD OVERWRITE principal.principal.assurances ON gateway_authorization_code TYPE array<'us_person'>;
+DEFINE FIELD OVERWRITE principal.principal.authenticated_at ON gateway_authorization_code TYPE option<string>;
+DEFINE FIELD OVERWRITE principal.principal.group_roles.* ON gateway_authorization_code TYPE object ASSERT object::keys($value) ALLINSIDE ['group', 'role'] AND $value.group != NONE AND $value.role != NONE;
+DEFINE FIELD OVERWRITE principal.principal.group_roles.*.group ON gateway_authorization_code TYPE string;
+DEFINE FIELD OVERWRITE principal.principal.group_roles.*.role ON gateway_authorization_code TYPE 'read' | 'write' | 'admin';
+DEFINE FIELD OVERWRITE client_state ON gateway_authorization_code TYPE option<string> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE code_challenge ON gateway_authorization_code TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE code_challenge_method ON gateway_authorization_code TYPE 'S256' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE scopes ON gateway_authorization_code TYPE array<string> PERMISSIONS FULL;
+
+DEFINE INDEX gateway_authorization_code_client ON gateway_authorization_code FIELDS profile, oauth_client_id, principal.principal.id, issued_at;
 
 DEFINE INDEX gateway_authorization_code_expiry ON gateway_authorization_code FIELDS expires_at;
 
@@ -74,7 +95,6 @@ DEFINE FIELD OVERWRITE oauth_client_id ON gateway_authorization_request TYPE str
 
 DEFINE FIELD OVERWRITE oidc_client ON gateway_authorization_request TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE payload ON gateway_authorization_request TYPE object FLEXIBLE PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE profile ON gateway_authorization_request TYPE string PERMISSIONS FULL;
 
@@ -150,7 +170,6 @@ DEFINE FIELD OVERWRITE issuer ON gateway_jwt_revocation TYPE string PERMISSIONS 
 
 DEFINE FIELD OVERWRITE jwt_id ON gateway_jwt_revocation TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE payload ON gateway_jwt_revocation TYPE object FLEXIBLE PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE profile ON gateway_jwt_revocation TYPE string PERMISSIONS FULL;
 
@@ -268,7 +287,6 @@ DEFINE FIELD OVERWRITE id ON gateway_resource_subscription TYPE uuid PERMISSIONS
 
 DEFINE FIELD OVERWRITE owner ON gateway_resource_subscription TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE payload ON gateway_resource_subscription TYPE object FLEXIBLE PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE profile ON gateway_resource_subscription TYPE string PERMISSIONS FULL;
 
@@ -328,45 +346,25 @@ DEFINE INDEX gateway_task_route_authority ON gateway_task_route FIELDS tenant, o
 
 DEFINE INDEX gateway_task_route_source ON gateway_task_route FIELDS server, source_task_id, owner, profile UNIQUE;
 
-DEFINE FIELD OVERWRITE completed_at ON mcp_interaction TYPE none | datetime PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE created_at ON mcp_interaction TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE expires_at ON mcp_interaction TYPE datetime PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE id ON mcp_interaction TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE input_requests ON mcp_interaction TYPE object FLEXIBLE PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE input_responses ON mcp_interaction TYPE none | object FLEXIBLE PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE method ON mcp_interaction TYPE string ASSERT string::len($value) > 0 AND string::len($value) <= 128 PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE owner ON mcp_interaction TYPE record<principal> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE profile ON mcp_interaction TYPE record<profile> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE request_state_digest ON mcp_interaction TYPE string ASSERT string::len($value) = 64 PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE revision ON mcp_interaction TYPE int DEFAULT 0 ASSERT $value >= 0 PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE server ON mcp_interaction TYPE record<mcp_server> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE state ON mcp_interaction TYPE 'input_required' | 'resuming' | 'completed' | 'cancelled' | 'expired' DEFAULT 'input_required' PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE task ON mcp_interaction TYPE none | record<task> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE tenant ON mcp_interaction TYPE record<tenant> PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE updated_at ON mcp_interaction TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE work_context ON mcp_interaction TYPE record<work_context> PERMISSIONS FULL;
 
-DEFINE INDEX mcp_interaction_authority ON mcp_interaction FIELDS tenant, owner, work_context, profile, expires_at;
 
-DEFINE INDEX mcp_interaction_state ON mcp_interaction FIELDS server, state, expires_at;
 
-DEFINE INDEX mcp_interaction_task ON mcp_interaction FIELDS task;
 
 DEFINE FIELD OVERWRITE created_at ON mcp_server TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
@@ -453,3 +451,11 @@ DEFINE FIELD OVERWRITE out ON profile_server TYPE record<mcp_server> PERMISSIONS
 DEFINE INDEX profile_server_endpoints_unique ON profile_server FIELDS in, out UNIQUE;
 
 DEFINE INDEX profile_server_namespace_unique ON profile_server FIELDS in, namespace UNIQUE;
+DEFINE FIELD OVERWRITE client_state ON gateway_authorization_request TYPE option<string> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE code_challenge ON gateway_authorization_request TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE code_challenge_method ON gateway_authorization_request TYPE 'S256' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE requested_scopes ON gateway_authorization_request TYPE array<string> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE idp_code_verifier ON gateway_authorization_request TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE idp_code_challenge ON gateway_authorization_request TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE idp_code_challenge_method ON gateway_authorization_request TYPE 'S256' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE nonce ON gateway_authorization_request TYPE string PERMISSIONS FULL;

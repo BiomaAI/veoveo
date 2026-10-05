@@ -483,7 +483,7 @@ pub struct TaskRecord {
     pub result: Option<crate::TaskResultRecord>,
     #[surreal(wrap)]
     pub result_uri: Option<veoveo_types::ResourceUri>,
-    pub error: Option<OpenObject>,
+    pub error: Option<crate::TaskFailureRecord>,
     pub result_artifact: Option<RecordId>,
     pub idempotency_key: Option<String>,
     pub lease_owner: Option<String>,
@@ -517,21 +517,21 @@ pub struct TaskInputRecord {
     pub id: RecordId,
     pub task: RecordId,
     pub request_key: String,
-    pub request: OpenObject,
+    pub request: crate::TaskInputRequestRecord,
     pub response: Option<OpenObject>,
     pub created_at: DateTime<Utc>,
     pub responded_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct ProviderJobRecord {
+pub struct ProviderJobRecord<P: SurrealValue = OpenObject> {
     pub id: RecordId,
     pub tenant: RecordId,
     pub task: RecordId,
     pub provider: String,
     pub external_job_id: String,
     pub state: ProviderJobState,
-    pub provider_payload: OpenObject,
+    pub provider_payload: P,
     pub submitted_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
@@ -541,14 +541,14 @@ pub struct ProviderJobRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct ProviderEventRecord {
+pub struct ProviderEventRecord<P: SurrealValue = OpenObject> {
     pub id: RecordId,
     pub tenant: RecordId,
     pub provider_job: RecordId,
     pub provider: String,
     pub event_id: String,
     pub signing_key_id: Option<String>,
-    pub payload: OpenObject,
+    pub payload: P,
     pub received_at: DateTime<Utc>,
     pub processed_at: Option<DateTime<Utc>>,
     pub processing_error: Option<String>,
@@ -697,25 +697,30 @@ pub struct DomainUsageRecord {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayResourceSubscriptionRecord {
     pub id: RecordId,
-    pub profile: String,
-    pub owner: String,
-    pub upstream_server: String,
-    pub resource_uri: String,
+    #[surreal(wrap)]
+    pub profile: veoveo_types::GatewayProfileId,
+    #[surreal(wrap)]
+    pub owner: veoveo_types::PrincipalId,
+    #[surreal(wrap)]
+    pub upstream_server: veoveo_types::ServerSlug,
+    #[surreal(wrap)]
+    pub resource_uri: veoveo_types::ResourceUri,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub payload: OpenObject,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayJwtRevocationRecord {
     pub id: RecordId,
-    pub profile: String,
-    pub issuer: String,
-    pub jwt_id: String,
+    #[surreal(wrap)]
+    pub profile: veoveo_types::GatewayProfileId,
+    #[surreal(wrap)]
+    pub issuer: veoveo_types::TokenIssuer,
+    #[surreal(wrap)]
+    pub jwt_id: veoveo_gateway_contract::JwtId,
     pub revoked_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub reason: Option<String>,
-    pub payload: OpenObject,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -732,31 +737,65 @@ pub struct GatewayReplayRecord {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayAuthorizationRequestRecord {
     pub id: RecordId,
-    pub idp_state: String,
-    pub profile: String,
-    pub oauth_client_id: String,
-    pub work_context: String,
-    pub oidc_client: String,
-    pub redirect_uri: String,
+    #[surreal(wrap)]
+    pub idp_state: veoveo_gateway_contract::OAuthStateValue,
+    #[surreal(wrap)]
+    pub profile: veoveo_types::GatewayProfileId,
+    #[surreal(wrap)]
+    pub oauth_client_id: veoveo_types::OAuthClientId,
+    #[surreal(wrap)]
+    pub work_context: veoveo_types::WorkContextId,
+    #[surreal(wrap)]
+    pub oidc_client: veoveo_gateway_contract::OidcClientRegistrationId,
+    #[surreal(wrap)]
+    pub redirect_uri: veoveo_gateway_contract::OAuthRedirectUri,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
-    pub payload: OpenObject,
+    #[surreal(wrap)]
+    pub client_state: Option<veoveo_gateway_contract::OAuthStateValue>,
+    #[surreal(wrap)]
+    pub code_challenge: veoveo_gateway_contract::PkceCodeChallenge,
+    #[surreal(wrap)]
+    pub code_challenge_method: veoveo_gateway_contract::PkceCodeChallengeMethod,
+    #[surreal(wrap)]
+    pub requested_scopes: Vec<veoveo_types::ScopeName>,
+    #[surreal(wrap)]
+    pub idp_code_verifier: veoveo_gateway_contract::PkceCodeVerifier,
+    #[surreal(wrap)]
+    pub idp_code_challenge: veoveo_gateway_contract::PkceCodeChallenge,
+    #[surreal(wrap)]
+    pub idp_code_challenge_method: veoveo_gateway_contract::PkceCodeChallengeMethod,
+    #[surreal(wrap)]
+    pub nonce: veoveo_gateway_contract::OidcNonce,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct GatewayAuthorizationCodeStateRecord {
     pub id: RecordId,
-    pub code: String,
-    pub profile: String,
-    pub oauth_client_id: String,
-    pub work_context: String,
-    pub oidc_client: String,
-    pub principal: String,
-    pub redirect_uri: String,
+    #[surreal(wrap)]
+    pub code: veoveo_gateway_contract::OAuthAuthorizationCode,
+    #[surreal(wrap)]
+    pub profile: veoveo_types::GatewayProfileId,
+    #[surreal(wrap)]
+    pub oauth_client_id: veoveo_types::OAuthClientId,
+    #[surreal(wrap)]
+    pub work_context: veoveo_types::WorkContextId,
+    #[surreal(wrap)]
+    pub oidc_client: veoveo_gateway_contract::OidcClientRegistrationId,
+    pub principal: crate::GatewayPrincipalRecord,
+    #[surreal(wrap)]
+    pub redirect_uri: veoveo_gateway_contract::OAuthRedirectUri,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub consumed_at: Option<DateTime<Utc>>,
-    pub payload: OpenObject,
+    #[surreal(wrap)]
+    pub client_state: Option<veoveo_gateway_contract::OAuthStateValue>,
+    #[surreal(wrap)]
+    pub code_challenge: veoveo_gateway_contract::PkceCodeChallenge,
+    #[surreal(wrap)]
+    pub code_challenge_method: veoveo_gateway_contract::PkceCodeChallengeMethod,
+    #[surreal(wrap)]
+    pub scopes: Vec<veoveo_types::ScopeName>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
@@ -769,7 +808,7 @@ pub struct GatewayRefreshFamilyRecord {
     pub principal_id: String,
     pub tenant: Option<String>,
     pub scopes: Vec<String>,
-    pub principal: crate::GatewayRefreshPrincipalRecord,
+    pub principal: crate::GatewayPrincipalRecord,
     pub current_generation: i64,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,

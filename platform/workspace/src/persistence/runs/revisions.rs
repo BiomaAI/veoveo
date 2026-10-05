@@ -82,18 +82,28 @@ impl WorkspaceRepository {
             &chat.as_uuid(),
             admission.definition.as_bytes(),
         ));
-        self.workspace_query(
-            authority,
-            Adopt {
-                chat: chat.record_id(),
-                agent: agent.record_id(),
-                receipt,
-                fingerprint,
-                expected: expected.to_owned(),
-                admission,
-            },
-            include_str!("../queries/runs/adopt.surql"),
-        )
-        .await
+        let expected_definition = admission.definition.clone();
+        let expected_digest = admission.definition_digest.clone();
+        let result: WorkspaceAgent = self
+            .workspace_query(
+                authority,
+                Adopt {
+                    chat: chat.record_id(),
+                    agent: agent.record_id(),
+                    receipt,
+                    fingerprint,
+                    expected: expected.to_owned(),
+                    admission,
+                },
+                include_str!("../queries/runs/adopt.surql"),
+            )
+            .await?;
+        result.check_receipt(
+            chat.record_id(),
+            agent.record_id(),
+            &expected_definition,
+            &expected_digest,
+        )?;
+        Ok(result)
     }
 }

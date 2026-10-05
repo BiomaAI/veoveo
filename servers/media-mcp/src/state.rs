@@ -255,7 +255,7 @@ impl MediaState {
             .bind_submission(
                 task_id,
                 external,
-                prediction_payload(prediction)?,
+                crate::storage::PredictionRecord(prediction.clone()),
                 format!(
                     "submitted; prediction {}; resource {}; waiting for signed provider webhook",
                     prediction.id,
@@ -306,7 +306,7 @@ impl MediaState {
                 external,
                 event,
                 terminal,
-                prediction_payload(prediction)?,
+                crate::storage::PredictionRecord(prediction.clone()),
                 None,
             )
             .await
@@ -501,14 +501,10 @@ fn provider_job(record: ProviderJobRecord) -> Result<MediaProviderJob, StoreErro
     })
 }
 
-fn prediction_payload(prediction: &Prediction) -> Result<OpenObject, StoreError> {
-    serde_json::to_value(prediction)
-        .map(open_object)
-        .map_err(json_store_error)
-}
-
 fn prediction_from_payload(payload: OpenObject) -> Result<Prediction, StoreError> {
-    serde_json::from_value(open_value(payload)).map_err(json_store_error)
+    crate::storage::PredictionRecord::from_payload(payload)
+        .map(|record| record.0)
+        .map_err(json_store_error)
 }
 
 fn tenant_record(owner: &TaskOwner) -> Result<RecordId, StoreError> {
@@ -520,10 +516,6 @@ fn open_object(value: Value) -> OpenObject {
         unreachable!("typed Media envelopes serialize as objects");
     };
     OpenObject::new(values.into_iter().collect())
-}
-
-fn open_value(value: OpenObject) -> Value {
-    Value::Object(value.into_map().into_iter().collect())
 }
 
 fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {

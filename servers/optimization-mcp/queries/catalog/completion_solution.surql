@@ -6,15 +6,11 @@ SELECT VALUE settlement.result_uri FROM (SELECT *, fn::kernel::tasks::selection_
 
 )
 WHERE (IF type::is_object(selected) {
-    IF type::is_object(selected.input) {
-        selected.input.kind = selected.task_type
-    } ELSE { false }
+    selected.task_type = task_type
 } ELSE { false }
 ) AND (IF type::is_object(selected) {
-    IF selected.status = 'succeeded' AND type::is_object(selected.result) {
-        IF (selected.result.isError ?? false) = false AND type::is_object(selected.result.structuredContent) {
-            selected.result.structuredContent.result_uri != NONE
-        } ELSE { false }
+    IF selected.status = 'succeeded' AND type::is_object(settlement) {
+        settlement.status = 'succeeded' AND settlement.result_uri != NONE
     } ELSE { false }
 } ELSE { false }
 )

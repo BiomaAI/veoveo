@@ -112,7 +112,6 @@ pub(super) const TABLES: &[(&str, &str)] = &[
     ("map_source", "map"),
     ("map_style_revision", "map"),
     ("map_travel_model_task", "map"),
-    ("mcp_interaction", "gateway"),
     ("mcp_server", "gateway"),
     ("media_task", "media"),
     ("media_task_context", "media"),

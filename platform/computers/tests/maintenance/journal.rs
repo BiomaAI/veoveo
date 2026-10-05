@@ -105,7 +105,9 @@ async fn durable_steps_capture_encrypted_policy_and_adopt_exactly_one_instance()
         secret
     );
     assert!(b.maintenance_checkpoint(&claim, &keys(2)).await.is_err());
-    let raw: Option<veoveo_platform_store::OpenObject> =
+    // The whole stored row includes native identities and timestamps; this read
+    // checks only that its encrypted contents do not expose the policy plaintext.
+    let raw: Option<surrealdb::types::Value> =
         db.a.client()
             .select(RecordId::new(
                 "computer_maintenance_policy",

@@ -11,8 +11,9 @@ use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
 use veoveo_agent_runtime::persistence::{
-    AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord, WakeKind,
-    WakeRecord, WakeState,
+    AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskOutcome,
+    AgentTaskRecord, DeferredTaskDescriptor, TaskDelivery, WakeKind, WakePayload, WakeRecord,
+    WakeState,
 };
 use veoveo_agent_runtime::{
     AgentControl, AgentControlTarget, AgentInstanceId, AgentRuntime, AgentSpec,
@@ -148,7 +149,7 @@ async fn two_replicas_fence_claims_and_recover_expired_work() {
     let wake = NewWake::now(
         WakeKind::Timer,
         Some("heartbeat".to_owned()),
-        OpenObject::default(),
+        WakePayload::timer("heartbeat"),
     );
     let wake_id = wake.wake_id;
     assert_eq!(wake_id.as_uuid().get_version_num(), 7);
@@ -234,7 +235,7 @@ async fn idle_wake_acknowledgement_is_terminal_without_an_episode() {
     let wake = NewWake::now(
         WakeKind::Timer,
         Some("heartbeat".to_owned()),
-        OpenObject::default(),
+        WakePayload::timer("heartbeat"),
     );
     let wake_id = wake.wake_id;
     fixture.first.enqueue_wake(wake).await.unwrap();
@@ -278,7 +279,7 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
     let control = AgentControl::new(fixture.first.platform_store().clone()).unwrap();
     let target = AgentControlTarget {
         tenant_key: "integration".to_owned(),
-        work_context_key: "integration-mission".to_owned(),
+        work_context_key: "integration-mission".parse().unwrap(),
         agent_key: "durability-agent".to_owned(),
     };
     let request_id = Uuid::now_v7();
@@ -286,7 +287,7 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
     let draft = OperatorMessageDraft {
         request_id,
         message: injection.to_owned(),
-        actor_id: "https://idp.example.test#operator-1".to_owned(),
+        actor_id: "https://idp.example.test#operator-1".parse().unwrap(),
     };
 
     let accepted = control
@@ -323,10 +324,7 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
         .unwrap();
     assert_eq!(first_claim.len(), 1);
     assert_eq!(first_claim[0].kind, WakeKind::OperatorMessage);
-    assert_eq!(
-        first_claim[0].payload.as_map().get("text"),
-        Some(&serde_json::json!(injection))
-    );
+    assert_eq!(operator_text(&first_claim[0].payload), Some(injection));
 
     tokio::time::sleep(Duration::from_millis(200)).await;
     fixture
@@ -342,14 +340,11 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
         .unwrap();
     assert_eq!(recovered.len(), 1);
     assert_eq!(recovered[0].wake_id, accepted.wake_id);
-    assert_eq!(
-        recovered[0].payload.as_map().get("text"),
-        Some(&serde_json::json!(injection))
-    );
+    assert_eq!(operator_text(&recovered[0].payload), Some(injection));
     assert!(recovered[0].attempts >= 2);
 
     let wrong_context = AgentControlTarget {
-        work_context_key: "unauthorized-context".to_owned(),
+        work_context_key: "unauthorized-context".parse().unwrap(),
         ..target
     };
     let denied = control
@@ -358,7 +353,7 @@ async fn operator_message_is_untrusted_idempotent_and_restart_durable() {
             OperatorMessageDraft {
                 request_id: Uuid::now_v7(),
                 message: "expand my authority".to_owned(),
-                actor_id: "https://idp.example.test#operator-1".to_owned(),
+                actor_id: "https://idp.example.test#operator-1".parse().unwrap(),
             },
         )
         .await;
@@ -374,7 +369,7 @@ async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
     let control = AgentControl::new(fixture.first.platform_store().clone()).unwrap();
     let target = AgentControlTarget {
         tenant_key: "integration".to_owned(),
-        work_context_key: "integration-mission".to_owned(),
+        work_context_key: "integration-mission".parse().unwrap(),
         agent_key: "durability-agent".to_owned(),
     };
     let edits = [
@@ -391,7 +386,7 @@ async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
                     OperatorMessageDraft {
                         request_id: Uuid::now_v7(),
                         message: edit.to_owned(),
-                        actor_id: "https://idp.example.test#operator-1".to_owned(),
+                        actor_id: "https://idp.example.test#operator-1".parse().unwrap(),
                     },
                 )
                 .await
@@ -423,11 +418,7 @@ async fn operator_messages_remain_distinct_and_claim_in_acceptance_order() {
             .iter()
             .map(|wake| {
                 assert_eq!(wake.kind, WakeKind::OperatorMessage);
-                wake.payload
-                    .as_map()
-                    .get("text")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap()
+                operator_text(&wake.payload).unwrap()
             })
             .collect::<Vec<_>>(),
         edits
@@ -650,11 +641,39 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         .record_task(NewAgentTask {
             task_id: canonical_task_id.clone(),
             tool_name: "durability".to_owned(),
-            descriptor: json_object(json!({"taskId": task.task_id}), "task descriptor").unwrap(),
-            descriptor_complete: true,
+            descriptor: DeferredTaskDescriptor::Incomplete {},
+            descriptor_complete: false,
             retention_pin: origin_episode.retention_pin.clone(),
             started_by_episode: origin_episode.episode_id,
         })
+        .await
+        .unwrap();
+    let incomplete = fixture
+        .first
+        .claim_tasks(10, DEFAULT_CLAIM_LEASE)
+        .await
+        .unwrap()
+        .pop()
+        .expect("incomplete retained task");
+    assert!(!incomplete.descriptor_complete);
+    assert_eq!(incomplete.descriptor, DeferredTaskDescriptor::Incomplete {});
+    fixture
+        .first
+        .complete_task_descriptor(
+            canonical_task_id.clone(),
+            DeferredTaskDescriptor::Complete {
+                version: 1,
+                backend_type: "mcp".into(),
+                execution_id: canonical_task_id.to_string(),
+                payload: json!({"taskId": task.task_id}),
+            },
+        )
+        .await
+        .unwrap();
+    // Completing retained reconstruction data changes no provider operation.
+    fixture
+        .first
+        .retry_task(&incomplete, Utc::now(), "descriptor completed")
         .await
         .unwrap();
     fixture
@@ -686,7 +705,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
         .first
         .resolve_task(
             &claimed_task,
-            json_object(json!({"output": "done"}), "result").unwrap(),
+            AgentTaskOutcome::output("done", TaskDelivery::Watcher),
             false,
         )
         .await
@@ -789,7 +808,7 @@ async fn native_wake_deadlines_follow_remote_availability_and_claim_expiry() {
         let mut wake = NewWake::now(
             WakeKind::Timer,
             Some("future-native-wake".into()),
-            OpenObject::default(),
+            WakePayload::timer("future-native-wake"),
         );
         wake.available_at = Utc::now() + chrono::TimeDelta::seconds(10);
         let id = fixture.second.enqueue_wake(wake).await.unwrap();
@@ -832,4 +851,11 @@ async fn native_wake_deadlines_follow_remote_availability_and_claim_expiry() {
     })
     .await
     .expect("native wake deadline qualification exceeded 45 seconds");
+}
+
+fn operator_text(payload: &WakePayload) -> Option<&str> {
+    match payload {
+        WakePayload::OperatorMessage { text, .. } => Some(text),
+        _ => None,
+    }
 }

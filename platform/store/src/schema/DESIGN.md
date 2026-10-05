@@ -20,7 +20,7 @@ its predecessor, and the registry resolves transitive requirements before effect
 |---|---|---|
 | Store | `changefeed_checkpoint`, `platform_module_lane`, `platform_module_migration`, `platform_module_installation` | None |
 | Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `work_context`, `oauth_client` | `fn::kernel::identity::actor_admitted_v1`, `fn::kernel::identity::identity_enabled_v1`, `fn::kernel::identity::principal_summaries_v1`, `fn::kernel::identity::search_enabled_users_v1`, `fn::kernel::identity::enabled_user_v1`, `fn::kernel::identity::identity_labels_v1`, `fn::kernel::identity::tenant_current_v1`, `fn::kernel::identity::principal_current_v1`, `fn::kernel::identity::tenant_matches_v1`, `fn::kernel::identity::oauth_client_exists_v1`, `fn::kernel::identity::service_principal_available_v1`, `fn::kernel::identity::create_service_principal_v1`, `fn::kernel::identity::context_snapshot_matches_v1`, `fn::kernel::identity::tenant_context_keys_v1` |
-| Gateway | `gateway_*`, `policy_revision`, `profile`, `profile_server`, `mcp_server`, `mcp_interaction` | `fn::kernel::gateway::task_retention_route_v1`, `fn::kernel::gateway::control_revision_current_v1`, `fn::kernel::gateway::refresh_family_current_v1` |
+| Gateway | `gateway_*`, `policy_revision`, `profile`, `profile_server`, `mcp_server` | `fn::kernel::gateway::task_retention_route_v1`, `fn::kernel::gateway::control_revision_current_v1`, `fn::kernel::gateway::refresh_family_current_v1` |
 | Artifacts | `artifact_*`, `share_link` | `fn::artifact_upload_profile_digest`, `fn::artifact_upload_authority_matches`, `fn::kernel::artifacts::read_v1` |
 | Tasks | `task`, `task_input`, `task_idempotency`, `task_produced_artifact`, `task_used_artifact`, `provider_job`, `provider_event`, `domain_usage` | `fn::kernel::tasks::selection_v1`, `fn::kernel::tasks::lifecycle_v1`, `fn::kernel::tasks::input_matches_v1`, `fn::kernel::tasks::exists_v1`, `fn::kernel::tasks::release_retention_v1` |
 | Audit | `audit_*` | `fn::append_audit`, `fn::append_audit_indexing` |
@@ -172,3 +172,10 @@ principal summaries. Registration and reconciliation obtain tenant/context keys 
 Identity's retained relationship check. Service-principal creation shares the instance,
 capacity and receipt transaction; collision or later admission failure rolls back every
 write. These trusted-service functions do not authenticate their supplied scope.
+
+## Audit Block Metadata
+
+An Audit block write derives its declared head hash from the frozen block in the same
+transaction. Block hydration checks hash, partition and sequence agreement. Export
+settlement compares that lookup and the complete frozen block under the sealer lease;
+metadata does not change the block bytes or hashing profile.

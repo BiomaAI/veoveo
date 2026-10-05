@@ -92,9 +92,11 @@ fn resource_update_wake(
     declared: &BTreeSet<String>,
     params: &ResourceUpdatedNotificationParam,
 ) -> Option<veoveo_agent_runtime::NewWake> {
-    declared
-        .contains(&params.uri)
-        .then(|| wake::resource_updated(&params.uri))
+    if !declared.contains(&params.uri) {
+        return None;
+    }
+    let uri = veoveo_types::ResourceUri::new(params.uri.clone()).ok()?;
+    Some(wake::resource_updated(&uri))
 }
 
 const CLIENT_ASSERTION_TYPE_JWT_BEARER: &str =
@@ -506,12 +508,8 @@ mod tests {
         .expect("declared resource wake");
         assert_eq!(wake.kind, WakeKind::ResourceChanged);
         assert_eq!(wake.dedupe_key.as_deref(), Some("resource:memo://insights"));
-        assert_eq!(
-            wake.payload
-                .as_map()
-                .get("uri")
-                .and_then(|uri| uri.as_str()),
-            Some("memo://insights")
+        assert!(
+            matches!(wake.payload, veoveo_agent_runtime::persistence::WakePayload::ResourceChanged { uri } if uri.as_str() == "memo://insights")
         );
 
         assert!(

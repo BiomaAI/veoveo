@@ -21,6 +21,7 @@ runtime = [
     "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-audit-contract",
     "dep:veoveo-types",
+    "dep:veoveo-gateway-contract",
     "dep:veoveo-artifact-contract",
     "dep:async-stream",
     "dep:chrono",
@@ -47,6 +48,7 @@ veoveo-embedding-contract = { workspace = true, optional = true }
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["contract"], optional = true }
 veoveo-audit-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
+veoveo-gateway-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 async-stream = { version = "=0.3.6", optional = true }
 chrono = { workspace = true, optional = true }

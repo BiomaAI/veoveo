@@ -369,3 +369,73 @@ async fn domain_failure_rolls_back_creation_revision_and_head_and_allows_retry()
     .await
     .expect("world transaction rollback qualification exceeded 90 seconds");
 }
+
+#[tokio::test]
+async fn closed_revision_fields_reject_unknown_shapes_before_commit() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::with_modules(vec![
+            crate::schema::module_setup(
+                crate::test_store::module_lanes::execution("frames").unwrap(),
+            )
+            .unwrap(),
+        ])
+        .await;
+        let writer = FramesState::new(db.a.clone());
+        let owner = scope(&db.a, "tenant", "owner", &[]).await;
+        writer
+            .create_world(&owner, create_request("world"))
+            .await
+            .unwrap();
+        let published = writer
+            .publish_world(&owner, publication("world", "closed", None))
+            .await
+            .unwrap();
+        let baseline = serde_json::to_value(published.revision.tree()).unwrap();
+        for malformed in [
+            {
+                let mut tree = baseline.clone();
+                tree["unknown"] = true.into();
+                tree
+            },
+            {
+                let mut tree = baseline.clone();
+                tree["frames"][0]["unknown"] = true.into();
+                tree
+            },
+            {
+                let mut tree = baseline.clone();
+                tree["frames"][0]["basis"] = serde_json::json!({"kind":"unknown"});
+                tree
+            },
+            serde_json::json!({"frames": []}),
+        ] {
+            let result =
+                db.a.client()
+                    .query(include_str!(
+                        "../../../tests/queries/replace_revision_definition.surql"
+                    ))
+                    .bind((
+                        "definition",
+                        veoveo_platform_store::native_json_into_value(malformed),
+                    ))
+                    .bind(("tenant", owner.identity.tenant_id.record_id()))
+                    .bind(("revision_key", published.revision.revision_id().to_string()))
+                    .await
+                    .unwrap()
+                    .check();
+            assert!(
+                result.is_err(),
+                "closed tree fields reject malformed mutation"
+            );
+            assert_eq!(
+                writer
+                    .get_revision(&owner, published.revision.revision_uri())
+                    .await
+                    .unwrap(),
+                Some(published.revision.clone())
+            );
+        }
+    })
+    .await
+    .unwrap();
+}

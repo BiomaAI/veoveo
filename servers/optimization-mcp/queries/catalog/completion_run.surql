@@ -6,9 +6,7 @@ SELECT VALUE identity.run_id FROM (SELECT *, fn::kernel::tasks::selection_v1(
 
 )
 WHERE (IF type::is_object(selected) {
-    IF type::is_object(selected.input) {
-        selected.input.kind = selected.task_type
-    } ELSE { false }
+    selected.task_type = task_type
 } ELSE { false }
 ) AND (true)
     AND identity.run_id CONTAINS $needle

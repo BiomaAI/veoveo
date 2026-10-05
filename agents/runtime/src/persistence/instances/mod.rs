@@ -1,6 +1,7 @@
 //! Admitted managed instances and durable reconciliation intent.
 mod controller;
 mod records;
+mod runtime_bindings;
 mod validation;
 pub use records::*;
 

@@ -52,7 +52,7 @@ fn input(name: &str, args: serde_json::Value) -> CallToolRequestParams {
 #[tokio::test]
 async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority() {
     tokio::time::timeout(Duration::from_secs(180),async {
-        let db=fixture::TestDb::new().await;
+        let db=native_database().await;
         let content=collection("records");
         let lease = db.a.claim_knowledge_coordinator(&content.tenant, veoveo_platform_store::knowledge::CoordinatorId::new()).await.unwrap().unwrap();
         let mut hidden=collection("private");
@@ -158,7 +158,7 @@ impl Embeddings for BlockingEmbeddings {
 #[tokio::test]
 async fn delivery_rechecks_revocation_and_disabled_directory_identity() {
     tokio::time::timeout(Duration::from_secs(180), async {
-        let db = fixture::TestDb::new().await;
+        let db = native_database().await;
         let plane = plane(&[]);
         install(&db.a, &plane).await;
         let identity = identity(&plane);
@@ -247,7 +247,7 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
         use chrono::{TimeDelta, Utc};
         use veoveo_mcp_contract::PrincipalKind;
         use veoveo_types::{InvocationMode, InvocationProvenance};
-        let db = fixture::TestDb::new().await;
+        let db = native_database().await;
         let plane = plane(&[]);
         install(&db.a, &plane).await;
         let mut identity = identity(&plane);
@@ -279,13 +279,11 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
-            principal: veoveo_platform_store::OpenObject::new(
-                [(
-                    "principal".into(),
-                    serde_json::to_value(&identity.actor).unwrap(),
-                )]
-                .into(),
-            ),
+            principal: serde_json::from_value(serde_json::json!({
+                "principal": &identity.actor,
+                "principal_display_name": "Reader",
+            }))
+            .unwrap(),
             current_generation: 1,
             issued_at: Utc::now(),
             expires_at: identity.expires_at,
@@ -380,7 +378,7 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
 #[tokio::test]
 async fn managed_execution_requires_signed_attribution_and_current_registration() {
     tokio::time::timeout(Duration::from_secs(180), async {
-        let db = fixture::TestDb::new().await;
+        let db = native_database().await;
         let mut plane = plane(&[]);
         let mut identity = identity(&plane);
         let (_, _, instance) = managed::provision(&db.a, &plane, &identity).await;

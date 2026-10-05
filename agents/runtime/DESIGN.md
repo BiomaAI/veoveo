@@ -146,3 +146,38 @@ admits an identifier; it does not certify installed schema or grant read authori
 These owner tables declare 30-day changefeed retention matching the installed SQL.
 LIVE invalidation and changefeed recovery keep their existing reconciliation and
 checkpoint behavior. Public DTO contract features do not activate observation sources.
+
+## Retained Execution Envelopes
+
+The owner declares five wake payload variants matching `WakeKind`: terminal Task
+identity, resource URI, named timer, operator message and input-request phase.
+`persistence/envelopes.rs` owns their JSON and native-driver admission. Scheduling
+checks the kind against the payload before enqueue and after claim. Operator
+conversation reads require request, actor and Work Context attribution. Kernel
+priority and heartbeat decisions match the typed phase and timer vocabulary.
+Resource URIs, canonical Task IDs, actor principals and Work Context identities
+reuse their admitted shared scalar types while preserving their public strings.
+Wake identities, deduplication keys, claim fences and episode lineage live outside
+these payloads and participate in the existing transactions.
+
+Agent Tasks retain Rig's v1 descriptor fields `version`, `backendType`,
+`executionId` and `payload`. The backend owns the JSON shape of `payload`.
+Rig backend execution IDs stay backend-owned strings in the descriptor.
+A complete descriptor must name the retained Task. The empty incomplete envelope
+keeps its Task identity and retention pin in the surrounding row; the watcher
+retries observation without dispatching another mutation. Descriptor completion
+updates the same retained row. Unsupported versions fail admission.
+
+Terminal results use an output body with optional `in_run` or `watcher` delivery,
+an error with optional delivery, or the retained watcher error wrapper. Output
+bodies accept arbitrary JSON. Controlled members reject unknown keys, native
+record values and nonfinite JSON numbers. The shared Store JSON codec preserves
+unsigned integer precision. Native `NONE` represents absence only for each
+variant's declared optional members. The terminal settlement transaction still
+creates one wake, and episode consumption releases the retained Task pin.
+
+Managed readiness declares generation and Pod UID. Episode bindings declare
+instance, definition revision, generation and dispatch epoch. Their native
+adapters reject unknown members, wrong record parents and invalid counters;
+episode admission and readiness queries check the current instance relationship.
+The stop transaction reads the retained binding to select the running episode.

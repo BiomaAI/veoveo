@@ -9,7 +9,9 @@ use rig::tool::{
 };
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use veoveo_agent_runtime::{AgentRuntime, ClaimedAgentTask, json_object, wrapped_json};
+use veoveo_agent_runtime::{AgentRuntime, ClaimedAgentTask};
+
+use veoveo_agent_runtime::persistence::{AgentTaskOutcome, DeferredTaskDescriptor, TaskDelivery};
 
 use crate::{connection::ConnectionEpoch, input::DurableInputHandler, wake::WakeBus};
 
@@ -37,21 +39,23 @@ async fn watch_task(
     task: ClaimedAgentTask,
     input_grace: Duration,
 ) -> anyhow::Result<()> {
-    let descriptor_value =
-        serde_json::Value::Object(task.descriptor.clone().into_map().into_iter().collect());
-    let descriptor: DeferredToolDescriptor = match serde_json::from_value(descriptor_value) {
-        Ok(descriptor) => descriptor,
-        Err(error) => {
-            tracing::error!(%error, "deferred tool descriptor is unreadable");
-            let wake_id = runtime
-                .fail_task(
-                    &task,
-                    wrapped_json(serde_json::json!({
-                        "error": "The saved details of this tool call couldn't be read, so its result can't be delivered. Call the tool again.",
-                    })),
-                )
-                .await?;
-            bus.hint(wake_id);
+    let descriptor = match &task.descriptor {
+        DeferredTaskDescriptor::Complete {
+            version: 1,
+            backend_type,
+            execution_id,
+            payload,
+        } if task.descriptor_complete && execution_id.as_str() == task.task_id.as_ref() => {
+            DeferredToolDescriptor::new(backend_type, execution_id, payload.clone())
+        }
+        _ => {
+            // Incomplete reconstruction never authorizes another tool mutation.
+            retry(
+                &runtime,
+                &task,
+                "saved deferred descriptor is incomplete or unsupported",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -119,13 +123,8 @@ async fn watch_task(
                 }
             }
             DeferredToolState::Completed(result) => {
-                let payload = json_object(
-                    serde_json::json!({
-                        "output": result.output().render(),
-                        "delivered": "watcher",
-                    }),
-                    "deferred result",
-                )?;
+                let payload =
+                    AgentTaskOutcome::output(result.output().render(), TaskDelivery::Watcher);
                 let wake_id = runtime
                     .resolve_task(&task, payload, result.is_error())
                     .await?;
@@ -140,7 +139,7 @@ async fn watch_task(
                 let wake_id = runtime
                     .fail_task(
                         &task,
-                        wrapped_json(serde_json::json!({ "error": "The task was cancelled." })),
+                        AgentTaskOutcome::watcher_error("The task was cancelled."),
                     )
                     .await?;
                 bus.hint(wake_id);
@@ -167,10 +166,7 @@ async fn settle_error(
         retry(runtime, task, &error.to_string()).await?;
     } else {
         let wake_id = runtime
-            .fail_task(
-                task,
-                wrapped_json(serde_json::json!({ "error": error.to_string() })),
-            )
+            .fail_task(task, AgentTaskOutcome::watcher_error(error.to_string()))
             .await?;
         bus.hint(wake_id);
     }

@@ -177,8 +177,10 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         Err(ComputerError::OperationBusy)
     ));
     let mut response=db.a.client().query(include_str!("queries/file_admission/replicas_reserve_one_file_slot_and_recover_the_same_private_task/statement_2.surql")).await.unwrap().check().unwrap();
+    // These complete table rows contain native record IDs and timestamps;
+    // inspect their native representation without passing through a JSON payload codec.
     for i in 0..4 {
-        let rows: Vec<veoveo_platform_store::OpenObject> = response.take(i).unwrap();
+        let rows: Vec<surrealdb::types::Value> = response.take(i).unwrap();
         assert_eq!(rows.len(), 1);
         let encoded = serde_json::to_string(&rows).unwrap();
         assert!(!encoded.contains("private-file-transfer-path"));
@@ -337,7 +339,7 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
             .unwrap()
             .check()
             .unwrap();
-    let rows: Vec<veoveo_platform_store::OpenObject> = response.take(0).unwrap();
+    let rows: Vec<surrealdb::types::Value> = response.take(0).unwrap();
     let encoded = serde_json::to_string(&rows).unwrap();
     assert!(!encoded.contains("private-file-capability"));
     assert!(!encoded.contains("private-import"));

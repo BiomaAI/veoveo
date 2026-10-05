@@ -253,6 +253,29 @@ async def test_native_timing_metadata_preserves_full_u64_range(runtime, field):
         assert getattr(await runtime.get(str(created.task_id)), field) == 2**64 - 1
 
 
+async def expire_input_writer_lease(runtime, task_id):
+    snapshot = await runtime.get(task_id)
+    assert snapshot.status.value == "waiting"
+    assert snapshot.lease_owner is not None
+    assert snapshot.lease_expires_at is not None
+    lease = await runtime.store.query(
+        test_query("test_task_storage/input_writer_lease.surql"), {
+            "task": task_record(snapshot.task_id),
+            "worker": snapshot.lease_owner,
+            "revision": snapshot._updated_at_exact.driver_value(),
+        },
+    )
+    assert isinstance(lease[0], str), "input writer lease changed before fixture read"
+    rows = await runtime.store.query(
+        test_query("test_task_storage/expire_input_writer_lease.surql"), {
+            "task": task_record(snapshot.task_id),
+            "worker": snapshot.lease_owner,
+            "expiry": lease[0],
+        },
+    )
+    assert rows[0] is not None, "input writer lease changed before fixture handoff"
+
+
 async def test_native_rust_python_task_storage_interop(runtime, surreal_platform):
     import json
     import os
@@ -267,6 +290,7 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
             "test executable containing sdk_task_storage_interop; this fixture does not build it"
         )
     python_tasks = []
+    python_failures = []
     for mode, tenant, payload in [
         ("direct", None, None),
         ("delegated", "local", [None, {"provider": {"unknown": True, "fraction": 1.5}}]),
@@ -288,15 +312,28 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
         created = (await runtime.create(draft(
             owner=caller, request=payload, poll_interval_ms=2**64 - 1,
         ))).snapshot
+        await runtime.claim(str(created.task_id), timedelta(seconds=60))
+        await runtime.request_input(str(created.task_id), "interop", TaskInputRequest("owner/input", {"opaque": [None, 2**64 - 1]}))
+        from veoveo_mcp.tasks.types import TaskFailure
+        failure_value = {"code": "owner.extension", "message": "failure"}
+        if mode != "direct":
+            failure_value["details"] = None if mode == "delegated" else {"provider": [None, 2**64 - 1]}
+        failure = TaskFailure.from_json(failure_value)
+        failed = (await runtime.create(draft(owner=caller))).snapshot
+        claimed_failure = (await runtime.claim(str(failed.task_id), timedelta(seconds=60))).snapshot
+        await runtime.transition_if_current(claimed_failure, TaskTransition.failed(failure))
+        python_failures.append({"task_id": str(failed.task_id), "owner": caller.to_json(), "failure": failure_value})
         python_tasks.append({
             "task_id": str(created.task_id), "owner": caller.to_json(), "request": payload,
             "poll_interval_ms": created.poll_interval_ms,
         })
+    for written in python_tasks:
+        await expire_input_writer_lease(runtime, written["task_id"])
     with TemporaryDirectory(prefix="veoveo-python-task-interop-") as temporary:
         directory = Path(temporary)
         config_path, output_path = directory / "config.json", directory / "output.json"
         config_path.write_text(json.dumps({
-            **surreal_platform, "server": runtime.server, "python_tasks": python_tasks,
+            **surreal_platform, "server": runtime.server, "python_tasks": python_tasks, "python_failures": python_failures,
         }), encoding="utf-8")
         config_path.chmod(0o600)
         environment = {
@@ -318,11 +355,14 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
             diagnostic = diagnostic.replace(surreal_platform[key], "<redacted>")
         assert result.returncode == 0, f"Rust Task storage interop failed: {diagnostic[-4096:]}"
         output = json.loads(output_path.read_text(encoding="utf-8"))
-        assert set(output) == {"rust_tasks"}
+        assert set(output) == {"rust_tasks", "rust_failures"}
         assert len(output["rust_tasks"]) == len(python_tasks)
         assert {row["task_id"] for row in output["rust_tasks"]}.isdisjoint(
             row["task_id"] for row in python_tasks
         )
+        for expected, written in zip(python_failures, output["rust_failures"], strict=True):
+            assert written["failure"] == expected["failure"]
+            assert (await runtime.get(written["task_id"])).error.to_json() == expected["failure"]
         for expected, written in zip(python_tasks, output["rust_tasks"], strict=True):
             assert set(written) == {"task_id", "owner", "request", "poll_interval_ms"}
             assert (OwnerContextRecord.model_validate(written["owner"]).to_owner()
@@ -333,6 +373,8 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
             assert snapshot.owner == OwnerContextRecord.model_validate(written["owner"]).to_owner()
             assert snapshot.request == written["request"]
             assert snapshot.poll_interval_ms == written["poll_interval_ms"]
+            inputs = await runtime.outstanding_inputs(written["task_id"])
+            assert inputs["interop"] == TaskInputRequest("owner/input", {"opaque": [None, 2**64 - 1]})
             from veoveo_mcp.tasks.runtime import _owner_context_record, _request_record
             comparisons = await runtime.store.query(
                 test_query("test_task_storage/compare_claim_snapshot.surql"), {
@@ -345,6 +387,7 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
             assert all(comparisons[0][name] for name in (
                 "timestamp_matches", "request_matches", "owner_matches",
             )), comparisons[0]
+            await expire_input_writer_lease(runtime, written["task_id"])
             claimed = (await runtime.claim(written["task_id"], timedelta(seconds=30))).snapshot
             assert claimed.owner == snapshot.owner
             assert claimed.request == snapshot.request
@@ -361,6 +404,12 @@ async def test_native_rust_python_task_storage_interop(runtime, surreal_platform
             (output["rust_tasks"][1]["task_id"], "2026-10-05T00:00:00.123456001Z"),
             (str(extra.task_id), "2026-10-05T00:00:00.123456002Z"),
         ]
+        for expected, written in zip(python_failures, output["rust_failures"], strict=True):
+            if OwnerContextRecord.model_validate(expected["owner"]).to_owner() == caller:
+                positions.extend([
+                    (expected["task_id"], "2026-10-05T00:00:00.123456003Z"),
+                    (written["task_id"], "2026-10-05T00:00:00.123456004Z"),
+                ])
         for task_id, timestamp in positions:
             await runtime.store.query(test_query("test_task_storage/set_created_timestamp.surql"), {
                 "task": task_record(uuid.UUID(task_id)), "timestamp": Datetime(timestamp),
@@ -773,3 +822,36 @@ async def test_product_completion_persists_address_with_result_in_every_transiti
         assert retained.result.payload["structuredContent"] == payload["structuredContent"]
         replay = TaskSnapshot.from_json(retained.to_json())
         assert replay.result_uri == uri and replay.result == retained.result
+
+
+@pytest.mark.parametrize("value", [
+    {"code": "owner.extension", "message": "failure"},
+    {"code": "owner.extension", "message": "failure", "details": None},
+    {"code": "owner.extension", "message": "failure", "details": {"provider": [None, 2**64 - 1]}},
+])
+def test_failure_envelope_roundtrip_preserves_absent_null_and_provider_details(value):
+    from veoveo_mcp.tasks.types import TaskFailure
+    from veoveo_mcp.tasks.records import TaskFailureRecord
+    from veoveo_mcp.tasks.store import _json_to_surreal
+    record = TaskFailureRecord.model_validate(value)
+    stored = _json_to_surreal(record.model_dump(mode="json", exclude_unset=True))
+    # Native CBOR null is decoded by the real SDK; emulate its decoded value here.
+    assert TaskFailure.from_json(value).to_json() == value
+    assert set(stored) == set(value)
+
+
+@pytest.mark.parametrize("method", ["", "\n", "\u0085", "é" * 129])
+def test_retained_input_request_applies_method_admission(method):
+    from veoveo_mcp.tasks.records import TaskInputRequestRecord
+    with pytest.raises((ValidationError, InvalidRecord)):
+        TaskInputRequestRecord.model_validate({"method": method, "params": {}})
+
+
+@pytest.mark.parametrize("value", [
+    {"code": "x"}, {"code": 42, "message": "x"},
+    {"code": "x", "message": "x", "unexpected": True},
+])
+def test_failure_decoder_rejects_uncontrolled_shape(value):
+    from veoveo_mcp.tasks.types import TaskFailure
+    with pytest.raises((ValidationError, InvalidRecord)):
+        TaskFailure.from_json(value)

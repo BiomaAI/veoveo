@@ -15,7 +15,7 @@ from surrealdb import RecordID
 
 from .queries import OwnerStatement, query
 from .owner_query import OwnerTaskQuery
-from .records import AuthorityRecord, OwnerContextRecord, TaskRequestRecord
+from .records import AuthorityRecord, OwnerContextRecord, TaskRequestRecord, TaskInputRequestRecord, TaskFailureRecord
 from .timestamp import TaskTimestamp
 
 from .store import (
@@ -310,7 +310,7 @@ class TaskRuntime:
         content = {
             "task": task_record(current.task_id),
             "request_key": key,
-            "request": {"method": request.method, "params": request.params},
+            "request": _json_to_surreal(TaskInputRequestRecord.model_validate({"method": request.method, "params": request.params}).model_dump(mode="json")),
             "response": None,
             "created_at": now,
             "responded_at": None,
@@ -566,7 +566,7 @@ class TaskRuntime:
                 "progress": progress,
                 "result": task_result_to_store(result),
                 "result_uri": str(transition.result_uri()) if transition.result_uri() is not None else None,
-                "error": failure.to_json() if failure is not None else None,
+                "error": _json_to_surreal(TaskFailureRecord.model_validate(failure.to_json()).model_dump(mode="json", exclude_unset=True)) if failure is not None else None,
                 "cancel_requested_at": (
                     now
                     if next_status == TaskStatus.CANCEL_REQUESTED
@@ -759,7 +759,7 @@ class TaskRuntime:
                 "task": task_record(task.task_id),
                 "status": status.value,
                 "request": envelope,
-                "error": failure.to_json() if failure is not None else None,
+                "error": _json_to_surreal(TaskFailureRecord.model_validate(failure.to_json()).model_dump(mode="json", exclude_unset=True)) if failure is not None else None,
                 "completed_at": now if terminal else None,
                 "now": now,
                 "expected": task.status.value,
@@ -815,7 +815,7 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
         raise InvalidRecord("task identity must reference its own table")
     task_id = parse_task_id(_record_uuid(record["id"]))
     envelope = record["request"]
-    envelope = TaskRequestRecord.model_validate(_json_from_surreal(envelope))
+    envelope = TaskRequestRecord.model_validate(envelope, context={"native": True})
     owner = OwnerContextRecord.model_validate(record["owner_context"]).to_owner()
     if (
         record["tenant"] != owner.tenant_record()
@@ -836,7 +836,7 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
         )
     error_value = record.get("error")
     error = (
-        TaskFailure.from_json(error_value)
+        TaskFailure.from_json(_json_from_surreal(error_value))
         if error_value is not None
         else None
     )
@@ -876,11 +876,11 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
 
 
 def _input_record_to_exchange(record: dict[str, Any]) -> TaskInputExchange:
-    request = record["request"]
+    request = TaskInputRequestRecord.model_validate(_json_from_surreal(record["request"]))
     return TaskInputExchange(
         key=record["request_key"],
         request=TaskInputRequest(
-            method=request["method"], params=request.get("params", {})
+            method=request.method, params=request.params
         ),
         response=record.get("response"),
         created_at=record["created_at"],

@@ -1150,6 +1150,14 @@ cross-profile authority transition requires its own contract. Managed Computer
 registrations need the authority-reader work in the
 [manager design](../../agents/manager/DESIGN.md#qualification-limits).
 
+`storage_codec.rs` supplies typed borrowed bindings for sealed command output and
+file capabilities, effective file limits and completed command/file results. Capability codecs
+preserve every encrypted envelope field for whole-value comparison, including the
+key, nonce, ciphertext and fingerprint. Driver decoding rejects unknown envelope fields
+and native database values. Sealed access values expose neither Clone nor Debug.
+File Task acknowledgement binds the checked completed result with its retained Task
+identity; lease and deadline checks stay in the owning transactions.
+
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the

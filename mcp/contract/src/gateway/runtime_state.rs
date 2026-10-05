@@ -122,11 +122,7 @@ pub struct GatewayRefreshRevocationRequest {
     pub resource: Option<ProtectedResourceId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub enum PkceCodeChallengeMethod {
-    #[serde(rename = "S256")]
-    S256,
-}
+pub use veoveo_gateway_contract::PkceCodeChallengeMethod;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GatewayResourceProjection {

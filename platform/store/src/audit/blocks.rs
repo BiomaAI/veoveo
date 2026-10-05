@@ -40,11 +40,13 @@ pub(super) struct BlockRow {
     partition: String,
     sequence: i64,
     block: Value,
+    head_hash: String,
 }
 impl BlockRow {
     pub(super) fn checked(self) -> Result<AuditBlock, StoreError> {
         let block: AuditBlock = codec::decode(self.block)?;
         if self.id != block_id(&block.head.partition, block.head.sequence)
+            || self.head_hash != block.head_hash.to_string()
             || self.partition != block.head.partition.storage_key()
             || self.sequence as u64 != block.head.sequence.get()
         {
@@ -90,6 +92,7 @@ fn block_row(block: &AuditBlock) -> Value {
             .collect::<Vec<_>>()
             .into_value(),
     );
+    row.insert("head_hash", block.head_hash.to_string().into_value());
     row.insert("block", codec::scalar(block));
     row.insert("sealed_at", block.head.sealed_at.into_value());
     Value::Object(row)

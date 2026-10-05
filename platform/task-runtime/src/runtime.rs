@@ -43,8 +43,8 @@ use veoveo_types::{AccessSubject, InvocationProvenance};
 use crate::types::{
     CreateTask, CreateTaskResult, RecoveryClass, TaskError, TaskFailure, TaskInputExchange,
     TaskInputRequest, TaskOwner, TaskPayloadState, TaskRetentionPin, TaskRuntimeConfig,
-    TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor, failure_to_open_object,
-    open_object_to_value, record_to_snapshot, validate_task_id,
+    TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor, failure_to_record,
+    record_to_snapshot, validate_task_id,
 };
 
 const DEFAULT_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
@@ -70,7 +70,7 @@ struct TaskContent {
     owner_context: veoveo_platform_store::TaskOwnerRecord,
     progress: f64,
     result: Option<veoveo_platform_store::TaskResultRecord>,
-    error: Option<OpenObject>,
+    error: Option<veoveo_platform_store::TaskFailureRecord>,
     result_artifact: Option<RecordId>,
     idempotency_key: Option<String>,
     lease_owner: Option<String>,
@@ -99,7 +99,7 @@ struct IdempotencyContent {
 struct TaskInputContent {
     task: RecordId,
     request_key: String,
-    request: OpenObject,
+    request: veoveo_platform_store::TaskInputRequestRecord,
     response: Option<OpenObject>,
     created_at: DateTime<Utc>,
     responded_at: Option<DateTime<Utc>>,
@@ -479,7 +479,11 @@ impl TaskRuntime {
         let content = TaskInputContent {
             task: task_record_id(current.task_id),
             request_key: key.to_owned(),
-            request: task_input_request_to_open_object(&request)?,
+            request: veoveo_platform_store::TaskInputRequestRecord::new(
+                request.method.clone(),
+                OpenObject::new(request.params.clone()),
+            )
+            .map_err(TaskError::InvalidRecord)?,
             response: None,
             created_at: now,
             responded_at: None,
@@ -723,7 +727,7 @@ impl TaskRuntime {
             ))
             .bind((
                 "error",
-                transition.failure().as_ref().map(failure_to_open_object),
+                transition.failure().as_ref().map(failure_to_record),
             ))
             .bind((
                 "cancel_requested_at",
@@ -1166,17 +1170,12 @@ fn task_input_record(task_id: TaskId, key: &str) -> RecordId {
     RecordId::new("task_input", key)
 }
 
-fn task_input_request_to_open_object(
-    request: &TaskInputRequest,
-) -> Result<OpenObject, serde_json::Error> {
-    let serde_json::Value::Object(values) = serde_json::to_value(request)? else {
-        unreachable!("TaskInputRequest serializes as an object")
-    };
-    Ok(OpenObject::new(values.into_iter().collect()))
-}
-
 fn task_input_record_to_exchange(record: TaskInputRecord) -> Result<TaskInputExchange, TaskError> {
-    let request = serde_json::from_value(open_object_to_value(record.request))?;
+    let (method, params) = record.request.into_parts();
+    let request = TaskInputRequest {
+        method,
+        params: params.into_map(),
+    };
     let response = record.response.map(OpenObject::into_map);
     Ok(TaskInputExchange {
         key: record.request_key,

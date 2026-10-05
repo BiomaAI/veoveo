@@ -114,7 +114,6 @@ pub(super) struct Record {
     authority: crate::AcceptedAuthority,
     #[surreal(wrap)]
     sealed: SealedFileTransfer,
-    #[surreal(wrap)]
     artifact_access: Option<crate::secrets::SealedFileTransferAccess>,
     task: RecordId,
     task_tenant: RecordId,
@@ -123,8 +122,7 @@ pub(super) struct Record {
     dispatch_id: Option<Uuid>,
     dispatched_at: Option<DateTime<Utc>>,
     execution_deadline: Option<DateTime<Utc>>,
-    #[surreal(wrap)]
-    effective_limits: Option<crate::api::FileTransferLimits>,
+    effective_limits: Option<crate::storage_codec::FileLimitsRecord>,
     dispatch_authority: Option<super::FileDispatchDecision>,
     containment_id: Option<Uuid>,
     interruption: Option<String>,
@@ -139,7 +137,7 @@ pub(super) struct Record {
     terminated_at: Option<DateTime<Utc>>,
     termination_evidence: Option<OpenObject>,
     task_projected_at: Option<DateTime<Utc>>,
-    result: Option<OpenObject>,
+    result: Option<crate::storage_codec::FileResultRecord>,
     rejection: Option<String>,
 }
 impl TryFrom<Record> for FileOperation {
@@ -156,7 +154,7 @@ impl TryFrom<Record> for FileOperation {
                 dispatch_id: row.dispatch_id,
                 dispatched_at: row.dispatched_at,
                 execution_deadline: row.execution_deadline,
-                effective_limits: row.effective_limits,
+                effective_limits: row.effective_limits.map(|value| value.0),
                 dispatch_authority: row.dispatch_authority,
                 containment_id: row.containment_id,
                 interruption: row
@@ -184,10 +182,7 @@ impl TryFrom<Record> for FileOperation {
                     .rejection
                     .map(|v| serde_json::from_value(serde_json::Value::String(v)))
                     .transpose()?,
-                result: row
-                    .result
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
+                result: row.result.map(|value| value.0),
             })
         };
         let file = decode().map_err(|_| ComputerError::Unavailable)?;

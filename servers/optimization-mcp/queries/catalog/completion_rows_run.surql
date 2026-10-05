@@ -6,9 +6,7 @@ SELECT * FROM (SELECT *, fn::kernel::tasks::selection_v1(
 WHERE identity.run_id IN $values
 )
 WHERE (IF type::is_object(selected) {
-    IF type::is_object(selected.input) {
-        selected.input.kind = selected.task_type
-    } ELSE { false }
+    selected.task_type = task_type
 } ELSE { false }
 ) AND (true)
 LIMIT 1001;

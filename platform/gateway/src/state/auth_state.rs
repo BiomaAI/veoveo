@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use veoveo_gateway_contract::AuthorizationServerId;
 use veoveo_mcp_contract::{
     GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayJwtRevocation,
@@ -8,7 +7,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{
     GatewayAuthorizationCodeStateRecord, GatewayAuthorizationRequestRecord,
-    GatewayJwtRevocationRecord, GatewayReplayKind, GatewayReplayRecord, OpenObject,
+    GatewayJwtRevocationRecord, GatewayReplayKind, GatewayReplayRecord,
     gateway_authorization_code_record_id, gateway_authorization_request_record_id,
     gateway_jwt_revocation_record_id, gateway_replay_record_id,
 };
@@ -31,13 +30,12 @@ impl GatewayState {
         self.platform
             .upsert_gateway_jwt_revocation(GatewayJwtRevocationRecord {
                 id,
-                profile: revocation.profile.to_string(),
-                issuer: revocation.issuer.to_string(),
-                jwt_id: revocation.jwt_id.to_string(),
+                profile: revocation.profile.clone(),
+                issuer: revocation.issuer.clone(),
+                jwt_id: revocation.jwt_id.clone(),
                 revoked_at: revocation.revoked_at,
                 expires_at: revocation.expires_at,
                 reason: revocation.reason.clone(),
-                payload: serialize_object(revocation)?,
             })
             .await
             .context("failed to persist gateway JWT revocation")
@@ -56,7 +54,16 @@ impl GatewayState {
             .gateway_jwt_revocation(id, now)
             .await
             .context("failed to read gateway JWT revocation")?
-            .map(|record| deserialize_object(record.payload))
+            .map(|record| {
+                Ok(GatewayJwtRevocation {
+                    profile: record.profile,
+                    issuer: record.issuer,
+                    jwt_id: record.jwt_id,
+                    revoked_at: record.revoked_at,
+                    expires_at: record.expires_at,
+                    reason: record.reason,
+                })
+            })
             .transpose()
     }
 
@@ -132,15 +139,22 @@ impl GatewayState {
         self.platform
             .create_gateway_authorization_request(GatewayAuthorizationRequestRecord {
                 id: gateway_authorization_request_record_id(request.idp_state.as_str()),
-                idp_state: request.idp_state.to_string(),
-                profile: request.profile.to_string(),
-                oauth_client_id: request.oauth_client_id.to_string(),
-                work_context: request.work_context.to_string(),
-                oidc_client: request.oidc_client.to_string(),
-                redirect_uri: request.redirect_uri.to_string(),
+                idp_state: request.idp_state.clone(),
+                profile: request.profile.clone(),
+                oauth_client_id: request.oauth_client_id.clone(),
+                work_context: request.work_context.clone(),
+                oidc_client: request.oidc_client.clone(),
+                redirect_uri: request.redirect_uri.clone(),
                 created_at: request.created_at,
                 expires_at: request.expires_at,
-                payload: serialize_object(request)?,
+                client_state: request.client_state.clone(),
+                requested_scopes: request.requested_scopes.iter().cloned().collect(),
+                code_challenge: request.code_challenge.clone(),
+                code_challenge_method: request.code_challenge_method,
+                idp_code_verifier: request.idp_code_verifier.clone(),
+                idp_code_challenge: request.idp_code_challenge.clone(),
+                idp_code_challenge_method: request.idp_code_challenge_method,
+                nonce: request.nonce.clone(),
             })
             .await
             .context("failed to persist OAuth authorization request")
@@ -158,7 +172,26 @@ impl GatewayState {
             )
             .await
             .context("failed to consume OAuth authorization request")?
-            .map(|record| deserialize_object(record.payload))
+            .map(|record| {
+                Ok(GatewayAuthorizationRequest {
+                    idp_state: record.idp_state,
+                    profile: record.profile,
+                    oauth_client_id: record.oauth_client_id,
+                    work_context: record.work_context,
+                    oidc_client: record.oidc_client,
+                    redirect_uri: record.redirect_uri,
+                    client_state: record.client_state,
+                    requested_scopes: record.requested_scopes.into_iter().collect(),
+                    code_challenge: record.code_challenge,
+                    code_challenge_method: record.code_challenge_method,
+                    idp_code_verifier: record.idp_code_verifier,
+                    idp_code_challenge: record.idp_code_challenge,
+                    idp_code_challenge_method: record.idp_code_challenge_method,
+                    nonce: record.nonce,
+                    created_at: record.created_at,
+                    expires_at: record.expires_at,
+                })
+            })
             .transpose()
     }
 
@@ -169,17 +202,23 @@ impl GatewayState {
         self.platform
             .create_gateway_authorization_code(GatewayAuthorizationCodeStateRecord {
                 id: gateway_authorization_code_record_id(code.code.as_str()),
-                code: code.code.to_string(),
-                profile: code.profile.to_string(),
-                oauth_client_id: code.oauth_client_id.to_string(),
-                work_context: code.work_context.to_string(),
-                oidc_client: code.oidc_client.to_string(),
-                principal: code.principal.id.to_string(),
-                redirect_uri: code.redirect_uri.to_string(),
+                code: code.code.clone(),
+                profile: code.profile.clone(),
+                oauth_client_id: code.oauth_client_id.clone(),
+                work_context: code.work_context.clone(),
+                oidc_client: code.oidc_client.clone(),
+                principal: super::refresh_tokens::serialize_principal(
+                    &code.principal,
+                    &code.principal_display_name,
+                )?,
+                redirect_uri: code.redirect_uri.clone(),
                 issued_at: code.issued_at,
                 expires_at: code.expires_at,
                 consumed_at: code.consumed_at,
-                payload: serialize_object(code)?,
+                client_state: code.client_state.clone(),
+                scopes: code.scopes.iter().cloned().collect(),
+                code_challenge: code.code_challenge.clone(),
+                code_challenge_method: code.code_challenge_method,
             })
             .await
             .context("failed to persist OAuth authorization code")
@@ -200,9 +239,24 @@ impl GatewayState {
             .context("failed to consume OAuth authorization code")?;
         record
             .map(|record| {
-                let mut code: GatewayAuthorizationCodeRecord = deserialize_object(record.payload)?;
-                code.consumed_at = Some(now);
-                Ok(code)
+                let principal = super::refresh_tokens::deserialize_principal(record.principal)?;
+                Ok(GatewayAuthorizationCodeRecord {
+                    code: record.code,
+                    profile: record.profile,
+                    oauth_client_id: record.oauth_client_id,
+                    work_context: record.work_context,
+                    oidc_client: record.oidc_client,
+                    redirect_uri: record.redirect_uri,
+                    client_state: record.client_state,
+                    scopes: record.scopes.into_iter().collect(),
+                    code_challenge: record.code_challenge,
+                    code_challenge_method: record.code_challenge_method,
+                    principal: principal.principal,
+                    principal_display_name: principal.principal_display_name,
+                    issued_at: record.issued_at,
+                    expires_at: record.expires_at,
+                    consumed_at: Some(now),
+                })
             })
             .transpose()
     }
@@ -244,16 +298,4 @@ impl GatewayState {
             .await
             .context("failed to atomically register gateway replay identifier")
     }
-}
-
-fn serialize_object(value: impl Serialize) -> Result<OpenObject> {
-    let value = serde_json::to_value(value)?;
-    let serde_json::Value::Object(object) = value else {
-        anyhow::bail!("gateway runtime value did not serialize as an object");
-    };
-    Ok(OpenObject::new(object.into_iter().collect()))
-}
-
-fn deserialize_object<T: serde::de::DeserializeOwned>(value: OpenObject) -> Result<T> {
-    serde_json::from_value(serde_json::to_value(value)?).map_err(Into::into)
 }

@@ -530,7 +530,7 @@ pub(crate) async fn agent_kernel_scheduler(
     let control = AgentControl::new(control_store)?;
     let target = AgentControlTarget {
         tenant_key: "tenant-a".to_owned(),
-        work_context_key: "operations".to_owned(),
+        work_context_key: "operations".parse()?,
         agent_key: "smoke-scheduler".to_owned(),
     };
     let request_id = uuid::Uuid::now_v7();
@@ -540,7 +540,7 @@ pub(crate) async fn agent_kernel_scheduler(
             OperatorMessageDraft {
                 request_id,
                 message: "Count your episodes".to_owned(),
-                actor_id: "https://idp.example.test#scheduler-smoke".to_owned(),
+                actor_id: "https://idp.example.test#scheduler-smoke".parse()?,
             },
         )
         .await?;
@@ -557,7 +557,7 @@ pub(crate) async fn agent_kernel_scheduler(
             OperatorMessageDraft {
                 request_id: second_request_id,
                 message: "Count your episodes again".to_owned(),
-                actor_id: "https://idp.example.test#scheduler-smoke".to_owned(),
+                actor_id: "https://idp.example.test#scheduler-smoke".parse()?,
             },
         )
         .await?;
@@ -882,7 +882,7 @@ pub(crate) async fn agent_pilot_mission(
     }
     {
         use veoveo_agent_runtime::persistence::{
-            AgentTaskRecord, AgentTaskWatchState, WakeKind, WakeRecord,
+            AgentTaskRecord, AgentTaskWatchState, WakeKind, WakePayload, WakeRecord,
         };
         use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 
@@ -929,12 +929,7 @@ pub(crate) async fn agent_pilot_mission(
         let wakes: Vec<WakeRecord> = response.take(0)?;
         if !wakes.iter().any(|wake| {
             wake.kind == WakeKind::ResourceChanged
-                && wake
-                    .payload
-                    .as_map()
-                    .get("uri")
-                    .and_then(serde_json::Value::as_str)
-                    == Some("optimization://solutions")
+                && matches!(&wake.payload, WakePayload::ResourceChanged { uri } if uri.as_str() == "optimization://solutions")
         }) {
             bail!(
                 "optimization resource update did not survive credential rotation as a durable wake"

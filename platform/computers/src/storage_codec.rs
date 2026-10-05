@@ -171,6 +171,114 @@ impl SurrealValue for crate::secrets::FileTransferBinding {
     }
 }
 
+/// Borrowed bindings keep sealed access non-cloneable and non-debuggable.
+pub(crate) fn sealed_output_access(value: &crate::secrets::SealedOutputAccess) -> Value {
+    native(encode(value))
+}
+
+pub(crate) fn sealed_file_access(value: &crate::secrets::SealedFileTransferAccess) -> Value {
+    native(encode(value))
+}
+
+pub(crate) fn file_limits(value: &crate::api::FileTransferLimits) -> Value {
+    native(encode(value))
+}
+
+pub(crate) fn file_result(value: &crate::api::FileTransferResult) -> Value {
+    native(encode(value))
+}
+
+pub(crate) fn command_result(value: &crate::api::ExecutionResult) -> Value {
+    native(encode(value))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(transparent)]
+pub(crate) struct CommandResultRecord(pub(crate) crate::api::ExecutionResult);
+
+impl SurrealValue for CommandResultRecord {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> Value {
+        command_result(&self.0)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        decode(value)
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(transparent)]
+pub(crate) struct FileLimitsRecord(pub(crate) crate::api::FileTransferLimits);
+
+impl SurrealValue for FileLimitsRecord {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> Value {
+        file_limits(&self.0)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        decode(value)
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(transparent)]
+pub(crate) struct FileResultRecord(pub(crate) crate::api::FileTransferResult);
+
+impl SurrealValue for FileResultRecord {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> Value {
+        file_result(&self.0)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        decode(value)
+    }
+}
+
+impl SurrealValue for crate::secrets::SealedOutputAccess {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> Value {
+        sealed_output_access(&self)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        decode(value)
+    }
+}
+
+impl SurrealValue for crate::secrets::SealedFileTransferAccess {
+    fn kind_of() -> Kind {
+        Kind::Object
+    }
+    fn is_value(value: &Value) -> bool {
+        Self::from_value(value.clone()).is_ok()
+    }
+    fn into_value(self) -> Value {
+        sealed_file_access(&self)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        decode(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +287,125 @@ mod tests {
     struct Controls {
         optional: Option<String>,
         count: u64,
+    }
+
+    #[test]
+    fn file_limits_driver_preserves_known_fields_and_rejects_wrong_shapes() {
+        let wire = serde_json::json!({"maximumSeconds":300, "maximumBytes":67108864, "onInterruption":"stop_computer"});
+        let expected = native(wire.clone());
+        let decoded = FileLimitsRecord::from_value(expected.clone()).unwrap();
+        assert_eq!(file_limits(&decoded.0), expected);
+        for malformed in [
+            {
+                let mut value = wire.clone();
+                value["unknown"] = true.into();
+                value
+            },
+            {
+                let mut value = wire.clone();
+                value["maximumBytes"] = "67108864".into();
+                value
+            },
+            {
+                let mut value = wire;
+                value["onInterruption"] = "continue".into();
+                value
+            },
+        ] {
+            assert!(FileLimitsRecord::from_value(native(malformed)).is_err());
+        }
+        assert!(
+            FileResultRecord::from_value(native(
+                serde_json::json!({"result_uri":"computer://transfers/invalid"})
+            ))
+            .is_err()
+        );
+        assert!(
+            CommandResultRecord::from_value(native(
+                serde_json::json!({"result_uri":"computer://executions/invalid"})
+            ))
+            .is_err()
+        );
+    }
+
+    fn sealed_wire() -> Json {
+        serde_json::json!({
+            "version": 1,
+            "key_id": "019b0000-0000-7000-8000-000000000001",
+            "nonce": "fixture-nonce",
+            "ciphertext": "opaque-fixture-ciphertext",
+            "fingerprint": "fixture-fingerprint"
+        })
+    }
+
+    #[test]
+    fn sealed_access_driver_round_trip_preserves_every_cas_field() {
+        let wire = sealed_wire();
+        let output: crate::secrets::SealedOutputAccess =
+            serde_json::from_value(wire.clone()).unwrap();
+        let file: crate::secrets::SealedFileTransferAccess =
+            serde_json::from_value(wire.clone()).unwrap();
+        let expected = native(wire.clone());
+        assert_eq!(sealed_output_access(&output), expected);
+        assert_eq!(sealed_file_access(&file), expected);
+        let decoded = crate::secrets::SealedOutputAccess::from_value(expected.clone()).unwrap();
+        assert_eq!(sealed_output_access(&decoded), expected);
+        let decoded =
+            crate::secrets::SealedFileTransferAccess::from_value(expected.clone()).unwrap();
+        assert_eq!(sealed_file_access(&decoded), expected);
+        for field in ["version", "key_id", "nonce", "ciphertext", "fingerprint"] {
+            let mut changed = wire.clone();
+            changed[field] = match field {
+                "version" => 2.into(),
+                "key_id" => "019b0000-0000-7000-8000-000000000002".into(),
+                _ => "changed".into(),
+            };
+            let decoded = crate::secrets::SealedOutputAccess::from_value(native(changed)).unwrap();
+            assert_ne!(
+                sealed_output_access(&decoded),
+                expected,
+                "CAS includes {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn sealed_access_driver_rejects_unknown_missing_and_native_fields() {
+        for malformed in [
+            {
+                let mut wire = sealed_wire();
+                wire["unexpected"] = true.into();
+                wire
+            },
+            {
+                let mut wire = sealed_wire();
+                wire.as_object_mut().unwrap().remove("nonce");
+                wire
+            },
+            {
+                let mut wire = sealed_wire();
+                wire["version"] = Json::Null;
+                wire
+            },
+        ] {
+            assert!(
+                crate::secrets::SealedOutputAccess::from_value(native(malformed.clone())).is_err()
+            );
+            assert!(
+                crate::secrets::SealedFileTransferAccess::from_value(native(malformed)).is_err()
+            );
+        }
+        let mut native_fields = match native(sealed_wire()) {
+            Value::Object(fields) => fields,
+            _ => unreachable!(),
+        };
+        native_fields.insert(
+            "ciphertext",
+            Value::RecordId(surrealdb::types::RecordId::new("secret", "fixture")),
+        );
+        assert!(
+            crate::secrets::SealedOutputAccess::from_value(Value::Object(native_fields)).is_err()
+        );
     }
 
     #[test]

@@ -6,9 +6,7 @@ SELECT * FROM (SELECT *, fn::kernel::tasks::selection_v1(
 
 )
 WHERE (IF type::is_object(selected) {
-    IF type::is_object(selected.input) {
-        selected.input.kind = selected.task_type
-    } ELSE { false }
+    selected.task_type = task_type
 } ELSE { false }
 ) AND (true)
 AND (created_at > $after_created_at OR (created_at = $after_created_at AND task > $after_task))

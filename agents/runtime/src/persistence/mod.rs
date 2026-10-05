@@ -2,6 +2,8 @@
 mod authority;
 mod ids;
 pub use ids::*;
+mod envelopes;
+pub use envelopes::*;
 mod models;
 pub use models::*;
 mod repository;

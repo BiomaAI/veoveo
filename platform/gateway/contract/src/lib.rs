@@ -20,3 +20,6 @@ pub use actions::*;
 
 mod tool_name;
 pub use tool_name::*;
+
+mod oauth;
+pub use oauth::*;

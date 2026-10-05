@@ -242,7 +242,7 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
         .enqueue_wake(NewWake::now(
             WakeKind::OperatorMessage,
             None,
-            OpenObject::default(),
+            WakePayload::operator("managed work"),
         ))
         .await
         .unwrap();
@@ -300,7 +300,7 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
         .enqueue_wake(NewWake::now(
             WakeKind::OperatorMessage,
             None,
-            OpenObject::default(),
+            WakePayload::operator("managed work"),
         ))
         .await
         .unwrap();

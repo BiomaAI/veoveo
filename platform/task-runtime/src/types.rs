@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use surrealdb::types::{RecordId, RecordIdKey};
 use veoveo_platform_store::{
-    OpenObject, PrincipalKind, RecoveryClass as StoreRecoveryClass, StoreAuthLevel,
-    StoreCredentials, TaskRecord, TaskStatus as StoreTaskStatus, deterministic_principal_id,
-    deterministic_tenant_id, deterministic_work_context_id,
+    PrincipalKind, RecoveryClass as StoreRecoveryClass, StoreAuthLevel, StoreCredentials,
+    TaskRecord, TaskStatus as StoreTaskStatus, deterministic_principal_id, deterministic_tenant_id,
+    deterministic_work_context_id,
 };
 use veoveo_types::InvocationAuthority;
 use veoveo_types::TaskId;
@@ -370,7 +370,11 @@ impl TaskSnapshot {
 pub struct TaskFailure {
     pub code: String,
     pub message: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_result",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub details: Option<Value>,
 }
 
@@ -589,16 +593,12 @@ impl From<&TaskSnapshot> for veoveo_platform_store::TaskRequestRecord {
     }
 }
 
-pub(crate) fn open_object_to_value(value: OpenObject) -> Value {
-    Value::Object(value.into_map().into_iter().collect())
-}
-
-pub(crate) fn failure_to_open_object(failure: &TaskFailure) -> OpenObject {
-    let Value::Object(fields) = serde_json::to_value(failure).expect("TaskFailure serializes")
-    else {
-        unreachable!("TaskFailure is an object");
-    };
-    OpenObject::new(fields.into_iter().collect())
+pub(crate) fn failure_to_record(failure: &TaskFailure) -> veoveo_platform_store::TaskFailureRecord {
+    veoveo_platform_store::TaskFailureRecord {
+        code: failure.code.clone(),
+        message: failure.message.clone(),
+        details: failure.details.clone(),
+    }
 }
 
 fn deserialize_present_result<'de, D: serde::Deserializer<'de>>(
@@ -644,11 +644,11 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
             "task owner and invocation authority do not match canonical platform state".to_owned(),
         ));
     }
-    let error = record
-        .error
-        .map(open_object_to_value)
-        .map(serde_json::from_value)
-        .transpose()?;
+    let error = record.error.map(|failure| TaskFailure {
+        code: failure.code,
+        message: failure.message,
+        details: failure.details,
+    });
     if record.result_uri.is_some()
         && (record.status != StoreTaskStatus::Succeeded || record.result.is_none())
     {

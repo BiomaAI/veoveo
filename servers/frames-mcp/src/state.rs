@@ -4,7 +4,9 @@ use crate::contract::{
     FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
 };
 use anyhow::{Context, Result, anyhow, bail};
-use veoveo_platform_store::{OpenObject, PlatformIdentity, PlatformStore};
+#[cfg(test)]
+use veoveo_platform_store::OpenObject;
+use veoveo_platform_store::{PlatformIdentity, PlatformStore};
 
 use crate::contract::FrameWorldSummary;
 use records::{FrameWorldRecord, FrameWorldRevisionRecord};
@@ -14,6 +16,7 @@ mod completion;
 mod operations;
 mod reads;
 mod records;
+mod storage_codec;
 mod worlds;
 pub use operations::FrameOperationScope;
 
@@ -100,9 +103,7 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
     let revision_id = FrameWorldRevisionId::parse(record.revision_key)?;
     let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
     let root_frame_id = crate::contract::FrameId::parse(record.root_frame_key)?;
-    let tree: crate::contract::FrameWorldTree =
-        serde_json::from_value(value_from_object(record.definition))
-            .context("decoding frame world revision")?;
+    let tree = record.definition.0;
     anyhow::ensure!(
         tree.frames
             .iter()
@@ -122,13 +123,10 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
     )?)
 }
 
+#[cfg(test)]
 fn object_from_value(value: serde_json::Value) -> Result<OpenObject> {
     match value {
         serde_json::Value::Object(values) => Ok(OpenObject::new(values.into_iter().collect())),
         _ => bail!("frame world record must serialize as an object"),
     }
-}
-
-fn value_from_object(object: OpenObject) -> serde_json::Value {
-    serde_json::Value::Object(object.into_map().into_iter().collect())
 }

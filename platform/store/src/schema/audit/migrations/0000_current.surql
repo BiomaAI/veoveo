@@ -217,3 +217,5 @@ DEFINE FIELD OVERWRITE replayed_at ON audit_sealer TYPE datetime PERMISSIONS FUL
 
 -- Initial state for a fresh owner lane.
 CREATE ONLY audit_sealer:active SET owner = rand::uuid::v7(), generation = 0, lease_until = time::now(), cursor = 0, replayed_at = time::now();
+
+DEFINE FIELD OVERWRITE head_hash ON audit_block TYPE string READONLY PERMISSIONS FULL;

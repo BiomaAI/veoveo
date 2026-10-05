@@ -121,6 +121,7 @@ impl PlatformStore {
                 block_id(&block.head.partition, block.head.sequence),
             ))
             .bind(("block_hash", block.head_hash.to_string()))
+            .bind(("expected_block", codec::scalar(block)))
             .bind((
                 "anchor_id",
                 named_id("audit_retention_anchor", &block.head.partition),

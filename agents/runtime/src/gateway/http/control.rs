@@ -134,7 +134,7 @@ pub(super) async fn send_agent_message(
             OperatorMessageDraft {
                 request_id: request.request_id,
                 message: request.message,
-                actor_id: context.subject.principal.id.to_string(),
+                actor_id: context.subject.principal.id.clone(),
             },
         )
         .await;
@@ -277,7 +277,7 @@ async fn authorize_agent_operation(
     .await?;
     let target = AgentControlTarget {
         tenant_key: subject.authority.tenant.to_string(),
-        work_context_key: subject.authority.work_context.to_string(),
+        work_context_key: subject.authority.work_context.clone(),
         agent_key: agent_id,
     };
     let context = AuthorizedAgentOperation {

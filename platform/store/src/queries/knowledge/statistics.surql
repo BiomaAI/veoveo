@@ -1,3 +1,4 @@
+BEGIN TRANSACTION;
 -- Profile selectors are bound data. Templates consume the first next delimiter;
 -- later delimiters cannot rescue an empty variable or an unmatched suffix.
 LET $resource_selected = |$collection: string, $uri: string, $selections: array| {
@@ -31,30 +32,30 @@ LET $resource_selected = |$collection: string, $uri: string, $selections: array|
     });
 };
 
-SELECT
-    indexedMembers,
-    indexedChunks,
-    lastObservedAt,
-    IF lastModifiedAt = time::minimum { NONE } ELSE { lastModifiedAt } AS lastModifiedAt,
-    IF nextExpiry = time::maximum { NONE } ELSE { nextExpiry } AS nextExpiry
+LET $statistics = SELECT
+    indexed_members,
+    indexed_chunks,
+    last_observed_at,
+    IF last_modified_at = time::minimum { NONE } ELSE { last_modified_at } AS last_modified_at,
+    IF next_expiry = time::maximum { NONE } ELSE { next_expiry } AS next_expiry
 FROM (
     SELECT
-        count(ordinal = 0) AS indexedMembers,
-        count() AS indexedChunks,
-        time::max(<datetime> observation.observedAt) AS lastObservedAt,
-        time::max(<datetime> (observation.modifiedAt ?? time::minimum)) AS lastModifiedAt,
+        count(ordinal = 0) AS indexed_members,
+        count() AS indexed_chunks,
+        time::max(<datetime> observation.observedAt) AS last_observed_at,
+        time::max(<datetime> (observation.modifiedAt ?? time::minimum)) AS last_modified_at,
         time::min(array::min([
             member.valid_until ?? time::maximum,
             admission.expires_at ?? time::maximum,
             array::min(admission.grants[
                 WHERE subject IN $subjects AND expires_at > time::now()
             ].expires_at) ?? time::maximum,
-            IF collection.document.descriptor.changeSignal != 'immutable' {
+            IF collection.change_signal != 'immutable' {
                 member.sync.coordinator.expires_at
             } ELSE {
                 time::maximum
             }
-        ])) AS nextExpiry
+        ])) AS next_expiry
     FROM type::table($chunk_table)
     WHERE   tenant = $tenant
   AND $generation.tenant = $tenant
@@ -62,14 +63,14 @@ FROM (
   AND $active.generation = $generation
   AND $resource_selected(collection_id, uri, $resource_selections)
   AND collection.approved = true
-  AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
+  AND $scopes CONTAINSALL collection.required_scopes
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision
   AND member.sync.ready = true
   AND member.source_epoch = member.sync.epoch
   AND member.sync.owner_epoch = member.sync.coordinator.epoch
-  AND (collection.document.descriptor.changeSignal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
+  AND (collection.change_signal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
   AND (member.valid_until = NONE OR member.valid_until > time::now())
   AND member.stale = false
   AND member.deleted = false
@@ -104,3 +105,6 @@ FROM (
     GROUP ALL
     TIMEOUT 10s
 );
+
+RETURN { rows: $statistics, registration: (SELECT * FROM ONLY $registration WHERE tenant = $tenant AND approved = true AND $scopes CONTAINSALL required_scopes) };
+COMMIT TRANSACTION;

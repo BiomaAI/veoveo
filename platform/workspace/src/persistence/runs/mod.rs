@@ -79,18 +79,28 @@ impl WorkspaceRepository {
         ));
         let (receipt, fingerprint) =
             revisions::receipt(authority, chat, request_id, &admission, None)?;
-        self.workspace_query(
-            authority,
-            AgentCommand {
-                chat: chat.record_id(),
-                agent: agent.record_id(),
-                admission,
-                receipt,
-                fingerprint,
-            },
-            include_str!("../queries/runs/add.surql"),
-        )
-        .await
+        let expected_definition = admission.definition.clone();
+        let expected_digest = admission.definition_digest.clone();
+        let result: WorkspaceAgent = self
+            .workspace_query(
+                authority,
+                AgentCommand {
+                    chat: chat.record_id(),
+                    agent: agent.record_id(),
+                    admission,
+                    receipt,
+                    fingerprint,
+                },
+                include_str!("../queries/runs/add.surql"),
+            )
+            .await?;
+        result.check_receipt(
+            chat.record_id(),
+            agent.record_id(),
+            &expected_definition,
+            &expected_digest,
+        )?;
+        Ok(result)
     }
 
     pub async fn workspace_agents(

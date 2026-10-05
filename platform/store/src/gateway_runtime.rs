@@ -1,3 +1,4 @@
+use crate::gateway_record_identity::{GatewayRecordIdentity, checked as checked_identity};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -104,6 +105,7 @@ impl PlatformStore {
         &self,
         record: GatewayResourceSubscriptionRecord,
     ) -> Result<(), StoreError> {
+        record.verify_identity()?;
         self.db
             .query(include_str!(
                 "queries/gateway_runtime/upsert_gateway_resource_subscription.surql"
@@ -119,7 +121,7 @@ impl PlatformStore {
         &self,
         id: RecordId,
     ) -> Result<Option<GatewayResourceSubscriptionRecord>, StoreError> {
-        Ok(self.db.select(id).await?)
+        checked_identity(self.db.select(id).await?)
     }
 
     pub async fn delete_gateway_resource_subscription(
@@ -140,6 +142,7 @@ impl PlatformStore {
         &self,
         record: GatewayJwtRevocationRecord,
     ) -> Result<(), StoreError> {
+        record.verify_identity()?;
         self.db
             .query(include_str!(
                 "queries/gateway_runtime/upsert_gateway_jwt_revocation.surql"
@@ -165,7 +168,7 @@ impl PlatformStore {
             .bind(("now", now))
             .await?
             .check()?;
-        Ok(response.take(0)?)
+        checked_identity(response.take(0)?)
     }
 
     pub async fn prune_expired_gateway_jwt_revocations(
@@ -239,6 +242,7 @@ impl PlatformStore {
         &self,
         record: GatewayAuthorizationRequestRecord,
     ) -> Result<(), StoreError> {
+        record.verify_identity()?;
         self.db
             .query(include_str!(
                 "queries/gateway_runtime/create_gateway_authorization_request.surql"
@@ -267,7 +271,7 @@ impl PlatformStore {
                 .await
                 .and_then(|response| response.check());
             match response {
-                Ok(mut response) => return Ok(response.take(0)?),
+                Ok(mut response) => return checked_identity(response.take(0)?),
                 Err(error)
                     if is_retryable_transaction_conflict(&error) && attempt + 1 < MAX_ATTEMPTS =>
                 {
@@ -283,6 +287,7 @@ impl PlatformStore {
         &self,
         record: GatewayAuthorizationCodeStateRecord,
     ) -> Result<(), StoreError> {
+        record.verify_identity()?;
         self.db
             .query(include_str!(
                 "queries/gateway_runtime/create_gateway_authorization_code.surql"
@@ -311,7 +316,7 @@ impl PlatformStore {
                 .await
                 .and_then(|response| response.check());
             match response {
-                Ok(mut response) => return Ok(response.take(0)?),
+                Ok(mut response) => return checked_identity(response.take(0)?),
                 Err(error)
                     if is_retryable_transaction_conflict(&error) && attempt + 1 < MAX_ATTEMPTS =>
                 {
@@ -838,18 +843,19 @@ async fn retry_backoff(attempt: u32) {
     tokio::time::sleep(Duration::from_millis(floor + jitter)).await;
 }
 
-/// Closed normalized Principal snapshot retained for refresh-token decisions.
+/// Closed normalized Principal snapshot retained for authorization-code and refresh-token decisions.
 #[derive(
     Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, surrealdb::types::SurrealValue,
 )]
 #[serde(deny_unknown_fields)]
-pub struct GatewayRefreshPrincipalRecord {
-    pub principal: GatewayRefreshActorRecord,
-    pub principal_display_name: String,
+pub struct GatewayPrincipalRecord {
+    pub principal: GatewayActorRecord,
+    #[surreal(wrap)]
+    pub principal_display_name: veoveo_gateway_contract::PrincipalDisplayName,
 }
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GatewayRefreshActorRecord {
+pub struct GatewayActorRecord {
     pub id: veoveo_types::PrincipalId,
     pub kind: crate::PrincipalKind,
     pub issuer: veoveo_types::TokenIssuer,
@@ -859,7 +865,7 @@ pub struct GatewayRefreshActorRecord {
     #[serde(default)]
     pub groups: Vec<veoveo_types::GroupId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub group_roles: Vec<GatewayRefreshGroupRoleRecord>,
+    pub group_roles: Vec<GatewayGroupRoleRecord>,
     #[serde(default)]
     pub roles: Vec<veoveo_types::RoleId>,
     #[serde(default)]
@@ -867,18 +873,18 @@ pub struct GatewayRefreshActorRecord {
     #[serde(default)]
     pub data_labels: Vec<veoveo_types::DataLabelId>,
     #[serde(default)]
-    pub assurances: Vec<GatewayRefreshAssurance>,
+    pub assurances: Vec<GatewayAssurance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authenticated_at: Option<DateTime<Utc>>,
 }
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GatewayRefreshGroupRoleRecord {
+pub struct GatewayGroupRoleRecord {
     pub group: veoveo_types::GroupId,
-    pub role: GatewayRefreshGroupRole,
+    pub role: GatewayGroupRole,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
-pub enum GatewayRefreshGroupRole {
+pub enum GatewayGroupRole {
     #[vocabulary(rename = "read")]
     Read,
     #[vocabulary(rename = "write")]
@@ -887,11 +893,11 @@ pub enum GatewayRefreshGroupRole {
     Admin,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, veoveo_types::Vocabulary)]
-pub enum GatewayRefreshAssurance {
+pub enum GatewayAssurance {
     #[vocabulary(rename = "us_person")]
     UsPerson,
 }
-impl surrealdb::types::SurrealValue for GatewayRefreshActorRecord {
+impl surrealdb::types::SurrealValue for GatewayActorRecord {
     fn kind_of() -> surrealdb::types::Kind {
         surrealdb::types::Kind::Object
     }

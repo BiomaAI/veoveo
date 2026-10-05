@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
 import re
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -67,7 +68,11 @@ def _json_from_surreal(value: Any) -> Any:
         return {key: _json_from_surreal(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_json_from_surreal(item) for item in value]
-    return value
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    raise InvalidRecord("stored Task JSON cannot contain native database values")
 
 
 def task_result_to_store(result: TaskResult | None) -> dict[str, Any] | None:

@@ -13,12 +13,21 @@ use tokio_util::sync::CancellationToken;
 use veoveo_knowledge_mcp::{contract::*, embed::Embeddings, mcp::KnowledgeMcp};
 use veoveo_mcp_contract::*;
 use veoveo_platform_store::{
-    GatewayControlRevisionContent, GatewayControlRevisionSource, OpenObject, PlatformStore,
-    RecordId,
+    GatewayControlRevisionContent, GatewayControlRevisionSource, PlatformStore, RecordId,
 };
 use veoveo_types::{
     InvocationMode, InvocationProvenance, ScopeDefinition, Sha256Digest, WorkContextMembershipLevel,
 };
+
+pub async fn native_database() -> crate::fixture::TestDb {
+    crate::fixture::TestDb::with_modules(vec![
+        veoveo_agent_runtime::schema::module_setup(
+            crate::fixture::module_lanes::execution("agents").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await
+}
 
 pub fn plane(registrations: &[CollectionRegistration]) -> GatewayControlPlane {
     let mut value: serde_json::Value =
@@ -267,13 +276,12 @@ pub async fn revoke(store: &PlatformStore, identity: &GatewayInternalIdentity) {
                 token.issuer.as_str(),
                 jwt.as_str(),
             ),
-            profile: identity.profile.to_string(),
-            issuer: token.issuer.to_string(),
-            jwt_id: jwt.to_string(),
+            profile: identity.profile.clone(),
+            issuer: token.issuer.clone(),
+            jwt_id: jwt.clone(),
             revoked_at: Utc::now(),
             expires_at: token.expires_at,
             reason: Some("fixture".into()),
-            payload: OpenObject::default(),
         })
         .await
         .unwrap();

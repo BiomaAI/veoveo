@@ -6,6 +6,7 @@
 //! profile governs its own tool session and is not a human-control selector.
 //! This module never acquires the scheduler lease.
 
+use crate::persistence::{InputWakePhase, WakePayload};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::contract::control::{
@@ -25,8 +26,9 @@ use veoveo_platform_store::{
     OpenObject, PlatformStore, StoreAuthLevel, deterministic_tenant_id,
     deterministic_work_context_id,
 };
+use veoveo_types::{PrincipalId, WorkContextId};
 
-use crate::{AgentRuntimeError, InputRequestAnswer, Result, object, uuid_from_record};
+use crate::{AgentRuntimeError, InputRequestAnswer, Result, uuid_from_record};
 
 const MAX_OPERATOR_MESSAGE_BYTES: usize = 16 * 1024;
 const MAX_ACTOR_ID_BYTES: usize = 2_048;
@@ -39,7 +41,7 @@ pub struct AgentControl {
 #[derive(Clone, Debug)]
 pub struct AgentControlTarget {
     pub tenant_key: String,
-    pub work_context_key: String,
+    pub work_context_key: WorkContextId,
     pub agent_key: String,
 }
 
@@ -47,7 +49,7 @@ pub struct AgentControlTarget {
 pub struct OperatorMessageDraft {
     pub request_id: Uuid,
     pub message: String,
-    pub actor_id: String,
+    pub actor_id: PrincipalId,
 }
 
 #[derive(Clone, Debug)]
@@ -81,7 +83,7 @@ struct ExternalWakeContent {
     kind: WakeKind,
     state: WakeState,
     dedupe_key: Option<String>,
-    payload: OpenObject,
+    payload: WakePayload,
     available_at: DateTime<Utc>,
     claimed_by: Option<String>,
     claimed_at: Option<DateTime<Utc>>,
@@ -112,19 +114,16 @@ impl AgentControl {
     ) -> Result<AgentControlReceipt> {
         validate_request_id(draft.request_id)?;
         validate_message(&draft.message)?;
-        validate_actor(&draft.actor_id)?;
+        validate_actor(draft.actor_id.as_str())?;
         let agent = self.resolve_target(target).await?;
         let now = Utc::now();
         let wake_id = WakeId::from_uuid(draft.request_id);
-        let payload = object([
-            ("request_id".to_owned(), serde_json::json!(draft.request_id)),
-            ("text".to_owned(), serde_json::json!(draft.message)),
-            ("actor_id".to_owned(), serde_json::json!(draft.actor_id)),
-            (
-                "work_context".to_owned(),
-                serde_json::json!(target.work_context_key),
-            ),
-        ]);
+        let payload = WakePayload::OperatorMessage {
+            request_id: Some(draft.request_id),
+            text: draft.message.clone(),
+            actor_id: Some(draft.actor_id.clone()),
+            work_context: Some(target.work_context_key.clone()),
+        };
         let content = wake_content(
             &agent,
             WakeKind::OperatorMessage,
@@ -203,9 +202,27 @@ impl AgentControl {
         let mut entries = Vec::with_capacity(wakes.len() + episodes.len());
         for wake in wakes {
             let wake_id = uuid_from_record(&wake.id, "wake.id")?;
-            let request_id = payload_uuid(&wake.payload, "request_id")?;
-            let actor_id = payload_string(&wake.payload, "actor_id")?;
-            let content = payload_string(&wake.payload, "text")?;
+            let WakePayload::OperatorMessage {
+                request_id: Some(request_id),
+                actor_id: Some(actor_id),
+                text: content,
+                work_context: Some(context),
+            } = wake.payload
+            else {
+                return Err(AgentRuntimeError::InvalidField {
+                    field: "wake.payload",
+                    reason: "operator conversation requires attributed message".into(),
+                });
+            };
+            if context != target.work_context_key
+                || actor_id.as_str().is_empty()
+                || content.is_empty()
+            {
+                return Err(AgentRuntimeError::InvalidField {
+                    field: "wake.payload",
+                    reason: "operator attribution mismatch".into(),
+                });
+            }
             if let Some(episode) = wake.acked_by_episode.as_ref() {
                 requests_by_episode
                     .entry(uuid_from_record(episode, "wake.acked_by_episode")?)
@@ -215,7 +232,7 @@ impl AgentControl {
             entries.push(AgentConversationEntry {
                 entry_id: format!("wake:{wake_id}"),
                 role: AgentConversationRole::Operator,
-                actor_id,
+                actor_id: actor_id.to_string(),
                 content,
                 state: wake_conversation_state(wake.state),
                 occurred_at: wake.created_at,
@@ -299,22 +316,20 @@ impl AgentControl {
 
         let now = Utc::now();
         let wake_id = WakeId::from_uuid(draft.request_id);
-        let payload = object([
-            (
-                "input_request_id".to_owned(),
-                serde_json::json!(draft.input_request_id),
+        let payload = WakePayload::InputRequest {
+            input_request_id: draft.input_request_id,
+            phase: InputWakePhase::Answered,
+            request_id: Some(draft.request_id),
+            actor_id: Some(
+                PrincipalId::parse(&draft.answer.answered_by).map_err(|error| {
+                    AgentRuntimeError::InvalidField {
+                        field: "answered_by",
+                        reason: error.to_string(),
+                    }
+                })?,
             ),
-            ("phase".to_owned(), serde_json::json!("answered")),
-            ("request_id".to_owned(), serde_json::json!(draft.request_id)),
-            (
-                "actor_id".to_owned(),
-                serde_json::json!(draft.answer.answered_by),
-            ),
-            (
-                "work_context".to_owned(),
-                serde_json::json!(target.work_context_key),
-            ),
-        ]);
+            work_context: Some(target.work_context_key.clone()),
+        };
         let wake_content = wake_content(
             &agent,
             WakeKind::InputRequest,
@@ -403,7 +418,7 @@ impl AgentControl {
         }
         let tenant = deterministic_tenant_id(&target.tenant_key)?.record_id();
         let work_context =
-            deterministic_work_context_id(&target.tenant_key, &target.work_context_key)?
+            deterministic_work_context_id(&target.tenant_key, target.work_context_key.as_str())?
                 .record_id();
         let mut response = self
             .store
@@ -508,28 +523,6 @@ fn propagate_request_lineage(
     }
 }
 
-fn payload_string(payload: &OpenObject, field: &'static str) -> Result<String> {
-    payload
-        .as_map()
-        .get(field)
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| AgentRuntimeError::InvalidField {
-            field,
-            reason: "durable operator wake field is missing or invalid".to_owned(),
-        })
-}
-
-fn payload_uuid(payload: &OpenObject, field: &'static str) -> Result<Uuid> {
-    Uuid::parse_str(&payload_string(payload, field)?).map_err(|error| {
-        AgentRuntimeError::InvalidField {
-            field,
-            reason: error.to_string(),
-        }
-    })
-}
-
 const fn wake_conversation_state(state: WakeState) -> AgentConversationEntryState {
     match state {
         WakeState::Pending | WakeState::Claimed | WakeState::Coalesced => {
@@ -556,7 +549,7 @@ fn wake_content(
     agent: &AgentRecord,
     kind: WakeKind,
     dedupe_key: String,
-    payload: OpenObject,
+    payload: WakePayload,
     now: DateTime<Utc>,
 ) -> ExternalWakeContent {
     ExternalWakeContent {
@@ -600,7 +593,7 @@ fn receipt(
         request_id,
         wake_id,
         agent_key: target.agent_key.clone(),
-        work_context_key: target.work_context_key.clone(),
+        work_context_key: target.work_context_key.to_string(),
         accepted_at,
     }
 }

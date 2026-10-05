@@ -2,7 +2,7 @@
 use serde_json::Value as JsonValue;
 use surrealdb::types::{Error, Number, Object, SurrealValue, Value};
 
-pub(crate) fn into_surreal(value: JsonValue) -> Value {
+pub fn into_surreal(value: JsonValue) -> Value {
     match value {
         // The SDK's JSON conversion uses f64 for unsigned values above i64::MAX.
         // SurrealDB decimals represent every u64 exactly and still support SQL reads.
@@ -23,29 +23,18 @@ pub(crate) fn into_surreal(value: JsonValue) -> Value {
     }
 }
 
-pub(crate) fn from_surreal(value: Value) -> Result<JsonValue, Error> {
-    match value {
-        Value::Object(fields) => fields
-            .into_iter()
-            .map(|(key, value)| from_surreal(value).map(|value| (key, value)))
-            .collect::<Result<_, _>>()
-            .map(JsonValue::Object),
-        Value::Array(values) => values
-            .into_iter()
-            .map(from_surreal)
-            .collect::<Result<_, _>>()
-            .map(JsonValue::Array),
-        Value::Number(Number::Decimal(number)) => number
-            .to_string()
-            .parse::<serde_json::Number>()
-            .map(JsonValue::Number)
-            .map_err(|_| Error::internal("stored decimal cannot be represented as JSON".into())),
-        other => JsonValue::from_value(other),
-    }
+/// Decode JSON without coercing native database identities or timestamps.
+pub fn from_surreal_json(value: Value) -> Result<JsonValue, Error> {
+    decode_json(value, true)
 }
 
-/// Task controls accept JSON values without coercing native database identities.
-pub(crate) fn from_surreal_json(value: Value) -> Result<JsonValue, Error> {
+/// Decode an opaque JSON payload after the owner has removed admitted optional fields.
+/// Every native NONE, including object members, is rejected.
+pub fn from_surreal_json_strict(value: Value) -> Result<JsonValue, Error> {
+    decode_json(value, false)
+}
+
+fn decode_json(value: Value, omit_absent_fields: bool) -> Result<JsonValue, Error> {
     match value {
         Value::Null => Ok(JsonValue::Null),
         Value::Bool(value) => Ok(JsonValue::Bool(value)),
@@ -61,12 +50,13 @@ pub(crate) fn from_surreal_json(value: Value) -> Result<JsonValue, Error> {
             .map_err(|_| Error::internal("Task decimal cannot be represented as JSON".into())),
         Value::Array(values) => values
             .into_iter()
-            .map(from_surreal_json)
+            .map(|value| decode_json(value, omit_absent_fields))
             .collect::<Result<_, _>>()
             .map(JsonValue::Array),
         Value::Object(fields) => fields
             .into_iter()
-            .map(|(key, value)| from_surreal_json(value).map(|value| (key, value)))
+            .filter(|(_, value)| !omit_absent_fields || *value != Value::None)
+            .map(|(key, value)| decode_json(value, omit_absent_fields).map(|value| (key, value)))
             .collect::<Result<_, _>>()
             .map(JsonValue::Object),
         _ => Err(Error::internal(
@@ -90,7 +80,8 @@ impl SurrealValue for crate::OpenObject {
         };
         let fields = fields
             .into_iter()
-            .map(|(key, value)| from_surreal(value).map(|value| (key, value)))
+            .filter(|(_, value)| *value != Value::None)
+            .map(|(key, value)| from_surreal_json(value).map(|value| (key, value)))
             .collect::<Result<_, _>>()?;
         Ok(Self::new(fields))
     }
@@ -100,6 +91,31 @@ impl SurrealValue for crate::OpenObject {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn opaque_json_rejects_nested_native_values_and_preserves_absence() {
+        for native in [
+            Value::RecordId(surrealdb::types::RecordId::new("task", "foreign")),
+            chrono::Utc::now().into_value(),
+        ] {
+            let mut inner = Object::new();
+            inner.insert("value", native);
+            let mut outer = Object::new();
+            outer.insert("provider", Value::Array(vec![Value::Object(inner)].into()));
+            assert!(crate::OpenObject::from_value(Value::Object(outer)).is_err());
+        }
+        assert!(from_surreal_json(Value::Array(vec![Value::None].into())).is_err());
+        let mut opaque = Object::new();
+        opaque.insert("unknown", Value::None);
+        assert!(from_surreal_json_strict(Value::Object(opaque)).is_err());
+        let mut object = Object::new();
+        object.insert("absent", Value::None);
+        object.insert("null", Value::Null);
+        assert_eq!(
+            from_surreal_json(Value::Object(object)).unwrap(),
+            json!({"null":null})
+        );
+    }
 
     #[test]
     fn json_object_and_task_payload_keep_nested_unsigned_integers_exact() {

@@ -414,17 +414,23 @@ Intermediate Task status belongs to the Task runtime.
 checks owner, tenant, profile, clearance, operation and Work Context. Its return
 profile contains typed Task identity, operation, status and creation metadata plus
 opaque server-owned input and result payloads. A denied or absent Task returns
-`NONE`. Catalog SQL guards object-shaped payloads before inspecting domain fields;
-it requires agreement between retained request kind and Task operation. Solution
-queries also require a currently successful Task, a non-error result and a present
-solution address. These predicates precede page limits and completion grouping.
+`NONE`. Catalog SQL compares the declared catalog operation with the selected Task
+operation. Solution queries require a successful Task and an owner settlement with
+successful status and a present solution address. These predicates precede page
+limits and completion grouping. SQL treats the selected input and result as opaque
+owner payloads.
 
 Catalog lookup and completion use the catalog's identity fields. Selected rows
 then undergo batched, typed Task reads under the same policy and native database
 transaction. Existing solve decoding checks family and result parents; catalog
 checks additionally compare row identity, Task link, operation, creation time,
 immutable parents and terminal result. A malformed selected identity or mismatched
-Task/catalog pair fails the read. Duplicate exact identities fail after selecting
+Task/catalog pair fails the read. An authorized row with a malformed request,
+error-marked successful result, invalid result address or native record-shaped payload
+fails hydration. It cannot silently shorten a selected page or completion result.
+Denied rows never reach hydration. The catalog stores compact identity and settlement
+facts without duplicating capability secrets, models or complete MCP results.
+Duplicate exact identities fail after selecting
 at most two rows. Missing and denied identities both return no row.
 
 Each page, exact read and completion holds one snapshot across catalog selection

@@ -60,6 +60,7 @@ pub(super) struct Row {
     pub(super) text: String,
     pub(super) admission: Admission,
     pub(super) observation: Document<Observation>,
+    pub(super) registration: RegistrationRow,
 }
 impl Row {
     pub(super) fn checked(
@@ -68,6 +69,14 @@ impl Row {
         generation: GenerationId,
     ) -> Result<KnowledgeCandidate, StoreError> {
         let observation = self.observation.0;
+        let registration = self.registration.checked(&scope.tenant)?;
+        if registration.descriptor.collection() != observation.collection()
+            || observation
+                .validate_collection(&registration.descriptor)
+                .is_err()
+        {
+            return integrity();
+        }
         if self.tenant != scope.tenant.as_str()
             || self.collection_id != observation.collection().to_string()
             || self.admission != Admission::from(observation.access())

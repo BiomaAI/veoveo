@@ -63,18 +63,43 @@ impl PlatformStore {
             .bind(("prefix", prefix.to_owned()))
             .await?
             .knowledge_check()?;
-        let values: Vec<String> = response.take(0)?;
+        #[derive(SurrealValue)]
+        struct CompletionRow {
+            candidate: String,
+            registrations: Vec<RegistrationRow>,
+        }
+        let values: Vec<CompletionRow> = response.take(0)?;
         values
             .into_iter()
-            .map(|value| match domain {
-                CatalogCompletion::Source => value
-                    .parse()
-                    .map(CatalogCompletionValue::Source)
-                    .map_err(|_| StoreError::Knowledge("invalid stored source identity")),
-                CatalogCompletion::Collection => value
-                    .parse()
-                    .map(CatalogCompletionValue::Collection)
-                    .map_err(|_| StoreError::Knowledge("invalid stored collection identity")),
+            .map(|row| {
+                let value = row.candidate;
+                if row.registrations.is_empty() {
+                    return integrity();
+                }
+                for registration in row.registrations {
+                    let registration = registration.checked(tenant)?;
+                    let expected = match domain {
+                        CatalogCompletion::Source => {
+                            registration.descriptor.collection().server().to_string()
+                        }
+                        CatalogCompletion::Collection => {
+                            registration.descriptor.collection().to_string()
+                        }
+                    };
+                    if expected != value {
+                        return integrity();
+                    }
+                }
+                match domain {
+                    CatalogCompletion::Source => value
+                        .parse()
+                        .map(CatalogCompletionValue::Source)
+                        .map_err(|_| StoreError::Knowledge("invalid stored source identity")),
+                    CatalogCompletion::Collection => value
+                        .parse()
+                        .map(CatalogCompletionValue::Collection)
+                        .map_err(|_| StoreError::Knowledge("invalid stored collection identity")),
+                }
             })
             .collect()
     }

@@ -1,7 +1,7 @@
 //! Private driver records; Frames owns their domain admission.
+use super::storage_codec::WorldTree;
 use chrono::{DateTime, Utc};
 use surrealdb::types::{RecordId, SurrealValue};
-use veoveo_platform_store::OpenObject;
 
 #[derive(Clone, Debug, PartialEq, SurrealValue)]
 pub(super) struct FrameWorldRecord {
@@ -31,7 +31,7 @@ pub(super) struct FrameWorldRevisionRecord {
     pub(super) revision: i64,
     pub(super) spec_sha256: String,
     pub(super) root_frame_key: String,
-    pub(super) definition: OpenObject,
+    pub(super) definition: WorldTree,
     pub(super) frame_ids: Vec<String>,
     pub(super) created_at: DateTime<Utc>,
 }

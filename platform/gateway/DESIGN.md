@@ -404,10 +404,14 @@ profile capture, deferred optional factories, native MCP discovery and task-scop
 cleanup. Domain routers reside in their owner crates. The composition executable
 supplies their configurations and retains the cleanup supervisor until shutdown.
 
-The persisted refresh snapshot uses a closed Store adapter for normalized Principal
-and display name. IDs, issuer, subject, groups, roles, scopes and labels keep shared
-nominal types; assurance and group-role adapters declare their exact wire vocabularies.
-Native decoding accepts JSON representations and rejects unknown controlled fields.
-Authorization-code consumption updates its top-level consumed timestamp; its opaque
-payload supplies the original code data. Control object kinds use validated
-`ExtensionName` syntax and permit independently registered owner kinds.
+The Store adapter shares one checked Principal snapshot between authorization codes
+and refresh families. Principal IDs, issuer, subject, groups, roles, scopes and labels
+keep their nominal types; assurance and group-role adapters supply their wire vocabularies.
+Authorization requests and codes persist typed scope, PKCE, state and nonce fields.
+Revocations and resource subscriptions persist their declared fields once. Every read
+checks record identity against those fields. Code consumption updates the top-level
+consumed timestamp atomically, and request consumption deletes the unexpired request
+once. These records use the fresh coordinated installation schema; gateway replicas
+must drain together before replacing an older payload-based schema.
+Control object kinds use validated `ExtensionName` syntax and permit independently
+registered owner kinds.

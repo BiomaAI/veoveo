@@ -57,7 +57,7 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
         AND string::len($value) <= 32768;
     DEFINE FIELD title ON $chunk_table TYPE string;
     DEFINE FIELD embedding ON $chunk_table TYPE array<float, __DIMENSION__>;
-    DEFINE FIELD observation ON $chunk_table TYPE object FLEXIBLE;
+    DEFINE FIELD observation ON $chunk_table TYPE { collection: string, revision: string, contentSha256: string, observedAt: string, modifiedAt: option<string>, modifiedBy: option<{ kind: 'principal', id: string }>, access: option<{ tenant: string, workContext: string, readPolicy: { kind: 'tenant' | 'subjects' | 'work-context' | 'selected-work-context' | 'selected-work-context-members' } | { kind: 'subjects-in-context', profile: option<string> }, owner: { kind: 'principal' | 'group', id: string }, grants: option<array<{ subject: { kind: 'principal' | 'group', id: string }, expiresAt: option<string> }>>, dataLabels: array<string>, expiresAt: option<string> }>, external: option<{ system: string, nativeId: string, url: option<string>, mirroredAt: option<string> }>, notModified: option<bool> };
     DEFINE INDEX member_ordinal ON $chunk_table FIELDS member, ordinal UNIQUE;
     DEFINE INDEX content_search ON $chunk_table FIELDS text FULLTEXT ANALYZER knowledge_text BM25;
     DEFINE INDEX embedding_search ON $chunk_table FIELDS embedding

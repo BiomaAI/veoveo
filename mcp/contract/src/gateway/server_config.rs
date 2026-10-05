@@ -265,55 +265,7 @@ impl From<OAuthEndpointUrl> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
-#[serde(try_from = "String", into = "String")]
-pub struct OAuthRedirectUri(String);
-
-impl OAuthRedirectUri {
-    pub fn new(value: impl Into<String>) -> Result<Self, IdentifierError> {
-        let value = value.into();
-        validate_oauth_redirect_uri(&value)?;
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl AsRef<str> for OAuthRedirectUri {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for OAuthRedirectUri {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for OAuthRedirectUri {
-    type Error = IdentifierError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl FromStr for OAuthRedirectUri {
-    type Err = IdentifierError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Self::new(value.to_string())
-    }
-}
-
-impl From<OAuthRedirectUri> for String {
-    fn from(value: OAuthRedirectUri) -> Self {
-        value.0
-    }
-}
+pub use veoveo_gateway_contract::OAuthRedirectUri;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]

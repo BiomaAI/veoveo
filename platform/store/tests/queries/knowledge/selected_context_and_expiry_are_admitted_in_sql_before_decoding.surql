@@ -1,1 +1,1 @@
-UPDATE type::table($table) SET observation = {malformed: true} WHERE uri != 'fixture://records/zzz-visible';
+UPDATE type::table($table) SET observation.collection = 'fixture.foreign' WHERE uri != 'fixture://records/zzz-visible';

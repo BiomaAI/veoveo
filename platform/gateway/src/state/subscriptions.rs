@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use veoveo_mcp_contract::{GatewayProfileId, GatewayResourceSubscription, ServerSlug};
 use veoveo_platform_store::{
-    GatewayResourceSubscriptionRecord, OpenObject, gateway_resource_subscription_record_id,
+    GatewayResourceSubscriptionRecord, gateway_resource_subscription_record_id,
 };
 use veoveo_types::{PrincipalId, ResourceUri};
 
@@ -21,13 +21,12 @@ impl GatewayState {
         self.platform
             .upsert_gateway_resource_subscription(GatewayResourceSubscriptionRecord {
                 id,
-                profile: subscription.profile.to_string(),
-                owner: subscription.owner.to_string(),
-                upstream_server: subscription.upstream_server.to_string(),
-                resource_uri: subscription.resource_uri.to_string(),
+                profile: subscription.profile.clone(),
+                owner: subscription.owner.clone(),
+                upstream_server: subscription.upstream_server.clone(),
+                resource_uri: subscription.resource_uri.clone(),
                 created_at: subscription.created_at,
                 updated_at: subscription.updated_at,
-                payload: serialize_subscription(subscription)?,
             })
             .await
             .context("failed to persist gateway resource subscription")
@@ -50,7 +49,14 @@ impl GatewayState {
             .await
             .context("failed to read gateway resource subscription")?
             .map(|record| {
-                serde_json::from_value(serde_json::to_value(record.payload)?).map_err(Into::into)
+                Ok(GatewayResourceSubscription {
+                    profile: record.profile,
+                    owner: record.owner,
+                    upstream_server: record.upstream_server,
+                    resource_uri: record.resource_uri,
+                    created_at: record.created_at,
+                    updated_at: record.updated_at,
+                })
             })
             .transpose()
     }
@@ -86,12 +92,4 @@ fn subscription_record_id(
         upstream_server.as_str(),
         resource_uri.as_str(),
     )
-}
-
-fn serialize_subscription(subscription: &GatewayResourceSubscription) -> Result<OpenObject> {
-    let value = serde_json::to_value(subscription)?;
-    let serde_json::Value::Object(object) = value else {
-        anyhow::bail!("gateway resource subscription did not serialize as an object");
-    };
-    Ok(OpenObject::new(object.into_iter().collect()))
 }

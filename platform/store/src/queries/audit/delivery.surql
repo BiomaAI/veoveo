@@ -4,7 +4,7 @@ IF $lease = NONE OR $lease.owner != $owner OR $lease.generation != $generation O
     THROW 'audit_lease_lost';
 };
 LET $block = (SELECT * FROM ONLY $block_id FOR UPDATE);
-IF $block = NONE OR $block.block.head_hash != $block_hash { THROW 'audit_block_conflict'; };
+IF $block = NONE OR $block.head_hash != $block_hash OR $block.block != $expected_block { THROW 'audit_block_conflict'; };
 LET $intent = (SELECT * FROM ONLY $intent_id FOR UPDATE);
 IF $intent != NONE AND ($intent.block != $block_id OR $intent.destination != $destination OR $intent.payload != $payload) {
     THROW 'audit_block_conflict';

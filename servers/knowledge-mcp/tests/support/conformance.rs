@@ -6,7 +6,7 @@ use veoveo_mcp_conformance::*;
 #[tokio::test]
 async fn hosted_contract_and_immutable_knowledge_documents_conform() {
     tokio::time::timeout(Duration::from_secs(180), async {
-        let db = fixture::TestDb::new().await;
+        let db = native_database().await;
         let control = plane(&[]);
         install(&db.a, &control).await;
         let caller = identity(&control);

@@ -381,12 +381,7 @@ pub(crate) fn task_summary(
         created_at: task.created_at,
         updated_at: task.updated_at,
         result_artifact_id: task.result_artifact.as_ref().map(record_key).transpose()?,
-        message: task
-            .error
-            .as_ref()
-            .and_then(|error| error.as_map().get("message"))
-            .and_then(serde_json::Value::as_str)
-            .map(ToOwned::to_owned),
+        message: task.error.as_ref().map(|error| error.message.clone()),
     })
 }
 

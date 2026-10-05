@@ -4,22 +4,20 @@
 //! hint. The receiver always claims from the durable queue, so a full channel,
 //! restart, or disconnected LIVE stream cannot lose accepted work.
 
-use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use chrono::{TimeDelta, Utc};
 use futures::{StreamExt, stream::BoxStream};
 use tokio::sync::mpsc;
-use veoveo_agent_runtime::persistence::{WakeId, WakeKind};
+use veoveo_agent_runtime::persistence::{InputWakePhase, TimerKind, WakeId, WakeKind, WakePayload};
 use veoveo_agent_runtime::{AgentRuntime, ClaimedWake, NewWake};
-use veoveo_platform_store::OpenObject;
 
-pub fn resource_updated(uri: &str) -> NewWake {
+pub fn resource_updated(uri: &veoveo_types::ResourceUri) -> NewWake {
     NewWake::now(
         WakeKind::ResourceChanged,
         Some(format!("resource:{uri}")),
-        payload([("uri", serde_json::json!(uri))]),
+        WakePayload::ResourceChanged { uri: uri.clone() },
     )
 }
 
@@ -27,7 +25,7 @@ pub fn timer(name: &str) -> NewWake {
     NewWake::now(
         WakeKind::Timer,
         Some(format!("timer:{name}")),
-        payload([("name", serde_json::json!(name))]),
+        WakePayload::timer(name),
     )
 }
 
@@ -35,32 +33,19 @@ pub fn heartbeat() -> NewWake {
     NewWake::now(
         WakeKind::Timer,
         Some("heartbeat".to_owned()),
-        payload([
-            ("name", serde_json::json!("heartbeat")),
-            ("timer_kind", serde_json::json!("heartbeat")),
-        ]),
+        WakePayload::Timer {
+            name: "heartbeat".into(),
+            timer_kind: Some(TimerKind::Heartbeat),
+        },
     )
 }
 
 pub fn operator_message(text: &str) -> NewWake {
-    let wake = NewWake::now(
-        WakeKind::OperatorMessage,
-        None,
-        payload([("text", serde_json::json!(text))]),
-    );
+    let wake = NewWake::now(WakeKind::OperatorMessage, None, WakePayload::operator(text));
     NewWake {
         dedupe_key: Some(format!("operator:{}", wake.wake_id)),
         ..wake
     }
-}
-
-fn payload<const N: usize>(entries: [(&str, serde_json::Value); N]) -> OpenObject {
-    OpenObject::new(
-        entries
-            .into_iter()
-            .map(|(key, value)| (key.to_owned(), value))
-            .collect::<BTreeMap<_, _>>(),
-    )
 }
 
 pub trait WakeKindExt {
@@ -85,15 +70,15 @@ impl WakeKindExt for WakeKind {
 }
 
 pub fn is_priority(wake: &ClaimedWake) -> bool {
-    wake.kind == WakeKind::TaskResult
-        || wake.kind == WakeKind::OperatorMessage
-        || (wake.kind == WakeKind::InputRequest
-            && wake
-                .payload
-                .as_map()
-                .get("phase")
-                .and_then(serde_json::Value::as_str)
-                == Some("answered"))
+    matches!(
+        &wake.payload,
+        WakePayload::TaskResult { .. }
+            | WakePayload::OperatorMessage { .. }
+            | WakePayload::InputRequest {
+                phase: InputWakePhase::Answered,
+                ..
+            }
+    )
 }
 
 #[derive(Clone)]
@@ -139,13 +124,13 @@ impl WakeBatch {
 }
 
 fn is_heartbeat(wake: &ClaimedWake) -> bool {
-    wake.kind == WakeKind::Timer
-        && wake
-            .payload
-            .as_map()
-            .get("timer_kind")
-            .and_then(serde_json::Value::as_str)
-            == Some("heartbeat")
+    matches!(
+        &wake.payload,
+        WakePayload::Timer {
+            timer_kind: Some(TimerKind::Heartbeat),
+            ..
+        }
+    )
 }
 
 pub struct WakeReceiver {
@@ -318,7 +303,9 @@ mod tests {
             wake_id: WakeId::new(),
             kind: WakeKind::TaskResult,
             dedupe_key: None,
-            payload: OpenObject::default(),
+            payload: WakePayload::TaskResult {
+                task_id: veoveo_types::CanonicalTaskId::parse("gtr_test_task").unwrap(),
+            },
             attempts: 1,
         };
         assert!(is_priority(&wake));
@@ -330,17 +317,17 @@ mod tests {
             wake_id: WakeId::new(),
             kind: WakeKind::Timer,
             dedupe_key: Some("heartbeat".to_owned()),
-            payload: payload([
-                ("name", serde_json::json!("heartbeat")),
-                ("timer_kind", serde_json::json!("heartbeat")),
-            ]),
+            payload: WakePayload::Timer {
+                name: "heartbeat".into(),
+                timer_kind: Some(TimerKind::Heartbeat),
+            },
             attempts: 1,
         };
         let timer = ClaimedWake {
             wake_id: WakeId::new(),
             kind: WakeKind::Timer,
             dedupe_key: Some("timer:inspection".to_owned()),
-            payload: payload([("name", serde_json::json!("inspection"))]),
+            payload: WakePayload::timer("inspection"),
             attempts: 1,
         };
         assert!(

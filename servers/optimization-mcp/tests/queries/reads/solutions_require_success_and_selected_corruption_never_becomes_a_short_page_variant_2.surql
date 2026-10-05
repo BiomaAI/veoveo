@@ -1,1 +1,1 @@
-UPDATE ONLY $task SET status = 'failed' RETURN NONE;
+UPDATE ONLY $task SET status = 'failed', result_uri = NONE RETURN NONE;

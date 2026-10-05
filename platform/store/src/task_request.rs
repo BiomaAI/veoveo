@@ -109,7 +109,7 @@ impl SurrealValue for TaskRequestRecord {
             return Err(invalid());
         }
         Ok(Self {
-            input: crate::json_value::from_surreal_json(input)?,
+            input: crate::json_value::from_surreal_json_strict(input)?,
             status_message,
             ttl_ms,
             poll_interval_ms,

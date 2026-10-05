@@ -27,7 +27,6 @@ use validation::{
 };
 use wire::{
     validate_https_url, validate_local_file_path, validate_mount_path, validate_oauth_endpoint_url,
-    validate_oauth_redirect_uri,
 };
 
 pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =

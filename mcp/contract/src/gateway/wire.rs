@@ -1,5 +1,4 @@
 use url::{Host, Url};
-use veoveo_types::identifier_syntax::validate_token_text;
 
 use super::*;
 
@@ -34,56 +33,6 @@ pub(super) fn validate_compatibility_helper_id(value: &str) -> Result<(), Identi
     }
     validate_gateway_name(namespace)?;
     validate_gateway_name(helper)?;
-    Ok(())
-}
-
-pub(super) fn validate_oauth_state_value(value: &str) -> Result<(), IdentifierError> {
-    validate_token_text(value)?;
-    if value.len() > 512 {
-        return Err(IdentifierError::new(value, "must be at most 512 bytes"));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_oauth_authorization_code(value: &str) -> Result<(), IdentifierError> {
-    validate_pkce_code_token(value)
-}
-
-pub(super) fn validate_pkce_code_token(value: &str) -> Result<(), IdentifierError> {
-    if !(43..=128).contains(&value.len()) {
-        return Err(IdentifierError::new(value, "must be 43 to 128 bytes"));
-    }
-    if !value
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~'))
-    {
-        return Err(IdentifierError::new(
-            value,
-            "must contain only ASCII letters, digits, hyphen, period, underscore, or tilde",
-        ));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_principal_display_name(value: &str) -> Result<(), IdentifierError> {
-    if value.is_empty() || value.trim() != value {
-        return Err(IdentifierError::new(
-            value,
-            "must be non-empty without leading or trailing whitespace",
-        ));
-    }
-    if value.len() > 256 {
-        return Err(IdentifierError::new(
-            value,
-            "must be at most 256 UTF-8 bytes",
-        ));
-    }
-    if value.chars().any(char::is_control) {
-        return Err(IdentifierError::new(
-            value,
-            "must not contain control characters",
-        ));
-    }
     Ok(())
 }
 
@@ -164,52 +113,6 @@ pub(super) fn validate_oauth_endpoint_url(value: &str) -> Result<(), IdentifierE
             Err(IdentifierError::new(
                 value,
                 "http:// OAuth endpoints must use a loopback host and explicit non-zero port",
-            ))
-        }
-        _ => Err(IdentifierError::new(
-            value,
-            "must use https:// or local loopback http://",
-        )),
-    }
-}
-
-pub(super) fn validate_oauth_redirect_uri(value: &str) -> Result<(), IdentifierError> {
-    if value.is_empty() {
-        return Err(IdentifierError::new(value, "must not be empty"));
-    }
-    if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
-        return Err(IdentifierError::new(
-            value,
-            "must not contain whitespace or control characters",
-        ));
-    }
-    let url = Url::parse(value).map_err(|_| IdentifierError::new(value, "must be a valid URL"))?;
-    if !url.username().is_empty() || url.password().is_some() {
-        return Err(IdentifierError::new(value, "must not contain userinfo"));
-    }
-    if url.fragment().is_some() {
-        return Err(IdentifierError::new(value, "must not contain a fragment"));
-    }
-    match url.scheme() {
-        "https" => {
-            if url.host().is_none() {
-                return Err(IdentifierError::new(value, "must include a host"));
-            }
-            Ok(())
-        }
-        "http" => {
-            let is_loopback = match url.host() {
-                Some(Host::Domain(host)) => host == "localhost",
-                Some(Host::Ipv4(addr)) => addr.is_loopback(),
-                Some(Host::Ipv6(addr)) => addr.is_loopback(),
-                None => false,
-            };
-            if is_loopback && url.port().is_some_and(|port| port != 0) {
-                return Ok(());
-            }
-            Err(IdentifierError::new(
-                value,
-                "http:// redirect URIs must use loopback host and explicit non-zero port",
             ))
         }
         _ => Err(IdentifierError::new(

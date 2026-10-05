@@ -418,10 +418,8 @@ async fn native_frame_reads_select_membership_and_validate_the_revision() {
         let root = revision.frame(&revision.root_frame_uri()).unwrap();
         // Membership is selected in SQL. The admitted complete tree supplies the
         // typed node and must still satisfy its revision digest and relationships.
-        for unrelated in [
-            serde_json::json!({"frame_id": "bad", "basis": {"kind": "invalid"}}),
-            serde_json::to_value(root).unwrap(),
-        ] {
+        {
+            let unrelated = serde_json::to_value(root).unwrap();
             let definition =
                 object_from_value(serde_json::json!({"frames": [root, unrelated]})).unwrap();
             db.a.client()
@@ -609,7 +607,9 @@ async fn native_dynamic_references_round_trip_and_reject_malformed_retained_node
                     .await
                     .is_err()
             );
-            let retained: Vec<FrameWorldRevisionRecord> =
+            // Inspect deliberately malformed storage without admitting it as a
+            // usable revision; the owner driver must reject this same native row.
+            let retained: Vec<surrealdb::types::Value> =
                 db.b.client()
                     .query(include_str!(
                         "../../tests/queries/read_revision_record.surql"
@@ -622,8 +622,21 @@ async fn native_dynamic_references_round_trip_and_reject_malformed_retained_node
                     .unwrap()
                     .take(0)
                     .unwrap();
+            assert_eq!(retained.len(), 1);
+            assert!(
+                <FrameWorldRevisionRecord as surrealdb::types::SurrealValue>::from_value(
+                    retained[0].clone()
+                )
+                .is_err()
+            );
+            let surrealdb::types::Value::Object(row) = &retained[0] else {
+                panic!("retained revision must be a native object");
+            };
             assert_eq!(
-                serde_json::to_value(&retained[0].definition).unwrap(),
+                veoveo_platform_store::native_json_from_value_strict(
+                    row.get("definition").unwrap().clone()
+                )
+                .unwrap(),
                 definition
             );
         }

@@ -38,7 +38,8 @@ SELECT
   ordinal,
   text,
   admission,
-  observation
+  observation,
+  collection.* AS registration
 FROM type::table($chunk_table)
 WHERE
     tenant = $tenant
@@ -47,14 +48,14 @@ WHERE
   AND $active.generation = $generation
   AND $resource_selected(collection_id, uri, $resource_selections)
   AND collection.approved = true
-  AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
+  AND $scopes CONTAINSALL collection.required_scopes
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision
   AND member.sync.ready = true
   AND member.source_epoch = member.sync.epoch
   AND member.sync.owner_epoch = member.sync.coordinator.epoch
-  AND (collection.document.descriptor.changeSignal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
+  AND (collection.change_signal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
   AND (member.valid_until = NONE OR member.valid_until > time::now())
   AND member.stale = false
   AND member.deleted = false

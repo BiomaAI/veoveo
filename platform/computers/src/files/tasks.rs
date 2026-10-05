@@ -101,7 +101,7 @@ impl ComputersStore {
                 if expected_output.is_none() {
                     return Err(ComputerError::InvalidInput);
                 }
-                crate::session_grants::object(&result)?.into_value()
+                crate::storage_codec::file_result(&result)
             }
             _ => {
                 if expected_output.is_some() {

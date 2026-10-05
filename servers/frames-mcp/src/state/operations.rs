@@ -1,5 +1,5 @@
 //! Frames owns operation authority, immutable replay, and its Store adapter.
-use super::{FramesState, object_from_value, value_from_object};
+use super::{FramesState, storage_codec::Provenance};
 use crate::contract::{CoordinateOperationId, CoordinateOperationProvenance, FrameOperationUri};
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
@@ -7,8 +7,7 @@ use std::collections::BTreeSet;
 use surrealdb::{Connection, method::Query, types::SurrealValue};
 use veoveo_mcp_contract::GatewayProfileId;
 use veoveo_platform_store::{
-    OpenObject, PlatformTable, RecordId, deterministic_principal_id, deterministic_tenant_id,
-    task_record_id,
+    PlatformTable, RecordId, deterministic_principal_id, deterministic_tenant_id, task_record_id,
 };
 use veoveo_types::{DataLabelId, PrincipalId, TaskId, TenantId};
 
@@ -81,7 +80,7 @@ struct OperationContent {
     authority: OperationAuthority,
     operation_key: String,
     kind: String,
-    provenance: OpenObject,
+    provenance: Provenance,
     classification: String,
     labels: Vec<String>,
     created_at: DateTime<Utc>,
@@ -119,7 +118,7 @@ impl FramesState {
             },
             operation_key: id.to_string(),
             kind,
-            provenance: object_from_value(serde_json::to_value(provenance)?)?,
+            provenance: Provenance(provenance.clone()),
             classification: "gateway_labels".to_owned(),
             labels: scope.labels(),
             created_at: provenance.operation.created_at,
@@ -158,7 +157,7 @@ impl FramesState {
     ) -> Result<Option<CoordinateOperationProvenance>> {
         self.operation_content(scope, uri).await?
             .map(|record| {
-                let result: CoordinateOperationProvenance = serde_json::from_value(value_from_object(record.provenance))?;
+                let result: CoordinateOperationProvenance = record.provenance.0;
                 if result.operation.operation_uri() != uri || result.operation.created_at != record.created_at {
                     bail!("stored Frames provenance disagrees with its operation identity or timestamp");
                 }

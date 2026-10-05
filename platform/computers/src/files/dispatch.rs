@@ -154,9 +154,6 @@ impl ComputersStore {
         }
         let decision = permit.decision(operation.transfer_id())?;
         decision.validate(&operation)?;
-        let as_object = |value: serde_json::Value| -> Result<veoveo_platform_store::OpenObject> {
-            serde_json::from_value(value).map_err(|_| ComputerError::Unavailable)
-        };
         let evidence = decision.clone().into_value();
         operation.dispatch_authority = Some(decision);
         let id = Uuid::now_v7();
@@ -172,10 +169,7 @@ impl ComputersStore {
             ),
             (
                 "expected_access",
-                as_object(
-                    serde_json::to_value(sealed_access).map_err(|_| ComputerError::Unavailable)?,
-                )?
-                .into_value(),
+                crate::storage_codec::sealed_file_access(sealed_access),
             ),
             ("access_expires", access.expires_at().into_value()),
             (
@@ -187,10 +181,7 @@ impl ComputersStore {
             ("decision", evidence.into_value()),
             (
                 "effective_limits",
-                as_object(
-                    serde_json::to_value(effective).map_err(|_| ComputerError::Unavailable)?,
-                )?
-                .into_value(),
+                crate::storage_codec::file_limits(&effective),
             ),
             (
                 "duration",

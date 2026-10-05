@@ -4,7 +4,7 @@ use crate::{
     runtime::recovery_result,
     types::{
         RecoveryClass, RecoveryReport, TaskError, TaskFailure, TaskSnapshot, TaskTransition,
-        failure_to_open_object, record_to_snapshot,
+        failure_to_record, record_to_snapshot,
     },
 };
 use chrono::Utc;
@@ -146,7 +146,7 @@ impl TaskRuntime {
             .bind(("task", task_record_id(task.task_id)))
             .bind(("status", status))
             .bind(("request", envelope.into_value()))
-            .bind(("error", failure.as_ref().map(failure_to_open_object)))
+            .bind(("error", failure.as_ref().map(failure_to_record)))
             .bind(("completed_at", terminal.then_some(now)))
             .bind(("now", now))
             .bind(("expected", task.status))

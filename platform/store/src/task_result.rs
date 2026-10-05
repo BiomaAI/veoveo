@@ -46,9 +46,9 @@ impl SurrealValue for TaskResultRecord {
             return Err(invalid());
         }
         match object.remove("payload") {
-            Some(payload) if payload != Value::None => {
-                Ok(Self::new(crate::json_value::from_surreal(payload)?))
-            }
+            Some(payload) if payload != Value::None => Ok(Self::new(
+                crate::json_value::from_surreal_json_strict(payload)?,
+            )),
             _ => Err(invalid()),
         }
     }

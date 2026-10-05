@@ -1,8 +1,8 @@
-SELECT VALUE document FROM knowledge_collection
+SELECT * FROM knowledge_collection
 WHERE tenant = $tenant
     AND enumeration_root = $root
     AND approved = true
-    AND $approvals CONTAINS [collection, document.approval]
-    AND $scopes CONTAINSALL document.descriptor.requiredScopes
+    AND $approvals CONTAINS [collection, approval]
+    AND $scopes CONTAINSALL required_scopes
 LIMIT 2
 TIMEOUT 10s;

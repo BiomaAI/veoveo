@@ -6,17 +6,11 @@ use crate::{
 use chrono::{TimeDelta, Utc};
 use surrealdb::types::SurrealValue;
 use veoveo_mcp_contract::{IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability};
-use veoveo_platform_store::OpenObject;
 
 /// Publication has a separate finite allowance after foreground execution. This
 /// is a capability lifetime bound, not permission to continue after revocation.
 pub(super) const OUTPUT_PUBLICATION_SECONDS: u32 = 120;
 pub(super) const PREPARATION_ALLOWANCE_SECONDS: u32 = 300;
-
-fn object(value: &impl serde::Serialize) -> Result<OpenObject> {
-    serde_json::from_value(serde_json::to_value(value).map_err(|_| ComputerError::Unavailable)?)
-        .map_err(|_| ComputerError::Unavailable)
-}
 
 impl CommandOperation {
     /// Trusted service preparation. The service forwards the real caller identity
@@ -125,8 +119,7 @@ impl ComputersStore {
                     saved
                         .output_access
                         .as_ref()
-                        .map(object)
-                        .transpose()?
+                        .map(crate::storage_codec::sealed_output_access)
                         .into_value(),
                 ),
                 (
@@ -141,7 +134,10 @@ impl ComputersStore {
                     "required_budget",
                     surrealdb::types::Duration::from_secs(u64::from(required_seconds)).into_value(),
                 ),
-                ("sealed", object(&sealed)?.into_value()),
+                (
+                    "sealed",
+                    crate::storage_codec::sealed_output_access(&sealed),
+                ),
             ],
         )
         .await?;

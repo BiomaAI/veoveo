@@ -238,7 +238,7 @@ designs above.
 | `platform/computers/tests/journal_cost.rs` | encrypted command admission, metadata-update feed volume and container-attributed writes; [separated-payload measurement](../platform/store/measurements/journal-separated-2026-10-01.md) |
 | `platform/computers/tests/journal_payloads.rs` | private command/file payload lifetime, atomic admission failure, read-only enforcement, metadata-only feeds and missing-input fencing |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |
-| `platform/computers/src/storage_codec.rs` | controlled JSON storage adapters for accepted authority, dispatch decisions, command/file bindings and maintenance receipts; shared encoding for writes and whole-value comparisons |
+| `platform/computers/src/storage_codec.rs` | controlled JSON storage adapters for accepted authority, dispatch decisions, command/file bindings, sealed access, effective limits, results and maintenance receipts; shared encoding for writes and whole-value comparisons |
 | `platform/computers/src/schema/migrations/0000_maintenance_fields.surql` | declared maintenance source, progress and resume fields, including nested step authority and immutable source identity lookups |
 | `platform/computers/src/control_session.rs` | signed browser session-family read and shared binding decision; logout and family expiry stop new control without cancelling accepted work |
 | `platform/computers/` | Computer records, tenant/principal/Work Context ownership across clients, immutable creation and encryption bindings, capacity and fence admission, Task linking, dispatch receipts, observation budgets and settlement; `tests/{resource_ownership,cross_client_effects}.rs` cover client isolation; worker integration lives in `servers/computers-mcp` |
@@ -258,6 +258,7 @@ designs above.
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
 | `platform/gateway/contract/` | lightweight App declarations, discovery failures, kernel action vocabulary, catalog action/target/section registration, projected tool names, authorization-resource identities and HTTP/TLS configuration; owner contracts, browser contracts and MCP adapters import this owner directly |
+| `platform/gateway/contract/src/oauth.rs` | admitted OAuth request/code identities, PKCE values and client display names shared by Gateway, MCP adapters and native Store records |
 | `platform/gateway/catalog/` | installation catalog registration recipe using owner contract features; runtime libraries receive the resulting registry explicitly |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | owner-schema export and pinned TypeScript conversion, including agent control, Artifact transfer, Recording playback, App catalog and cluster inventory; `release client-types --check` detects generated-model drift |
 | `apps/console/web/tools/client-types.mjs`, `client-types.test.mjs` | TypeScript rendering of closed and boolean schemas with a generated-code compiler regression |
@@ -575,7 +576,7 @@ even when that server is first-party.
 | `server_contract.rs` | open MCP associations for server-owned scopes and resources; typed concrete and RFC 6570 template descriptors, document checks and discovery setup consumed by hosted handlers |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
-| `gateway/ids.rs` | gateway, OAuth, and configuration newtypes, including principal display metadata, which authorization never reads; platform identity comes from `platform/types` |
+| `gateway/ids.rs` | MCP gateway configuration newtypes and re-exports of OAuth and display-name scalars from `platform/gateway/contract`; platform identity comes from `platform/types` |
 | `gateway/auth_config.rs` | IdP, authorization server, OAuth client surfaces |
 | `gateway/server_config.rs` | hosted server and profile exposure contracts, including cross-server App resource dependencies |
 | `gateway/policy.rs` | actions, targets, rules, effects, audit reason model |
@@ -647,8 +648,9 @@ Domain runtimes can own private queries and driver records over these connection
 | `models.rs` | persisted Rust record and enum definitions |
 | `kernel_facts.rs` | typed tenant and principal results from Identity's current-directory SQL exports |
 | `task_request.rs` | closed Task owner snapshot and request control driver records, with opaque JSON input and unsigned metadata |
+| `task_control.rs` | closed failure and input-request driver envelopes; failure details preserve absence versus null, while request methods are admitted on construction and retained reads |
 | `task_timestamp.rs` | checked lossless creation and update timestamp tokens for Task driver clients |
-| `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested native replay payloads |
+| `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion preserving unsigned precision; explicit optional-field and opaque-body profiles reject native identities and timestamps |
 | `ids.rs` | re-exports Store-owned ID families through `ids::*` |
 | `ids/access.rs` | enterprise, principal, tenant, gateway, Work Context and provider record IDs |
 | `ids/content.rs` | Store-owned Artifact and usage record IDs; Recording IDs live in `platform/recordings/store/src/ids.rs` |
@@ -665,6 +667,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `schema/gateway/migrations/` | Gateway-owned SQL exports for active control-revision agreement, unrevoked refresh-family expiry and Task retention routes |
 | `schema/tasks/migrations/` | Tasks-owned SQL exports for caller selection, trusted lifecycle selection, whole-input agreement, existence and retention release |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |
+| `gateway_record_identity.rs` | retained authorization request/code, revocation and resource-subscription identity agreement before writes and after native reads |
 | `artifacts.rs` | blob, occurrence, grant, share, capability transactions |
 | `artifacts/reads.rs`, `queries/artifacts/read_page.surql` and `schema/artifacts/migrations/read_v1.surql` | typed Artifact scope bindings, exact and paged reads, and the kernel export for current read admission, observation facts and expiry deadlines |
 | `queries/artifacts/read_deadline.surql` | earliest caller-visible expiry across all selected members, using the Artifact read policy and one database timestamp; an empty member selection differs from the whole collection |
@@ -684,6 +687,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, UAV and Knowledge resource observation |
 | `identity.rs`, `queries/identity_enabled.surql` | current principal, tenant and enterprise admission with typed issuer/subject bindings |
 | `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, atomic catalog replacement against current control authority, coordinator leases and collection/member epochs, conditional chunk reuse, SQL catalog completion and caller-visible statistics, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
+| `knowledge/registration.rs` | checked collection registration records and same-write approval, scope, change-signal and entity-kind lookup fields shared by both catalog writers |
 | `tests/knowledge/bulk.rs` | maximum-size member vectors over the default Store connection and rollback after a rejected bulk replacement |
 | `agents/runtime/src/persistence/revision.rs` and `queries/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `changefeed.rs`, `changefeed/`, `queries/changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery over checked owner declarations; shared Task and Artifact decoding, with Computers decoding in its owner |
@@ -919,6 +923,7 @@ Current MCP crates under `servers/` are indexed here:
 | `platform/frames/contract/src/streams.rs` | typed concrete producer references and bounded entity selectors for dynamic frame transforms; producer route ownership stays outside Frames |
 | `servers/frames-mcp/src/contract/resources.rs`, `scopes.rs`, `src/uris.rs` | server-owned resource vocabulary, empty domain scope declaration and fixed templates available without hosted features |
 | `servers/frames-mcp/src/state/worlds.rs`, `state/worlds/`, and `state/records.rs` | typed world mutations, private driver records, transactional owner/label/head checks, immutable publication and replay; Store owns connections and schemas |
+| `servers/frames-mcp/src/state/storage_codec.rs` | world-tree and operation-provenance driver adapters, strict native JSON admission and retained identity/address agreement |
 | `platform/frames/contract/src/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `platform/frames/contract/src/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
@@ -1242,6 +1247,7 @@ Media-specific ownership:
 |---|---|
 | `servers/media-mcp/src/contract/` | isolated contract feature: typed model/prediction identities, public requests and responses, complete resource vocabulary, empty scopes, checked generation results, output attribution, collection cursors and pages |
 | `servers/media-mcp/src/storage.rs` | Media-owned driver records, record IDs and usage vocabulary for private Task context and the usage ledger |
+| `servers/media-mcp/src/storage/prediction.rs` | typed prediction envelope inside the provider journal; strict stored fields with open provider input and timing data |
 | `servers/media-mcp/src/task_lookup.rs` | Media-owned Task identity, dispatch, provider association and settlement contributions; the shared runtime executes their transactions |
 | `servers/media-mcp/src/webhook/binding.rs` | private per-dispatch callback credential derivation and verification against the retained digest |
 | `servers/media-mcp/src/reads/` | SQL selection of usage, prediction and retained generation result resources under current Task owner and parent-record checks |
@@ -1571,6 +1577,8 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `src/contract/authoring/` | definition and instance DTOs, model connections, templates, typed installation/caller facts and configuration digests; generates the browser authoring schema |
 | `src/contract/control.rs` | operator-message, input-request decision, wake-receipt and conversation DTOs; generates the browser agent-control schema |
 | `src/catalog.rs` | separately gated adapter that validates a control-plane revision against its supplied registry and projects installation and caller facts; Manager consumes it without the gateway runtime |
+| `src/persistence/envelopes.rs` | owner wake variants, retained deferred-tool descriptors and task-delivery outcomes; tool outputs and backend reconstruction data keep their open JSON shape |
+| `src/persistence/instances/runtime_bindings.rs` | strict native decoding of managed readiness and episode generation bindings, including parent record kinds |
 | `control.rs` | database-authenticated operator messages and input-request decisions scoped to their tenant and Work Context, with UUIDv7 idempotency, wakes, actor attribution, and a domain-neutral conversation view over wakes and episodes |
 | `runtime.rs` | lease-fenced agent mutations, inactive-manifest reconciliation, race-safe input-request terminal waits, and atomic terminal-delivery consumption with first-party Task retention release |
 

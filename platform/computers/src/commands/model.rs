@@ -119,7 +119,6 @@ pub(super) struct Record {
     authority: crate::AcceptedAuthority,
     #[surreal(wrap)]
     sealed: SealedCommand,
-    #[surreal(wrap)]
     output_access: Option<crate::secrets::SealedOutputAccess>,
     task: RecordId,
     task_tenant: RecordId,
@@ -144,7 +143,7 @@ pub(super) struct Record {
     terminated_at: Option<DateTime<Utc>>,
     termination_evidence: Option<OpenObject>,
     task_projected_at: Option<DateTime<Utc>>,
-    result: Option<OpenObject>,
+    result: Option<crate::storage_codec::CommandResultRecord>,
 }
 impl TryFrom<Record> for CommandOperation {
     type Error = ComputerError;
@@ -184,10 +183,7 @@ impl TryFrom<Record> for CommandOperation {
                     .map(|v| serde_json::from_value(serde_json::to_value(v)?))
                     .transpose()?,
                 task_projected_at: row.task_projected_at,
-                result: row
-                    .result
-                    .map(|v| serde_json::from_value(serde_json::to_value(v)?))
-                    .transpose()?,
+                result: row.result.map(|value| value.0),
             })
         };
         let command = decode().map_err(|_| ComputerError::Unavailable)?;

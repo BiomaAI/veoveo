@@ -152,6 +152,29 @@ The four composed schema plans come from the current Gateway binary. Independent
 contract builds exclude runtime dependencies, and the ordinary Store runtime builds
 in isolation. Independent review found no unresolved defect in this batch.
 
+The current source batch implements controlled storage envelopes across
+Gateway, Tasks, Agents, Workspace, Frames, Computers and Media, and replaces
+Knowledge's nested document queries with declared lookups. The query audit also
+covers Optimization's opaque Task reads and Audit block delivery. The combined
+seventeen-package all-target compile and strict lint checks pass. Fresh composition
+of all nineteen owner lanes, disabled-owner absence, replay and the installation
+command lifecycle pass. The runner admits closed object assertions and the pure
+functions needed for byte and control-character validation; commit `d05d54fc9`
+contains that qualified admission change. Independent source review has no
+unresolved finding in these adapters. Owning native suites pass for Gateway, Store,
+Knowledge, Task Runtime, Audit, Agents, Workspace, Frames, Computers, Media,
+Optimization and Artifact's service. The Rust/Python storage exchange runs within
+the passing SDK, template and independent-consumer checks. The final schema consumer
+passes against the regenerated nineteen-owner plans. Corrected diagnostic fixtures
+retain their corruption, SQL admission and plaintext-absence assertions; production
+decoders continue to reject native database values inside JSON payloads.
+
+Commit `faf8b9cee` retires the completed pilot migration helpers and their private
+installation fixtures. The generic record-restoration check keeps bound native
+values and transactional rollback coverage; it and the six Bioma composition tests
+pass. Current pilot provisioning and retained-instance lifecycle stay with the
+managed runtime.
+
 Media deployment still requires the host tracing correction described in Phase 3;
 real provider generation is not part of local acceptance. Computers' real provider
 process suites require a configured, qualified native execution profile before
@@ -363,27 +386,32 @@ CE register or owning designs by appearing in this plan.
 
 ### Classification
 
-The database holds 166 tables. Sixty-seven belong to seven kernel modules and 99 to
-nine optional modules.
+The composed owner declarations contain 166 static tables: 63 in seven kernel
+modules and 103 in twelve optional modules. The runner adds three bookkeeping
+tables. Generation-specific Knowledge chunk tables are created at runtime and are
+outside these static counts.
 
 | Layer | Module | Tables |
 |---|---|---|
-| Kernel | Store base | `changefeed_checkpoint`, `platform_schema_migration`, `platform_downstream_migration` |
+| Kernel | Store base | `changefeed_checkpoint` |
 | Kernel | Identity | `tenant`, `enterprise`, `principal`, `principal_group`, `work_context`, `oauth_client` |
-| Kernel | Policy and gateway | `policy_revision`, `profile`, `profile_server`, `gateway_*` (11), `mcp_server`, `mcp_interaction` |
+| Kernel | Policy and gateway | `policy_revision`, `profile`, `profile_server`, `gateway_*` (11), `mcp_server` |
 | Kernel | Artifacts | `artifact_*` (12), `share_link` |
 | Kernel | Tasks | `task`, `task_input`, `task_idempotency`, `task_produced_artifact`, `task_used_artifact`, `provider_job`, `provider_event`, `domain_usage` |
 | Kernel | Audit | `audit_*` (12) |
 | Kernel | Knowledge | `knowledge_*` (8) |
-| Platform module | Computers | `computer_*` (28) |
-| Platform module | Agents | `agent_*` (9), `managed_agent*` (3), `wake` |
+| Platform module | Computers | `computer` and `computer_*` (28) |
+| Platform module | Agents | `agent` and `agent_*` (8), `managed_agent*` (3), `wake` |
 | Platform module | Workspace | `workspace_*` (9) |
 | Platform module | Recordings | `recording_*` (9) |
-| Server module | Map | `map_*` (22) |
+| Server module | Map | `map_*` (23) |
 | Server module | Time | `time_*` (8) |
-| Server module | UAV | `uav_*` (4) |
+| Server module | UAV | `uav_*` (5) |
 | Server module | Frames | `frame_world`, `frame_world_revision`, and `coordinate_operation` |
-| Server module | Media | `media_task_context`, `media_usage` |
+| Server module | Media | `media_task`, `media_task_context`, `media_usage` |
+| Server module | Optimization | `optimization_task` |
+| Server module | Reason | `reason_analysis` |
+| Server module | Stream | `stream_run` |
 
 Phase 1 qualifies execution dependencies. Tasks and Artifacts refer to each other
 through `task.result_artifact` and `artifact_occurrence.task`; Tasks and Gateway have
@@ -412,12 +440,15 @@ qualified profile; D12 records the separate Apple proposal.
 | Concern | Current state |
 |---|---|
 | Persistence ownership | Workspace, Agents, Map and Recording repositories and queries live in their owning modules. Their native suites and fresh owner-lane composition have qualified source checkpoints. Store supplies shared connections and kernel services |
-| Optional-module dependencies | The reusable gateway excludes optional owner runtimes from its normal/build graph. Store and Audit use the registered Audit target codec; Computers supplies its implementation. Audit's Computers dependency is test-only. Native checks, isolated builds and generated reader checks pass |
+| Optional-module dependencies | The reusable gateway excludes optional owner runtimes from its normal/build graph. Store and Audit use the registered Audit target codec; Computers supplies its implementation. Audit's Computers dependency is test-only. Those native checks, isolated builds and generated reader checks pass. Knowledge still directly depends on Agent persistence for live client validation; its resolver cut remains required |
 | Schema ownership | Owners declare separate current-schema lanes through `ModuleSetup`; Store owns kernel lanes. Optimization and UAV use owned lookup tables. The installation must activate the composed lanes in phase 8 |
-| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents and Artifact. The Task/Media batch is undergoing final qualification. Map's projection recovery query still dereferences `tenant.slug`; replace that read through Identity while preserving retained metadata and indexed commit paging. Complete the variable-record and foreign-dereference audit before closing phase 3 |
+| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents, Artifact and Map projection recovery. Task and Media adapters also pass native qualification. The variable-record and foreign-dereference audit and Media's protected host tracing correction still govern phase 3 completion |
 
 Knowledge's dependencies on the gateway, store and `mcp/contract` are kernel-to-kernel
 under D11.
+Its runtime dependency on Agent persistence violates that separation. The HTTP
+fixtures which exercise managed clients must install the Agents lane, but that
+prerequisite does not qualify static clients on a kernel-only installation.
 
 ### Module Contract
 
@@ -1124,15 +1155,15 @@ checks pass, as do the Frames, Workspace and direct Identity export native suite
 The affected consumer compile and strict lint checks pass. These owner APIs and the
 composed Task storage cut qualify together as a source checkpoint.
 
-Computers also reads Gateway control revisions and refresh families, and Identity
-tenant and principal records, inside admission and dispatch transactions. Replace
-those reads with owner exports that preserve revision/digest agreement, family
+Computers reads Gateway control revisions and refresh families, and Identity
+tenant and principal records, through owner exports inside admission and dispatch
+transactions. The implemented exports preserve revision/digest agreement, family
 revocation and expiry, enabled state, and identity relationships. Grant creation
 needs the admitted family's expiry to cap its own lifetime. Identity reads need
 the tenant slug and principal kind, issuer and subject for exact comparisons.
 Keep these comparisons in the existing transaction and before collection limits.
 The export calls do not replace Computers' policy decisions or provider fences.
-Its operation, execution, transfer and maintenance journals also need a declared
+Its operation, execution, transfer and maintenance journals carry a declared
 Task tenant record derived from the same owner used for Task admission. This lets
 cross-tenant worker queues use Task lifecycle selection without copying Identity's
 record-ID construction into SQL. Worker recovery checks retained tenant identity
@@ -1142,9 +1173,9 @@ acknowledged retention pins. New admission requires enabled authority. Qualify
 missing, disabled, foreign and changed records along with grant expiry and
 current-result acknowledgment.
 
-Media's remaining kernel access includes provider-job and event writes, Task
+Media's kernel access includes provider-job and event writes, Task
 waiting and settlement, prediction and generation reads, and billing selection.
-Move the shared journal transactions into typed Tasks-owned APIs. Media owns the
+Typed Tasks-owned APIs implement the shared journal transactions. Media owns the
 provider payload interpretation and the declared prediction/result lookup fields;
 its SQL must not inspect `provider_payload` or the Task result envelope. Preserve
 webhook deduplication, event/job/Task correlation, cancellation semantics and atomic
@@ -1182,18 +1213,41 @@ the user's approval under the installed-acceptance handover.
 The installation cut must drain the previous callback profile; missing binding
 credentials fail rather than selecting an older handler.
 
-Artifact's subscription deadline
-query also belongs behind its owning Store API. Reuse current Artifact admission
-for retention and grant-expiry selection before returning the next deadline.
+Knowledge's reusable runtime must validate current client authority through a typed
+resolver port. Its current unconditional `AgentRepository` lookup fails even for
+static clients when the Agents lane is absent. Follow Gateway's resolver pattern,
+with an input contract for authenticated internal assertions. Agents owns the
+managed-registration adapter; a composition boundary binds it when selected.
+Place the resolver interface and typed authority result in a new `internal_clients`
+module in the existing Policy crate. Its interface declares delegated freshness
+checks; the adapter owns database access. Policy may use the dependency-free Modules
+observation declarations and must not depend on Store or Agents. Gate the Agents
+implementation separately from its full Gateway and runtime features. Knowledge's
+runtime accepts an explicit resolver; its server composition binds the managed
+adapter through a separately qualified feature or package. No Agent-to-Knowledge
+dependency is required.
+The static-only implementation must reject managed attribution and work with kernel
+lanes alone. A bound adapter must still check static/managed client collisions,
+instance generation, dispatch epoch, enabled state, tenant, Work Context, scopes,
+roles and allowed tools. Repeat current-authority validation before delivery.
+The adapter also contributes its owner observation tables: Knowledge currently
+subscribes directly to `ManagedAgent` and `AgentDefinition`, which makes its listener
+depend on Agents even when requests use static clients. Kernel-only listeners must
+start without those tables. Managed listeners must wake and revalidate when a
+registration or definition changes, preserving revocation and reconnect behavior.
+Qualify both HTTP and subscription profiles and the isolated Knowledge runtime
+dependency graph; installing Agents in every fixture does not satisfy these gates.
 
-Agents' managed-instance provisioning still creates an Identity principal and checks
-the OAuth client table directly. Definition publication compares Work Context policy
-snapshots, ownership transfer admits a principal, and executable reads resolve the
-publisher's name. Registration and reconciliation also read Identity metadata
-through record links. Move these operations behind Identity APIs while preserving
-each enclosing transaction, identity collisions, capacity rollback and current
-dispatch checks. Moving the Agent tables into their own lane did not finish this
-runtime access cut.
+Artifact's subscription deadline query runs through its owning Store API, which
+applies Artifact admission to retention and grant-expiry selection before returning
+the next deadline.
+
+Agents' managed-instance provisioning creates its service principal through the
+Identity export. Definition publication, ownership transfer, executable reads,
+registration and reconciliation also use Identity APIs. These calls preserve each
+enclosing transaction, identity collisions, capacity rollback and current dispatch
+checks. The remaining ownership audit must inspect variable-record dereferences as
+well as named table access.
 
 UAV and Reason need distinct caller and maintenance profiles. UAV preserves its
 indexed mission-plan and execution lookup, while Tasks owns terminal settlement
@@ -1472,11 +1526,28 @@ execution-kind constraint as well.
 The Agent instance HTTP projection hydrates the full retained revision through the
 repository's checked decoder and reads its declared `execution.template`. Native
 checks cover definition and tenant agreement, corrupt revisions and private reads.
+The owner function `fn::agent_chat_revision` still aliases `revision.content` and
+reads its execution kind. Select the declared revision execution fields instead;
+preserve the function's tenant, audience, publication, revision digest and chat-kind
+checks.
 
 Audit view admission and list filtering use declared profile, whole-target and
 whole-detail lookup fields derived from the admitted draft in the same write.
 Native checks cover lookup agreement, filtered paging, view admission and rollback.
 Registered target admission and frozen draft bytes and hashes are preserved.
+Audit export delivery also compares the retained block head hash. Give that value
+a declared same-write lookup and check its agreement with the admitted block;
+the delivery transaction must not inspect `audit_block.block.head_hash` inside
+the FLEXIBLE block.
+
+Optimization's catalog queries still inspect the selected Task input kind and
+nested MCP result fields. Use the existing declared catalog operation, terminal
+status and product address for eligibility after kernel caller admission and before
+limits. Hydrate selected Tasks in the same read transaction and reject inconsistent
+requests, results or product addresses. An authorized corrupt row must produce an
+integrity error instead of a silently shortened page. Denied rows stay excluded in
+SQL. Do not duplicate complete requests, solver models or capability secrets into
+the catalog to compare them.
 
 Knowledge queries read `knowledge_collection.document.approval` and descriptor
 fields `requiredScopes`, `changeSignal` and `entityKind`. Both catalog writers must
@@ -1485,6 +1556,14 @@ write. Update catalog, completion, observation, statistics and every search-dept
 query together. Preserve whole approval equality, current source leases and scope
 selection before ranking and limits. Search result hydration must use checked
 registration data without selecting nested fields from the FLEXIBLE document.
+The controlled `Observation` envelope belongs in the declared schema of both
+`knowledge_member` and the generation-specific chunk tables. Statistics reads its
+declared observation and modification timestamps and returns scalar aggregates;
+it must not transfer every observed member to Rust for validation. Preserve the
+existing observation wire shape, source-policy admission and revalidation semantics.
+Knowledge activation also reads `record` and `revision` from persisted generation
+collection requirements. Declare that element shape with the typed requirement
+driver record; the current FLEXIBLE array does not establish these queried fields.
 
 Gateway writes the profile's policy version as declared metadata alongside the
 admitted profile. Artifact's SQL guard selects the policy through that field and
@@ -1532,9 +1611,10 @@ owners' driver records. Computers maintenance binds typed source, progress and
 resume values through its strict storage codec, preserving whole-value comparisons
 and native encoding. These qualified cuts do not close the complete bind audit.
 
-The following controlled adapters also remain in the production paths. They belong
-to the bind audit even where SQL compares only a whole object. Reuse owner codecs
-and declared fields; a generic JSON wrapper does not establish the known shape.
+The following controlled adapters are implemented and pass their owning native
+checks. They belong to the bind audit even where SQL compares only a whole object.
+They use owner codecs and declared fields; a generic JSON wrapper does not establish
+the known shape. The table records each cut's required behavior.
 
 | Adapter | Required cut and qualification |
 |---|---|
@@ -1548,6 +1628,29 @@ and declared fields; a generic JSON wrapper does not establish the known shape.
 | Agent readiness, episode bindings and definition receipts | Declare the controlled `agent.managed_ready` and `agent_episode.managed` fields. The instance mutation query reads `managed.instance`; preserve that stop predicate through declared fields. Close the known definition receipt envelope while retaining its checked replay decoder and template-owned parameters. |
 | Workspace Agent revision receipts | Close the retained `WorkspaceAgent` result envelope and check its identity and relationships on add/adopt replay. Reuse the owning record rather than introducing another result model. |
 | Media `state.rs::prediction_payload` | Preserve the known prediction envelope through a typed owner driver adapter. Provider input and timing payloads remain open, and unrecognized provider statuses must remain nonterminal. Qualify stored prediction round trips without inventing a schema for model-specific data. |
+
+The Task contribution adapters still need five private driver envelopes: Map's
+retained travel-model input and successful result, Media's retained request and
+successful result, and Reason's retained successful result. Preserve whole-value
+comparisons, including absent/null distinctions. Map keeps the original admitted
+request; Media keeps its existing normalized `RunArgs` representation across
+creation, dispatch, provider association and reads. Successful-result snapshots
+preserve the complete admitted MCP envelope. The shared Task contribution remains
+an extension boundary; core must not enumerate these owner types.
+Use owner-local nominal records for these snapshots. Map's input and each retained
+result keep an immutable original JSON value alongside the typed interpretation;
+a fallible constructor admits both together, and accessors expose the typed value.
+Strict native decoding uses that same admission. Encoding preserves the original
+value, including admitted omission and null differences; reserializing a parsed
+request can insert defaults and change equality. Media's request adapter instead
+preserves its existing normalization. Share native JSON conversion mechanics and
+keep contextual Task, product and provenance checks in their current owners.
+
+The bind audit also includes known native rows assembled field by field: Knowledge
+generation requirements and chunk rows, and Audit append/indexing rows. These paths
+preserve native record links, but their controlled shapes still need owner driver
+records. Preserve the existing bindings and transactional checks. Canonical JSON
+text and explicitly open metadata keep their declared storage profiles.
 
 Gateway's storage cut moves the required OAuth and PKCE scalar declarations and
 their admission rules into `platform/gateway/contract`. Store imports those types

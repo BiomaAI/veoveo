@@ -85,7 +85,6 @@ pub fn module_setup(execution: LaneExecution) -> Result<ModuleSetup, Declaration
             OwnershipClaim::Table(TableName::new("profile")?),
             OwnershipClaim::Table(TableName::new("profile_server")?),
             OwnershipClaim::Table(TableName::new("mcp_server")?),
-            OwnershipClaim::Table(TableName::new("mcp_interaction")?),
         ])
         .lane(MigrationLane::new(vec![veoveo_modules::Migration::new(
             veoveo_modules::MigrationVersion::new(0),

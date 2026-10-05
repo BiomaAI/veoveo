@@ -100,3 +100,14 @@ export and apply/restore checks fence concurrent edits and active model runs. Th
 Agent repository supplies admitted catalog definitions; its authority input is
 trusted server state. HTTP authors cannot invoke the conversion boundary, and normal
 startup does not import or reconcile definitions.
+
+## Mutation Receipt Snapshots
+
+`agent_definition_receipt.result` declares the fields of the private
+`AgentDefinition` snapshot, including the draft content, copied execution and
+model fields, audience and publication identity. Receipt decoding uses the same
+checked definition projection as a fresh mutation result. Draft and copied
+managed template parameter maps admit installation-defined keys. All surrounding
+content and receipt members have declared shapes. Replay validates content and
+its copied projections before returning the retained response; later definition
+edits do not replace that response.

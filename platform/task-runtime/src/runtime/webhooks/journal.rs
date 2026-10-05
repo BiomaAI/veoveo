@@ -9,9 +9,9 @@ use surrealdb::{
 };
 use uuid::Uuid;
 use veoveo_platform_store::{
-    OpenObject, ProviderEventId, ProviderEventKey, ProviderEventRecord, ProviderJobId,
-    ProviderJobKey, ProviderJobRecord, ProviderJobState, TaskOwnerRecord, TaskRequestRecord,
-    WebhookJobBinding, deterministic_tenant_id, task_record_id,
+    ProviderEventId, ProviderEventKey, ProviderEventRecord, ProviderJobId, ProviderJobKey,
+    ProviderJobRecord, ProviderJobState, TaskOwnerRecord, TaskRequestRecord, WebhookJobBinding,
+    deterministic_tenant_id, task_record_id,
 };
 use veoveo_types::{ExtensionName, TaskId};
 
@@ -47,12 +47,12 @@ impl WebhookJournal {
             external_job_id: external,
         })
     }
-    pub(super) fn scope<'q, C: Connection>(
+    pub(super) fn scope<'q, C: Connection, P: surrealdb::types::SurrealValue + Clone>(
         &self,
         query: Query<'q, C>,
         current: &TaskSnapshot,
         binding: &WebhookJobBinding,
-        payload: OpenObject,
+        payload: P,
         now: DateTime<Utc>,
     ) -> Result<Query<'q, C>, TaskError> {
         let job = ProviderJobRecord {
@@ -91,11 +91,11 @@ impl WebhookJournal {
             .bind(("now", now)))
     }
     /// Record the definitive submission identity without overriding an earlier callback.
-    pub async fn bind_submission(
+    pub async fn bind_submission<P: surrealdb::types::SurrealValue + Clone>(
         &self,
         task: TaskId,
         external: ProviderJobKey,
-        payload: OpenObject,
+        payload: P,
         waiting_message: String,
     ) -> Result<ProviderJobRecord, TaskError> {
         let current = self
@@ -135,13 +135,13 @@ impl WebhookJournal {
         job.ok_or_else(|| TaskError::InvalidRecord("provider job binding result missing".into()))
     }
     /// Accept one authenticated terminal observation. Owner-specific callback verification precedes this API.
-    pub async fn receive_authenticated(
+    pub async fn receive_authenticated<P: surrealdb::types::SurrealValue + Clone>(
         &self,
         task: TaskId,
         external: ProviderJobKey,
         event: ProviderEventKey,
         terminal: Option<WebhookTerminal>,
-        payload: OpenObject,
+        payload: P,
         signing_key_id: Option<String>,
     ) -> Result<AuthenticatedWebhookReceipt, TaskError> {
         let current = self

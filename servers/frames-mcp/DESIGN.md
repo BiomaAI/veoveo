@@ -86,6 +86,14 @@ the caller. The empty `FramesScope` vocabulary adds no domain
 permissions; gateway operation policy and SQL owner/label selection govern access.
 The fixed catalog declares resource subscriptions and omits resource-list changes.
 
+Frames uses private typed driver adapters for complete trees and operation provenance.
+Their native bindings preserve JSON strings for embedded dates and identities.
+Decoding rejects native database identities inside these envelopes and undeclared
+fields. Tree decoding admits the complete graph before revision projection checks
+its frame index, root and digest. SurrealDB declares the known nested fields and
+closed transform variants. SQL selects authorized rows before invoking these codecs.
+Immutable replay compares the complete admitted provenance object.
+
 ### Frame Identity Admission
 
 The [domain contract](../../platform/frames/contract/DESIGN.md#construction-and-admission)

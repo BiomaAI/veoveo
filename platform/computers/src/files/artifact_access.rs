@@ -118,8 +118,7 @@ impl ComputersStore {
                     saved
                         .access
                         .as_ref()
-                        .map(super::object)
-                        .transpose()?
+                        .map(crate::storage_codec::sealed_file_access)
                         .into_value(),
                 ),
                 (
@@ -134,7 +133,7 @@ impl ComputersStore {
                     "required_budget",
                     surrealdb::types::Duration::from_secs(u64::from(required_seconds)).into_value(),
                 ),
-                ("sealed", super::object(&sealed)?.into_value()),
+                ("sealed", crate::storage_codec::sealed_file_access(&sealed)),
             ],
         )
         .await?;

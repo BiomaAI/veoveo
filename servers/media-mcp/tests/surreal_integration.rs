@@ -655,3 +655,42 @@ async fn cancellation_is_audited_and_late_webhook_cannot_replace_the_task_result
     .await
     .expect("Media lifecycle qualification exceeded 90 seconds");
 }
+
+#[tokio::test]
+async fn retained_provider_prediction_rejects_native_values_inside_open_input() {
+    use surrealdb::types::{RecordId, SurrealValue, Value};
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let (db, first, _second, first_state, second_state) = fixture().await;
+        for (name, native) in [
+            (
+                "native-record",
+                Value::RecordId(RecordId::new("provider_fixture", "foreign")),
+            ),
+            ("native-time", Utc::now().into_value()),
+        ] {
+            let task = create_waiting_task(&first, &first_state, name).await;
+            let retained = second_state
+                .provider_job_for_task(task)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(retained.prediction.id.as_str(), name);
+            db.a.client()
+                .query(include_str!(
+                    "queries/surreal_integration/corrupt_retained_prediction_native_value.surql"
+                ))
+                .bind(("job", retained.job_id.record_id()))
+                .bind(("native", native))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                second_state.provider_job_for_task(task).await.is_err(),
+                "opaque provider journal decoding must reject {name} before prediction hydration"
+            );
+        }
+    })
+    .await
+    .expect("Media retained native payload qualification exceeded 90 seconds");
+}

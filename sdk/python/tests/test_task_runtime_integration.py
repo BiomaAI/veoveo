@@ -416,6 +416,7 @@ async def test_snapshot_json_matches_rust_serde_shape(runtime):
         "retention_pins",
         "ttl_ms",
         "poll_interval_ms",
+        "result_uri",
     }
     assert payload["status"] == "queued"
     assert payload["recovery_class"] == "resume"

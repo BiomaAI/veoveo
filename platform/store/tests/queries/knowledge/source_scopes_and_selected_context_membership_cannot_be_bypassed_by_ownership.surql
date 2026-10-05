@@ -1,1 +1,1 @@
-UPDATE type::table($table) SET observation = {malformed: true};
+UPDATE type::table($table) SET observation.collection = 'fixture.foreign';

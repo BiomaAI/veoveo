@@ -25,6 +25,8 @@ mod error;
 #[cfg(feature = "runtime")]
 mod gateway_control;
 #[cfg(feature = "runtime")]
+mod gateway_record_identity;
+#[cfg(feature = "runtime")]
 mod gateway_runtime;
 #[cfg(feature = "runtime")]
 mod governance;
@@ -43,6 +45,12 @@ mod ids;
 #[cfg(feature = "runtime")]
 mod json_value;
 #[cfg(feature = "runtime")]
+pub use json_value::{
+    from_surreal_json as native_json_from_value,
+    from_surreal_json_strict as native_json_from_value_strict,
+    into_surreal as native_json_into_value,
+};
+#[cfg(feature = "runtime")]
 pub mod knowledge;
 #[cfg(feature = "runtime")]
 mod models;
@@ -53,9 +61,13 @@ mod store;
 #[cfg(feature = "runtime")]
 mod table;
 #[cfg(feature = "runtime")]
+mod task_control;
+#[cfg(feature = "runtime")]
 mod task_ids;
 #[cfg(feature = "runtime")]
 mod task_request;
+#[cfg(feature = "runtime")]
+pub use task_control::{TaskFailureRecord, TaskInputRequestRecord};
 #[cfg(feature = "runtime")]
 mod task_result;
 #[cfg(feature = "runtime")]
@@ -95,12 +107,11 @@ pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentia
 pub use error::{StoreConfigError, StoreError};
 #[cfg(feature = "runtime")]
 pub use gateway_runtime::{
-    GatewayRefreshActorRecord, GatewayRefreshAssurance, GatewayRefreshGroupRole,
-    GatewayRefreshGroupRoleRecord, GatewayRefreshPrincipalRecord, GatewayRefreshRedelivery,
-    GatewayRefreshRetentionSummary, GatewayRefreshRotation, GatewayRefreshRotationOutcome,
-    gateway_authorization_code_record_id, gateway_authorization_request_record_id,
-    gateway_jwt_revocation_record_id, gateway_refresh_family_record_id,
-    gateway_refresh_token_record_id, gateway_replay_record_id,
+    GatewayActorRecord, GatewayAssurance, GatewayGroupRole, GatewayGroupRoleRecord,
+    GatewayPrincipalRecord, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,
+    GatewayRefreshRotation, GatewayRefreshRotationOutcome, gateway_authorization_code_record_id,
+    gateway_authorization_request_record_id, gateway_jwt_revocation_record_id,
+    gateway_refresh_family_record_id, gateway_refresh_token_record_id, gateway_replay_record_id,
     gateway_resource_subscription_record_id,
 };
 #[cfg(feature = "runtime")]

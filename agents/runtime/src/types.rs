@@ -1,3 +1,4 @@
+use crate::persistence::{AgentTaskOutcome, DeferredTaskDescriptor, WakePayload};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
@@ -70,12 +71,12 @@ pub struct NewWake {
     pub wake_id: WakeId,
     pub kind: WakeKind,
     pub dedupe_key: Option<String>,
-    pub payload: OpenObject,
+    pub payload: WakePayload,
     pub available_at: DateTime<Utc>,
 }
 
 impl NewWake {
-    pub fn now(kind: WakeKind, dedupe_key: Option<String>, payload: OpenObject) -> Self {
+    pub fn now(kind: WakeKind, dedupe_key: Option<String>, payload: WakePayload) -> Self {
         Self {
             wake_id: WakeId::new(),
             kind,
@@ -91,7 +92,7 @@ pub struct ClaimedWake {
     pub wake_id: WakeId,
     pub kind: WakeKind,
     pub dedupe_key: Option<String>,
-    pub payload: OpenObject,
+    pub payload: WakePayload,
     pub attempts: i64,
 }
 
@@ -119,7 +120,7 @@ pub struct EpisodeCompletion {
 pub struct NewAgentTask {
     pub task_id: CanonicalTaskId,
     pub tool_name: String,
-    pub descriptor: OpenObject,
+    pub descriptor: DeferredTaskDescriptor,
     pub descriptor_complete: bool,
     pub retention_pin: TaskRetentionPin,
     pub started_by_episode: AgentEpisodeId,
@@ -130,7 +131,7 @@ pub struct ClaimedAgentTask {
     pub agent_task_id: AgentTaskId,
     pub task_id: CanonicalTaskId,
     pub tool_name: String,
-    pub descriptor: OpenObject,
+    pub descriptor: DeferredTaskDescriptor,
     pub descriptor_complete: bool,
     pub attempt_count: i64,
 }
@@ -140,7 +141,7 @@ pub struct AgentTaskResult {
     pub task_id: CanonicalTaskId,
     pub tool_name: String,
     pub started_by_episode: AgentEpisodeId,
-    pub result: OpenObject,
+    pub result: AgentTaskOutcome,
     pub is_error: bool,
 }
 
@@ -198,10 +199,6 @@ pub enum AgentRuntimeError {
 
 pub type Result<T> = std::result::Result<T, AgentRuntimeError>;
 
-pub(crate) fn object(entries: impl IntoIterator<Item = (String, serde_json::Value)>) -> OpenObject {
-    OpenObject::new(entries.into_iter().collect::<BTreeMap<_, _>>())
-}
-
 pub fn json_object(value: serde_json::Value, field: &'static str) -> Result<OpenObject> {
     match value {
         serde_json::Value::Object(values) => Ok(OpenObject::new(
@@ -212,10 +209,6 @@ pub fn json_object(value: serde_json::Value, field: &'static str) -> Result<Open
             reason: "must be a JSON object".to_owned(),
         }),
     }
-}
-
-pub fn wrapped_json(value: serde_json::Value) -> OpenObject {
-    object([("value".to_owned(), value)])
 }
 
 pub(crate) fn uuid_from_record(record: &RecordId, entity: &'static str) -> Result<Uuid> {
@@ -250,7 +243,7 @@ mod tests {
     fn instance_and_wake_ids_are_uuid_v7() {
         assert_eq!(AgentInstanceId::new().as_uuid().get_version_num(), 7);
         assert_eq!(
-            NewWake::now(WakeKind::Timer, None, object([]))
+            NewWake::now(WakeKind::Timer, None, WakePayload::timer("test"))
                 .wake_id
                 .as_uuid()
                 .get_version_num(),

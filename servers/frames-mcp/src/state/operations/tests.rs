@@ -151,7 +151,7 @@ async fn direct_operations_enforce_sql_authority_and_immutable_concurrent_replay
         // SQL must discard a denied record without trying to decode its provenance.
         db.a.client()
             .query(include_str!(
-                "../../../tests/queries/clear_operation_provenance.surql"
+                "../../../tests/queries/corrupt_operation_provenance.surql"
             ))
             .bind(("operation", record_id(p.operation.operation_id()).unwrap()))
             .await

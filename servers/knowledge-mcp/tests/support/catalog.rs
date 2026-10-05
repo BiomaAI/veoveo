@@ -34,7 +34,7 @@ async fn statistics(client: &rmcp::Peer<rmcp::RoleClient>, uri: &str) -> Collect
 #[tokio::test]
 async fn catalog_completion_and_live_statistics_preserve_caller_visibility() {
     tokio::time::timeout(Duration::from_secs(180), async {
-        let db = fixture::TestDb::new().await;
+        let db = native_database().await;
         let content = collection("records");
         let mut hidden_collection = collection("private");
         hidden_collection.descriptor = hidden_collection.descriptor.with_required_scopes(["media:private".parse().unwrap()]);

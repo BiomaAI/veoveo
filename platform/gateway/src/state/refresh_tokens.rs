@@ -263,7 +263,7 @@ impl GatewayState {
             principal_id: principal.id.to_string(),
             tenant: principal.tenant.as_ref().map(ToString::to_string),
             scopes: scopes.iter().map(ToString::to_string).collect(),
-            principal: serialize_refresh_principal(principal, principal_display_name)?,
+            principal: serialize_principal(principal, principal_display_name)?,
             current_generation: 0,
             issued_at: now,
             expires_at,
@@ -413,7 +413,7 @@ impl GatewayState {
 
 pub(super) fn grant_from_family(family: GatewayRefreshFamilyRecord) -> Result<GatewayRefreshGrant> {
     let family_id = family_id(&family)?;
-    let stored_principal: StoredRefreshPrincipal =
+    let stored_principal: StoredPrincipal =
         serde_json::from_value(serde_json::to_value(family.principal)?)?;
     Ok(GatewayRefreshGrant {
         family_id,
@@ -456,16 +456,16 @@ fn refresh_delivery_aad(family: &GatewayRefreshFamilyRecord, generation: i64) ->
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct StoredRefreshPrincipal {
-    principal: Principal,
-    principal_display_name: PrincipalDisplayName,
+pub(super) struct StoredPrincipal {
+    pub(super) principal: Principal,
+    pub(super) principal_display_name: PrincipalDisplayName,
 }
 
-fn serialize_refresh_principal(
+pub(super) fn serialize_principal(
     principal: &Principal,
     principal_display_name: &PrincipalDisplayName,
-) -> Result<veoveo_platform_store::GatewayRefreshPrincipalRecord> {
-    let value = serde_json::to_value(StoredRefreshPrincipal {
+) -> Result<veoveo_platform_store::GatewayPrincipalRecord> {
+    let value = serde_json::to_value(StoredPrincipal {
         principal: principal.clone(),
         principal_display_name: principal_display_name.clone(),
     })?;
@@ -481,6 +481,13 @@ fn random_refresh_token() -> Result<OAuthRefreshToken> {
 fn refresh_token_hash(token: &OAuthRefreshToken) -> String {
     let digest = Sha256::digest(token.as_str().as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+pub(super) fn deserialize_principal(
+    record: veoveo_platform_store::GatewayPrincipalRecord,
+) -> Result<StoredPrincipal> {
+    serde_json::from_value(serde_json::to_value(record)?)
+        .context("invalid retained Principal snapshot")
 }
 
 #[cfg(test)]
@@ -538,8 +545,8 @@ mod tests {
             authenticated_at: Some(Utc::now()),
         };
         let display_name = PrincipalDisplayName::new("Alice Example").unwrap();
-        let encoded = serialize_refresh_principal(&principal, &display_name).unwrap();
-        let decoded: StoredRefreshPrincipal =
+        let encoded = serialize_principal(&principal, &display_name).unwrap();
+        let decoded: StoredPrincipal =
             serde_json::from_value(serde_json::to_value(encoded).unwrap()).unwrap();
 
         assert_eq!(decoded.principal, principal);

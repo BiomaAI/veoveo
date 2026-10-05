@@ -1,5 +1,7 @@
 //! Media-owned database records and persistence identities.
+mod prediction;
 use chrono::{DateTime, Utc};
+pub(crate) use prediction::PredictionRecord;
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;

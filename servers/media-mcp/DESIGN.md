@@ -243,6 +243,15 @@ cursor codec and unchanged query spelling.
 
 Usage and prediction cursors retain their distinct typed Task and prediction positions through owner base64url JSON codecs. Parsing preserves admitted wire aliases and existing collection and size checks. Entry/page admission precedes explicit redundant-ID and fixed-limit projection.
 
+Media's `storage/prediction.rs` owns the prediction envelope stored in the provider
+journal. Its driver codec preserves the provider field names and JSON date strings.
+The envelope admits known prediction identities, model, outputs, URLs, status,
+creation time, error and execution time. Provider input and timings accept open JSON.
+Stored envelope and URL decoding reject undeclared fields and native database values.
+The shared journal accepts owner-native bindings and stores extension payloads without
+knowing Media types. Media re-admits those payloads before recovery or public reads.
+Unknown status strings establish no terminal outcome.
+
 ## Persistence Module Declaration
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the

@@ -10,7 +10,9 @@ mod evaluations;
 mod generations;
 mod members;
 mod reads;
+mod registration;
 mod resource_selection;
+use registration::RegistrationRow;
 mod search;
 mod statistics;
 use crate::StoreError;
@@ -62,7 +64,7 @@ impl<T: Serialize + DeserializeOwned> SurrealValue for Document<T> {
         )
     }
     fn from_value(value: Value) -> Result<Self, Error> {
-        serde_json::from_value(crate::json_value::from_surreal(value)?)
+        serde_json::from_value(crate::json_value::from_surreal_json(value)?)
             .map(Self)
             .map_err(|_| Error::internal("invalid knowledge document".into()))
     }

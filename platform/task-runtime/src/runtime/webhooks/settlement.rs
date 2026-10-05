@@ -78,7 +78,7 @@ impl WebhookJournal {
                 transition
                     .failure()
                     .as_ref()
-                    .map(super::super::failure_to_open_object),
+                    .map(super::super::failure_to_record),
             ));
         let query = self.scope(
             query,

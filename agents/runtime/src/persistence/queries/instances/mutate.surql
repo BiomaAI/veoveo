@@ -52,7 +52,7 @@ IF $mutation.kind = 'provision' {
         UPDATE ONLY $command.instance SET dispatch_epoch += 1;
         LET $runtime = array::first(SELECT * FROM agent WHERE tenant = $instance.tenant AND agent_key = $instance.key LIMIT 1);
         LET $episode = SELECT * FROM ONLY $runtime.last_episode;
-        IF $runtime != NONE AND $episode != NONE AND $episode.state = 'running' AND $episode.managed.instance = $instance.id {
+        IF $runtime != NONE AND $episode != NONE AND $episode.state = 'running' AND $episode.agent = $runtime.id AND $episode.tenant = $instance.tenant AND $episode.managed.instance = $instance.id AND $episode.managed.revision.definition = $instance.definition {
             LET $now = time::now();
             LET $wakes = SELECT VALUE id FROM wake WHERE agent = $runtime.id AND state = 'claimed' AND claimed_by = $runtime.lease_owner AND claim_fence = $runtime.fence;
             fn::agent_consume_results($runtime.id, $wakes, $episode.id, $now);

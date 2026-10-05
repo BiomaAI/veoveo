@@ -161,6 +161,59 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
                 3
             );
         }
+        let query = EmbeddingText::new("facility").unwrap();
+        let vector = veoveo_knowledge_mcp::embed::Embeddings::query(
+            &embedding,
+            EmbeddingTask::new(spec.query_task()).unwrap(),
+            query.clone(),
+        )
+        .await
+        .unwrap();
+        let scope = caller(std::slice::from_ref(&registration)).scope(&BTreeSet::new());
+        let mut denied_scope = scope.clone();
+        denied_scope.scopes.clear();
+        use veoveo_platform_store::knowledge::SearchWindow;
+        for window in [
+            SearchWindow::Initial,
+            SearchWindow::Expanded,
+            SearchWindow::Deep,
+            SearchWindow::Maximum,
+        ] {
+            let page =
+                db.b.search_knowledge(
+                    &scope,
+                    generation,
+                    &query,
+                    &vector,
+                    &BTreeSet::new(),
+                    3,
+                    window,
+                )
+                .await
+                .unwrap();
+            assert!(!page.results.is_empty(), "{window:?}");
+            for result in page.results {
+                assert_eq!(result.descriptor, registration.descriptor);
+                assert_eq!(
+                    result.candidate.observation.collection(),
+                    registration.descriptor.collection()
+                );
+                assert_eq!(result.candidate.tenant, registration.tenant);
+            }
+            let denied =
+                db.b.search_knowledge(
+                    &denied_scope,
+                    generation,
+                    &query,
+                    &vector,
+                    &BTreeSet::new(),
+                    3,
+                    window,
+                )
+                .await
+                .unwrap();
+            assert!(denied.results.is_empty(), "{window:?}");
+        }
         source
             .0
             .lock()

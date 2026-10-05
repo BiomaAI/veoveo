@@ -561,3 +561,19 @@ and typed ownership links. A supplied complete result payload yields only a
 `result_matches` boolean. This function supplies no caller authorization and
 returns no input, result or provider payload. `tests/task_storage.rs` qualifies
 wrong identities and whole-result agreement on fresh kernel lanes.
+
+## Controlled Storage Envelopes
+
+Store owns the failure record used by transition, interruption recovery and webhook
+settlement. It requires string code and message fields and permits opaque JSON details.
+Domain codes remain extensible. An omitted details field differs from an explicit JSON
+null through Rust and Python reads and writes. Native decoding rejects database record
+identities and timestamps inside JSON payloads.
+
+Input-request storage requires method and parameter-object fields. Construction and
+retained decoding apply the same method admission: one to 256 UTF-8 bytes with no control
+characters. Parameters and responses preserve their protocol-owned JSON objects.
+The result envelope requires its payload while permitting any JSON value, including null.
+These envelopes belong to the fresh coordinated schema; all Task writers and readers
+must use the current schema together. The SDK-owned native fixture qualifies Rust and
+Python storage in both directions without building another database harness.

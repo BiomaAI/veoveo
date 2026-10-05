@@ -16,8 +16,10 @@ use rig::{
     tool::DeferredToolLifecycleEvent,
 };
 use tokio::sync::Mutex;
-use veoveo_agent_runtime::persistence::AgentEpisodeId;
-use veoveo_agent_runtime::{AgentRuntime, NewAgentTask, json_object};
+use veoveo_agent_runtime::persistence::{
+    AgentEpisodeId, AgentTaskOutcome, DeferredTaskDescriptor, TaskDelivery,
+};
+use veoveo_agent_runtime::{AgentRuntime, NewAgentTask};
 use veoveo_mcp_contract::CanonicalTaskId;
 use veoveo_task_runtime::TaskRetentionPin;
 
@@ -82,11 +84,10 @@ impl RecorderHook {
         let Some(task_id) = self.deferred.lock().await.remove(internal_call_id) else {
             return Ok(());
         };
-        let payload = json_object(
-            serde_json::json!({ "error": status, "delivered": "in_run" }),
-            "deferred task result",
-        )
-        .map_err(|error| error.to_string())?;
+        let payload = AgentTaskOutcome::Error {
+            error: status.to_owned(),
+            delivered: Some(TaskDelivery::InRun),
+        };
         self.runtime
             .resolve_task_in_episode(task_id, self.episode_id, payload, true)
             .await
@@ -155,13 +156,7 @@ impl AgentHook for RecorderHook {
             return ToolResultAction::keep();
         }
         if let Some(task_id) = self.deferred.lock().await.remove(event.internal_call_id) {
-            let payload = match json_object(
-                serde_json::json!({ "output": result, "delivered": "in_run" }),
-                "task result",
-            ) {
-                Ok(payload) => payload,
-                Err(error) => return ToolResultAction::stop(error.to_string()),
-            };
+            let payload = AgentTaskOutcome::output(result, TaskDelivery::InRun);
             if let Err(error) = self
                 .runtime
                 .resolve_task_in_episode(
@@ -191,14 +186,11 @@ impl AgentHook for RecorderHook {
         };
         match event.lifecycle {
             DeferredToolLifecycleEvent::Started => {
-                let descriptor = match serde_json::to_value(event.descriptor)
-                    .ok()
-                    .and_then(|value| json_object(value, "deferred descriptor").ok())
-                {
-                    Some(descriptor) => descriptor,
-                    None => {
-                        return ObservationAction::stop("serializing deferred descriptor failed");
-                    }
+                let descriptor = DeferredTaskDescriptor::Complete {
+                    version: event.descriptor.version(),
+                    backend_type: event.descriptor.backend_type().to_owned(),
+                    execution_id: event.descriptor.execution_id().to_owned(),
+                    payload: event.descriptor.payload().clone(),
                 };
                 if let Err(error) = self
                     .runtime

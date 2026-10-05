@@ -86,3 +86,11 @@ progress. Disable and publication-audience removal close retained execution too.
 The registry's explicit installation import preserves participant identity, metadata
 and history while converting only reviewed source digests. Its export and exact
 restore run with gateway writers stopped; neither path performs model work.
+
+Revision receipts retain the nine-field `WorkspaceAgent` record as their result.
+The schema declares every member, and that record's native decoder rejects
+unknown members and checks the deterministic agent identity against its chat
+and definition. Add and adopt compare the decoded response with the requested
+chat, agent, definition and revision digest, including receipt replay. Mutable
+display metadata comes from the retained response and does not alter receipt
+identity. The owner uses the same record for fresh results and replay.

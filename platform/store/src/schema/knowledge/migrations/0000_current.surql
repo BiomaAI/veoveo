@@ -96,7 +96,7 @@ DEFINE FIELD OVERWRITE generation ON knowledge_member TYPE record<knowledge_gene
 
 DEFINE FIELD OVERWRITE id ON knowledge_member TYPE array PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE observation ON knowledge_member TYPE none | object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE observation ON knowledge_member TYPE none | { collection: string, revision: string, contentSha256: string, observedAt: string, modifiedAt: option<string>, modifiedBy: option<{ kind: 'principal', id: string }>, access: option<{ tenant: string, workContext: string, readPolicy: { kind: 'tenant' | 'subjects' | 'work-context' | 'selected-work-context' | 'selected-work-context-members' } | { kind: 'subjects-in-context', profile: option<string> }, owner: { kind: 'principal' | 'group', id: string }, grants: option<array<{ subject: { kind: 'principal' | 'group', id: string }, expiresAt: option<string> }>>, dataLabels: array<string>, expiresAt: option<string> }>, external: option<{ system: string, nativeId: string, url: option<string>, mirroredAt: option<string> }>, notModified: option<bool> } PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE source_epoch ON knowledge_member TYPE int ASSERT $value > 0 PERMISSIONS FULL;
 
@@ -131,3 +131,8 @@ DEFINE FIELD OVERWRITE owner_epoch ON knowledge_sync TYPE int ASSERT $value > 0 
 DEFINE FIELD OVERWRITE ready ON knowledge_sync TYPE bool PERMISSIONS FULL;
 
 DEFINE INDEX knowledge_sync_generation ON knowledge_sync FIELDS generation, collection UNIQUE;
+
+DEFINE FIELD OVERWRITE approval ON knowledge_collection TYPE { collection: string, mode: "catalog-only" | "index", stewards: array<string>, authoritative_for: array<string>, data_labels: array<string> } PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE required_scopes ON knowledge_collection TYPE array<string> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE change_signal ON knowledge_collection TYPE 'listen' | 'immutable' | 'revalidate' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE entity_kind ON knowledge_collection TYPE string PERMISSIONS FULL;

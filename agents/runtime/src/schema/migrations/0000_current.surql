@@ -168,7 +168,7 @@ DEFINE FIELD OVERWRITE lease_expires_at ON agent TYPE none | datetime PERMISSION
 
 DEFINE FIELD OVERWRITE lease_owner ON agent TYPE none | string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE managed_ready ON agent TYPE none | object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE managed_ready ON agent TYPE none | { generation: int, pod_uid: uuid } ASSERT $value = NONE OR $value.generation > 0 PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE manifest ON agent TYPE object FLEXIBLE PERMISSIONS FULL;
 
@@ -268,7 +268,34 @@ DEFINE FIELD OVERWRITE id ON agent_definition_receipt TYPE uuid PERMISSIONS FULL
 
 DEFINE FIELD OVERWRITE request_id ON agent_definition_receipt TYPE uuid PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE result ON agent_definition_receipt TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result ON agent_definition_receipt TYPE object ASSERT object::keys($value) ALLINSIDE ['id', 'tenant', 'work_context', 'owner', 'key', 'name', 'description', 'revision', 'status', 'disabled', 'audience', 'draft', 'draft_execution', 'draft_model', 'draft_tools', 'draft_digest', 'published', 'created_at', 'updated_at'] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.audience ON agent_definition_receipt TYPE array<record<work_context>> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.audience.* ON agent_definition_receipt TYPE record<work_context> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.created_at ON agent_definition_receipt TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.description ON agent_definition_receipt TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.disabled ON agent_definition_receipt TYPE bool DEFAULT false PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.draft_model ON agent_definition_receipt TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['id', 'revision'] AND $value.id != NONE AND $value.revision != NONE ELSE false END;
+DEFINE FIELD OVERWRITE result.draft_model.id ON agent_definition_receipt TYPE string;
+DEFINE FIELD OVERWRITE result.draft_model.revision ON agent_definition_receipt TYPE string;
+DEFINE FIELD OVERWRITE result.draft_tools ON agent_definition_receipt TYPE array<string>;
+DEFINE FIELD OVERWRITE result.draft_execution ON agent_definition_receipt TYPE object ASSERT IF type::is_object($value) THEN object::keys($value) ALLINSIDE ['kind', 'template', 'template_revision', 'parameters', 'resource_subscriptions'] AND (($value.kind = 'chat' AND $value.template = NONE AND $value.template_revision = NONE AND $value.parameters = NONE AND $value.resource_subscriptions = NONE) OR ($value.kind = 'managed' AND $value.template != NONE AND $value.template_revision != NONE AND $value.parameters != NONE AND $value.resource_subscriptions != NONE)) ELSE false END;
+DEFINE FIELD OVERWRITE result.draft_execution.kind ON agent_definition_receipt TYPE 'chat' | 'managed';
+DEFINE FIELD OVERWRITE result.draft_execution.template ON agent_definition_receipt TYPE option<string>;
+DEFINE FIELD OVERWRITE result.draft_execution.template_revision ON agent_definition_receipt TYPE option<string>;
+DEFINE FIELD OVERWRITE result.draft_execution.parameters ON agent_definition_receipt TYPE option<object> FLEXIBLE;
+DEFINE FIELD OVERWRITE result.draft_execution.resource_subscriptions ON agent_definition_receipt TYPE option<array<string>>;
+DEFINE FIELD OVERWRITE result.draft ON agent_definition_receipt TYPE { model: { id: string, revision: string }, instructions: string, tools: array<string>, budgets: { max_output_tokens: int, max_completion_calls: int, max_tool_calls: int, deadline_seconds: int }, execution: { kind: 'chat' } | { kind: 'managed', template: string, template_revision: string, parameters: object, resource_subscriptions: array<string> } } PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.draft_digest ON agent_definition_receipt TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.id ON agent_definition_receipt TYPE record<agent_definition> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.key ON agent_definition_receipt TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.name ON agent_definition_receipt TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.owner ON agent_definition_receipt TYPE record<principal> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.published ON agent_definition_receipt TYPE none | record<agent_definition_revision> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.revision ON agent_definition_receipt TYPE int ASSERT $value > 0 PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.status ON agent_definition_receipt TYPE 'enabled' | 'disabled' | 'archived' PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.tenant ON agent_definition_receipt TYPE record<tenant> PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.updated_at ON agent_definition_receipt TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result.work_context ON agent_definition_receipt TYPE record<work_context> PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE tenant ON agent_definition_receipt TYPE record<tenant> PERMISSIONS FULL;
 
@@ -318,7 +345,7 @@ DEFINE FIELD OVERWRITE id ON agent_episode TYPE uuid DEFAULT `rand`::uuid() PERM
 
 DEFINE FIELD OVERWRITE input_tokens ON agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0 PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE managed ON agent_episode TYPE none | object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE managed ON agent_episode TYPE none | { instance: record<managed_agent>, revision: record<agent_definition_revision>, generation: int, epoch: int } ASSERT $value = NONE OR ($value.generation > 0 AND $value.epoch >= 0) PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE output_tokens ON agent_episode TYPE int DEFAULT 0 ASSERT $value >= 0 PERMISSIONS FULL;
 
@@ -385,7 +412,7 @@ DEFINE FIELD OVERWRITE consumed_by_episode ON agent_task TYPE none | record<agen
 
 DEFINE FIELD OVERWRITE created_at ON agent_task TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE descriptor ON agent_task TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE descriptor ON agent_task TYPE {} | { version: 1, backendType: string, executionId: string, payload: any } ASSERT IF $this.descriptor_complete THEN $value.version = 1 AND string::len($value.backendType) > 0 AND $value.executionId = $this.task_id ELSE array::len(object::keys($value)) = 0 END PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE descriptor_complete ON agent_task TYPE bool DEFAULT false PERMISSIONS FULL;
 
@@ -401,7 +428,7 @@ DEFINE FIELD OVERWRITE next_retry_at ON agent_task TYPE datetime DEFAULT time::n
 
 DEFINE FIELD OVERWRITE resolved_at ON agent_task TYPE none | datetime PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE result ON agent_task TYPE none | object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result ON agent_task TYPE none | { output: any, delivered: option<'in_run' | 'watcher'> } | { error: string, delivered: option<'in_run' | 'watcher'> } | { value: { error: string } } PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE result_is_error ON agent_task TYPE bool DEFAULT false PERMISSIONS FULL;
 
@@ -581,7 +608,7 @@ DEFINE FIELD OVERWRITE kind ON wake TYPE 'task_result' | 'resource_changed' | 't
 
 DEFINE FIELD OVERWRITE last_error ON wake TYPE none | string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE payload ON wake TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE payload ON wake TYPE { task_id: string } | { uri: string } | { name: string, timer_kind: option<'heartbeat'> } | { text: string, request_id: option<string>, actor_id: option<string>, work_context: option<string> } | { input_request_id: string, phase: 'pending' | 'answered', request_id: option<string>, actor_id: option<string>, work_context: option<string> } ASSERT ($this.kind = 'task_result' AND $value.task_id != NONE) OR ($this.kind = 'resource_changed' AND $value.uri != NONE) OR ($this.kind = 'timer' AND $value.name != NONE) OR ($this.kind = 'operator_message' AND $value.text != NONE) OR ($this.kind = 'input_request' AND $value.input_request_id != NONE) PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE revision ON wake TYPE int DEFAULT 0 ASSERT $value >= 0 PERMISSIONS FULL;
 

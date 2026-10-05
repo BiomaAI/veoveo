@@ -215,3 +215,19 @@ quote characters. A hybrid-search fixture places 145 otherwise-readable but
 profile-denied members ahead of three permitted results, corrupts denied observations,
 and verifies full keyword and semantic-only result pages. Revoking exposure takes
 effect without changing the index.
+
+## Catalog And Observation Storage
+
+Both catalog writers derive approval, required scopes, change signal and entity kind
+from the checked registration in the same publication. Queries select those declared
+fields before source leases, source-policy admission, ranking and page limits. Catalog,
+completion, candidate and search reads hydrate the complete registration and reject
+inconsistent lookup values. Approval selection compares the complete approval object.
+
+Member and generation-specific chunk schemas close the Observation envelope and its
+access, grant, attribution and external-record children. The database preserves the
+existing camelCase JSON representation, including optional omission. Statistics cast
+its declared observation timestamps and return fixed-size aggregates with one selected
+registration. Conditional revalidation compares the complete observation before changing
+its observed timestamp and freshness deadline. Strict native JSON decoding rejects
+native database identities and timestamps inside these document fields.

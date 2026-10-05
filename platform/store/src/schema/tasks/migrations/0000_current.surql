@@ -153,7 +153,7 @@ DEFINE FIELD OVERWRITE created_at_exact ON task TYPE string VALUE type::string($
 
 DEFINE FIELD OVERWRITE delegation_id ON task TYPE none | string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE error ON task TYPE none | object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE error ON task TYPE none | { code: string, message: string } | { code: string, message: string, details: any } PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE id ON task TYPE uuid DEFAULT `rand`::uuid() PERMISSIONS FULL;
 
@@ -215,7 +215,7 @@ DEFINE FIELD OVERWRITE request.ttl_ms ON task TYPE none | null | int | decimal D
 DEFINE FIELD OVERWRITE request.poll_interval_ms ON task TYPE none | null | int | decimal DEFAULT NULL ASSERT $value = NONE OR $value = NULL OR ($value >= 0 AND $value <= 18446744073709551615dec AND $value = math::floor($value)) PERMISSIONS FULL;
 
 
-DEFINE FIELD OVERWRITE result ON task TYPE none | object FLEXIBLE ASSERT $value = NONE OR object::keys($value) = ['payload'] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result ON task TYPE option<{ payload: any }> ASSERT $value = NONE OR object::keys($value) = ['payload'] PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE result_uri ON task TYPE option<string> ASSERT $value = NONE OR ($this.status = 'succeeded' AND $this.result != NONE) PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE result_artifact ON task TYPE none | record<artifact_occurrence> PERMISSIONS FULL;
@@ -291,7 +291,9 @@ DEFINE FIELD OVERWRITE created_at ON task_input TYPE datetime DEFAULT time::now(
 
 DEFINE FIELD OVERWRITE id ON task_input TYPE string PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE request ON task_input TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request ON task_input TYPE object ASSERT object::keys($value) = ['method', 'params'] PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request.method ON task_input TYPE string ASSERT bytes::len(<bytes>$value) > 0 AND bytes::len(<bytes>$value) <= 256 AND !string::matches($value, '\\p{Cc}') PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE request.params ON task_input TYPE object FLEXIBLE PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE request_key ON task_input TYPE string ASSERT string::len($value) > 0 AND string::len($value) <= 256 PERMISSIONS FULL;
 

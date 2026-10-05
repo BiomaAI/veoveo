@@ -14,7 +14,7 @@ LET $candidate = (SELECT id, partition,
 RETURN IF $candidate = NONE {
     []
 } ELSE {
-    LET $block = (SELECT id, partition, sequence, block FROM ONLY type::record('audit_block', [$candidate.partition, $candidate.next_sequence]));
+    LET $block = (SELECT id, partition, sequence, head_hash, block FROM ONLY type::record('audit_block', [$candidate.partition, $candidate.next_sequence]));
     IF $block = NONE { THROW 'audit_block_conflict'; };
     [$block]
 };

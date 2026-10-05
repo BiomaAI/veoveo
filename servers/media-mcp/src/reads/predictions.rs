@@ -4,15 +4,14 @@ use crate::{
         GenerationPredictionSummary, MEDIA_PREDICTION_PAGE_SIZE, MediaPredictionCursor,
         MediaPredictionId, MediaPredictionPage, MediaPredictionUri,
     },
-    provider::Prediction,
+    storage::PredictionRecord,
 };
 use surrealdb::types::SurrealValue;
-use veoveo_platform_store::OpenObject;
 
 #[derive(SurrealValue)]
 struct PredictionRow {
     prediction: String,
-    payload: OpenObject,
+    payload: PredictionRecord,
 }
 use veoveo_task_runtime::TaskOwner;
 
@@ -68,9 +67,7 @@ impl MediaReads<'_> {
         rows.into_iter()
             .next()
             .map(|row| {
-                let prediction: Prediction = serde_json::from_value(serde_json::Value::Object(
-                    row.payload.into_map().into_iter().collect(),
-                ))?;
+                let prediction = row.payload.0;
                 let selected = MediaPredictionId::new(row.prediction)?;
                 anyhow::ensure!(
                     prediction.id == selected && &prediction.id == uri.id(),

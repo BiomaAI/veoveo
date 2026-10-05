@@ -17380,6 +17380,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-audit-contract",
  "veoveo-embedding-contract",
+ "veoveo-gateway-contract",
  "veoveo-knowledge-contract",
  "veoveo-mcp-knowledge-extension",
  "veoveo-modules",

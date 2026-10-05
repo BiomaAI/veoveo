@@ -1,1 +1,1 @@
-UPDATE type::table($table) SET observation = {malformed: true} WHERE admission.labels CONTAINS 'secret';
+UPDATE type::table($table) SET observation.collection = 'fixture.foreign' WHERE admission.labels CONTAINS 'secret';

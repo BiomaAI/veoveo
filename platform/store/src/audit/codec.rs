@@ -117,7 +117,8 @@ pub(super) fn scalar<T: Serialize>(value: &T) -> Value {
     )
 }
 pub(super) fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, StoreError> {
-    let json = crate::json_value::from_surreal(value).map_err(|_| StoreError::AuditIntegrity)?;
+    let json =
+        crate::json_value::from_surreal_json(value).map_err(|_| StoreError::AuditIntegrity)?;
     serde_json::from_value(json).map_err(|_| StoreError::AuditIntegrity)
 }
 

@@ -1,7 +1,7 @@
-SELECT collection, document FROM knowledge_collection
+SELECT * FROM knowledge_collection
 WHERE tenant = $tenant
-    AND $approvals CONTAINS [collection, document.approval]
-    AND $scopes CONTAINSALL document.descriptor.requiredScopes
+    AND $approvals CONTAINS [collection, approval]
+    AND $scopes CONTAINSALL required_scopes
     AND ($selected = NONE OR $selected CONTAINS collection)
 ORDER BY collection
 LIMIT 1024

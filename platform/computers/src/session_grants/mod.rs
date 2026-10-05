@@ -11,18 +11,11 @@ pub(crate) use authority::require_attach;
 pub use model::{SessionGrantHandle, SessionGrantLease, SessionGrantTicket};
 pub use policy::SessionGrantPolicy;
 
-use crate::{ComputerError, Result};
-use serde::Serialize;
 use surrealdb::types::RecordId;
-use veoveo_platform_store::OpenObject;
 
 fn record(id: crate::api::AccessGrantId) -> RecordId {
     RecordId::new(
         "computer_session_grant",
         surrealdb::types::Uuid::from(id.as_uuid()),
     )
-}
-pub(crate) fn object(value: &impl Serialize) -> Result<OpenObject> {
-    serde_json::from_value(serde_json::to_value(value).map_err(|_| ComputerError::InvalidInput)?)
-        .map_err(|_| ComputerError::InvalidInput)
 }

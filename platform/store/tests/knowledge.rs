@@ -1073,3 +1073,48 @@ async fn complete(
         .await?;
     store.complete_knowledge_collection(&ticket).await
 }
+
+#[tokio::test]
+async fn controlled_observation_storage_rejects_unknown_and_missing_fields_atomically() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let registration = registration("observation-shape");
+        let lease = db.a.claim_knowledge_coordinator(&registration.tenant, veoveo_platform_store::knowledge::CoordinatorId::new()).await.unwrap().unwrap();
+        let specification = spec(&registration, "shape");
+        let generation = GenerationId::new();
+        db.a.register_knowledge_collection(&registration, None).await.unwrap();
+        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification).await.unwrap();
+        let member = member_with_access(&registration, &specification, "visible", AccessDescriptor {
+            tenant: registration.tenant.clone(), work_context: "operations".parse().unwrap(),
+            read_policy: source::ReadPolicy::Tenant {}, owner: AccessSubject::Principal("author".parse().unwrap()),
+            grants: vec![], data_labels: vec![], expires_at: None,
+        });
+        insert(&db.a, &lease, &registration, generation, &specification, &member).await;
+        complete(&db.a, &lease, &registration, generation).await.unwrap();
+        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
+        let original = serde_json::to_value(member.observation()).unwrap();
+        for which in 0..8 {
+            let mut invalid = original.clone();
+            match which {
+                0 => { invalid.as_object_mut().unwrap().remove("collection"); }
+                1 => { invalid["unknown"] = true.into(); }
+                2 => { invalid["access"]["unknown"] = true.into(); }
+                3 => { invalid["access"]["owner"]["unknown"] = true.into(); }
+                4 => { invalid["access"]["readPolicy"]["unknown"] = true.into(); }
+                5 => { invalid["access"]["grants"] = serde_json::json!([{ "subject": {"kind":"principal","id":"author"}, "unknown":true }]); }
+                6 => { invalid["modifiedBy"] = serde_json::json!({"kind":"principal","id":"author","unknown":true}); }
+                7 => { invalid["external"] = serde_json::json!({"system":"crm","nativeId":"entry","unknown":true}); }
+                _ => unreachable!(),
+            }
+            assert!(db.a.client().query(include_str!("queries/knowledge/observation_write.surql"))
+                .bind(("table", format!("knowledge_chunk_{}", generation.as_uuid().simple())))
+                .bind(("generation", veoveo_platform_store::RecordId::new("knowledge_generation", surrealdb::types::Uuid::from(generation.as_uuid()))))
+                .bind(("uri", member.uri().to_string()))
+                .bind(("observation", veoveo_platform_store::native_json_into_value(invalid)))
+                .await.unwrap().check().is_err(), "closed Observation admitted mutation {which}");
+            let rows = db.b.knowledge_candidates_page(&scope(&registration), generation, None, 100).await.unwrap();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(&rows[0].observation, member.observation());
+        }
+    }).await.expect("Observation shape qualification exceeded 120 seconds");
+}

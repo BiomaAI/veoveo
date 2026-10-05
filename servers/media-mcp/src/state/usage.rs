@@ -1,16 +1,16 @@
 //! Media ledger writes, retention and SQL selection for billing recovery.
 use super::{
-    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, open_object,
-    prediction_from_payload, record_uuid, tenant_record,
+    MediaProviderJob, MediaState, PROVIDER, STATE_ID_NAMESPACE, open_object, record_uuid,
+    tenant_record,
 };
 use crate::contract::MediaPredictionId;
-use crate::storage::{MediaUsageId, MediaUsageKind, MediaUsageRecord};
+use crate::storage::{MediaUsageId, MediaUsageKind, MediaUsageRecord, PredictionRecord};
 use chrono::{DateTime, Utc};
 use surrealdb::types::SurrealValue;
 use uuid::Uuid;
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
 use veoveo_platform_store::{
-    OpenObject, ProviderJobId, ProviderJobState, RecordId, StoreError, task_record_id,
+    ProviderJobId, ProviderJobState, RecordId, StoreError, task_record_id,
 };
 use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot};
 use veoveo_types::TaskId;
@@ -22,7 +22,7 @@ struct BillingRow {
     task: RecordId,
     external_job_id: String,
     state: ProviderJobState,
-    provider_payload: OpenObject,
+    provider_payload: PredictionRecord,
     updated_at: DateTime<Utc>,
 }
 
@@ -147,7 +147,7 @@ impl MediaState {
                         operation: "media billing job ordering identity",
                     });
                 }
-                let prediction = prediction_from_payload(row.provider_payload)?;
+                let prediction = row.provider_payload.0;
                 let external_job_id =
                     MediaPredictionId::new(row.external_job_id).map_err(|_| {
                         StoreError::MissingRecord {

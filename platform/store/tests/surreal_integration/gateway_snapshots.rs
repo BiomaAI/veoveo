@@ -85,23 +85,23 @@ async fn authorization_code_consumption_uses_only_the_declared_top_level_marker(
     tokio::time::timeout(std::time::Duration::from_secs(120), async {
         let db = fixture::TestDb::new().await;
         let now = Utc::now();
-        let id = veoveo_platform_store::gateway_authorization_code_record_id("qualification-code");
+        let id = veoveo_platform_store::gateway_authorization_code_record_id(&"q".repeat(43));
         db.a.create_gateway_authorization_code(GatewayAuthorizationCodeStateRecord {
             id: id.clone(),
-            code: "qualification-code".into(),
-            profile: "operator".into(),
-            oauth_client_id: "qualification".into(),
-            work_context: "operations".into(),
-            oidc_client: "provider".into(),
-            principal: "alice".into(),
-            redirect_uri: "https://client.test/callback".into(),
+            code: veoveo_gateway_contract::OAuthAuthorizationCode::parse("q".repeat(43)).unwrap(),
+            profile: veoveo_types::GatewayProfileId::parse("operator").unwrap(),
+            oauth_client_id: veoveo_types::OAuthClientId::parse("qualification").unwrap(),
+            work_context: veoveo_types::WorkContextId::parse("operations").unwrap(),
+            oidc_client: veoveo_gateway_contract::OidcClientRegistrationId::parse("provider").unwrap(),
+            principal: serde_json::from_value(serde_json::json!({"principal":{"id":"alice","kind":"user","issuer":"https://identity.test","subject":"alice","groups":[],"roles":[],"scopes":[],"data_labels":[],"assurances":[]},"principal_display_name":"Alice"})).unwrap(),
+            redirect_uri: veoveo_gateway_contract::OAuthRedirectUri::new("https://client.test/callback").unwrap(),
             issued_at: now,
             expires_at: now + TimeDelta::minutes(5),
             consumed_at: None,
-            payload: serde_json::from_value(
-                serde_json::json!({"consumed_at":"already-set-in-opaque-payload"}),
-            )
-            .unwrap(),
+            client_state: None,
+            scopes: vec![veoveo_types::ScopeName::parse("tasks:read").unwrap()],
+            code_challenge: veoveo_gateway_contract::PkceCodeChallenge::parse("c".repeat(43)).unwrap(),
+            code_challenge_method: veoveo_gateway_contract::PkceCodeChallengeMethod::S256,
         })
         .await
         .unwrap();
@@ -111,6 +111,8 @@ async fn authorization_code_consumption_uses_only_the_declared_top_level_marker(
                 .unwrap()
                 .unwrap();
         assert!(consumed.consumed_at.is_none());
+        assert_eq!(consumed.scopes[0].as_str(), "tasks:read");
+        assert_eq!(consumed.principal.principal.id.as_str(), "alice");
         assert!(
             db.b.consume_gateway_authorization_code(id, now)
                 .await

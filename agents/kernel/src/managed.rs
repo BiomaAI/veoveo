@@ -125,7 +125,13 @@ impl ManagedKernel {
 mod tests {
     use super::*;
     use serde_json::json;
-    use veoveo_agent_runtime::persistence::{AgentContent, AgentRevision};
+    use veoveo_agent_runtime::persistence::{
+        AgentContent, AgentRevision,
+        instances::{
+            ManagedAgentDesired, ManagedAgentIdentity, ManagedAgentInstance, ManagedAgentPhase,
+            ManagedAgentResources,
+        },
+    };
 
     #[test]
     fn managed_overlay_preserves_literal_instructions_and_requires_exact_model_generation() {
@@ -164,20 +170,77 @@ mod tests {
         let principal = veoveo_platform_store::deterministic_principal_id("test", "worker")
             .unwrap()
             .record_id();
-        let instance = serde_json::from_value(json!({
-            "id":instance_id,"tenant":tenant,"work_context":veoveo_platform_store::deterministic_work_context_id("test","operations").unwrap().record_id(),
-            "owner":principal,"deployed_by":principal,"key":"worker","name":"Authored Worker","definition":definition,
-            "requested_revision":definition,"active_revision":definition,"generation":1,"active_generation":1,"dispatch_epoch":1,"desired":"running","observed":"workload","principal":principal,
-            "identity":{"client_id":"worker-client","issuer":"https://gateway.test/oauth","authorization_server":"gateway","profile":"operator","resource":"https://gateway.test/mcp/operator","scopes":["operator:use"],"roles":[],"membership":"contributor"},
-            "resources":{"namespace":"agents","workload":"worker","credential_secret":"worker-key","volume_claim":"worker-memory","template_config_map":"approved","image":"registry.test/kernel@sha256:fixture","storage_gib":1},
-            "public_key":null,"operation":instance_id,"created_at":chrono::Utc::now(),"updated_at":chrono::Utc::now()
-        })).unwrap();
+        let revision = veoveo_platform_store::RecordId::new(
+            "agent_definition_revision",
+            instance_id.key.clone(),
+        );
+        let operation = veoveo_platform_store::RecordId::new(
+            "managed_agent_operation",
+            instance_id.key.clone(),
+        );
+        let now = chrono::Utc::now();
+        let instance = ManagedAgentInstance {
+            id: instance_id,
+            tenant,
+            work_context: veoveo_platform_store::deterministic_work_context_id(
+                "test",
+                "operations",
+            )
+            .unwrap()
+            .record_id(),
+            owner: principal.clone(),
+            deployed_by: principal.clone(),
+            key: "worker".into(),
+            name: "Authored Worker".into(),
+            definition: definition.clone(),
+            requested_revision: revision.clone(),
+            active_revision: Some(revision.clone()),
+            generation: 1,
+            active_generation: 1,
+            admission_count: 0,
+            dispatch_epoch: 1,
+            desired: ManagedAgentDesired::Running,
+            observed: ManagedAgentPhase::Workload,
+            principal: principal.clone(),
+            identity: ManagedAgentIdentity {
+                client_id: "worker-client".into(),
+                issuer: "https://gateway.test/oauth".into(),
+                authorization_server: "gateway".into(),
+                profile: "operator".into(),
+                resource: "https://gateway.test/mcp/operator".into(),
+                scopes: vec!["operator:use".into()],
+                roles: vec![],
+                membership: veoveo_platform_store::WorkContextMembershipLevel::Contributor,
+            },
+            resources: ManagedAgentResources {
+                namespace: "agents".into(),
+                workload: "worker".into(),
+                credential_secret: "worker-key".into(),
+                volume_claim: "worker-memory".into(),
+                template_config_map: "approved".into(),
+                image: format!("registry.test/kernel@sha256:{}", "a".repeat(64)),
+                storage_gib: 1,
+            },
+            public_key: None,
+            operation,
+            created_at: now,
+            updated_at: now,
+        };
         let registration = ManagedAgentRegistration {
             instance,
             revision: AgentRevision {
-                id: definition.clone(),
+                id: revision,
                 definition,
-                digest: "a".repeat(64),
+                digest: content.digest().unwrap(),
+                execution: content.execution.clone(),
+                model: content.model.clone(),
+                tools: content.tools.clone(),
+                template_revision: match &content.execution {
+                    AgentExecution::Managed {
+                        template_revision, ..
+                    } => Some(template_revision.clone()),
+                    AgentExecution::Chat => None,
+                },
                 content,
                 created_by: principal,
                 created_at: chrono::Utc::now(),

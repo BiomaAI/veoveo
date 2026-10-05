@@ -26,6 +26,8 @@ pub enum StoreConfigError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("gateway retained record identity does not match its declared fields")]
+    InvalidGatewayStateIdentity,
     #[error(
         "database uses the mixed schema catalog; create a fresh installation with selected module lanes before starting this runtime"
     )]

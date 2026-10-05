@@ -55,7 +55,7 @@ struct RankedRow {
     text: String,
     admission: admission::Admission,
     observation: Document<veoveo_mcp_knowledge_extension::Observation>,
-    descriptor: Document<CollectionDescriptor>,
+    registration: RegistrationRow,
     rrf_score: f64,
 }
 #[derive(SurrealValue)]
@@ -127,6 +127,7 @@ impl PlatformStore {
             .rows
             .into_iter()
             .map(|row| {
+                let descriptor = row.registration.document.0.descriptor.clone();
                 let candidate = Row {
                     tenant: row.tenant,
                     collection_id: row.collection_id,
@@ -135,9 +136,9 @@ impl PlatformStore {
                     text: row.text,
                     admission: row.admission,
                     observation: row.observation,
+                    registration: row.registration,
                 }
                 .checked(scope, generation)?;
-                let descriptor = row.descriptor.0;
                 if !row.rrf_score.is_finite()
                     || row.rrf_score <= 0.0
                     || candidate

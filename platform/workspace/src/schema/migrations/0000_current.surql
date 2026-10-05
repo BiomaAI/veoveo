@@ -72,7 +72,7 @@ DEFINE FIELD OVERWRITE fingerprint ON workspace_agent_revision_receipt TYPE stri
 
 DEFINE FIELD OVERWRITE id ON workspace_agent_revision_receipt TYPE uuid PERMISSIONS FULL;
 
-DEFINE FIELD OVERWRITE result ON workspace_agent_revision_receipt TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE result ON workspace_agent_revision_receipt TYPE { id: record<workspace_agent>, chat: record<workspace_chat>, definition: string, definition_digest: string, display_name: string, provider: string, model: string, active: bool, joined_at: datetime } ASSERT $value.chat = $this.chat PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE archived ON workspace_chat TYPE bool DEFAULT false PERMISSIONS FULL;
 

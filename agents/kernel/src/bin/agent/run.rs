@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use veoveo_agent_runtime::persistence::AgentRepository;
 
 use anyhow::{Context, Result, bail};
@@ -16,7 +16,9 @@ use veoveo_agent_kernel::{
     tools::{MemoryQueryTool, MemoryWriteTool, TimelineQueryTool},
     wake::{WakeBatch, WakeBus, WakeKindExt, WakeReceiver, heartbeat, is_priority},
 };
-use veoveo_agent_runtime::persistence::{AgentInputRequestId, AgentTaskId, WakeKind};
+use veoveo_agent_runtime::persistence::{
+    AgentTaskId, InputWakePhase, TimerKind, WakeKind, WakePayload,
+};
 use veoveo_agent_runtime::{
     AgentInstanceId, AgentRuntime, AgentSpec, DEFAULT_AGENT_LEASE, DEFAULT_CLAIM_LEASE,
     ManagedSchedulerMode, json_object,
@@ -374,48 +376,15 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
         WakeKind::Timer => 3,
     });
     for wake in wakes {
-        match wake.kind {
-            WakeKind::TaskResult => {
-                let Some(task_id) = wake
-                    .payload
-                    .as_map()
-                    .get("task_id")
-                    .and_then(serde_json::Value::as_str)
-                else {
-                    continue;
-                };
-                let Some(result) = results
-                    .iter()
-                    .find(|result| result.task_id.to_string() == task_id)
-                else {
-                    continue;
-                };
-                parts.push(render_task_result(result)?);
-            }
-            WakeKind::ResourceChanged => {
-                if let Some(uri) = wake
-                    .payload
-                    .as_map()
-                    .get("uri")
-                    .and_then(serde_json::Value::as_str)
-                {
-                    parts.push(format!("Resource updated: {uri}"));
+        match &wake.payload {
+            WakePayload::TaskResult { task_id } => {
+                if let Some(result) = results.iter().find(|result| &result.task_id == task_id) {
+                    parts.push(render_task_result(result)?);
                 }
             }
-            WakeKind::Timer => {
-                let name = wake
-                    .payload
-                    .as_map()
-                    .get("name")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("timer");
-                if wake
-                    .payload
-                    .as_map()
-                    .get("timer_kind")
-                    .and_then(serde_json::Value::as_str)
-                    == Some("heartbeat")
-                {
+            WakePayload::ResourceChanged { uri } => parts.push(format!("Resource updated: {uri}")),
+            WakePayload::Timer { name, timer_kind } => {
+                if *timer_kind == Some(TimerKind::Heartbeat) {
                     parts.push(
                         "Scheduled heartbeat. Review pending work and act only when needed."
                             .to_owned(),
@@ -424,48 +393,36 @@ async fn render_wake_body(runtime: &AgentRuntime, batch: &WakeBatch) -> Result<S
                     parts.push(format!("Scheduled timer `{name}` fired."));
                 }
             }
-            WakeKind::OperatorMessage => {
-                let payload = wake.payload.as_map();
-                if let Some(text) = payload.get("text").and_then(serde_json::Value::as_str) {
-                    let request_id = payload
-                        .get("request_id")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("unknown-request");
-                    let actor_id = payload
-                        .get("actor_id")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("unknown-actor");
-                    let work_context = payload
-                        .get("work_context")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or("unknown-context");
-                    parts.push(format!(
-                        "Operator message `{request_id}` from actor `{actor_id}` in Work Context \
-                         `{work_context}`:\n\n{text}"
-                    ));
-                }
+            WakePayload::OperatorMessage {
+                text,
+                request_id,
+                actor_id,
+                work_context,
+            } => {
+                let request_id = request_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unknown-request".into());
+                let actor_id = actor_id
+                    .as_ref()
+                    .map(|id| id.as_str())
+                    .unwrap_or("unknown-actor");
+                let work_context = work_context
+                    .as_ref()
+                    .map(|id| id.as_str())
+                    .unwrap_or("unknown-context");
+                parts.push(format!("Operator message `{request_id}` from actor `{actor_id}` in Work Context `{work_context}`:\n\n{text}"));
             }
-            WakeKind::InputRequest => {
-                if wake
-                    .payload
-                    .as_map()
-                    .get("phase")
-                    .and_then(serde_json::Value::as_str)
-                    == Some("answered")
-                {
-                    if let Some(id) = wake
-                        .payload
-                        .as_map()
-                        .get("input_request_id")
-                        .and_then(serde_json::Value::as_str)
-                        && let Ok(id) = AgentInputRequestId::from_str(id)
-                    {
-                        let input_request = runtime.input_request(id).await?;
-                        parts.push(format!(
-                            "Operator answered input request `{id}`: {}",
-                            serde_json::to_string(&input_request.answer)?
-                        ));
-                    }
+            WakePayload::InputRequest {
+                input_request_id,
+                phase,
+                ..
+            } => {
+                if *phase == InputWakePhase::Answered {
+                    let input_request = runtime.input_request(*input_request_id).await?;
+                    parts.push(format!(
+                        "Operator answered input request `{input_request_id}`: {}",
+                        serde_json::to_string(&input_request.answer)?
+                    ));
                 } else {
                     parts.push("A tool requested operator input. The durable input request is awaiting an authorized answer.".to_owned());
                 }

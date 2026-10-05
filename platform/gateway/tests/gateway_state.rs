@@ -1,11 +1,11 @@
-use std::{collections::BTreeSet, num::NonZeroU32};
+#[path = "../../../testing/fixtures/store.rs"]
+mod fixture;
+use std::{collections::BTreeSet, num::NonZeroU32, time::Duration};
 use veoveo_audit_contract::*;
 use veoveo_gateway_contract::AuthorizationServerId;
 
 use chrono::{TimeDelta, Utc};
 use futures::future::join_all;
-use secrecy::SecretString;
-use uuid::Uuid;
 use veoveo_mcp_contract::{
     AuthMethod, AuthReasonCode, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
     GatewayJwtRevocation, GatewayProfileId, GatewayResourceSubscription, JwtId,
@@ -18,74 +18,53 @@ use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
     GatewayRefreshRotationRequest, GatewayState, RefreshTokenDeliveryCipher,
 };
-use veoveo_platform_store::{
-    GatewayRefreshTokenRecord, PlatformStore, StoreConfig, StoreCredentials,
-};
+use veoveo_platform_store::GatewayRefreshTokenRecord;
 use veoveo_types::{PrincipalId, ResourceUri, ScopeName, TenantId, WorkContextId};
 
 #[tokio::test]
 async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let (bootstrap, runtime) = store_configs();
-    let bootstrap_store = PlatformStore::connect(bootstrap).await.unwrap();
-    bootstrap_store
-        .replace_database_editor(
-            "gateway_runtime",
-            &SecretString::from("gateway-runtime-password"),
-        )
-        .await
-        .unwrap();
-    let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
-    let profile = GatewayProfileId::parse("admin").unwrap();
-    let now = Utc::now();
-    let principal = authorization_code(
-        now,
-        &profile,
-        &OAuthClientId::parse("admin-console").unwrap(),
-    )
-    .principal;
-
-    let results = join_all((0..12).map(|index| {
-        let state = state.clone();
-        let event = policy_draft(
-            &format!("concurrent-policy-{index}"),
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let state = GatewayState::new(db.a.clone());
+        let profile = GatewayProfileId::parse("admin").unwrap();
+        let now = Utc::now();
+        let principal = authorization_code(
             now,
             &profile,
-            &principal,
-        );
-        async move { state.record_audit(event).await }
-    }))
-    .await;
-    for result in results {
-        result.unwrap();
-    }
+            &OAuthClientId::parse("admin-console").unwrap(),
+        )
+        .principal;
 
-    assert_eq!(
-        audit_count(&state, &principal, AuditClass::ApiActivity).await,
-        12
-    );
+        let results = join_all((0..12).map(|index| {
+            let state = state.clone();
+            let event = policy_draft(
+                &format!("concurrent-policy-{index}"),
+                now,
+                &profile,
+                &principal,
+            );
+            async move { state.record_audit(event).await }
+        }))
+        .await;
+        for result in results {
+            result.unwrap();
+        }
+
+        assert_eq!(
+            audit_count(&state, &principal, AuditClass::ApiActivity).await,
+            12
+        );
+    })
+    .await
+    .expect("concurrent_gateway_audit_writes_retry_transaction_conflicts exceeded three minutes");
 }
 
 #[tokio::test]
 async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let (bootstrap, runtime) = store_configs();
-    let bootstrap_store = PlatformStore::connect(bootstrap).await.unwrap();
-    bootstrap_store
-        .replace_database_editor(
-            "gateway_runtime",
-            &SecretString::from("gateway-runtime-password"),
-        )
-        .await
-        .unwrap();
-    let first = GatewayState::new(PlatformStore::connect(runtime.clone()).await.unwrap());
-    let second = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
+    tokio::time::timeout(Duration::from_secs(180), async {
+    let db = fixture::TestDb::new().await;
+    let first = GatewayState::new(db.a.clone());
+    let second = GatewayState::new(db.b.clone());
     let now = Utc::now();
     let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
     let client_id = OAuthClientId::parse("operator-console").unwrap();
@@ -405,197 +384,155 @@ async fn gateway_correctness_state_is_shared_and_single_use_across_replicas() {
         .unwrap();
     assert_eq!(refresh_retention.tokens_deleted, 2);
     assert_eq!(refresh_retention.families_deleted, 1);
+    }).await.expect("gateway_correctness_state_is_shared_and_single_use_across_replicas exceeded three minutes");
 }
 
 #[tokio::test]
 async fn refresh_rotation_rolls_back_when_success_audit_cannot_commit() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let (bootstrap, runtime) = store_configs();
-    let bootstrap_store = PlatformStore::connect(bootstrap).await.unwrap();
-    bootstrap_store
-        .replace_database_editor(
-            "gateway_runtime",
-            &SecretString::from("gateway-runtime-password"),
-        )
-        .await
-        .unwrap();
-    let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
-    let now = Utc::now();
-    let delivery_cipher = test_refresh_delivery_cipher();
-    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
-    let profile = GatewayProfileId::parse("operator").unwrap();
-    let client_id = OAuthClientId::parse("operator-console").unwrap();
-    let principal = authorization_code(now, &profile, &client_id).principal;
-    let issued = state
-        .issue_refresh_token(GatewayRefreshIssueRequest {
-            authorization_server: &authorization_server,
-            profile: &profile,
-            oauth_client_id: &client_id,
-            work_context: &WorkContextId::parse("mission").unwrap(),
-            principal: &principal,
-            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
-            scopes: &principal.scopes,
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let state = GatewayState::new(db.a.clone());
+        let now = Utc::now();
+        let delivery_cipher = test_refresh_delivery_cipher();
+        let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+        let profile = GatewayProfileId::parse("operator").unwrap();
+        let client_id = OAuthClientId::parse("operator-console").unwrap();
+        let principal = authorization_code(now, &profile, &client_id).principal;
+        let issued = state
+            .issue_refresh_token(GatewayRefreshIssueRequest {
+                authorization_server: &authorization_server,
+                profile: &profile,
+                oauth_client_id: &client_id,
+                work_context: &WorkContextId::parse("mission").unwrap(),
+                principal: &principal,
+                principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
+                scopes: &principal.scopes,
+                now,
+            })
+            .await
+            .unwrap();
+        let duplicate_audit = auth_draft("duplicate-refresh-audit", now, &profile, &principal);
+        let duplicate_delivery_audit = redelivery_draft(
+            "duplicate-refresh-delivery-audit",
             now,
-        })
-        .await
-        .unwrap();
-    let duplicate_audit = auth_draft("duplicate-refresh-audit", now, &profile, &principal);
-    let duplicate_delivery_audit = redelivery_draft(
-        "duplicate-refresh-delivery-audit",
-        now,
-        &profile,
-        &principal,
-    );
-    state
-        .record_audit(conflicting_draft(&duplicate_audit))
-        .await
-        .unwrap();
-
-    state
-        .rotate_refresh_token(
-            &issued.token,
-            refresh_rotation_request(
-                &authorization_server,
-                &profile,
-                &client_id,
-                now + TimeDelta::seconds(1),
-                &delivery_cipher,
-                &duplicate_audit,
-                &duplicate_delivery_audit,
-            ),
-        )
-        .await
-        .expect_err("conflicting audit identity must roll back the refresh rotation");
-    let preserved = state
-        .refresh_token_grant(
-            &issued.token,
-            &authorization_server,
             &profile,
-            &client_id,
-            now + TimeDelta::seconds(2),
-        )
-        .await
-        .unwrap()
-        .expect("failed delivery must leave the presented refresh token usable");
-    assert_eq!(preserved.generation, 0);
+            &principal,
+        );
+        state
+            .record_audit(conflicting_draft(&duplicate_audit))
+            .await
+            .unwrap();
 
-    let retry_audit = auth_draft("refresh-delivery-retry", now, &profile, &principal);
-    let retry_duplicate_audit = redelivery_draft(
-        "refresh-delivery-retry-duplicate",
-        now,
-        &profile,
-        &principal,
-    );
-    let retry = state
-        .rotate_refresh_token(
-            &issued.token,
-            refresh_rotation_request(
+        state
+            .rotate_refresh_token(
+                &issued.token,
+                refresh_rotation_request(
+                    &authorization_server,
+                    &profile,
+                    &client_id,
+                    now + TimeDelta::seconds(1),
+                    &delivery_cipher,
+                    &duplicate_audit,
+                    &duplicate_delivery_audit,
+                ),
+            )
+            .await
+            .expect_err("conflicting audit identity must roll back the refresh rotation");
+        let preserved = state
+            .refresh_token_grant(
+                &issued.token,
                 &authorization_server,
                 &profile,
                 &client_id,
                 now + TimeDelta::seconds(2),
-                &delivery_cipher,
-                &retry_audit,
-                &retry_duplicate_audit,
-            ),
-        )
-        .await
-        .unwrap();
-    assert!(matches!(retry, GatewayRefreshExchange::Rotated(_)));
+            )
+            .await
+            .unwrap()
+            .expect("failed delivery must leave the presented refresh token usable");
+        assert_eq!(preserved.generation, 0);
+
+        let retry_audit = auth_draft("refresh-delivery-retry", now, &profile, &principal);
+        let retry_duplicate_audit = redelivery_draft(
+            "refresh-delivery-retry-duplicate",
+            now,
+            &profile,
+            &principal,
+        );
+        let retry = state
+            .rotate_refresh_token(
+                &issued.token,
+                refresh_rotation_request(
+                    &authorization_server,
+                    &profile,
+                    &client_id,
+                    now + TimeDelta::seconds(2),
+                    &delivery_cipher,
+                    &retry_audit,
+                    &retry_duplicate_audit,
+                ),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(retry, GatewayRefreshExchange::Rotated(_)));
+    })
+    .await
+    .expect("refresh_rotation_rolls_back_when_success_audit_cannot_commit exceeded three minutes");
 }
 
 #[tokio::test]
 async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let state = GatewayState::new(db.a.clone());
+        let now = Utc::now();
+        let delivery_cipher = test_refresh_delivery_cipher();
+        let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+        let profile = GatewayProfileId::parse("operator").unwrap();
+        let client_id = OAuthClientId::parse("operator-console").unwrap();
+        let principal = authorization_code(now, &profile, &client_id).principal;
+        let issued = state
+            .issue_refresh_token(GatewayRefreshIssueRequest {
+                authorization_server: &authorization_server,
+                profile: &profile,
+                oauth_client_id: &client_id,
+                work_context: &WorkContextId::parse("mission").unwrap(),
+                principal: &principal,
+                principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
+                scopes: &principal.scopes,
+                now,
+            })
+            .await
+            .unwrap();
+        let first_audit = auth_draft("eager-clear-first", now, &profile, &principal);
+        let first_duplicate_audit =
+            redelivery_draft("eager-clear-first-duplicate", now, &profile, &principal);
+        let successor = match state
+            .rotate_refresh_token(
+                &issued.token,
+                refresh_rotation_request(
+                    &authorization_server,
+                    &profile,
+                    &client_id,
+                    now + TimeDelta::seconds(1),
+                    &delivery_cipher,
+                    &first_audit,
+                    &first_duplicate_audit,
+                ),
+            )
+            .await
+            .unwrap()
+        {
+            GatewayRefreshExchange::Rotated(successor) => successor,
+            outcome => panic!("first rotation returned {outcome:?}"),
+        };
 
-    let (bootstrap, runtime) = store_configs();
-    let bootstrap_store = PlatformStore::connect(bootstrap).await.unwrap();
-    bootstrap_store
-        .replace_database_editor(
-            "gateway_runtime",
-            &SecretString::from("gateway-runtime-password"),
-        )
-        .await
-        .unwrap();
-    let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
-    let now = Utc::now();
-    let delivery_cipher = test_refresh_delivery_cipher();
-    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
-    let profile = GatewayProfileId::parse("operator").unwrap();
-    let client_id = OAuthClientId::parse("operator-console").unwrap();
-    let principal = authorization_code(now, &profile, &client_id).principal;
-    let issued = state
-        .issue_refresh_token(GatewayRefreshIssueRequest {
-            authorization_server: &authorization_server,
-            profile: &profile,
-            oauth_client_id: &client_id,
-            work_context: &WorkContextId::parse("mission").unwrap(),
-            principal: &principal,
-            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
-            scopes: &principal.scopes,
-            now,
-        })
-        .await
-        .unwrap();
-    let first_audit = auth_draft("eager-clear-first", now, &profile, &principal);
-    let first_duplicate_audit =
-        redelivery_draft("eager-clear-first-duplicate", now, &profile, &principal);
-    let successor = match state
-        .rotate_refresh_token(
-            &issued.token,
-            refresh_rotation_request(
-                &authorization_server,
-                &profile,
-                &client_id,
-                now + TimeDelta::seconds(1),
-                &delivery_cipher,
-                &first_audit,
-                &first_duplicate_audit,
-            ),
-        )
-        .await
-        .unwrap()
-    {
-        GatewayRefreshExchange::Rotated(successor) => successor,
-        outcome => panic!("first rotation returned {outcome:?}"),
-    };
-
-    let blocked_audit = auth_draft("eager-clear-blocked", now, &profile, &principal);
-    state
-        .record_audit(conflicting_draft(&blocked_audit))
-        .await
-        .unwrap();
-    let blocked_duplicate_audit =
-        redelivery_draft("eager-clear-blocked-duplicate", now, &profile, &principal);
-    state
-        .rotate_refresh_token(
-            &successor.token,
-            refresh_rotation_request(
-                &authorization_server,
-                &profile,
-                &client_id,
-                now + TimeDelta::seconds(2),
-                &delivery_cipher,
-                &blocked_audit,
-                &blocked_duplicate_audit,
-            ),
-        )
-        .await
-        .expect_err("failed successor consumption must roll back envelope clearing");
-    let generation_one = stored_refresh_generation(&state, 1).await;
-    assert!(generation_one.consumed_at.is_none());
-    assert!(generation_one.delivery_envelope.is_some());
-    assert!(generation_one.delivery_expires_at.is_some());
-
-    let consume_audit = auth_draft("eager-clear-consume", now, &profile, &principal);
-    let consume_duplicate_audit =
-        redelivery_draft("eager-clear-consume-duplicate", now, &profile, &principal);
-    assert!(matches!(
+        let blocked_audit = auth_draft("eager-clear-blocked", now, &profile, &principal);
+        state
+            .record_audit(conflicting_draft(&blocked_audit))
+            .await
+            .unwrap();
+        let blocked_duplicate_audit =
+            redelivery_draft("eager-clear-blocked-duplicate", now, &profile, &principal);
         state
             .rotate_refresh_token(
                 &successor.token,
@@ -603,150 +540,140 @@ async fn consuming_a_successor_clears_its_delivery_envelope_atomically() {
                     &authorization_server,
                     &profile,
                     &client_id,
-                    now + TimeDelta::seconds(3),
+                    now + TimeDelta::seconds(2),
                     &delivery_cipher,
-                    &consume_audit,
-                    &consume_duplicate_audit,
+                    &blocked_audit,
+                    &blocked_duplicate_audit,
                 ),
             )
             .await
-            .unwrap(),
-        GatewayRefreshExchange::Rotated(_)
-    ));
-    let generation_one = stored_refresh_generation(&state, 1).await;
-    assert!(generation_one.consumed_at.is_some());
-    assert!(generation_one.delivery_envelope.is_none());
-    assert!(generation_one.delivery_expires_at.is_none());
-    let generation_two = stored_refresh_generation(&state, 2).await;
-    assert!(generation_two.delivery_envelope.is_some());
+            .expect_err("failed successor consumption must roll back envelope clearing");
+        let generation_one = stored_refresh_generation(&state, 1).await;
+        assert!(generation_one.consumed_at.is_none());
+        assert!(generation_one.delivery_envelope.is_some());
+        assert!(generation_one.delivery_expires_at.is_some());
+
+        let consume_audit = auth_draft("eager-clear-consume", now, &profile, &principal);
+        let consume_duplicate_audit =
+            redelivery_draft("eager-clear-consume-duplicate", now, &profile, &principal);
+        assert!(matches!(
+            state
+                .rotate_refresh_token(
+                    &successor.token,
+                    refresh_rotation_request(
+                        &authorization_server,
+                        &profile,
+                        &client_id,
+                        now + TimeDelta::seconds(3),
+                        &delivery_cipher,
+                        &consume_audit,
+                        &consume_duplicate_audit,
+                    ),
+                )
+                .await
+                .unwrap(),
+            GatewayRefreshExchange::Rotated(_)
+        ));
+        let generation_one = stored_refresh_generation(&state, 1).await;
+        assert!(generation_one.consumed_at.is_some());
+        assert!(generation_one.delivery_envelope.is_none());
+        assert!(generation_one.delivery_expires_at.is_none());
+        let generation_two = stored_refresh_generation(&state, 2).await;
+        assert!(generation_two.delivery_envelope.is_some());
+    })
+    .await
+    .expect("consuming_a_successor_clears_its_delivery_envelope_atomically exceeded three minutes");
 }
 
 #[tokio::test]
 async fn public_client_revocation_is_bound_idempotent_and_family_wide() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let (bootstrap, runtime) = store_configs();
-    let bootstrap_store = PlatformStore::connect(bootstrap).await.unwrap();
-    bootstrap_store
-        .replace_database_editor(
-            "gateway_runtime",
-            &SecretString::from("gateway-runtime-password"),
-        )
-        .await
-        .unwrap();
-    let state = GatewayState::new(PlatformStore::connect(runtime).await.unwrap());
-    let now = Utc::now();
-    let delivery_cipher = test_refresh_delivery_cipher();
-    let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
-    let profile = GatewayProfileId::parse("operator").unwrap();
-    let client_id = OAuthClientId::parse("operator-console").unwrap();
-    let principal = authorization_code(now, &profile, &client_id).principal;
-    let issued = state
-        .issue_refresh_token(GatewayRefreshIssueRequest {
-            authorization_server: &authorization_server,
-            profile: &profile,
-            oauth_client_id: &client_id,
-            work_context: &WorkContextId::parse("mission").unwrap(),
-            principal: &principal,
-            principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
-            scopes: &principal.scopes,
-            now,
-        })
-        .await
-        .unwrap();
-
-    assert!(
-        state
-            .revoke_refresh_token_family(
-                &issued.token,
-                &authorization_server,
-                &profile,
-                &OAuthClientId::parse("different-client").unwrap(),
-                now + TimeDelta::seconds(1),
-            )
+    tokio::time::timeout(Duration::from_secs(180), async {
+        let db = fixture::TestDb::new().await;
+        let state = GatewayState::new(db.a.clone());
+        let now = Utc::now();
+        let delivery_cipher = test_refresh_delivery_cipher();
+        let authorization_server = AuthorizationServerId::parse("veoveo").unwrap();
+        let profile = GatewayProfileId::parse("operator").unwrap();
+        let client_id = OAuthClientId::parse("operator-console").unwrap();
+        let principal = authorization_code(now, &profile, &client_id).principal;
+        let issued = state
+            .issue_refresh_token(GatewayRefreshIssueRequest {
+                authorization_server: &authorization_server,
+                profile: &profile,
+                oauth_client_id: &client_id,
+                work_context: &WorkContextId::parse("mission").unwrap(),
+                principal: &principal,
+                principal_display_name: &PrincipalDisplayName::new("Alice").unwrap(),
+                scopes: &principal.scopes,
+                now,
+            })
             .await
-            .unwrap()
-            .is_none(),
-        "a different public client must not revoke the family",
-    );
-    let revoked = state
-        .revoke_refresh_token_family(
-            &issued.token,
-            &authorization_server,
-            &profile,
-            &client_id,
-            now + TimeDelta::seconds(2),
-        )
-        .await
-        .unwrap()
-        .expect("owning public client revokes the refresh family");
-    assert_eq!(revoked.family_id, issued.grant.family_id);
-    assert!(
-        state
+            .unwrap();
+
+        assert!(
+            state
+                .revoke_refresh_token_family(
+                    &issued.token,
+                    &authorization_server,
+                    &profile,
+                    &OAuthClientId::parse("different-client").unwrap(),
+                    now + TimeDelta::seconds(1),
+                )
+                .await
+                .unwrap()
+                .is_none(),
+            "a different public client must not revoke the family",
+        );
+        let revoked = state
             .revoke_refresh_token_family(
                 &issued.token,
                 &authorization_server,
                 &profile,
                 &client_id,
-                now + TimeDelta::seconds(3),
+                now + TimeDelta::seconds(2),
             )
             .await
             .unwrap()
-            .is_some(),
-        "repeated revocation is idempotently successful",
-    );
-    let rejected_audit = auth_draft("revoked-family-rotate", now, &profile, &principal);
-    let rejected_duplicate_audit =
-        redelivery_draft("revoked-family-rotate-duplicate", now, &profile, &principal);
-    assert!(matches!(
-        state
-            .rotate_refresh_token(
-                &issued.token,
-                refresh_rotation_request(
+            .expect("owning public client revokes the refresh family");
+        assert_eq!(revoked.family_id, issued.grant.family_id);
+        assert!(
+            state
+                .revoke_refresh_token_family(
+                    &issued.token,
                     &authorization_server,
                     &profile,
                     &client_id,
-                    now + TimeDelta::seconds(4),
-                    &delivery_cipher,
-                    &rejected_audit,
-                    &rejected_duplicate_audit,
-                ),
-            )
-            .await
-            .unwrap(),
-        GatewayRefreshExchange::Invalid
-    ));
-}
-
-fn store_configs() -> (StoreConfig, StoreConfig) {
-    let endpoint = std::env::var("VEOVEO_SURREAL_ENDPOINT")
-        .unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let namespace = std::env::var("VEOVEO_SURREAL_NAMESPACE")
-        .unwrap_or_else(|_| "veoveo_gateway_integration".to_owned());
-    let database_prefix =
-        std::env::var("VEOVEO_SURREAL_DATABASE").unwrap_or_else(|_| "gateway_state".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USERNAME").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let database = format!("{database_prefix}_{}", Uuid::now_v7().simple());
-    let bootstrap = StoreConfig::builder(
-        &endpoint,
-        &namespace,
-        &database,
-        StoreCredentials::root(username, password),
-    )
-    .build()
-    .unwrap();
-    let runtime = StoreConfig::builder(
-        endpoint,
-        namespace,
-        database,
-        StoreCredentials::database("gateway_runtime", "gateway-runtime-password"),
-    )
-    .build()
-    .unwrap();
-    (bootstrap, runtime)
+                    now + TimeDelta::seconds(3),
+                )
+                .await
+                .unwrap()
+                .is_some(),
+            "repeated revocation is idempotently successful",
+        );
+        let rejected_audit = auth_draft("revoked-family-rotate", now, &profile, &principal);
+        let rejected_duplicate_audit =
+            redelivery_draft("revoked-family-rotate-duplicate", now, &profile, &principal);
+        assert!(matches!(
+            state
+                .rotate_refresh_token(
+                    &issued.token,
+                    refresh_rotation_request(
+                        &authorization_server,
+                        &profile,
+                        &client_id,
+                        now + TimeDelta::seconds(4),
+                        &delivery_cipher,
+                        &rejected_audit,
+                        &rejected_duplicate_audit,
+                    ),
+                )
+                .await
+                .unwrap(),
+            GatewayRefreshExchange::Invalid
+        ));
+    })
+    .await
+    .expect("public_client_revocation_is_bound_idempotent_and_family_wide exceeded three minutes");
 }
 
 fn authorization_request(

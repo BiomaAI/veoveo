@@ -41,14 +41,14 @@ LET $lexical = (
   AND $active.generation = $generation
   AND $resource_selected(collection_id, uri, $resource_selections)
   AND collection.approved = true
-  AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
+  AND $scopes CONTAINSALL collection.required_scopes
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision
   AND member.sync.ready = true
   AND member.source_epoch = member.sync.epoch
   AND member.sync.owner_epoch = member.sync.coordinator.epoch
-  AND (collection.document.descriptor.changeSignal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
+  AND (collection.change_signal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
   AND (member.valid_until = NONE OR member.valid_until > time::now())
   AND member.stale = false
   AND member.deleted = false
@@ -80,7 +80,7 @@ LET $lexical = (
       AND (expires_at = NONE OR expires_at > time::now())]) > 0
   )
 
-      AND (array::len($entity_kinds) = 0 OR collection.document.descriptor.entityKind IN $entity_kinds)
+      AND (array::len($entity_kinds) = 0 OR collection.entity_kind IN $entity_kinds)
       AND text @0@ $query
     ORDER BY score DESC, collection_id ASC, uri ASC, ordinal ASC
     LIMIT $candidates TIMEOUT 10s
@@ -94,14 +94,14 @@ LET $approximate = (
   AND $active.generation = $generation
   AND $resource_selected(collection_id, uri, $resource_selections)
   AND collection.approved = true
-  AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
+  AND $scopes CONTAINSALL collection.required_scopes
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision
   AND member.sync.ready = true
   AND member.source_epoch = member.sync.epoch
   AND member.sync.owner_epoch = member.sync.coordinator.epoch
-  AND (collection.document.descriptor.changeSignal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
+  AND (collection.change_signal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
   AND (member.valid_until = NONE OR member.valid_until > time::now())
   AND member.stale = false
   AND member.deleted = false
@@ -133,7 +133,7 @@ LET $approximate = (
       AND (expires_at = NONE OR expires_at > time::now())]) > 0
   )
 
-      AND (array::len($entity_kinds) = 0 OR collection.document.descriptor.entityKind IN $entity_kinds)
+      AND (array::len($entity_kinds) = 0 OR collection.entity_kind IN $entity_kinds)
       AND embedding <|8192,16384|> $vector
     ORDER BY distance ASC, collection_id ASC, uri ASC, ordinal ASC
     LIMIT $candidates TIMEOUT 10s
@@ -151,14 +151,14 @@ LET $semantic = IF array::len($approximate) < $candidates {
   AND $active.generation = $generation
   AND $resource_selected(collection_id, uri, $resource_selections)
   AND collection.approved = true
-  AND $scopes CONTAINSALL collection.document.descriptor.requiredScopes
+  AND $scopes CONTAINSALL collection.required_scopes
   AND collection.tenant = $tenant
   AND collection.collection = collection_id
   AND collection.revision = approval_revision
   AND member.sync.ready = true
   AND member.source_epoch = member.sync.epoch
   AND member.sync.owner_epoch = member.sync.coordinator.epoch
-  AND (collection.document.descriptor.changeSignal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
+  AND (collection.change_signal = 'immutable' OR member.sync.coordinator.expires_at > time::now())
   AND (member.valid_until = NONE OR member.valid_until > time::now())
   AND member.stale = false
   AND member.deleted = false
@@ -190,7 +190,7 @@ LET $semantic = IF array::len($approximate) < $candidates {
       AND (expires_at = NONE OR expires_at > time::now())]) > 0
   )
 
-      AND (array::len($entity_kinds) = 0 OR collection.document.descriptor.entityKind IN $entity_kinds)
+      AND (array::len($entity_kinds) = 0 OR collection.entity_kind IN $entity_kinds)
     ORDER BY distance ASC, collection_id ASC, uri ASC, ordinal ASC
     LIMIT $candidates TIMEOUT 10s
 } ELSE { $approximate };
@@ -199,7 +199,7 @@ LET $members = (SELECT collection_id, uri FROM $fused GROUP BY collection_id, ur
 LET $best = $members.map(|$member| $fused[WHERE collection_id = $member.collection_id AND uri = $member.uri][0]);
 LET $ranked = (
     SELECT *, id.tenant AS tenant, id.text AS text, id.title AS title, id.admission AS admission,
-        id.observation AS observation, id.collection.document.descriptor AS descriptor
+        id.observation AS observation, id.collection.* AS registration
     FROM $best
     ORDER BY rrf_score DESC, collection_id ASC, uri ASC
     LIMIT $limit

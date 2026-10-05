@@ -1,9 +1,7 @@
 use super::*;
 use crate::PlatformStore;
 use std::collections::{BTreeMap, BTreeSet};
-use veoveo_knowledge_contract::{
-    CollectionApproval, CollectionRegistration, KnowledgeCollectionApproval,
-};
+use veoveo_knowledge_contract::{CollectionRegistration, KnowledgeCollectionApproval};
 use veoveo_types::{ScopeName, ServerSlug};
 
 /// Selection is applied before decoding catalog documents.
@@ -18,10 +16,10 @@ pub struct CatalogSource {
     pub server: ServerSlug,
     pub registrations: Vec<CollectionRegistration>,
 }
-#[derive(serde::Serialize, serde::Deserialize)]
-struct CatalogRow {
-    collection: CollectionId,
-    document: CollectionRegistration,
+#[derive(SurrealValue)]
+struct SourceRow {
+    server: String,
+    registrations: Vec<RegistrationRow>,
 }
 
 pub(super) fn approvals_valid(
@@ -59,24 +57,8 @@ impl PlatformStore {
                 "record",
                 collection_record(&registration.tenant, registration.descriptor.collection()),
             ))
-            .bind(("tenant", registration.tenant.to_string()))
-            .bind((
-                "collection",
-                registration.descriptor.collection().to_string(),
-            ))
-            .bind((
-                "root",
-                veoveo_mcp_knowledge_extension::enumeration_uri(&registration.descriptor, None)
-                    .map_err(|error| StoreError::Knowledge(error.0))?
-                    .to_string(),
-            ))
-            .bind(("revision", registration.revision().to_string()))
+            .bind(("row", RegistrationRow::new(registration)?))
             .bind(("expected", expected.map(ToString::to_string)))
-            .bind((
-                "approved",
-                registration.approval.mode == CollectionApproval::Index,
-            ))
-            .bind(("document", Document(registration.clone())))
             .await?
             .knowledge_check()?;
         Ok(())
@@ -110,11 +92,12 @@ impl PlatformStore {
             ))
             .await?
             .knowledge_check()?;
-        let rows: Vec<Document<CollectionRegistration>> = result.take(0)?;
+        let rows: Vec<RegistrationRow> = result.take(0)?;
         let mut rows = rows.into_iter();
-        let Some(Document(registration)) = rows.next() else {
+        let Some(row) = rows.next() else {
             return Ok(None);
         };
+        let registration = row.checked(tenant)?;
         if rows.next().is_some()
             || registration.tenant != *tenant
             || registration.validate().is_err()
@@ -135,6 +118,14 @@ impl PlatformStore {
         registration: &CollectionRegistration,
         uri: &veoveo_types::ResourceUri,
     ) -> Result<bool, StoreError> {
+        match self
+            .knowledge_collection(&registration.tenant, registration.descriptor.collection())
+            .await?
+        {
+            None => return Ok(false),
+            Some(current) if current != *registration => return Ok(false),
+            Some(_) => {}
+        }
         let mut response = self
             .client()
             .query(include_str!("../queries/knowledge/observed_member.surql"))
@@ -170,10 +161,11 @@ impl PlatformStore {
             .bind(("collection", collection.to_string()))
             .await?
             .knowledge_check()?;
-        let document: Option<Document<CollectionRegistration>> = response.take(0)?;
-        let Some(Document(document)) = document else {
+        let document: Option<RegistrationRow> = response.take(0)?;
+        let Some(row) = document else {
             return Ok(None);
         };
+        let document = row.checked(tenant)?;
         if &document.tenant != tenant
             || document.descriptor.collection() != collection
             || document.validate().is_err()
@@ -227,18 +219,8 @@ impl PlatformStore {
             ))
             .await?
             .knowledge_check()?;
-        let rows: Vec<Document<CatalogRow>> = response.take(0)?;
-        rows.into_iter()
-            .map(|Document(row)| {
-                if row.document.tenant != *tenant
-                    || row.document.validate().is_err()
-                    || row.collection != *row.document.descriptor.collection()
-                {
-                    return integrity();
-                }
-                Ok(row.document)
-            })
-            .collect()
+        let rows: Vec<RegistrationRow> = response.take(0)?;
+        rows.into_iter().map(|row| row.checked(tenant)).collect()
     }
 }
 
@@ -270,21 +252,31 @@ impl PlatformStore {
             .bind(("after", after.map(ToString::to_string)))
             .await?
             .knowledge_check()?;
-        let rows: Vec<Document<CatalogSource>> = response.take(0)?;
+        let rows: Vec<SourceRow> = response.take(0)?;
         rows.into_iter()
-            .map(|Document(mut row)| {
-                if row.registrations.is_empty()
-                    || row.registrations.iter().any(|r| {
-                        r.tenant != *tenant
-                            || r.validate().is_err()
-                            || r.descriptor.collection().server() != &row.server
-                    })
+            .map(|row| {
+                let server: ServerSlug = row
+                    .server
+                    .parse()
+                    .map_err(|_| StoreError::Knowledge("invalid stored source"))?;
+                let mut registrations = row
+                    .registrations
+                    .into_iter()
+                    .map(|registration| registration.checked(tenant))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if registrations.is_empty()
+                    || registrations
+                        .iter()
+                        .any(|r| r.descriptor.collection().server() != &server)
                 {
                     return integrity();
                 }
-                row.registrations
+                registrations
                     .sort_by(|a, b| a.descriptor.collection().cmp(b.descriptor.collection()));
-                Ok(row)
+                Ok(CatalogSource {
+                    server,
+                    registrations,
+                })
             })
             .collect()
     }

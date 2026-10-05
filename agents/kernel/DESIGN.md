@@ -69,3 +69,17 @@ A failed source closes dispatch. Stop drops the active runner
 without cancelling an already accepted domain Task. A whole-episode deadline also
 bounds model and tool work. DuckDB represents a stopped projection as an error
 with an explicit stop reason; the canonical runtime state remains `stopped`.
+
+## Retained Deferred Delivery
+
+The recorder constructs the Agent runtime's typed Rig v1 descriptor from Rig's
+accessors. It records backend payload JSON without interpreting it. Watchers
+reconstruct Rig descriptors from the typed fields and preserve incomplete
+reconstruction as retryable observation work. Reconstruction failure does not
+invoke a tool or release its retained result pin.
+
+The recorder and watcher construct the owner's output/error result variants and
+closed delivery vocabulary. Wake rendering, priority scheduling and heartbeat
+recognition match typed payloads; output bodies remain backend-owned JSON.
+Runtime settlement and consumption transactions own wake deduplication, episode
+lineage and retention release across kernel replacement.

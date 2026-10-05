@@ -1,7 +1,7 @@
 //! Atomic catalog replacement against the active installation and prior source set.
 use super::*;
 use crate::PlatformStore;
-use veoveo_knowledge_contract::{CollectionApproval, CollectionRegistration};
+use veoveo_knowledge_contract::CollectionRegistration;
 use veoveo_types::Sha256Digest;
 
 /// A Store snapshot taken before discovery. Private fields prevent a caller from
@@ -22,16 +22,6 @@ struct Snapshot {
     control: RecordId,
     digest: String,
     prior: Vec<Fingerprint>,
-}
-#[derive(SurrealValue)]
-struct RegistrationRow {
-    id: RecordId,
-    tenant: String,
-    collection: String,
-    enumeration_root: String,
-    revision: String,
-    approved: bool,
-    document: Document<CollectionRegistration>,
 }
 
 impl PlatformStore {
@@ -87,20 +77,7 @@ impl PlatformStore {
                     "catalog has duplicate or foreign registrations",
                 ));
             }
-            rows.push(RegistrationRow {
-                id: collection_record(&ticket.tenant, registration.descriptor.collection()),
-                tenant: ticket.tenant.to_string(),
-                collection: registration.descriptor.collection().to_string(),
-                enumeration_root: veoveo_mcp_knowledge_extension::enumeration_uri(
-                    &registration.descriptor,
-                    None,
-                )
-                .map_err(|error| StoreError::Knowledge(error.0))?
-                .to_string(),
-                revision: registration.revision().to_string(),
-                approved: registration.approval.mode == CollectionApproval::Index,
-                document: Document(registration.clone()),
-            });
+            rows.push(RegistrationRow::new(registration)?);
         }
         self.client()
             .query(include_str!("../queries/knowledge/catalog_replace.surql"))

@@ -50,7 +50,7 @@ async fn context(store: &PlatformStore, identity: &PlatformIdentity, key: &str) 
             key,
         )
         .unwrap();
-        store
+        let mut response = store
             .client()
             .query(include_str!("queries/workspace/context/statement_2.surql"))
             .bind((
@@ -69,11 +69,46 @@ async fn context(store: &PlatformStore, identity: &PlatformIdentity, key: &str) 
             .bind(("owner", identity.principal_id.record_id()))
             .bind(("key", key.to_owned()))
             .bind(("content", content.clone()))
+            .bind(("model", content.model.clone()))
+            .bind(("tools", content.tools.clone()))
+            .bind(("execution", content.execution.clone()))
             .bind(("digest", digest.clone()))
             .await
-            .unwrap()
-            .check()
-            .unwrap();
+            .expect("Workspace catalog fixture query transport");
+        let errors = response.take_errors();
+        if let Some(error) = veoveo_platform_store::primary_transaction_error(errors.clone()) {
+            let statement = errors
+                .iter()
+                .find_map(|(statement, failure)| (failure == &error).then_some(*statement))
+                .expect("causal fixture statement");
+            // Report only static field names and the engine error kind. Database
+            // messages can contain rejected bound values, including private content.
+            let field = [
+                "draft_model",
+                "draft_tools",
+                "draft_execution",
+                "model",
+                "tools",
+                "execution",
+                "draft",
+                "content",
+                "digest",
+                "definition",
+                "published",
+                "audience",
+                "owner",
+                "tenant",
+                "work_context",
+                "template_revision",
+            ]
+            .into_iter()
+            .find(|field| error.message().contains(&format!("field `{field}`")));
+            panic!(
+                "Workspace catalog fixture `{key}` failed at statement {statement}: {} error, field {} (bound values redacted)",
+                error.kind_str(),
+                field.unwrap_or("unclassified")
+            );
+        }
     }
     context
 }

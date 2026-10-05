@@ -1,3 +1,4 @@
+use crate::persistence::{AgentTaskOutcome, DeferredTaskDescriptor, WakePayload};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
@@ -126,7 +127,7 @@ pub struct WakeRecord {
     pub kind: WakeKind,
     pub state: WakeState,
     pub dedupe_key: Option<String>,
-    pub payload: OpenObject,
+    pub payload: WakePayload,
     pub available_at: DateTime<Utc>,
     pub claimed_by: Option<String>,
     pub claimed_at: Option<DateTime<Utc>>,
@@ -171,10 +172,10 @@ pub struct AgentTaskRecord {
     pub agent: RecordId,
     pub task_id: String,
     pub tool_name: String,
-    pub descriptor: OpenObject,
+    pub descriptor: DeferredTaskDescriptor,
     pub descriptor_complete: bool,
     pub state: AgentTaskWatchState,
-    pub result: Option<OpenObject>,
+    pub result: Option<AgentTaskOutcome>,
     pub result_is_error: bool,
     pub result_wake: Option<RecordId>,
     pub retention_pin: String,

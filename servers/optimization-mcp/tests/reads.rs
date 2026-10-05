@@ -347,21 +347,38 @@ async fn solutions_require_success_and_selected_corruption_never_becomes_a_short
 ("result.payload.isError = true", include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_variant_4.surql"))
 ].into_iter().enumerate() {
             let row=create(&writer,&caller,number as u64+1).await;
+            // The nonsucceeded fixtures clear the Task product address required
+            // by the shared schema. Their stale successful catalog settlement
+            // and result bytes remain, requiring SQL to exclude them before
+            // hydration would report a catalog/Task integrity mismatch.
             update(&writer,row.task,statement).await;
-            assert!(reads.solution(&caller,&row.solution).await.unwrap().is_none());
-            assert!(reads.complete_solutions(&caller,row.solution.as_str(),100).await.unwrap().values.is_empty());
-            assert!(reads.page(&caller,&OptimizationCollectionUri::new(OptimizationCollection::Solutions,None).unwrap()).await.unwrap().items.is_empty());
+            if number < 3 {
+                assert!(reads.solution(&caller,&row.solution).await.unwrap().is_none());
+                assert!(reads.complete_solutions(&caller,row.solution.as_str(),100).await.unwrap().values.is_empty());
+                assert!(reads.page(&caller,&OptimizationCollectionUri::new(OptimizationCollection::Solutions,None).unwrap()).await.unwrap().items.is_empty());
+            } else {
+                // A SQL-authorized successful Task reaches checked owner hydration.
+                // An error-marked retained result is an integrity error.
+                assert!(reads.solution(&caller,&row.solution).await.is_err());
+                assert!(reads.complete_solutions(&caller,row.solution.as_str(),100).await.is_err());
+                assert!(reads.page(&caller,&OptimizationCollectionUri::new(OptimizationCollection::Solutions,None).unwrap()).await.is_err());
+            }
         }
         let row=create(&writer,&caller,20).await;
         update(&writer, row.task, include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_2.surql")).await;
         assert!(reads.run(&caller, &row.run).await.is_err());
-        assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none());
+        assert!(reads.solution(&caller, &row.solution).await.is_err());
         update(&writer, row.task, include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_3.surql")).await;
         update(&writer,row.task,include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_4.surql")).await;
         assert!(reads.solution(&caller,&row.solution).await.is_err());
         update(&writer,row.task,include_str!("queries/reads/solutions_require_success_and_selected_corruption_never_becomes_a_short_page_5.surql")).await;
         assert!(reads.complete_problems(&caller,row.problem.as_str(),100).await.is_err());
         assert!(reads.run(&caller,&row.run).await.is_err());
+        let wrong_kind = create(&writer, &caller, 21).await;
+        update(&writer, wrong_kind.task, include_str!("queries/reads/corrupt_request_kind.surql")).await;
+        assert!(reads.problem(&caller, &wrong_kind.problem).await.is_err());
+        assert!(reads.solution(&caller, &wrong_kind.solution).await.is_err());
+        assert!(reads.complete_problems(&caller, wrong_kind.problem.as_str(), 100).await.is_err());
     }).await.expect("Optimization result qualification exceeded 60 seconds");
 }
 
@@ -398,8 +415,8 @@ async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows
                 continue;
             }
             update(&writer, row.task, statement).await;
-            assert!(reads.run(&caller, &row.run).await.unwrap().is_none(), "accepted {mutation}");
-            assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none(), "accepted {mutation}");
+            assert!(reads.run(&caller, &row.run).await.is_err(), "accepted {mutation}");
+            assert!(reads.solution(&caller, &row.solution).await.is_err(), "accepted {mutation}");
         }
         for (number, (_mutation, statement)) in [
 ("result.payload = record_guard:result", include_str!("queries/reads/record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows_3_variant_1.surql")),
@@ -407,7 +424,7 @@ async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows
 ].into_iter().enumerate() {
             let row = create(&writer, &caller, number as u64 + 30).await;
             update(&writer, row.task, statement).await;
-            assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none());
+            assert!(reads.solution(&caller, &row.solution).await.is_err());
             assert!(reads.run(&caller, &row.run).await.is_err());
         }
         for (mutation, statement) in [
@@ -419,7 +436,7 @@ async fn record_shaped_payloads_cannot_dereference_foreign_policy_or_result_rows
             assert!(result.is_err(), "schema admitted {mutation}");
         }
         let page = OptimizationCollectionUri::new(OptimizationCollection::Solutions, None).unwrap();
-        assert_eq!(reads.page(&caller, &page).await.unwrap().items.len(), 1);
+        assert!(reads.page(&caller, &page).await.is_err());
     }).await.expect("Optimization opaque record guard qualification exceeded 90 seconds");
 }
 
