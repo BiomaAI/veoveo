@@ -524,6 +524,12 @@ plan and caller identities. A terminal Task with an executing plan keeps its ret
 pin and the vehicle fence until the physical outcome is settled. A later request for
 the same plan cannot replace its admitted Task.
 
+Execution links survive parent retirement: reconciliation uses the Task, plan and
+admitting lease identity to distinguish settlement from an unresolved physical
+effect. Deletion of any parent cannot cascade away that evidence. A missing plan
+does not permit pin release, and inconsistent links require repair while preserving
+the fence.
+
 Native control-plane qualification covers exact mission selection across Store
 connections, unadmitted and damaged-link exclusion from reads, pages and completions,
 current-format interruption recovery, retained Task pins, and atomic admission failure.

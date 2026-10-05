@@ -31,6 +31,15 @@ The default `persistence` feature exposes repositories and activates the databas
 client. Schema-only consumers disable defaults. Owner observation declarations
 identify native LIVE and changefeed sources without granting read authority.
 
+## Projection Receipt Lifetime
+
+Reservation requires a grant whose expiry reaches the receipt's expiry. Reads and
+transitions check that grant, its scope, recordings and catalog revision again.
+The authority cleanup transaction removes expired receipts before expired grants.
+A missing grant denies access to its receipt. This joint expiry owns cleanup without
+a reference cascade; retained recordings and their published products have separate
+lifetimes.
+
 ## Qualification
 
 The `recording_catalog`, `recording_grants` and `recording_projections` integration

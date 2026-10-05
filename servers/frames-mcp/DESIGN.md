@@ -289,6 +289,11 @@ requires its current Task to belong to Frames and agree on tenant, principal, pr
 owner-envelope identities and label clearance. Deleted or inconsistent parents deny
 access. Unauthorized and absent operations share the resource-not-found response.
 
+Task pruning leaves the immutable operation row in place and makes Task-backed
+reads and writes unavailable through the parent checks. Direct operations have no
+Task parent and keep their independent authority. Frames declares no physical
+operation-pruning lifecycle, so the optional Task link has no deletion cascade.
+
 Recording checks Task authority inside the operation transaction, then creates the
 immutable operation. Native changefeeds record its commit. Replaying identical
 authority and provenance performs no mutation. Stored labels keep their 256-byte limit. Any changed authority, Task link, labels or provenance

@@ -21,6 +21,12 @@ uncertain database response triggers one exact source lookup; this lookup never
 redispatches the upstream tool. The unique source index arbitrates competing writers.
 An expired mapping is not recreated or extended by a retry.
 
+Route rows survive expiry and source Task pruning because the retained source tuple
+prevents a later retry from renewing retention or changing authority. The optional
+`source_task` link supplies ownership recovery under the reader profile below; it
+does not control the route's lifetime. Deleting a Task therefore does not cascade to
+its route. Access still requires an unexpired mapping and current authorization.
+
 Reads, updates, cancellations and listeners match durable ownership before checking
 current profile exposure and policy. Version-1 ownership retains the principal key,
 kind, issuer, subject, invocation mode, initiator, delegation identity and admitted

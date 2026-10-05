@@ -53,6 +53,10 @@ Writes and exact reads validate the full typed approval against its descriptor.
 `begin_knowledge_catalog` captures a tenant's prior registrations and the active control
 revision before discovery. `replace_knowledge_catalog` locks that control pointer,
 checks both snapshots and replaces the complete tenant catalog in one transaction.
+Removing a registration leaves generation, member and source-sync records available
+for recovery and reconciliation with other collections. Current approval checks deny
+access through the removed registration. Collection links therefore do not cascade;
+coordinator-fenced generation reclamation owns deletion of the indexed data.
 The service submits at most 1,024 registrations; an empty selection revokes all of that
 tenant's registrations. Source and approval fingerprints exclude the control revision,
 allowing unrelated installation changes to reuse index generations after reconciliation.

@@ -251,6 +251,12 @@ transaction. Matching publication replay retains the same
 occurrence and completion timestamp. Ordinary writes and upload publication share the
 typed content builder and SQL registration fragment.
 
+Upload rows and part descriptors retain admission and publication receipts for
+matching retries. The service has no upload-row deletion operation. Published blobs
+and occurrences have independent product lifetimes, and terminal upload state alone
+does not authorize deleting their bytes. Part links therefore follow the upload
+recovery protocol rather than a parent-deletion cascade.
+
 Cancellation and failure convert reserved quota into retained cleanup debt. They keep
 active request leases because bytes may still be in flight. Cleanup becomes eligible
 only after those leases have stopped, and the unique object has no retained blob
