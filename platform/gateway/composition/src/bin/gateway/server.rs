@@ -631,3 +631,7 @@ mod tests {
         verify_expected_control_plane_revision("old", None).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "server/native_tests.rs"]
+mod native_tests;

@@ -80,7 +80,7 @@ pub(super) async fn authorization_server_jwks(
 pub(super) use veoveo_mcp_gateway::http::authenticate_profile as authenticate_mcp;
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::runtime::ProfileAuthState;
     use axum::http::{Request, header::AUTHORIZATION};
@@ -100,7 +100,7 @@ mod tests {
     use veoveo_mcp_gateway::GatewayCatalog;
     use veoveo_mcp_gateway::GatewayCatalogHandle;
 
-    struct PublicKeyFile(PathBuf);
+    pub(crate) struct PublicKeyFile(PathBuf);
     impl Drop for PublicKeyFile {
         fn drop(&mut self) {
             let _ = std::fs::remove_file(&self.0);
@@ -122,8 +122,14 @@ mod tests {
         exp: i64,
     }
 
-    #[tokio::test]
-    async fn expired_bearer_returns_401_before_dispatch_and_commits_denial() {
+    pub(crate) async fn profile_fixture(
+        empty: Option<veoveo_mcp_contract::DiscoveryFailureMode>,
+    ) -> (
+        crate::test_store::TestDb,
+        ProfileAuthState,
+        PublicKeyFile,
+        rcgen::KeyPair,
+    ) {
         let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
         let db = crate::test_store::TestDb::new().await;
         let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
@@ -147,6 +153,16 @@ mod tests {
         control.authorization_servers[0].jwks = JwksSource::File {
             path: veoveo_mcp_contract::JwksFilePath::new(key_file.0.to_str().unwrap()).unwrap(),
         };
+        if let Some(mode) = empty {
+            control.servers.clear();
+            for profile in &mut control.profiles {
+                profile.servers.clear();
+                profile.discovery_failure_mode = mode;
+            }
+            for policy in &mut control.policies {
+                policy.rules.clear();
+            }
+        }
         let state = ProfileAuthState {
             catalog: GatewayCatalogHandle::new(Arc::new(
                 GatewayCatalog::from_control_plane(control, crate::catalog_admission().unwrap())
@@ -161,44 +177,55 @@ mod tests {
                 .unwrap(),
             auth_http: Arc::new(RwLock::new(reqwest::Client::new())),
         };
+        (db, state, key_file, key)
+    }
+
+    pub(crate) fn fixture_bearer(key: &rcgen::KeyPair, offset: i64) -> secrecy::SecretString {
+        let mut header = Header::new(Algorithm::EdDSA);
+        header.kid = Some("expiry-test".to_owned());
+        encode(
+            &header,
+            &Claims {
+                iss: "https://computers.test",
+                sub: "alice",
+                principal_id: "https://computers.test#alice",
+                client_id: "console",
+                aud: "https://computers.test/mcp/operator",
+                work_context: "computers-test",
+                invocation_mode: veoveo_types::InvocationMode::Direct,
+                initiator: "https://computers.test#alice",
+                tenant: "test",
+                scope: "operator:use",
+                exp: Utc::now().timestamp() + offset,
+            },
+            &EncodingKey::from_ed_der(&key.serialize_der()),
+        )
+        .unwrap()
+        .into()
+    }
+
+    #[tokio::test]
+    async fn expired_bearer_returns_401_before_dispatch_and_commits_denial() {
+        use secrecy::ExposeSecret;
+        let (db, state, _key_file, key) = profile_fixture(None).await;
         let app = Router::new()
             .route(
                 "/arbitrary/extension/{profile}/nested",
                 post(|| async { StatusCode::NO_CONTENT }),
             )
             .route_layer(middleware::from_fn_with_state(state, authenticate_mcp));
-        let mut header = Header::new(Algorithm::EdDSA);
-        header.kid = Some("expiry-test".to_owned());
-        let encoding_key = EncodingKey::from_ed_der(&key.serialize_der());
         tokio::time::timeout(Duration::from_secs(30), async {
             // A valid control proves this fixture can pass all the real middleware gates.
             // Expired cases cover the default JWT leeway and its exact expiry second.
             for offset in [120, -41, -1, 0, -120] {
-                let token = encode(
-                    &header,
-                    &Claims {
-                        iss: "https://computers.test",
-                        sub: "alice",
-                        principal_id: "https://computers.test#alice",
-                        client_id: "console",
-                        aud: "https://computers.test/mcp/operator",
-                        work_context: "computers-test",
-                        invocation_mode: veoveo_types::InvocationMode::Direct,
-                        initiator: "https://computers.test#alice",
-                        tenant: "test",
-                        scope: "operator:use",
-                        exp: Utc::now().timestamp() + offset,
-                    },
-                    &encoding_key,
-                )
-                .unwrap();
+                let token = fixture_bearer(&key, offset);
                 let response = app
                     .clone()
                     .oneshot(
                         Request::builder()
                             .method("POST")
                             .uri("/arbitrary/extension/operator/nested")
-                            .header(AUTHORIZATION, format!("Bearer {token}"))
+                            .header(AUTHORIZATION, format!("Bearer {}", token.expose_secret()))
                             .body(Body::empty())
                             .unwrap(),
                     )

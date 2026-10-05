@@ -24,6 +24,14 @@ server. Its catalog composes server manifests and exposed capabilities. Domain s
 own their tool schemas, result values, resource content and identifiers. The gateway
 does not enumerate domain payload types or require a new producer to change core.
 
+Discovery advertises the gateway's tool catalogue and routing support even when a
+profile exposes no servers. Authenticated tool listing then returns a complete empty
+catalogue with private cache hints; capability advertisement grants no tool access.
+Optional resource, prompt, completion and Task capabilities compose from exposed
+servers. Tool list-change support composes from upstream declarations and the
+gateway's isolation discovery mode, whose listener remains open with an empty
+catalogue until cancellation.
+
 `mcp_support.rs` owns the transformation of protocol resource addresses when an
 installation selects server-owned projection. Resource discovery, templates, embedded
 resource envelope addresses and resource links use the server's registered namespace.

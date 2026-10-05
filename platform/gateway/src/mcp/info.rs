@@ -32,7 +32,8 @@ impl GatewayMcp {
     }
 
     pub(super) fn handle_get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::default();
+        // The gateway owns tool catalogue and routing support even when a profile exposes no servers.
+        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
         let catalog = self.catalog.current();
         for (_, server) in catalog.profile_servers(&self.profile_id) {
             merge_surface_capabilities(&mut capabilities, server.capabilities);
