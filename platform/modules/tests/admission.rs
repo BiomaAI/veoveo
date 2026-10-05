@@ -224,7 +224,7 @@ fn valid_nested_policy_failures_identify_the_offending_owner_object() {
             .unwrap_err()
             .to_string();
         assert!(!error.contains("invalid migration syntax"));
-        if sql.contains("PERMISSIONS") {
+        if sql.contains("PERMISSIONS") || sql.contains("DEFAULT (CREATE") {
             assert!(error.contains("read-only SQL context"), "{error}");
         } else {
             assert!(error.contains("foreign"), "{error}");
@@ -316,7 +316,7 @@ fn field_schema_links_do_not_admit_foreign_executable_or_table_types() {
         let error = prepare(registry.select(vec![]).unwrap())
             .unwrap_err()
             .to_string();
-        if sql.contains("COMMENT") {
+        if sql.contains("COMMENT") || sql.contains("DEFAULT (CREATE") {
             assert!(error.contains("read-only SQL context"), "{sql}: {error}");
         } else {
             assert!(error.contains("base"), "{sql}: {error}");
@@ -336,7 +336,6 @@ fn nested_field_schema_links_validate_every_owner_and_exclude_history() {
         "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_lane>>>;",
         "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_migration>>>;",
         "DEFINE FIELD link ON own TYPE array<set<record<base> | record<platform_module_installation>>>;",
-        "DEFINE FIELD link ON own TYPE record;",
     ] {
         assert_valid_syntax(sql);
         let registry = ModuleRegistry::new(vec![
@@ -378,4 +377,30 @@ fn nested_field_schema_links_validate_every_owner_and_exclude_history() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn current_field_kinds_defaults_and_relations_inspect_nested_targets() {
+    for sql in [
+        "DEFINE TABLE own; DEFINE FIELD state ON own TYPE 'queued' | 'running';",
+        "DEFINE TABLE own; DEFINE FIELD payload ON own TYPE {state: 'queued' | 'running', ids: array<record<own>>};",
+        "DEFINE TABLE own; DEFINE FIELD id ON own TYPE uuid DEFAULT rand::uuid();",
+        "DEFINE TABLE own TYPE RELATION IN own OUT own ENFORCED;",
+        "DEFINE TABLE own; DEFINE FIELD target ON own TYPE option<record> ASSERT $value = NONE OR record::tb($value) != '';",
+    ] {
+        assert!(admitted(sql), "current schema profile rejected {sql}");
+    }
+    for sql in [
+        "DEFINE TABLE own; DEFINE FIELD payload ON own TYPE {nested: array<record<foreign>>};",
+        "DEFINE TABLE own TYPE RELATION IN own OUT foreign ENFORCED;",
+        "DEFINE TABLE own; DEFINE FIELD target ON own TYPE option<record> REFERENCE;",
+        "RETURN <record> $value;",
+        "DEFINE FUNCTION fn::own($target: record) { RETURN $target; };",
+        "DEFINE TABLE own; DEFINE FIELD target ON own TYPE record VALUE (SELECT * FROM foreign);",
+    ] {
+        assert!(
+            !admitted(sql),
+            "nested or executable reference admitted {sql}"
+        );
+    }
 }

@@ -21,7 +21,7 @@ pub(super) fn sql_type(kind: &Kind) -> Option<SqlType> {
         _ => return None,
     })
 }
-fn definition(source: &str) -> Result<DefineFunctionStatement, RunnerError> {
+pub(super) fn definition(source: &str) -> Result<DefineFunctionStatement, RunnerError> {
     let ast = surrealdb_syn::parse_with_settings(
         source.as_bytes(),
         surrealdb_syn::ParserSettings {
@@ -48,42 +48,6 @@ fn definition(source: &str) -> Result<DefineFunctionStatement, RunnerError> {
         _ => Err(unsupported()),
     }
 }
-/// A declaration is usable only when its exact definition occurs once in its introducing lane entry.
-pub(super) fn check_exports(module: &ModuleSetup) -> Result<(), RunnerError> {
-    for api in module.sql_apis() {
-        let expected = definition(api.definition())?;
-        if api.name().as_str() != format!("fn::{}", expected.name) {
-            return Err(RunnerError::new(
-                "SQL API name differs from its exact definition",
-            ));
-        }
-        let migration = module
-            .lane()
-            .migrations()
-            .iter()
-            .find(|m| m.version() == api.introduced())
-            .ok_or_else(unsupported)?;
-        let ast = surrealdb_syn::parse_with_settings(
-            migration.sql().as_bytes(),
-            surrealdb_syn::ParserSettings {
-                object_recursion_limit: 32,
-                query_recursion_limit: 20,
-                expr_recursion_limit: 64,
-                ..Default::default()
-            },
-            async |parser, stack| {
-                let ast = parser.parse_query(stack).await?;
-                parser.assert_finished()?;
-                Ok(ast)
-            },
-        )
-        .map_err(|_| RunnerError::new("invalid introducing SQL API migration"))?;
-        if ast.expressions.iter().filter(|e| matches!(e, TopLevelExpr::Expr(Expr::Define(s)) if matches!(s.as_ref(), DefineStatement::Function(f) if *f == expected))).count() != 1 {
-            return Err(RunnerError::new("SQL API definition missing or duplicated in introducing migration"));
-        }
-    }
-    Ok(())
-}
 impl<'a> Visitor<'a> {
     pub(super) fn api_definition(
         &mut self,
@@ -92,7 +56,7 @@ impl<'a> Visitor<'a> {
         depth: usize,
     ) -> Result<(), RunnerError> {
         if self.migration.version() != api.introduced()
-            || *statement != definition(api.definition())?
+            || self.preparation.api(api.name()) != Some(statement)
             || statement.args.len() != api.signature().parameters().len()
             || statement.args.iter().zip(api.signature().parameters()).any(
                 |((name, kind), expected)| {
@@ -130,6 +94,13 @@ impl<'a> Visitor<'a> {
             .map(|p| (p.name().into(), Some(p.kind().clone())))
             .collect();
         self.api = Some(api);
+        self.objects = api
+            .signature()
+            .parameters()
+            .iter()
+            .filter(|p| p.kind() == &SqlType::Object)
+            .map(|p| p.name().into())
+            .collect();
         for expr in &statement.block.0 {
             self.expr(expr, depth + 1)?;
         }
@@ -182,16 +153,16 @@ impl<'a> Visitor<'a> {
             .registry
             .owner_of_function(&name)
             .ok_or_else(unsupported)?;
-        let api = owner
-            .sql_apis()
-            .iter()
-            .find(|a| a.name() == &name)
-            .ok_or_else(|| RunnerError::new("private or undeclared kernel SQL API"))?;
+        let Some(api) = owner.sql_apis().iter().find(|api| api.name() == &name) else {
+            return self.private_call(&name, owner, arguments, _depth);
+        };
         if self.argument_readonly && !matches!(api.effects(), SqlEffectProfile::ReadOnly) {
             return Err(RunnerError::new(
                 "read-only SQL context cannot call an updating API",
             ));
         }
+        self.preparation
+            .function(&name, self.position, self.deferred)?;
         let allowed = if owner.name() == self.module.name() {
             self.migration.version() >= api.introduced()
         } else {

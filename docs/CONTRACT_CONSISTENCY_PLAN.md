@@ -40,8 +40,11 @@ consumer checks and isolated contract/adapter builds pass; generated browser sch
 are unchanged. Phase 3 is active: owners now declare their observation tables and
 Computers owns its change decoder. Native delivery, replay, stopped-reader recovery,
 listener cleanup and schema retention checks pass. Independent schema consumers and
-the affected runtime graphs pass qualification. Production repositories and schema
-lanes still need to move.
+the affected runtime graphs pass qualification. Migration admission now follows exact
+function versions and preserves stored read-only callers across definition changes.
+Its native schema, transaction and recovery checks pass. Production repository and
+schema-lane extraction is in progress; complete production admission and the moved
+owners' suites remain open.
 Five additional browser contract
 bundles pass generation, consumer tests and builds. Production schema ownership moves
 in Phase 3.

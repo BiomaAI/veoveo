@@ -637,3 +637,136 @@ async fn native_owned_update_api_and_caller_settle_or_roll_back_in_one_transacti
         assert_eq!(prepared.status(&db).await.unwrap().lane(&name("consumer")).unwrap().current, Some(MigrationVersion::new(0)));
     }).await.expect("owned update API transaction qualification exceeded 120 seconds");
 }
+
+#[tokio::test]
+#[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
+async fn native_current_schema_values_views_and_guarded_events() {
+    const SQL: &str = "
+DEFINE FUNCTION fn::store::first($value: string) -> string { RETURN fn::store::second($value); };
+DEFINE FUNCTION fn::store::second($value: string) -> string { RETURN string::lowercase($value); };
+DEFINE FUNCTION fn::store::exists($id: record<fixture_marker>) -> bool { RETURN record::exists($id); };
+DEFINE TABLE fixture_marker SCHEMAFULL;
+DEFINE FIELD state ON fixture_marker TYPE 'queued' | 'running';
+DEFINE FIELD tags ON fixture_marker TYPE array<string> VALUE $value.distinct() ASSERT $value.all(|$item: any| string::len($item)>0);
+DEFINE FIELD digest ON fixture_marker TYPE string ASSERT $value.len()=64;
+DEFINE FIELD sealed ON fixture_marker TYPE {nonce:string, version:int};
+DEFINE FIELD target ON fixture_marker TYPE option<record> ASSERT $value=NONE OR record::tb($value)!='';
+DEFINE FIELD nonce ON fixture_marker TYPE uuid DEFAULT rand::uuid();
+DEFINE FIELD replacement ON fixture_marker TYPE option<uuid> ASSERT $value=NONE OR $value!=$this.nonce;
+DEFINE FIELD sequence ON fixture_marker TYPE int DEFAULT 0;
+DEFINE TABLE fixture_uuid SCHEMAFULL;
+DEFINE FIELD id ON fixture_uuid TYPE uuid DEFAULT rand::uuid();
+DEFINE TABLE fixture_relation TYPE RELATION IN fixture_marker OUT fixture_marker ENFORCED;
+DEFINE TABLE fixture_daily TYPE ANY SCHEMALESS AS SELECT state, count() AS count FROM fixture_marker GROUP BY state;
+DEFINE TABLE fixture_head SCHEMAFULL;
+DEFINE FIELD last_sequence ON fixture_head TYPE int;
+CREATE fixture_head:current SET last_sequence=0;
+DEFINE EVENT advance ON fixture_marker WHEN $after.sequence>0 AND $before.sequence!=$after.sequence THEN {
+    LET $head=SELECT * FROM ONLY fixture_head:current;
+    IF type::is_object($head) THEN {
+        IF $after.sequence<=$head.last_sequence { THROW 'sequence conflict'; };
+        UPDATE ONLY fixture_head:current SET last_sequence=$after.sequence;
+    } ELSE { THROW 'missing head'; } END;
+};
+CREATE fixture_marker:one SET state=fn::store::first('QUEUED'), tags=['pin','pin'], digest=crypto::sha256('input'), sealed={nonce:'opaque',version:1}, target=fixture_other:one, sequence=1;
+CREATE fixture_uuid;
+";
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let (_fixture, db, _other) = fixture().await;
+        let catalog = ModuleRegistry::new(vec![
+            ModuleSetup::builder(name("store"), ModuleLayer::Kernel)
+                .ownership(vec![
+                    OwnershipClaim::TablePrefix(TablePrefix::new("fixture_").unwrap()),
+                    OwnershipClaim::FunctionPrefix(FunctionPrefix::new("fn::store::").unwrap()),
+                ])
+                .execution(
+                    LaneExecution::new(
+                        ExecutionImage::new("native-fixture").unwrap(),
+                        ExecutionCommand::new(vec!["native-fixture".into()]).unwrap(),
+                    )
+                    .unwrap(),
+                )
+                .lane(MigrationLane::new(vec![migration(0, "profile", SQL, vec![])]).unwrap())
+                .build()
+                .unwrap(),
+        ])
+        .unwrap();
+        prepare(catalog.select(vec![]).unwrap())
+            .unwrap()
+            .apply(&db)
+            .await
+            .unwrap();
+        let mut tags = db
+            .query("SELECT VALUE tags FROM fixture_marker;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let tags: Vec<Vec<String>> = tags.take(0).unwrap();
+        assert_eq!(tags, vec![vec!["pin"]]);
+        let mut head = db
+            .query("SELECT VALUE last_sequence FROM fixture_head;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let head: Vec<i64> = head.take(0).unwrap();
+        assert_eq!(head, vec![1]);
+        let mut counts = db
+            .query("SELECT VALUE count FROM fixture_daily;")
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let counts: Vec<i64> = counts.take(0).unwrap();
+        assert_eq!(counts, vec![1]);
+        assert_eq!(markers(&db, "fixture_uuid").await.len(), 1);
+        assert!(
+            db.query("RETURN fn::store::exists(fixture_other:one);")
+                .await
+                .unwrap()
+                .check()
+                .is_err()
+        );
+        assert!(
+            db.query("CREATE fixture_marker:bad SET state='invalid';")
+                .await
+                .unwrap()
+                .check()
+                .is_err()
+        );
+        assert_eq!(markers(&db, "fixture_marker").await.len(), 1);
+    })
+    .await
+    .expect("current native schema profile exceeded 120 seconds");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker and locally available digest-pinned SurrealDB 3.3.0"]
+async fn native_private_function_effects_share_the_caller_transaction() {
+    const SQL: &str = "DEFINE TABLE fixture_marker SCHEMAFULL; DEFINE FIELD value ON fixture_marker TYPE string; CREATE fixture_marker:base SET value='base'; DEFINE FUNCTION fn::store::write($id: record<fixture_marker>, $value: string) -> bool { UPDATE ONLY $id SET value=$value RETURN NONE; RETURN true; }; DEFINE FUNCTION fn::store::outer($id: record<fixture_marker>, $value: string) -> bool { RETURN fn::store::write($id,$value); };";
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let (_fixture, db, _other) = fixture().await;
+        let base = module("store", "fixture_marker", ModuleLayer::Kernel, vec![migration(0, "base", SQL, vec![])], vec![]);
+        let owner = ModuleSetup::builder(base.name().clone(), base.layer())
+            .ownership(vec![OwnershipClaim::Table(TableName::new("fixture_marker").unwrap()), OwnershipClaim::FunctionPrefix(FunctionPrefix::new("fn::store::").unwrap())])
+            .execution(base.execution().clone()).lane(base.lane().clone()).build().unwrap();
+        let baseline = ModuleRegistry::new(vec![owner.clone()]).unwrap();
+        prepare(baseline.select(vec![]).unwrap()).unwrap().apply(&db).await.unwrap();
+        for (sql, succeeds) in [
+            ("fn::store::outer(fixture_marker:base,'changed'); CREATE fixture_marker:side SET value='side'; THROW 'controlled failure';", false),
+            ("fn::store::outer(fixture_marker:base,'changed'); CREATE fixture_marker:side SET value='side';", true),
+        ] {
+            let updated = ModuleSetup::builder(owner.name().clone(), owner.layer()).ownership(owner.ownership().to_vec()).execution(owner.execution().clone())
+                .lane(MigrationLane::new(vec![migration(0,"base",SQL,vec![]), migration(1,"settle",sql,vec![])]).unwrap()).build().unwrap();
+            let catalog = ModuleRegistry::new(vec![updated]).unwrap();
+            let prepared = prepare(catalog.select(vec![]).unwrap()).unwrap();
+            assert_eq!(prepared.apply(&db).await.is_ok(), succeeds);
+            let mut rows = db.query("SELECT VALUE value FROM ONLY fixture_marker:base;").await.unwrap().check().unwrap();
+            let value: Option<String> = rows.take(0).unwrap();
+            assert_eq!(value.as_deref(), Some(if succeeds { "changed" } else { "base" }));
+            assert_eq!(markers(&db,"fixture_marker").await.len(), if succeeds {2} else {1});
+            assert_eq!(prepared.status(&db).await.unwrap().lane(&name("store")).unwrap().current, Some(MigrationVersion::new(if succeeds {1} else {0})));
+        }
+    }).await.expect("native private function transaction exceeded 120 seconds");
+}

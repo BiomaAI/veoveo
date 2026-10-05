@@ -57,13 +57,16 @@ rewriting that migration when its dependency later grows.
 
 ## SQL Admission
 
-`prepare` parses and admits every selected body before creating a private immutable
-`PreparedInstallation`. Only that value exposes database execution. A malformed body
-in another selected lane therefore prevents even bookkeeping initialization.
+`prepare` parses each selected body once and admits it before creating a private
+immutable `PreparedInstallation`. Its private AST context records ordered function
+definitions, their introducing migrations, explicit overwrites and removals. Only the
+prepared value exposes database execution. A malformed body in another selected lane
+therefore prevents even bookkeeping initialization.
 
 The adapter bounds bodies to 1 MiB, expression depth to 64, object depth to 32, query
 depth to 20 and visited expressions to 100,000 per body. It rejects transaction/session
-statements and privileged objects. Supported definitions cover NORMAL or ANY tables, fields with builtin reference cleanup,
+statements and privileged objects. Supported definitions cover NORMAL and ANY tables, relations with static endpoints,
+owned materialized views, field literal and structural kinds, builtin reference cleanup,
 indexes, analyzers without callbacks, synchronous events and functions whose bodies
 pass recursive admission. Table alteration and owned table/field/index/event/function/
 analyzer removal use the same ownership policy. Unsupported variants fail before execution.
@@ -75,13 +78,18 @@ on owned tables may reference any selected kernel owner when the declaring owner
 also a kernel. These schema links may cycle because selection includes every kernel;
 the migration execution graph stays acyclic. The visitor carries this permission
 through union, array and set field types and validates every static table claim.
+A generic `record` kind permits opaque storage only in an owned field type without
+`REFERENCE`; it supplies no executable target, cast, signature or dereference privilege.
 Fields with `REFERENCE` use declared dependencies, as do optional owners and
 `table<table>` types. Casts, variable and function types, record literals and every
 executable field child use the ordinary admission policy. Runner history tables
-cannot appear in either profile. Optional modules cannot directly read kernel data. Analyzer MAPPER filters are rejected because they load external files. The
-current adapter rejects custom calls until their stored bodies and versioned kernel API
-profiles are qualified. Its small builtin allowlist excludes network, file, scripting,
-provider and dynamic functions.
+cannot appear in either profile. Optional modules cannot directly read kernel data. Analyzer MAPPER filters are rejected because they load external files. Private calls within one owner inspect the complete callee body and every transitive
+call under the callee's ownership. Calls between optional owners require a declared
+dependency, a concrete minimum covering introduction and a read-only callee. Optional
+calls into a kernel use declared versioned `KernelSqlApi` leaves. The builtin profile
+excludes network, file, scripting and provider effects. `record::exists` checks the
+same admitted target and read policy as SELECT. Static `type::record` constructors
+validate the table claim and every key expression.
 
 Every supported expression-bearing child is visited, including defaults, assertions,
 permissions, comments, nested objects, event/function bodies and cast types. Unproven
@@ -90,6 +98,29 @@ does not admit the entire production schema; later ownership work must qualify a
 constructs or rewrite their owners before production lanes replace the current bootstrap.
 Admission errors identify the module, filename and construct or object without printing
 SQL bodies or bound values.
+
+Deferred bodies may bind an initially forward-declared same-owner helper. Immediate
+calls require the actual definition at that statement, including transitive calls.
+Recursion, unresolved calls and mutation in any function argument fail admission.
+Effect analysis memoizes exact definition versions, statement positions, read-only
+contexts and traversal depths. Every function change rechecks surviving functions,
+fields, events, table permissions, views and COUNT-index predicates. A body admitted as
+read-only cannot acquire writes through a later callee overwrite. Removing a referenced
+function requires removal or replacement of its surviving callers first.
+
+Schema declarations and removals are migration top-level statements. Conditional table,
+field, event, function and index declarations fail admission because they cannot prove
+which stored body survives. ALTER TABLE permission changes replace the stored permission
+profile while preserving its other deferred properties.
+
+Native object parameters, explicitly typed object locals and iterators over explicitly
+typed arrays of objects permit single-field extraction. Other locals need a positive
+`type::is_object` guard. Owned field expressions admit single-field `$this` access and
+scalar `$value` methods whose declared kind proves the receiver. The admitted methods
+are length, array/set distinct and array/set all with a fully inspected read-only
+closure. Event before/after rows support single-field extraction. Record traversal,
+unproven collection methods and computed targets fail admission.
+
 
 ## History And Execution
 
@@ -192,7 +223,8 @@ Updating leaves run in their caller's transaction; they do not commit independen
 Permission predicates and schema comments are read-only contexts in every owner. They
 reject direct mutation and calls to updating exports, even on an updating leaf.
 
-The visitor permits a single field on a local object only in a positive branch of
+The visitor permits a single field on a native object parameter or an explicitly
+typed object local. Other locals require a positive branch of
 `IF type::is_object($local)`. It inspects the guard argument and every branch. Proofs
 do not cross an ELSE or sibling branch, and exported functions cannot redefine a
 parameter or local. Only declared parameters and previously bound locals are available;
@@ -216,8 +248,8 @@ The visitor remembers these declarations across the owner's lane entries. Execut
 queries still use the guarded local-object profile above. Table, field and index
 shape definitions, removals and alterations must be migration top-level statements;
 conditional blocks and deferred function/event bodies cannot grant or erase proof.
-`IF NOT EXISTS` field definitions do not certify a preexisting shape. Such index
-definitions retain earlier dependencies rather than replacing them. Field/table
+Conditional field and index definitions cannot certify the stored shape and fail
+admission. Field/table
 removals, redefinitions and wildcard declarations invalidate the relevant proof;
 existing dependent indexes must be removed before a shape change. Redefining a parent
 object cannot silently certify its previously declared descendants.
