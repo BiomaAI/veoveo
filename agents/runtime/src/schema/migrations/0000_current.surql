@@ -46,13 +46,10 @@ DEFINE FUNCTION fn::agent_chat_revision($tenant: record<tenant>, $context: recor
                 IF $published.digest != $digest { RETURN false; };
             } ELSE { RETURN false; } END;
         };
-        LET $revision = array::first(SELECT content FROM agent_definition_revision WHERE definition = $definition.id AND digest = $digest LIMIT 1);
+        LET $revision = array::first(SELECT execution FROM agent_definition_revision WHERE definition = $definition.id AND digest = $digest LIMIT 1);
         RETURN IF type::is_object($revision) THEN {
-            LET $content = $revision.content;
-            RETURN IF type::is_object($content) THEN {
-                LET $execution = $content.execution;
-                RETURN IF type::is_object($execution) THEN $execution.kind = 'chat' ELSE false END;
-            } ELSE false END;
+            LET $execution = $revision.execution;
+            RETURN IF type::is_object($execution) THEN $execution.kind = 'chat' ELSE false END;
         } ELSE false END;
     } ELSE false END;
 } PERMISSIONS FULL;

@@ -19,6 +19,8 @@ async fn concurrent_instances_share_atomic_storage_and_instance_quota() {
     context(&db.a, &alice, "operations").await;
     let a = authority(&db.a, &alice, "operations").await;
     let definition = managed_definition(&db.a, &a).await;
+    assert!(!chat_revision_allowed(&db.b, &a, "pilot", &definition.draft_digest, true).await);
+    assert!(!chat_revision_allowed(&db.b, &a, "pilot", &definition.draft_digest, false).await);
     assert_eq!(
         AgentRepository::new(db.a.clone())
             .mutate_agent_definition(

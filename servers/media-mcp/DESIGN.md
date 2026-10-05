@@ -166,6 +166,14 @@ expired Tasks until terminal processing and actual billing have committed; resta
 selection includes billed jobs whose pins still need release. Referenced terminal events
 reject deletion until their owning job is removed.
 
+`RunRequestRecord` admits the owner `RunArgs` and writes its existing normalized JSON;
+the model-specific input remains open. `GenerationResultRecord` pairs the original
+admitted MCP result with its checked generation interpretation. Its native decoder
+repeats completion-link and generation admission, rejecting native database values
+inside JSON. Encoding preserves the complete original result, including admitted
+nulls, content, metadata and extensions. Task and model agreement belongs to settlement;
+SQL compares the complete request and result receipts before public selection.
+
 Native table feeds carry committed Task and provider-job changes. Cancellation cannot
 permit Artifact capability redemption or publish a late successful Task result. The
 callback profile requires a drained installation transition; outstanding dispatches must

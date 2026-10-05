@@ -68,9 +68,7 @@ DEFINE FIELD OVERWRITE tenant ON knowledge_evaluation TYPE string READONLY PERMI
 
 DEFINE INDEX knowledge_evaluation_generation ON knowledge_evaluation FIELDS tenant, generation;
 
-DEFINE FIELD OVERWRITE collections ON knowledge_generation TYPE array<object> FLEXIBLE READONLY PERMISSIONS FULL;
-
-DEFINE FIELD OVERWRITE collections.* ON knowledge_generation TYPE object FLEXIBLE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE collections ON knowledge_generation TYPE array<{ record: record<knowledge_collection>, revision: string }> READONLY PERMISSIONS FULL;
 
 DEFINE FIELD OVERWRITE created_at ON knowledge_generation TYPE datetime DEFAULT time::now() READONLY PERMISSIONS FULL;
 

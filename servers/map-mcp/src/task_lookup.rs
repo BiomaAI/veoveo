@@ -1,8 +1,10 @@
 //! Map owns travel-model Task input and retained-result integrity.
-use crate::contract::{BuildTravelModelRequest, MapTaskKind, TravelModelId, TravelModelRecord};
+use crate::contract::{BuildTravelModelRequest, MapTaskKind, TravelModelId};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{Object, RecordId, SurrealValue, Value};
+use surrealdb::types::{RecordId, SurrealValue, Value};
+mod records;
+pub(crate) use records::{TravelModelInputRecord, TravelModelResultRecord};
 use veoveo_mcp_contract::{GatewayInternalIdentity, IssuedArtifactWriteCapability};
 use veoveo_task_runtime::{
     OwnedTaskTable, TaskContribution, TaskContributions, TaskCreation, TaskError, TaskRuntime,
@@ -38,7 +40,7 @@ pub(crate) struct Identity {
     pub(crate) created_by: PrincipalId,
     #[surreal(wrap)]
     pub(crate) work_context: WorkContextId,
-    pub(crate) expected_input: Value,
+    pub(crate) expected_input: TravelModelInputRecord,
     pub(crate) tenant: RecordId,
     pub(crate) profile: String,
     pub(crate) tenant_key: Option<String>,
@@ -87,7 +89,7 @@ pub(crate) struct Settlement {
     #[surreal(wrap)]
     pub(crate) outcome: Outcome,
     pub(crate) completed_at: DateTime<Utc>,
-    pub(crate) expected_result: Option<Value>,
+    pub(crate) expected_result: Option<TravelModelResultRecord>,
 }
 #[derive(SurrealValue)]
 pub(crate) struct Row {
@@ -95,29 +97,13 @@ pub(crate) struct Row {
     pub(crate) identity: Identity,
     pub(crate) settlement: Settlement,
 }
-pub(crate) fn native_json(value: serde_json::Value) -> Value {
-    let Value::Object(mut fields) =
-        veoveo_platform_store::TaskResultRecord::new(value).into_value()
-    else {
-        unreachable!()
-    };
-    fields.remove("payload").expect("result payload")
-}
-pub(crate) fn json(value: Value) -> Result<serde_json::Value, TaskError> {
-    let mut wrapper = Object::new();
-    wrapper.insert("payload", value);
-    Ok(veoveo_platform_store::TaskResultRecord::from_value(Value::Object(wrapper))?.into_payload())
-}
 fn identity(
     owner: &veoveo_task_runtime::TaskOwner,
     value: &serde_json::Value,
     task_id: veoveo_types::TaskId,
 ) -> Result<Identity, TaskError> {
-    let Input::BuildTravelModel(request) = serde_json::from_value(value.clone())?;
-    request
-        .input
-        .validate()
-        .map_err(|error| TaskError::InvalidRecord(error.to_string()))?;
+    let expected_input = TravelModelInputRecord::new(value.clone())?;
+    let request = expected_input.request();
     let actor = &request.identity.actor;
     let kind = match actor.kind {
         veoveo_mcp_contract::PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
@@ -146,10 +132,10 @@ fn identity(
         ));
     }
     Ok(Identity {
-        travel_model_id: request.travel_model_id,
+        travel_model_id: request.travel_model_id.clone(),
         created_by: actor.id.clone(),
         work_context: owner.authority.work_context.clone(),
-        expected_input: native_json(value.clone()),
+        expected_input,
         tenant: veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())
             .map_err(|e| TaskError::InvalidRecord(e.to_string()))?
             .record_id(),
@@ -160,12 +146,7 @@ fn identity(
     })
 }
 pub(crate) fn verify_projection(identity: &Identity) -> Result<(), TaskError> {
-    let Input::BuildTravelModel(request) =
-        serde_json::from_value(json(identity.expected_input.clone())?)?;
-    request
-        .input
-        .validate()
-        .map_err(|e| TaskError::InvalidRecord(e.to_string()))?;
+    let request = identity.expected_input.request();
     let actor = &request.identity.actor;
     let expected_tenant =
         veoveo_platform_store::deterministic_tenant_id(request.identity.authority.tenant.as_str())
@@ -254,16 +235,8 @@ impl TaskContributions for Contributions {
             TaskSettlement::Succeeded { result } => {
                 let envelope: rmcp::model::CallToolResult = serde_json::from_value(result.clone())?;
                 if envelope.is_error != Some(true) {
-                    let product: crate::contract::MapTaskProduct<TravelModelRecord> =
-                        serde_json::from_value(envelope.structured_content.ok_or_else(|| {
-                            TaskError::InvalidRecord(
-                                "Map travel result has no structured content".into(),
-                            )
-                        })?)?;
-                    let record = product.into_output();
-                    record
-                        .validate_identity()
-                        .map_err(|e| TaskError::InvalidRecord(e.to_string()))?;
+                    let expected_result = TravelModelResultRecord::new(result.clone())?;
+                    let record = expected_result.output();
                     if record.travel_model_id != identity.travel_model_id
                         || record.created_by != identity.created_by
                         || record.work_context != identity.work_context
@@ -272,7 +245,7 @@ impl TaskContributions for Contributions {
                             "Map travel result differs from its creation identity".into(),
                         ));
                     }
-                    values.expected_result = Some(native_json(result.clone()));
+                    values.expected_result = Some(expected_result);
                 } else {
                     values.outcome = Outcome::ToolError;
                 }

@@ -75,6 +75,15 @@ Destination IDs wrap configuration hashes separately from content digests. Expor
 intents bind both content and signed-block hashes. Closed rejection codes carry no
 provider response text and survive replica changes.
 
+## Native Writer Records
+
+Store binds append and indexing-read rows through nominal native records. Append
+rows retain native record links, UUIDs and dates while the existing draft codec
+preserves the frozen JSON format. Optional actor/profile lookups and indexing member
+digests encode absence as native NONE. Indexing digests retain their unprefixed
+64-character hexadecimal storage profile. Transactional append and window settlement
+reuse the same append encoder.
+
 ## Activity Vocabularies
 
 Activity enums use the foundation's `Vocabulary` derive. Their snake_case spellings,

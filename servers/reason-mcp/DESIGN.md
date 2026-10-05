@@ -609,10 +609,13 @@ mutations commit inside the kernel Task transaction. Explicit MCP tool errors re
 settlement. Failure and cancellation retain explicit terminal settlements without output links.
 
 The lookup declares the finding and Results provenance fields. Nominal driver
-adapters decode them through the checked public contracts. The complete MCP result
-is an opaque integrity snapshot: its extensible contents and metadata are never
-queried by nested SQL paths. Its native representation uses the same
-`TaskResultRecord` conversion as the canonical Task payload.
+adapters decode them through the checked public contracts. `AnalysisResultRecord`
+pairs the original MCP result with its admitted analysis interpretation. Native
+decoding repeats product and canonical content admission through the owner validator
+and rejects native database values inside JSON. Encoding writes the original result
+without replacing admitted nulls, metadata or extensions with a normalized projection.
+SQL compares the whole receipt without nested paths into its open extension material.
+Settlement and hydration check Task, pipeline, finding and publication relationships.
 
 Finding selection applies tenant, keyset and search predicates to the owner table.
 Tasks' versioned lifecycle export supplies current success, timestamps, retention

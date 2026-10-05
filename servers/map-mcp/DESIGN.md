@@ -321,7 +321,11 @@ Travel-model Tasks atomically contribute `map_travel_model_task` creation and te
 rows. The lookup declares retained actor, profile, tenant, clearance and Work Context
 facts. Task selection, whole-input equality and lifecycle/result agreement precede
 read and completion limits; one typed decoder verifies selected product identities.
-Whole immutable input and MCP result receipts are opaque integrity values.
+`TravelModelInputRecord` and `TravelModelResultRecord` keep immutable original JSON
+with its admitted request or travel-model interpretation. Native decoding repeats
+owner admission and rejects native database values inside JSON. Encoding preserves
+the original value, including omitted defaults, admitted nulls and MCP extensions.
+SQL compares complete receipts without inspecting their open extension material.
 
 DuckDB Spatial is the local analytical projection. The service opens one
 configured database instance for its lifetime and clones connections inside
@@ -1041,6 +1045,10 @@ SourceSummary stores unchanged summary fields through `Checked` with Map-owned p
 Source, restriction, mobility and travel cursors retain canonical hexadecimal JSON under owner codecs. Metadata continuation preserves admitted text and keeps selection agreement in its explicit resume adapter. Knowledge cursors retain on-demand member encoding. Anonymous feature and source-query cursors keep their existing base64url payloads; query digest and ordering checks remain in their query owners. Page wire checks precede fixed-limit domain projections.
 
 ## Persistence Module Declaration
+
+The `runtime` feature admits retained Task results through RMCP's `CallToolResult`
+type and enables that existing dependency. The `mcp` feature separately enables the
+server entrypoint. Contract and schema consumers exclude RMCP and analytical runtimes.
 
 The independent `schema` feature exports `schema::module_setup(execution)` for the
 `map` optional module. It activates `veoveo-modules` with default features disabled and the foundational

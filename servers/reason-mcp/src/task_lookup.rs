@@ -1,7 +1,9 @@
 //! Typed owner lookup values joined to kernel Task creation and terminal CAS.
 use crate::contract::{PipelineId, ReasonTaskKind};
 use chrono::{DateTime, Utc};
-use surrealdb::types::{Error, Kind, Object, RecordId, SurrealValue, Value};
+mod records;
+pub(crate) use records::AnalysisResultRecord;
+use surrealdb::types::{Error, Kind, RecordId, SurrealValue, Value};
 use veoveo_modules::TableName;
 use veoveo_task_runtime::{
     OwnedTaskTable, TaskContribution, TaskContributions, TaskCreation, TaskError, TaskRuntime,
@@ -25,14 +27,6 @@ fn identity(
         pipeline_id: input.pipeline_id,
         tenant: veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())?.record_id(),
     })
-}
-fn native_json(value: serde_json::Value) -> Value {
-    let Value::Object(mut wrapper) =
-        veoveo_platform_store::TaskResultRecord::new(value).into_value()
-    else {
-        unreachable!("typed result envelope")
-    };
-    wrapper.remove("payload").expect("typed result payload")
 }
 #[derive(Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub(crate) enum Terminal {
@@ -64,19 +58,15 @@ pub(crate) struct Settlement {
     pub(crate) results: Option<RecordId>,
     pub(crate) annotations: Option<RecordId>,
     pub(crate) source_clip: Option<RecordId>,
-    pub(crate) expected_result: Option<Value>,
+    pub(crate) expected_result: Option<AnalysisResultRecord>,
     pub(crate) expected_metadata: Option<MetadataRecord>,
     pub(crate) finding: Option<FindingRecord>,
 }
 pub(crate) struct MetadataRecord(pub(crate) crate::contract::ReasonArtifactMetadata);
 pub(crate) struct FindingRecord(pub(crate) crate::contract::FindingData);
 fn from_native<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, Error> {
-    let mut wrapper = Object::new();
-    wrapper.insert("payload", value);
-    serde_json::from_value(
-        veoveo_platform_store::TaskResultRecord::from_value(Value::Object(wrapper))?.into_payload(),
-    )
-    .map_err(|_| Error::internal("invalid Reason lookup value".into()))
+    serde_json::from_value(veoveo_platform_store::native_json_from_value_strict(value)?)
+        .map_err(|_| Error::internal("invalid Reason lookup value".into()))
 }
 impl SurrealValue for MetadataRecord {
     fn kind_of() -> Kind {
@@ -86,7 +76,9 @@ impl SurrealValue for MetadataRecord {
         Self::from_value(value.clone()).is_ok()
     }
     fn into_value(self) -> Value {
-        native_json(serde_json::to_value(self.0).expect("checked Reason value"))
+        veoveo_platform_store::native_json_into_value(
+            serde_json::to_value(self.0).expect("checked Reason value"),
+        )
     }
     fn from_value(value: Value) -> Result<Self, Error> {
         from_native(value).map(Self)
@@ -100,7 +92,9 @@ impl SurrealValue for FindingRecord {
         Self::from_value(value.clone()).is_ok()
     }
     fn into_value(self) -> Value {
-        native_json(serde_json::to_value(self.0).expect("checked Reason value"))
+        veoveo_platform_store::native_json_into_value(
+            serde_json::to_value(self.0).expect("checked Reason value"),
+        )
     }
     fn from_value(value: Value) -> Result<Self, Error> {
         from_native(value).map(Self)
@@ -188,12 +182,12 @@ impl TaskContributions for Contributions {
             }
         };
         let envelope: rmcp::model::CallToolResult = serde_json::from_value(result.clone())?;
-        let Some(output) = crate::task_product::validate(&envelope)
-            .map_err(|error| TaskError::InvalidRecord(error.to_string()))?
-        else {
+        if envelope.is_error == Some(true) {
             values.outcome = Outcome::ToolError;
             return TaskContribution::settle(self.table.clone(), identity, values);
-        };
+        }
+        let expected_result = AnalysisResultRecord::new(result.clone())?;
+        let output = expected_result.output();
         if output.analysis_id().task_id() != current.task_id
             || *output.pipeline_uri.id() != identity.pipeline_id
         {
@@ -238,9 +232,9 @@ impl TaskContributions for Contributions {
                 ));
             }
         }
-        values.expected_result = Some(native_json(result.clone()));
+        values.finding = Some(FindingRecord(output.finding.clone()));
+        values.expected_result = Some(expected_result);
         values.expected_metadata = Some(MetadataRecord(metadata));
-        values.finding = Some(FindingRecord(output.finding));
 
         TaskContribution::settle(self.table.clone(), identity, values)
     }
@@ -253,17 +247,27 @@ mod tests {
     fn checked_lookup_adapters_reject_unknown_known_fields() {
         let output: crate::contract::AnalyzeRecordingOutput =
             serde_json::from_str(include_str!("../testdata/analysis-output-v1.json")).unwrap();
-        let good = native_json(serde_json::to_value(&output.finding).unwrap());
+        let good = veoveo_platform_store::native_json_into_value(
+            serde_json::to_value(&output.finding).unwrap(),
+        );
         assert!(FindingRecord::from_value(good).is_ok());
         let mut finding = serde_json::to_value(output.finding).unwrap();
         finding["answer"]["unknown"] = true.into();
-        assert!(FindingRecord::from_value(native_json(finding)).is_err());
         assert!(
-            MetadataRecord::from_value(native_json(output.results_artifact.metadata.clone()))
-                .is_ok()
+            FindingRecord::from_value(veoveo_platform_store::native_json_into_value(finding))
+                .is_err()
+        );
+        assert!(
+            MetadataRecord::from_value(veoveo_platform_store::native_json_into_value(
+                output.results_artifact.metadata.clone()
+            ))
+            .is_ok()
         );
         let mut metadata = output.results_artifact.metadata;
         metadata["provenance"]["unknown"] = true.into();
-        assert!(MetadataRecord::from_value(native_json(metadata)).is_err());
+        assert!(
+            MetadataRecord::from_value(veoveo_platform_store::native_json_into_value(metadata))
+                .is_err()
+        );
     }
 }

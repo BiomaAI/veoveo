@@ -14,6 +14,29 @@ use veoveo_platform_store::{PlatformStore, WorkContextMembershipLevel};
 mod support;
 use support::*;
 
+async fn chat_revision_allowed(
+    store: &PlatformStore,
+    authority: &AgentCatalogAuthority,
+    key: &str,
+    digest: &str,
+    new: bool,
+) -> bool {
+    let mut result = store
+        .client()
+        .query(include_str!("queries/agent_management/chat_revision.surql"))
+        .bind(("tenant", authority.tenant.clone()))
+        .bind(("context", authority.work_context.clone()))
+        .bind(("key", key.to_owned()))
+        .bind(("digest", digest.to_owned()))
+        .bind(("new", new))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let allowed: Option<bool> = result.take(0).unwrap();
+    allowed.expect("chat revision function must return a boolean")
+}
+
 #[tokio::test]
 async fn publication_pins_content_and_catalog_never_discloses_instructions() {
     let db = TestDb::with_modules(vec![
@@ -29,6 +52,7 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
     let a = authority(&db.a, &alice, "research").await;
     let b = authority(&db.b, &bob, "research").await;
     let initial = create(&db.a, &a, "researcher").await;
+    assert!(!chat_revision_allowed(&db.b, &a, "researcher", &initial.draft_digest, true).await);
     assert!(
         AgentRepository::new(db.b.clone())
             .agent_catalog(&b, None, 20)
@@ -102,6 +126,23 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
     }
     let first = publish(&db.a, &a, &initial).await;
     assert!(first.published.is_some());
+    assert!(chat_revision_allowed(&db.b, &a, "researcher", &initial.draft_digest, true).await);
+    assert!(!chat_revision_allowed(&db.b, &a, "researcher", "wrong-digest", true).await);
+    let mut denied = a.clone();
+    denied.work_context =
+        veoveo_platform_store::deterministic_work_context_id(&alice.tenant_key, "outside-audience")
+            .unwrap()
+            .record_id();
+    assert!(
+        !chat_revision_allowed(&db.b, &denied, "researcher", &initial.draft_digest, false).await
+    );
+    denied = a.clone();
+    denied.tenant = veoveo_platform_store::deterministic_tenant_id("foreign-tenant")
+        .unwrap()
+        .record_id();
+    assert!(
+        !chat_revision_allowed(&db.b, &denied, "researcher", &initial.draft_digest, false).await
+    );
     let revision = AgentRepository::new(db.b.clone())
         .agent_authored_revision(&a, "researcher", &initial.draft_digest)
         .await
@@ -169,6 +210,8 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
         .await;
     assert_eq!(forged_digest, Err(AgentManagementError::Conflict));
     let second = publish(&db.a, &a, &draft).await;
+    assert!(!chat_revision_allowed(&db.b, &a, "researcher", &old_digest, true).await);
+    assert!(chat_revision_allowed(&db.b, &a, "researcher", &old_digest, false).await);
     assert_ne!(
         AgentRepository::new(db.b.clone())
             .agent_catalog(&b, None, 20)
@@ -210,6 +253,8 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
             .await
             .is_ok()
     );
+    assert!(!chat_revision_allowed(&db.b, &a, "researcher", &old_digest, true).await);
+    assert!(chat_revision_allowed(&db.b, &a, "researcher", &old_digest, false).await);
     AgentRepository::new(db.a.clone())
         .mutate_agent_definition(
             &a,
@@ -222,6 +267,7 @@ async fn publication_pins_content_and_catalog_never_discloses_instructions() {
         )
         .await
         .unwrap();
+    assert!(!chat_revision_allowed(&db.b, &a, "researcher", &old_digest, false).await);
     assert_eq!(
         AgentRepository::new(db.b.clone())
             .agent_revision(&b, "researcher", &old_digest)

@@ -11,10 +11,43 @@ fn hash(value: impl serde::Serialize) -> Sha256Digest {
         Sha256::digest(serde_json::to_vec(&value).expect("typed audit value")).into(),
     )
 }
+/// Indexing receipts use unprefixed SHA-256 text in their frozen storage profile.
+#[derive(Debug, Clone)]
+struct HexDigest(Sha256Digest);
+impl SurrealValue for HexDigest {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::String
+    }
+    fn into_value(self) -> Value {
+        self.0.hex().to_owned().into_value()
+    }
+    fn from_value(value: Value) -> Result<Self, surrealdb::types::Error> {
+        let value = String::from_value(value)?;
+        Sha256Digest::from_hex(value)
+            .map(Self)
+            .map_err(|_| surrealdb::types::Error::internal("invalid indexing digest".into()))
+    }
+}
+
+#[derive(Debug, Clone, SurrealValue)]
+pub(super) struct IndexingReadRecord {
+    receipt: RecordId,
+    fingerprint: HexDigest,
+    scope: HexDigest,
+    occurred_at: DateTime<Utc>,
+    #[surreal(wrap)]
+    collection: CollectionId,
+    template: Document,
+    member: Option<HexDigest>,
+    genesis: HexDigest,
+    not_modified: i64,
+    failed: i64,
+}
+
 pub(super) fn encode_read(
     registry: &AuditTargetRegistry,
     read: &IndexingRead,
-) -> Result<Value, StoreError> {
+) -> Result<IndexingReadRecord, StoreError> {
     let draft = read.draft();
     registry.validate(draft.target())?;
     let actor = draft.actor().expect("checked indexing actor");
@@ -42,55 +75,26 @@ pub(super) fn encode_read(
         }
         _ => None,
     };
-    let mut row = Object::new();
-    row.insert(
-        "receipt",
-        RecordId::new(
+    Ok(IndexingReadRecord {
+        receipt: RecordId::new(
             "audit_indexing_receipt",
             Array::from(vec![
                 draft.partition().storage_key().into_value(),
                 SurrealUuid::from(draft.id().as_uuid()).into_value(),
             ]),
-        )
-        .into_value(),
-    );
-    row.insert(
-        "fingerprint",
-        hash((read.collection(), draft))
-            .hex()
-            .to_owned()
-            .into_value(),
-    );
-    row.insert(
-        "scope",
-        hash((actor, draft.authority(), read.collection()))
-            .hex()
-            .to_owned()
-            .into_value(),
-    );
-    row.insert("occurred_at", draft.occurred_at().into_value());
-    row.insert("collection", read.collection().to_string().into_value());
-    row.insert("template", Document::encode(template).into_value());
-    row.insert(
-        "member",
-        member.map(|value| value.hex().to_owned()).into_value(),
-    );
-    row.insert(
-        "genesis",
-        Sha256Digest::from_bytes(Sha256::digest(DOMAIN.as_bytes()).into())
-            .hex()
-            .to_owned()
-            .into_value(),
-    );
-    row.insert(
-        "not_modified",
-        i64::from(observation.is_some_and(|o| o.not_modified)).into_value(),
-    );
-    row.insert(
-        "failed",
-        i64::from(draft.outcome() == AuditOutcome::Failed).into_value(),
-    );
-    Ok(row.into_value())
+        ),
+        fingerprint: HexDigest(hash((read.collection(), draft))),
+        scope: HexDigest(hash((actor, draft.authority(), read.collection()))),
+        occurred_at: draft.occurred_at(),
+        collection: read.collection().clone(),
+        template: Document::encode(template),
+        member: member.map(HexDigest),
+        genesis: HexDigest(Sha256Digest::from_bytes(
+            Sha256::digest(DOMAIN.as_bytes()).into(),
+        )),
+        not_modified: i64::from(observation.is_some_and(|o| o.not_modified)),
+        failed: i64::from(draft.outcome() == AuditOutcome::Failed),
+    })
 }
 
 #[derive(SurrealValue)]
@@ -211,5 +215,91 @@ impl PlatformStore {
         let count: Option<u64> = response.take(index)?;
         usize::try_from(count.ok_or(StoreError::AuditIntegrity)?)
             .map_err(|_| StoreError::AuditIntegrity)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn indexing_row_keeps_absent_member_native_receipt_and_dates() {
+        let descriptor = veoveo_mcp_knowledge_extension::docs::collection(
+            &"knowledge".parse().unwrap(),
+            &"knowledge".parse().unwrap(),
+        );
+        let draft = AuditDraft::builder(
+            AuditRequest::background(),
+            AuditTarget::Resource {
+                server: "knowledge".parse().unwrap(),
+                uri: veoveo_types::ResourceUri::new("knowledge://docs/design").unwrap(),
+            },
+            AuditDetail::Read {
+                method: AuditReadMethod::ResourceRead,
+            },
+            AuditOutcome::Failed,
+            AuditReason::UpstreamFailure,
+        )
+        .actor(AuditActor {
+            principal: "indexer".parse().unwrap(),
+            kind: AuditPrincipalKind::Service,
+            tenant: Some("tenant".parse().unwrap()),
+            oauth_client: Some("indexer".parse().unwrap()),
+            session_family: None,
+            delegating_principal: None,
+            managed_agent: None,
+        })
+        .build()
+        .unwrap();
+        let read = IndexingRead::new(draft.clone(), descriptor.collection().clone()).unwrap();
+        let value = encode_read(&AuditTargetRegistry::empty(), &read)
+            .unwrap()
+            .into_value();
+        let Value::Object(mut fields) = value.clone() else {
+            panic!("indexing row");
+        };
+        assert_eq!(fields.get("member"), Some(&Value::None));
+        assert_eq!(
+            fields.get("occurred_at"),
+            Some(&draft.occurred_at().into_value())
+        );
+        assert_eq!(fields.get("failed"), Some(&1_i64.into_value()));
+        assert_eq!(
+            fields.get("fingerprint"),
+            Some(
+                &hash((read.collection(), &draft))
+                    .hex()
+                    .to_owned()
+                    .into_value()
+            )
+        );
+        assert!(matches!(fields.get("receipt"), Some(Value::RecordId(_))));
+        assert!(
+            IndexingReadRecord::from_value(value)
+                .unwrap()
+                .member
+                .is_none()
+        );
+        fields.insert("receipt", "native-record-required".into_value());
+        assert!(IndexingReadRecord::from_value(fields.into_value()).is_err());
+    }
+
+    #[test]
+    fn indexing_digest_retains_unprefixed_storage_profile() {
+        let digest = Sha256Digest::from_bytes([255; 32]);
+        assert_eq!(
+            HexDigest(digest.clone()).into_value(),
+            digest.hex().to_owned().into_value()
+        );
+        assert_eq!(
+            HexDigest::from_value(digest.hex().to_owned().into_value())
+                .unwrap()
+                .0,
+            digest
+        );
+        assert!(HexDigest::from_value(digest.to_string().into_value()).is_err());
+        assert!(
+            HexDigest::from_value(RecordId::new("audit_record", "native").into_value()).is_err()
+        );
     }
 }

@@ -2,6 +2,13 @@ use super::*;
 use crate::PlatformStore;
 use veoveo_knowledge_contract::GenerationSpec;
 
+#[derive(Debug, Clone, SurrealValue)]
+struct CollectionRequirementRecord {
+    record: RecordId,
+    #[surreal(wrap)]
+    revision: veoveo_types::Sha256Digest,
+}
+
 impl PlatformStore {
     /// Reclaim a retired or abandoned generation. The active pointer is checked
     /// in the same transaction that cascades member records and drops its indexes.
@@ -57,13 +64,14 @@ impl PlatformStore {
         let table = chunk_table(id);
         let schema = include_str!("../queries/knowledge/generation.surql")
             .replace("__DIMENSION__", &spec.space().dimension.get().to_string());
-        let mut collections = Vec::new();
-        for (collection, revision) in spec.collections() {
-            let mut value = surrealdb::types::Object::new();
-            value.insert("record", collection_record(tenant, collection).into_value());
-            value.insert("revision", revision.to_string().into_value());
-            collections.push(Value::Object(value));
-        }
+        let collections: Vec<_> = spec
+            .collections()
+            .iter()
+            .map(|(collection, revision)| CollectionRequirementRecord {
+                record: collection_record(tenant, collection),
+                revision: revision.clone(),
+            })
+            .collect();
         lease
             .bind(self.client().query(&schema))
             .bind(("chunk_table", table))
@@ -116,5 +124,38 @@ impl PlatformStore {
             .await?
             .knowledge_check()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn requirement_record_preserves_native_links_and_admits_digest() {
+        let record = collection_record(
+            &"tenant".parse().unwrap(),
+            &"fixture.records".parse().unwrap(),
+        );
+        let revision = veoveo_types::Sha256Digest::from_bytes([7; 32]);
+        let value = CollectionRequirementRecord {
+            record: record.clone(),
+            revision: revision.clone(),
+        }
+        .into_value();
+        let Value::Object(mut fields) = value.clone() else {
+            panic!("native requirement object");
+        };
+        assert_eq!(fields.get("record"), Some(&record.into_value()));
+        assert_eq!(
+            fields.get("revision"),
+            Some(&revision.to_string().into_value())
+        );
+        let decoded = CollectionRequirementRecord::from_value(value).unwrap();
+        assert_eq!(decoded.revision, revision);
+        fields.insert("revision", "not-a-digest".into_value());
+        assert!(CollectionRequirementRecord::from_value(fields.clone().into_value()).is_err());
+        fields.remove("revision");
+        assert!(CollectionRequirementRecord::from_value(fields.into_value()).is_err());
     }
 }

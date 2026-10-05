@@ -107,7 +107,9 @@ Work Context observation needs only an identity and a current authority read, so
 feed does not retain prior row contents.
 
 Definitions and published revisions copy typed execution, model and tool fields in
-same-transaction writes. Managed template revision is a declared revision field;
+same-transaction writes. Chat revision admission selects the declared execution field
+and requires its chat kind alongside tenant, audience, publication and lifecycle checks.
+Managed template revision is a declared revision field;
 parameters remain an opaque whole value for update comparisons. Repository result
 types validate these fields against admitted content and its digest. Catalog wrappers
 check their selected revision before exposing metadata. Managed identity, resources

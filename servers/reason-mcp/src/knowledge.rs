@@ -3,9 +3,7 @@
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use veoveo_artifact_contract::ArtifactId;
-use veoveo_platform_store::{
-    ArtifactReadScope, PlatformStore, RecordId, TaskResultRecord, task_record_id,
-};
+use veoveo_platform_store::{ArtifactReadScope, PlatformStore, RecordId, task_record_id};
 use veoveo_types::TaskTypeDefinition;
 
 use crate::contract::{AnalysisId, FindingData, ReasonTaskKind};
@@ -101,16 +99,7 @@ pub async fn readable_findings(
                 .settlement
                 .expected_result
                 .ok_or_else(|| anyhow::anyhow!("Reason integrity snapshot missing"))?;
-            let mut wrapper = surrealdb::types::Object::new();
-            wrapper.insert("payload", result);
-            let payload = <TaskResultRecord as surrealdb::types::SurrealValue>::from_value(
-                surrealdb::types::Value::Object(wrapper),
-            )?
-            .into_payload();
-            let envelope: rmcp::model::CallToolResult = serde_json::from_value(payload)?;
-            let output = crate::task_product::validate(&envelope)?.ok_or_else(|| {
-                anyhow::anyhow!("Reason product lookup has a no-product integrity snapshot")
-            })?;
+            let output = result.into_output();
             let data = row
                 .settlement
                 .finding

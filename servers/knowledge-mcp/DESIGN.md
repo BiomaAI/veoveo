@@ -45,6 +45,12 @@ failed reads prevent coverage. The coordinator must establish source listeners b
 building, settle queued invalidations and activate through Store's compare-and-set.
 A failed build leaves the active generation pointer untouched and can be explicitly reclaimed.
 
+Store binds generation requirements and indexed chunks through nominal native records.
+Each persisted requirement contains only its collection record link and approval
+revision; activation reads those declared children. Chunk rows preserve native member
+and collection links, authorization facts, vectors and the checked Observation codec.
+Requirement links do not cascade collection deletion into generations.
+
 `Coordinator::run` owns one authenticated source connection lifetime. It claims the
 tenant's 30-second Store lease and renews every ten seconds, including during slow
 source reads. Store-issued lease and collection tickets carry process and source epochs.

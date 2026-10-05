@@ -31,6 +31,7 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
     IF array::len($approved) != array::len($gen.collections) {
         THROW 'knowledge_approval_set_changed';
     };
+    -- Persisted requirement children are declared by the generation schema.
     FOR $required IN $gen.collections {
         LET $sync = type::record('knowledge_sync', [<string>record::id($generation), $required.record.collection]);
         IF $sync.ready != true OR $sync.owner_epoch != $owner_epoch { THROW 'knowledge_source_changed'; };

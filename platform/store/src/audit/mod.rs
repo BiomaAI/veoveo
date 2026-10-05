@@ -3,7 +3,7 @@ use crate::{PlatformClient, PlatformStore, RecordId, StoreError};
 use chrono::Utc;
 use surrealdb::{
     method::Query,
-    types::{Array, Object, SurrealValue, Uuid as SurrealUuid, Value},
+    types::{Array, SurrealValue, Uuid as SurrealUuid, Value},
 };
 pub use veoveo_audit_contract::AuditTargetRegistry;
 use veoveo_audit_contract::*;
@@ -12,7 +12,7 @@ mod delivery;
 mod indexing;
 mod maintenance;
 pub use codec::AuditContextRecord;
-use codec::{DetailLookup, Document, Row, TargetLookup, scalar};
+use codec::{DetailLookup, Document, NativeText, Row, TargetLookup, scalar};
 const APPEND: &str = include_str!("../queries/audit/append.surql");
 const LIST: &str = include_str!("../queries/audit/list.surql");
 
@@ -56,52 +56,57 @@ fn target_reference(target: &AuditTarget) -> Result<Option<RecordId>, StoreError
         _ => None,
     })
 }
-fn encode(registry: &AuditTargetRegistry, draft: AuditDraft) -> Result<Value, StoreError> {
+#[derive(Debug, Clone, SurrealValue)]
+struct AuditAppendRecord {
+    id: RecordId,
+    partition: String,
+    record_id: SurrealUuid,
+    #[surreal(wrap)]
+    class: AuditClass,
+    activity: String,
+    #[surreal(wrap)]
+    outcome: AuditOutcome,
+    actor_key: Option<NativeText<veoveo_types::PrincipalId>>,
+    target_ref: Option<RecordId>,
+    profile_lookup: Option<NativeText<veoveo_types::GatewayProfileId>>,
+    target_lookup: TargetLookup,
+    detail_lookup: DetailLookup,
+    #[surreal(wrap)]
+    trace_id: AuditTraceId,
+    request_id: SurrealUuid,
+    occurred_at: chrono::DateTime<Utc>,
+    draft: Document,
+}
+
+#[derive(Debug, Clone, SurrealValue)]
+struct AuditAppendWrite {
+    record: AuditAppendRecord,
+    window: Option<RecordId>,
+    window_start: Option<chrono::DateTime<Utc>>,
+}
+
+fn encode(
+    registry: &AuditTargetRegistry,
+    draft: AuditDraft,
+) -> Result<AuditAppendWrite, StoreError> {
     registry.validate(draft.target())?;
-    let mut row = Object::new();
-    row.insert("id", record_id(draft.partition(), draft.id()).into_value());
-    row.insert("partition", draft.partition().storage_key().into_value());
-    row.insert(
-        "record_id",
-        SurrealUuid::from(draft.id().as_uuid()).into_value(),
-    );
-    row.insert("class", scalar(&draft.detail().class()));
-    row.insert(
-        "activity",
-        draft.detail().activity().to_owned().into_value(),
-    );
-    row.insert("outcome", scalar(&draft.outcome()));
-    row.insert(
-        "actor_key",
-        draft.actor().map(|a| a.principal.to_string()).into_value(),
-    );
-    row.insert("target_ref", target_reference(draft.target())?.into_value());
-    row.insert(
-        "profile_lookup",
-        draft
-            .authority()
-            .profile
-            .as_ref()
-            .map(|p| p.to_string())
-            .into_value(),
-    );
-    row.insert(
-        "target_lookup",
-        TargetLookup::new(draft.target()).into_value(),
-    );
-    row.insert(
-        "detail_lookup",
-        DetailLookup(draft.detail().clone()).into_value(),
-    );
-    row.insert(
-        "trace_id",
-        draft.request().trace_id.to_string().into_value(),
-    );
-    row.insert(
-        "request_id",
-        SurrealUuid::from(draft.request().id.as_uuid()).into_value(),
-    );
-    row.insert("occurred_at", draft.occurred_at().into_value());
+    let row = AuditAppendRecord {
+        id: record_id(draft.partition(), draft.id()),
+        partition: draft.partition().storage_key(),
+        record_id: SurrealUuid::from(draft.id().as_uuid()),
+        class: draft.detail().class(),
+        activity: draft.detail().activity().to_owned(),
+        outcome: draft.outcome(),
+        actor_key: draft.actor().map(|a| NativeText(a.principal.clone())),
+        target_ref: target_reference(draft.target())?,
+        profile_lookup: draft.authority().profile.clone().map(NativeText),
+        target_lookup: TargetLookup::new(draft.target()),
+        detail_lookup: DetailLookup(draft.detail().clone()),
+        trace_id: draft.request().trace_id.clone(),
+        request_id: SurrealUuid::from(draft.request().id.as_uuid()),
+        occurred_at: draft.occurred_at(),
+        draft: Document::encode(draft.clone()),
+    };
     let window = match (
         draft.actor(),
         draft.target(),
@@ -131,21 +136,17 @@ fn encode(registry: &AuditTargetRegistry, draft: AuditDraft) -> Result<Value, St
         )),
         _ => None,
     };
-    row.insert("draft", Document::encode(draft).into_value());
-    let mut write = Object::new();
-    write.insert("record", Value::Object(row));
-    write.insert(
-        "window",
-        window.as_ref().map(|(id, _)| id.clone()).into_value(),
-    );
-    write.insert("window_start", window.map(|(_, start)| start).into_value());
-    Ok(Value::Object(write))
+    Ok(AuditAppendWrite {
+        record: row,
+        window: window.as_ref().map(|(id, _)| id.clone()),
+        window_start: window.map(|(_, start)| start),
+    })
 }
 
 /// Append this statement inside an existing domain transaction before COMMIT.
 /// The caller controls transaction lifetime; this value starts no independent write.
 pub struct AuditTransactionWrite {
-    rows: Value,
+    rows: Vec<AuditAppendWrite>,
 }
 impl AuditTransactionWrite {
     pub fn new(registry: &AuditTargetRegistry, draft: AuditDraft) -> Result<Self, StoreError> {
@@ -162,8 +163,7 @@ impl AuditTransactionWrite {
             rows: drafts
                 .into_iter()
                 .map(|draft| encode(registry, draft))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_value(),
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
     pub fn append<'q>(self, query: Query<'q, PlatformClient>) -> Query<'q, PlatformClient> {
@@ -172,7 +172,7 @@ impl AuditTransactionWrite {
     /// Bind checked records for a domain SQL branch which calls
     /// `fn::append_audit($audit_rows)` inside its existing transaction.
     pub fn into_binding(self) -> (&'static str, Value) {
-        ("audit_rows", self.rows)
+        ("audit_rows", self.rows.into_value())
     }
 }
 impl PlatformStore {
@@ -360,3 +360,70 @@ mod blocks;
 pub use blocks::{AuditCommittedRecords, AuditExportRange, AuditSealLease};
 mod subscriptions;
 pub use subscriptions::AuditLiveChange;
+
+#[cfg(test)]
+mod write_tests {
+    use super::*;
+
+    #[test]
+    fn append_record_keeps_native_identity_dates_and_frozen_draft() {
+        let draft = AuditDraft::builder(
+            AuditRequest::background(),
+            AuditTarget::Server {
+                server: "knowledge".parse().unwrap(),
+            },
+            AuditDetail::Read {
+                method: AuditReadMethod::ResourceRead,
+            },
+            AuditOutcome::Succeeded,
+            AuditReason::Accepted,
+        )
+        .build()
+        .unwrap();
+        let value = encode(&AuditTargetRegistry::empty(), draft.clone())
+            .unwrap()
+            .into_value();
+        let Value::Object(write) = &value else {
+            panic!("append envelope");
+        };
+        let Value::Object(record) = write.get("record").unwrap() else {
+            panic!("append record");
+        };
+        assert_eq!(
+            record.get("id"),
+            Some(&record_id(draft.partition(), draft.id()).into_value())
+        );
+        assert_eq!(
+            record.get("record_id"),
+            Some(&SurrealUuid::from(draft.id().as_uuid()).into_value())
+        );
+        assert_eq!(
+            record.get("occurred_at"),
+            Some(&draft.occurred_at().into_value())
+        );
+        assert_eq!(record.get("class"), Some(&scalar(&draft.detail().class())));
+        assert_eq!(record.get("outcome"), Some(&scalar(&draft.outcome())));
+        assert_eq!(
+            record.get("draft"),
+            Some(&Document::encode(draft.clone()).into_value())
+        );
+        assert_eq!(record.get("actor_key"), Some(&Value::None));
+        assert_eq!(record.get("profile_lookup"), Some(&Value::None));
+        assert_eq!(write.get("window"), Some(&Value::None));
+        assert_eq!(write.get("window_start"), Some(&Value::None));
+        let decoded = AuditAppendWrite::from_value(value.clone()).unwrap();
+        assert_eq!(
+            decoded
+                .record
+                .draft
+                .checked(&AuditTargetRegistry::empty())
+                .unwrap(),
+            draft
+        );
+        let mut invalid = record.clone();
+        invalid.insert("occurred_at", "2026-10-05T00:00:00Z".into_value());
+        assert!(AuditAppendRecord::from_value(invalid.clone().into_value()).is_err());
+        invalid.remove("id");
+        assert!(AuditAppendRecord::from_value(invalid.into_value()).is_err());
+    }
+}

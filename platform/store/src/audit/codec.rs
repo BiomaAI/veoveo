@@ -140,3 +140,26 @@ impl SurrealValue for AuditContextRecord {
             .map_err(|_| Error::internal("invalid audit attribution".into()))
     }
 }
+
+/// Audit lookup text retains native NONE for absent optional columns.
+#[derive(Debug, Clone)]
+pub(super) struct NativeText<T>(pub T);
+impl<T: Serialize + serde::de::DeserializeOwned> SurrealValue for NativeText<T> {
+    fn kind_of() -> Kind {
+        Kind::String
+    }
+    fn into_value(self) -> Value {
+        let serde_json::Value::String(value) =
+            serde_json::to_value(self.0).expect("typed audit text")
+        else {
+            panic!("audit native text must serialize as a string");
+        };
+        value.into_value()
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        let value = String::from_value(value)?;
+        serde_json::from_value(serde_json::Value::String(value))
+            .map(Self)
+            .map_err(|_| Error::internal("invalid audit lookup text".into()))
+    }
+}

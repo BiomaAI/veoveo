@@ -178,22 +178,11 @@ struct CompletionRow {
 }
 fn decode(row: crate::task_lookup::Row) -> Result<PageRow> {
     crate::task_lookup::verify_projection(&row.identity)?;
-    let envelope: rmcp::model::CallToolResult = serde_json::from_value(crate::task_lookup::json(
-        row.settlement
-            .expected_result
-            .context("Map product has no integrity result")?,
-    )?)?;
-    ensure!(
-        envelope.is_error != Some(true),
-        "Map product is a tool error"
-    );
-    let product: crate::contract::MapTaskProduct<TravelModelRecord> = serde_json::from_value(
-        envelope
-            .structured_content
-            .context("Map product has no structured content")?,
-    )?;
-    let record = product.into_output();
-    record.validate_identity()?;
+    let record = row
+        .settlement
+        .expected_result
+        .context("Map product has no integrity result")?
+        .into_output();
     ensure!(
         record.travel_model_id == row.identity.travel_model_id
             && record.created_by == row.identity.created_by

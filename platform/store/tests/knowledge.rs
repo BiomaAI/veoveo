@@ -1118,3 +1118,95 @@ async fn controlled_observation_storage_rejects_unknown_and_missing_fields_atomi
         }
     }).await.expect("Observation shape qualification exceeded 120 seconds");
 }
+
+#[tokio::test]
+async fn generation_requirements_admit_only_closed_native_collection_rows() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let db = fixture::TestDb::new().await;
+        let registration = registration("knowledge-requirement-shape");
+        db.a.register_knowledge_collection(&registration, None)
+            .await
+            .unwrap();
+        let lease =
+            db.a.claim_knowledge_coordinator(
+                &registration.tenant,
+                veoveo_platform_store::knowledge::CoordinatorId::new(),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        let generation = GenerationId::new();
+        db.a.create_knowledge_generation(
+            &lease,
+            &registration.tenant,
+            generation,
+            &spec(&registration, "requirements"),
+        )
+        .await
+        .unwrap();
+        use surrealdb::types::{Array, Object, SurrealValue, Value};
+        let collection = veoveo_platform_store::RecordId::new(
+            "knowledge_collection",
+            Array::from(vec![
+                registration.tenant.to_string(),
+                registration.descriptor.collection().to_string(),
+            ]),
+        );
+        let mut admitted = Object::new();
+        admitted.insert("record", collection.into_value());
+        admitted.insert("revision", registration.revision().to_string().into_value());
+        for (field, replacement) in [
+            ("record", None),
+            ("revision", None),
+            ("record", Some("not-a-record".into_value())),
+            (
+                "record",
+                Some(veoveo_platform_store::RecordId::new("task", "foreign").into_value()),
+            ),
+            ("revision", Some(42_i64.into_value())),
+            ("extra", Some(true.into_value())),
+        ] {
+            let mut invalid = admitted.clone();
+            if let Some(value) = replacement {
+                invalid.insert(field, value);
+            } else {
+                invalid.remove(field);
+            }
+            let result =
+                db.a.client()
+                    .query(include_str!(
+                        "queries/knowledge/generation_requirement_shape.surql"
+                    ))
+                    .bind((
+                        "generation",
+                        veoveo_platform_store::RecordId::new(
+                            "knowledge_generation",
+                            surrealdb::types::Uuid::from(generation.as_uuid()),
+                        ),
+                    ))
+                    .bind((
+                        "probe",
+                        veoveo_platform_store::RecordId::new(
+                            "knowledge_generation",
+                            surrealdb::types::Uuid::from(GenerationId::new().as_uuid()),
+                        ),
+                    ))
+                    .bind(("requirements", vec![Value::Object(invalid)]))
+                    .await
+                    .unwrap()
+                    .check();
+            assert!(
+                result.is_err(),
+                "invalid requirement field {field} admitted"
+            );
+        }
+        assert!(
+            db.b.knowledge_generation(&registration.tenant, generation)
+                .await
+                .unwrap()
+                .is_some()
+        );
+    })
+    .await
+    .expect("requirement shape qualification exceeded 120 seconds");
+}

@@ -152,7 +152,7 @@ The four composed schema plans come from the current Gateway binary. Independent
 contract builds exclude runtime dependencies, and the ordinary Store runtime builds
 in isolation. Independent review found no unresolved defect in this batch.
 
-The current source batch implements controlled storage envelopes across
+Checkpoint `b91815151` implements controlled storage envelopes across
 Gateway, Tasks, Agents, Workspace, Frames, Computers and Media, and replaces
 Knowledge's nested document queries with declared lookups. The query audit also
 covers Optimization's opaque Task reads and Audit block delivery. The combined
@@ -168,6 +168,19 @@ the passing SDK, template and independent-consumer checks. The final schema cons
 passes against the regenerated nineteen-owner plans. Corrected diagnostic fixtures
 retain their corruption, SQL admission and plaintext-absence assertions; production
 decoders continue to reject native database values inside JSON payloads.
+
+The current source batch adds the five retained Task contribution adapters and four
+native row shapes listed in Phase 4. Map, Media and Reason preserve complete admitted
+result values; Knowledge and Audit bind their own records. Knowledge's generation
+requirements now declare the fields read during activation, and Agent chat admission
+reads the declared execution projection. Independent review, strict lint and affected
+native suites pass. Fresh schema composition and the independent consumer pass
+against all four regenerated installation plans. The Reason failure fixture now
+clears the product URI when setting a Task to failed, preserving its retained result
+and stale owner settlement for the SQL paging check. Knowledge's optional-Agent
+dependency still needs the resolver and observation changes described in Phase 3.
+Audit sealing and Media cancellation receipts need the remaining typed binds in
+Phase 4; the complete variable-path, bind and relationship audit remains open.
 
 Commit `faf8b9cee` retires the completed pilot migration helpers and their private
 installation fixtures. The generic record-restoration check keeps bound native
@@ -1237,6 +1250,15 @@ start without those tables. Managed listeners must wake and revalidate when a
 registration or definition changes, preserving revocation and reconnect behavior.
 Qualify both HTTP and subscription profiles and the isolated Knowledge runtime
 dependency graph; installing Agents in every fixture does not satisfy these gates.
+The server chooses its resolver from the effective lanes in the admitted installation
+`ModulePlanDocument`, using the existing revisioned plan mount and `VEOVEO_MODULE_PLAN`
+input. A compile feature makes the adapter available; selection of the Agents lane
+binds it. Modules needs a read-only readiness API for the selected prerequisites,
+reusing committed installation and migration identity checks. Its existing full-registry
+runner status rejects a partial compiled registry and must keep that behavior.
+Knowledge must reject unavailable selected prerequisites with a configuration
+diagnostic rather than fall back to static-only authority or infer readiness from
+table existence. Kernel-only selection binds the static resolver without Agent access.
 
 Artifact's subscription deadline query runs through its owning Store API, which
 applies Artifact admission to retention and grant-expiry selection before returning
@@ -1629,7 +1651,7 @@ the known shape. The table records each cut's required behavior.
 | Workspace Agent revision receipts | Close the retained `WorkspaceAgent` result envelope and check its identity and relationships on add/adopt replay. Reuse the owning record rather than introducing another result model. |
 | Media `state.rs::prediction_payload` | Preserve the known prediction envelope through a typed owner driver adapter. Provider input and timing payloads remain open, and unrecognized provider statuses must remain nonterminal. Qualify stored prediction round trips without inventing a schema for model-specific data. |
 
-The Task contribution adapters still need five private driver envelopes: Map's
+The current batch supplies five private Task contribution driver envelopes: Map's
 retained travel-model input and successful result, Media's retained request and
 successful result, and Reason's retained successful result. Preserve whole-value
 comparisons, including absent/null distinctions. Map keeps the original admitted
@@ -1646,11 +1668,21 @@ request can insert defaults and change equality. Media's request adapter instead
 preserves its existing normalization. Share native JSON conversion mechanics and
 keep contextual Task, product and provenance checks in their current owners.
 
-The bind audit also includes known native rows assembled field by field: Knowledge
-generation requirements and chunk rows, and Audit append/indexing rows. These paths
-preserve native record links, but their controlled shapes still need owner driver
-records. Preserve the existing bindings and transactional checks. Canonical JSON
-text and explicitly open metadata keep their declared storage profiles.
+Knowledge generation requirements and chunk rows, and Audit append/indexing rows,
+now use owner driver records. Their native record links and transactional checks
+keep the existing storage profiles. Canonical JSON text and explicitly open metadata
+remain separate from these controlled envelopes.
+Audit's `blocks.rs::block_row` and `block_write` still assemble controlled native maps
+for sealing. Give those binds nominal owner records, preserving frozen block and
+checkpoint values, hash spellings, native identities and timestamps, and seal fencing.
+Media's `record_provider_cancellation` also needs an owner receipt adapter for its
+known timestamp and cancellation outcome. Keep the shared Task journal handoff
+domain-neutral and preserve provider correlation. Resolve `media_task` receipt cleanup
+against its lifecycle while changing these records; Media context and usage rows
+have independent creation and expiry rules that preclude an assumed Task cascade.
+The final bind and relationship audit must classify its remaining candidates against
+owner lifecycles; a raw JSON value or a link without cascading deletion is not alone
+proof of a missing adapter or cleanup defect.
 
 Gateway's storage cut moves the required OAuth and PKCE scalar declarations and
 their admission rules into `platform/gateway/contract`. Store imports those types
@@ -1818,10 +1850,20 @@ existing lower bound, and Reason's private limits use fixed-width integers. Cont
 filesystem, task, source-range and grounding checks remain with their owners. Installed
 process and hardware acceptance remain open.
 
-The SDK's normalized Principal still accepts arbitrary assurance strings while Rust
-uses `PrincipalAssurance`. Align that controlled vocabulary and qualify known and
-unknown values in the shared identity fixtures; external JWT claim parsing keeps its
-separate normalization step.
+The SDK's normalized Principal uses `PrincipalAssurance` with Rust's closed
+vocabulary. Checkpoint `68c9f430c` passes 101 focused Python tests and five Rust
+signed-context tests. The shared fixture qualifies nonempty actor and source
+assurances alongside empty defaults; unknown normalized values reject. External
+JWT claim parsing keeps its separate normalization step.
+
+The remaining source work is grouped into four batches. Controlled-input coverage
+starts with Timeseries predicates and forecast methods, then reconciles the other
+reachable variants against the shared owner fixtures. Browser generation covers
+installation, Task, Artifact/grant, Agent and policy projections and upload SSE.
+Agent built-in tools derive their schemas from owner types, coordinated with the
+memory interface change. MCP App consumers adopt owner contracts for results,
+continuations and errors. The already-qualified private protocol graphs require
+their image and hardware checks in Phase 10, rather than another source migration.
 
 | Consumer | Change |
 |---|---|

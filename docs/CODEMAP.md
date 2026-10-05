@@ -217,7 +217,7 @@ designs above.
 | `platform/runtimes/computers/provider-patches/Dockerfile` | standalone OpenShell OCI build, verified upstream/patch trees and pinned provider toolchain; compute-host topology is separate |
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
-| `platform/store/src/audit/` | partition-selected audit reads, transaction append, checked profile/target/detail lookups, leased block sealing, export receipts and whole-block retention |
+| `platform/store/src/audit/` | partition-selected audit reads, typed append and indexing records, checked profile/target/detail lookups, leased block sealing, export receipts and whole-block retention |
 | `platform/artifacts/contract/src/ledger.rs` | Artifact access-request and capability IDs and the shared private ledger address builder |
 | `platform/gateway/src/audit.rs` | typed request attribution and conversion of gateway policy targets to audit records |
 | `platform/policy/src/resource_policy.rs` | typed resource/template ownership and shared lexical exposure checks |
@@ -688,6 +688,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `identity.rs`, `queries/identity_enabled.surql` | current principal, tenant and enterprise admission with typed issuer/subject bindings |
 | `knowledge.rs`, `knowledge/` | typed catalog and generation persistence, atomic catalog replacement against current control authority, coordinator leases and collection/member epochs, conditional chunk reuse, SQL catalog completion and caller-visible statistics, shared SQL admission, BM25/HNSW ranking and native reciprocal rank fusion before result selection |
 | `knowledge/registration.rs` | checked collection registration records and same-write approval, scope, change-signal and entity-kind lookup fields shared by both catalog writers |
+| `knowledge/generations.rs` and `knowledge/members.rs` | typed native collection requirements and indexed chunk rows; generation activation and replacement preserve approval and coordinator lease checks |
 | `tests/knowledge/bulk.rs` | maximum-size member vectors over the default Store connection and rollback after a rejected bulk replacement |
 | `agents/runtime/src/persistence/revision.rs` and `queries/revision.surql` | SHA-256 revisions of SQL-authorized catalog and management views |
 | `changefeed.rs`, `changefeed/`, `queries/changefeed/` | complete transaction-tail replay, consumer checkpoints and LIVE recovery over checked owner declarations; shared Task and Artifact decoding, with Computers decoding in its owner |
@@ -1189,6 +1190,7 @@ domain vocabulary.
 | `servers/map-mcp/src/contract/route_handoff.rs` | checked route handoff builder and JSON admission, typed route/profile addresses, digest, geometry and provenance; UAV adds execution policy |
 | `servers/map-mcp/src/travel_models.rs` | completed travel-model exact reads, pages and completion, with owner, context and retained-identity agreement in SQL before limits |
 | `servers/map-mcp/src/task_lookup.rs` and `src/schema/migrations/0000_travel_model_task.surql` | Map-owned travel-model Task lookup and transactional creation/terminal contributions; typed product validation follows kernel Task admission |
+| `servers/map-mcp/src/task_lookup/records.rs` | admitted travel-model request and result records preserve original JSON for whole-value integrity comparisons and expose typed owner values |
 | `servers/optimization-mcp/tests/map_travel_model.rs` | cross-server artifact wire compatibility and consumption of Map-owned addresses and collection templates |
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
@@ -1249,6 +1251,7 @@ Media-specific ownership:
 | `servers/media-mcp/src/storage.rs` | Media-owned driver records, record IDs and usage vocabulary for private Task context and the usage ledger |
 | `servers/media-mcp/src/storage/prediction.rs` | typed prediction envelope inside the provider journal; strict stored fields with open provider input and timing data |
 | `servers/media-mcp/src/task_lookup.rs` | Media-owned Task identity, dispatch, provider association and settlement contributions; the shared runtime executes their transactions |
+| `servers/media-mcp/src/task_lookup/records.rs` | normalized typed RunArgs storage and admitted complete generation-result snapshots with strict native JSON decoding |
 | `servers/media-mcp/src/webhook/binding.rs` | private per-dispatch callback credential derivation and verification against the retained digest |
 | `servers/media-mcp/src/reads/` | SQL selection of usage, prediction and retained generation result resources under current Task owner and parent-record checks |
 | `servers/media-mcp/src/task_results.rs` | Media-owned current MCP completion handoff and authorization/parent checks for Task reads and subscriptions |
@@ -1511,6 +1514,7 @@ depend on Recording Hub.
 | `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |
 | `src/bin/server/task_results.rs`, `task_results_tests.rs` | current Reason completion construction and owner-authorized Task read/subscription validation |
 | `src/schema.rs`, `src/schema/migrations/`, `src/task_lookup.rs` | Reason-owned analysis lookup lane, transactional finding and Artifact receipts, and retained-result integrity checks |
+| `src/task_lookup/records.rs` | checked analysis-result snapshots preserve the complete original MCP result while exposing the typed finding product |
 | `src/task_request.rs` | persisted analysis request and capability types shared by Task execution and lookup writers |
 | `src/task_product.rs` | Reason result construction and validation shared by publishers, retained readers, findings and Task lookup settlement |
 | `src/bin/server/grounding_input.rs`, `grounding_input_tests.rs` | authorized grounding reads and input-label capture for output capabilities |

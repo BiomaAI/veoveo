@@ -4,6 +4,28 @@ use crate::PlatformStore;
 use veoveo_knowledge_contract::{CollectionRegistration, GenerationSpec, IndexedMember};
 use veoveo_types::{ResourceUri, Sha256Digest};
 
+/// Native indexed row; links and dates stay native while observations use the owner codec.
+#[derive(Debug, SurrealValue)]
+struct IndexedChunkRecord {
+    member: RecordId,
+    #[surreal(wrap)]
+    tenant: TenantId,
+    collection: RecordId,
+    #[surreal(wrap)]
+    collection_id: CollectionId,
+    #[surreal(wrap)]
+    approval_revision: Sha256Digest,
+    #[surreal(wrap)]
+    uri: ResourceUri,
+    ordinal: i64,
+    admission: Admission,
+    text: String,
+    #[surreal(wrap)]
+    title: veoveo_knowledge_contract::MemberTitle,
+    embedding: Vec<f32>,
+    observation: Document<veoveo_mcp_knowledge_extension::Observation>,
+}
+
 #[derive(Debug, Clone)]
 pub struct MemberReadTicket {
     lease: CoordinatorLease,
@@ -191,35 +213,25 @@ impl PlatformStore {
             ));
         }
         let table = chunk_table(ticket.generation);
-        let mut chunks = Vec::new();
-        for (ordinal, chunk) in member.chunks().iter().enumerate() {
-            let mut row = surrealdb::types::Object::new();
-            row.insert("member", ticket.record().into_value());
-            row.insert("tenant", ticket.tenant.to_string().into_value());
-            row.insert(
-                "collection",
-                collection_record(&ticket.tenant, &ticket.collection).into_value(),
-            );
-            row.insert("collection_id", ticket.collection.to_string().into_value());
-            row.insert(
-                "approval_revision",
-                ticket.approval.to_string().into_value(),
-            );
-            row.insert("uri", ticket.uri.to_string().into_value());
-            row.insert("ordinal", (ordinal as i64).into_value());
-            row.insert(
-                "admission",
-                Admission::from(member.observation().access()).into_value(),
-            );
-            row.insert("text", chunk.text().to_owned().into_value());
-            row.insert("title", member.title().as_str().to_owned().into_value());
-            row.insert("embedding", chunk.vector().values().to_vec().into_value());
-            row.insert(
-                "observation",
-                Document(member.observation().clone()).into_value(),
-            );
-            chunks.push(Value::Object(row));
-        }
+        let chunks: Vec<_> = member
+            .chunks()
+            .iter()
+            .enumerate()
+            .map(|(ordinal, chunk)| IndexedChunkRecord {
+                member: ticket.record(),
+                tenant: ticket.tenant.clone(),
+                collection: collection_record(&ticket.tenant, &ticket.collection),
+                collection_id: ticket.collection.clone(),
+                approval_revision: ticket.approval.clone(),
+                uri: ticket.uri.clone(),
+                ordinal: ordinal as i64,
+                admission: Admission::from(member.observation().access()),
+                text: chunk.text().to_owned(),
+                title: member.title().clone(),
+                embedding: chunk.vector().values().to_vec(),
+                observation: Document(member.observation().clone()),
+            })
+            .collect();
         ticket
             .lease
             .bind(
@@ -264,5 +276,63 @@ fn valid_until(
             .checked_add_signed(chrono::TimeDelta::seconds(i64::from(max_age_seconds)))
             .map(Some)
             .ok_or(StoreError::Knowledge("invalid source freshness deadline")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunk_record_keeps_native_links_floats_and_observation() {
+        let descriptor = veoveo_mcp_knowledge_extension::docs::collection(
+            &"knowledge".parse().unwrap(),
+            &"knowledge".parse().unwrap(),
+        );
+        let observation = veoveo_mcp_knowledge_extension::Observation::builder(
+            descriptor.collection().clone(),
+            veoveo_mcp_knowledge_extension::Revision::parse("revision-1").unwrap(),
+            veoveo_mcp_knowledge_extension::content_digest("body"),
+            chrono::Utc::now(),
+        )
+        .build(&descriptor)
+        .unwrap();
+        let tenant: TenantId = "tenant".parse().unwrap();
+        let collection = descriptor.collection().clone();
+        let uri = ResourceUri::new("knowledge://docs/design").unwrap();
+        let member = member_record(GenerationId::new(), &collection, &uri);
+        let value = IndexedChunkRecord {
+            member: member.clone(),
+            tenant: tenant.clone(),
+            collection: collection_record(&tenant, &collection),
+            collection_id: collection,
+            approval_revision: Sha256Digest::from_bytes([7; 32]),
+            uri,
+            ordinal: 0,
+            admission: Admission::from(observation.access()),
+            text: "body".into(),
+            title: veoveo_knowledge_contract::MemberTitle::new("Title").unwrap(),
+            embedding: vec![1.0, 0.0, 0.0],
+            observation: Document(observation.clone()),
+        }
+        .into_value();
+        let Value::Object(mut fields) = value.clone() else {
+            panic!("chunk record");
+        };
+        assert_eq!(fields.get("member"), Some(&member.into_value()));
+        assert_eq!(
+            fields.get("embedding"),
+            Some(&vec![1_f32, 0.0, 0.0].into_value())
+        );
+        assert_eq!(
+            fields.get("observation"),
+            Some(&Document(observation.clone()).into_value())
+        );
+        assert_eq!(
+            IndexedChunkRecord::from_value(value).unwrap().observation.0,
+            observation
+        );
+        fields.insert("member", "not-a-native-record".into_value());
+        assert!(IndexedChunkRecord::from_value(fields.into_value()).is_err());
     }
 }

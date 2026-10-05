@@ -1,2 +1,1 @@
-UPDATE $task SET status = 'failed' RETURN NONE;
- UPDATE $task SET result.payload.structuredContent.model_uri = 17 RETURN NONE;
+UPDATE $task SET status = 'failed', result_uri = NONE RETURN NONE;

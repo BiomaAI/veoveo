@@ -185,6 +185,8 @@ async fn findings_apply_artifact_access_and_success_before_decode_and_pagination
             assert!(readable_findings(&db.a, &reader, FindingSelection::Member(id)).await.unwrap().is_empty());
         }
         // Wrong source provenance, unsuccessful Tasks and expired Tasks are also excluded.
+        // Failure clears the public result URI while retaining result bytes and the
+        // stale successful owner settlement, preserving failed-status filtering before pagination.
         for mutation in [
             include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_4.surql"),
             include_str!("queries/knowledge/findings_apply_artifact_access_and_success_before_decode_and_pagination_5.surql"),

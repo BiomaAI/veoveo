@@ -1,9 +1,11 @@
 //! Media-owned Task receipts, private dispatch bindings and provider associations.
-use crate::contract::{MediaGenerationResult, MediaPredictionId, MediaTaskKind, RunArgs};
+use crate::contract::{MediaPredictionId, MediaTaskKind};
 use chrono::{DateTime, Utc};
+mod records;
+use records::{GenerationResultRecord, RunRequestRecord};
 use surrealdb::types::{RecordId, SurrealValue, Value};
 use veoveo_modules::TableName;
-use veoveo_platform_store::{OpenObject, TaskOwnerRecord, WebhookJobBinding};
+use veoveo_platform_store::{TaskOwnerRecord, WebhookJobBinding};
 use veoveo_task_runtime::{
     OwnedTaskTable, TaskAssociation, TaskContribution, TaskContributions, TaskCreation,
     TaskDispatch, TaskError, TaskRuntime, TaskSettlement, TaskSnapshot,
@@ -14,21 +16,17 @@ use veoveo_types::{ExtensionName, Sha256Digest, TaskTypeDefinition, TaskTypeName
 struct Identity {
     tenant: RecordId,
     owner_context: TaskOwnerRecord,
-    request: OpenObject,
+    request: RunRequestRecord,
 }
 fn identity(
     owner: &veoveo_task_runtime::TaskOwner,
     request: &serde_json::Value,
 ) -> Result<Identity, TaskError> {
-    let input: RunArgs = serde_json::from_value(request.clone())?;
-    let request = serde_json::to_value(input)?
-        .as_object()
-        .cloned()
-        .ok_or_else(|| TaskError::InvalidRecord("Media request is not an object".into()))?;
+    let request = RunRequestRecord::new(request.clone())?;
     Ok(Identity {
         tenant: veoveo_platform_store::deterministic_tenant_id(owner.tenant_key())?.record_id(),
         owner_context: TaskOwnerRecord::try_from(owner)?,
-        request: OpenObject::new(request.into_iter().collect()),
+        request,
     })
 }
 #[derive(SurrealValue)]
@@ -58,7 +56,7 @@ enum Terminal {
 struct Settlement {
     status: Terminal,
     completed_at: DateTime<Utc>,
-    expected_result: Option<Value>,
+    expected_result: Option<GenerationResultRecord>,
     #[surreal(wrap)]
     prediction: Option<MediaPredictionId>,
 }
@@ -168,36 +166,18 @@ impl TaskContributions for Contributions {
     ) -> Result<TaskContribution, TaskError> {
         let (status, expected_result, prediction) = match settlement {
             TaskSettlement::Succeeded { result } => {
-                let output: rmcp::model::CallToolResult = serde_json::from_value(result.clone())?;
-                veoveo_mcp_contract::task_completion::result_uri(&output).map_err(|_| {
-                    TaskError::InvalidRecord(
-                        "Media completion address disagrees with its link".into(),
-                    )
-                })?;
-                let generation: MediaGenerationResult =
-                    serde_json::from_value(output.structured_content.ok_or_else(|| {
-                        TaskError::InvalidRecord(
-                            "Media completion lacks its generation product".into(),
-                        )
-                    })?)?;
-                let input: RunArgs = serde_json::from_value(current.request.clone())?;
+                let expected_result = GenerationResultRecord::new(result.clone())?;
+                let generation = expected_result.generation();
+                let input = RunRequestRecord::new(current.request.clone())?;
                 if generation.task_id() != current.task_id
-                    || generation.prediction().model_id != input.model
+                    || generation.prediction().model_id != input.request().model
                 {
                     return Err(TaskError::InvalidRecord(
                         "Media completion disagrees with Task request".into(),
                     ));
                 }
-                let Value::Object(mut wrapper) =
-                    veoveo_platform_store::TaskResultRecord::new(result.clone()).into_value()
-                else {
-                    unreachable!("Task result envelope")
-                };
-                (
-                    Terminal::Succeeded,
-                    Some(wrapper.remove("payload").expect("Task result payload")),
-                    Some(generation.prediction().id.clone()),
-                )
+                let prediction = generation.prediction().id.clone();
+                (Terminal::Succeeded, Some(expected_result), Some(prediction))
             }
             TaskSettlement::Failed { .. } => (Terminal::Failed, None, None),
             TaskSettlement::Cancelled => (Terminal::Cancelled, None, None),

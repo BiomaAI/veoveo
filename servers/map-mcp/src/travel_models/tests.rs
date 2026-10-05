@@ -47,6 +47,145 @@ async fn update(runtime: &TaskRuntime, id: TaskId, sql: &str) {
         .unwrap();
 }
 
+#[test]
+fn retained_input_preserves_default_spelling_and_rejects_native_values() {
+    use crate::task_lookup::TravelModelInputRecord;
+    use surrealdb::types::{SurrealValue, Value};
+    use veoveo_platform_store::native_json_from_value_strict;
+    let request = durable_request(
+        &owner("codec-tenant", "codec-context", "codec-user", "p1", &[]),
+        TaskId::new(),
+        TravelModelId::new(),
+        chrono::Utc::now(),
+    );
+    let explicit = serde_json::json!({"kind":"build_travel_model", "request":request});
+    let mut omitted = explicit.clone();
+    for name in ["cost_metric", "time_model", "prioritize_bidirectional"] {
+        omitted["request"]["input"]
+            .as_object_mut()
+            .unwrap()
+            .remove(name);
+    }
+    let explicit_record = TravelModelInputRecord::new(explicit.clone()).unwrap();
+    let omitted_record = TravelModelInputRecord::new(omitted.clone()).unwrap();
+    assert_eq!(
+        explicit_record.request().input,
+        omitted_record.request().input
+    );
+    assert_ne!(
+        explicit_record.clone().into_value(),
+        omitted_record.clone().into_value()
+    );
+    for (original, record) in [(explicit, explicit_record), (omitted, omitted_record)] {
+        let native = record.into_value();
+        let decoded = TravelModelInputRecord::from_value(native.clone()).unwrap();
+        assert_eq!(
+            native_json_from_value_strict(decoded.into_value()).unwrap(),
+            original
+        );
+        let Value::Object(fields) = native else {
+            panic!("input object")
+        };
+        for invalid in [
+            Value::RecordId(surrealdb::types::RecordId::new("task", "native")),
+            Value::Datetime(chrono::Utc::now().into()),
+            Value::None,
+        ] {
+            let mut corrupted = fields.clone();
+            corrupted.insert("request", invalid);
+            assert!(TravelModelInputRecord::from_value(Value::Object(corrupted)).is_err());
+        }
+    }
+    let mut absent = serde_json::json!({"kind":"build_travel_model", "request":request});
+    absent["request"]["identity"]
+        .as_object_mut()
+        .unwrap()
+        .remove("request_context");
+    let mut nullable = absent.clone();
+    nullable["request"]["identity"]["request_context"] = serde_json::Value::Null;
+    for original in [absent, nullable] {
+        let native = TravelModelInputRecord::new(original.clone())
+            .unwrap()
+            .into_value();
+        assert_eq!(native_json_from_value_strict(native).unwrap(), original);
+    }
+}
+
+#[test]
+fn retained_result_preserves_complete_mcp_envelope_and_rejects_native_values() {
+    use crate::task_lookup::TravelModelResultRecord;
+    use surrealdb::types::{SurrealValue, Value};
+    use veoveo_platform_store::{native_json_from_value_strict, native_json_into_value};
+    let record = travel_record(
+        TravelModelId::new(),
+        "codec-user".parse().unwrap(),
+        "codec-context".parse().unwrap(),
+        chrono::Utc::now(),
+    );
+    let product = crate::contract::MapTaskProduct::new(record.clone()).unwrap();
+    let envelope = veoveo_mcp_contract::hosting::product_result(
+        "built",
+        rmcp::model::Resource::new(product.result_uri().as_str(), "model"),
+        &product,
+    )
+    .unwrap();
+    let mut original = serde_json::to_value(envelope).unwrap();
+    original["_meta"] = serde_json::json!({"external/example":{"max":u64::MAX,"null":null}});
+    original["external_extension"] = serde_json::json!({"opaque":true});
+    original["content"][0]["external_extension"] = serde_json::json!(null);
+    for meta in [
+        Some(original["_meta"].clone()),
+        None,
+        Some(serde_json::Value::Null),
+    ] {
+        let mut value = original.clone();
+        match meta {
+            Some(meta) => value["_meta"] = meta,
+            None => {
+                value.as_object_mut().unwrap().remove("_meta");
+            }
+        }
+        let admitted = TravelModelResultRecord::new(value.clone()).unwrap();
+        assert_eq!(admitted.output(), &record);
+        let native = admitted.into_value();
+        assert_eq!(
+            native_json_from_value_strict(
+                TravelModelResultRecord::from_value(native)
+                    .unwrap()
+                    .into_value()
+            )
+            .unwrap(),
+            value
+        );
+    }
+    let baseline = TravelModelResultRecord::new(original.clone())
+        .unwrap()
+        .into_value();
+    for field in ["_meta", "content"] {
+        let mut changed = original.clone();
+        if field == "content" {
+            changed[field][0]["text"] = "changed".into();
+        } else {
+            changed[field]["external/example"]["max"] = 0.into();
+        }
+        assert_ne!(
+            TravelModelResultRecord::new(changed).unwrap().into_value(),
+            baseline
+        );
+    }
+    for invalid in [
+        Value::RecordId(surrealdb::types::RecordId::new("task", "native")),
+        Value::Datetime(chrono::Utc::now().into()),
+        Value::None,
+    ] {
+        let Value::Object(mut fields) = native_json_into_value(original.clone()) else {
+            panic!("result object")
+        };
+        fields.insert("external_extension", invalid);
+        assert!(TravelModelResultRecord::from_value(Value::Object(fields)).is_err());
+    }
+}
+
 #[tokio::test]
 async fn travel_reads_exclude_inconsistent_authority_and_unfinished_results_in_sql() {
     tokio::time::timeout(Duration::from_secs(90), async {
@@ -198,11 +337,12 @@ async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked()
     .await
     .expect("travel-model retained-data qualification exceeded 90 seconds");
 }
-async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> TaskId {
-    let id = TaskId::new();
-    let principal = veoveo_types::PrincipalId::parse(owner.principal_key.clone()).unwrap();
-    let context = owner.authority.work_context.clone();
-    let now = chrono::Utc::now();
+fn durable_request(
+    owner: &TaskOwner,
+    id: TaskId,
+    model: TravelModelId,
+    now: chrono::DateTime<chrono::Utc>,
+) -> crate::task_lookup::DurableTravelModelRequest {
     let input_cases: serde_json::Value =
         serde_json::from_str(include_str!("../../testdata/controlled-inputs.json")).unwrap();
     let identity = veoveo_mcp_contract::GatewayInternalIdentity {
@@ -234,11 +374,57 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
         not_before: now,
         expires_at: now + chrono::TimeDelta::hours(1),
     };
-    let request = crate::task_lookup::DurableTravelModelRequest {
+    crate::task_lookup::DurableTravelModelRequest {
         input: serde_json::from_value(input_cases[0]["arguments"].clone()).unwrap(),
-        identity, travel_model_id: key.map(|v|v.parse().unwrap()).unwrap_or_default(), created_at:now,
+        identity, travel_model_id: model, created_at:now,
         artifact_write_capability: serde_json::from_value(serde_json::json!({"capability_id":uuid::Uuid::now_v7().to_string(),"secret":"inert_fixture_capability_not_issued_000000000000","task_id":id.to_string(),"expires_at":now+chrono::TimeDelta::hours(1)})).unwrap(),
-    };
+    }
+}
+fn travel_record(
+    model: TravelModelId,
+    principal: PrincipalId,
+    context: WorkContextId,
+    now: chrono::DateTime<chrono::Utc>,
+) -> TravelModelRecord {
+    let artifact_id = veoveo_artifact_contract::ArtifactId::new();
+    let uri = artifact_id.plane_uri();
+    crate::contract::TravelModelRecord {
+        travel_model_id: model.clone(),
+        travel_model_uri: crate::contract::MapTravelModelUri::new(model),
+        manifest_uri: uri.clone(),
+        artifact: veoveo_artifact_contract::ArtifactMetadata {
+            byte_len: 128,
+            mime_type: Some("application/json".into()),
+            filename: None,
+            artifact_uri: uri,
+            download_url: None,
+            created_at: now,
+            release_state: Default::default(),
+            compliance: Default::default(),
+            metadata: serde_json::json!({}),
+        },
+        cost_metric: Default::default(),
+        time_model: Default::default(),
+        location_count: 2,
+        vehicle_type_count: 1,
+        unavailable_cell_count: 0,
+        profiles: vec![],
+        created_by: principal,
+        work_context: context,
+        created_at: now,
+    }
+}
+async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> TaskId {
+    let id = TaskId::new();
+    let principal = veoveo_types::PrincipalId::parse(owner.principal_key.clone()).unwrap();
+    let context = owner.authority.work_context.clone();
+    let now = chrono::Utc::now();
+    let request = durable_request(
+        &owner,
+        id,
+        key.map(|v| v.parse().unwrap()).unwrap_or_default(),
+        now,
+    );
     runtime
         .create(CreateTask {
             task_id: id,
@@ -256,33 +442,7 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
         .unwrap();
     if let Some(key) = key {
         let now = chrono::Utc::now();
-        let artifact_id = veoveo_artifact_contract::ArtifactId::new();
-        let uri = artifact_id.plane_uri();
-        let record = crate::contract::TravelModelRecord {
-            travel_model_id: key.parse().unwrap(),
-            travel_model_uri: crate::contract::MapTravelModelUri::new(key.parse().unwrap()),
-            manifest_uri: uri.clone(),
-            artifact: veoveo_artifact_contract::ArtifactMetadata {
-                byte_len: 128,
-                mime_type: Some("application/json".into()),
-                filename: None,
-                artifact_uri: uri,
-                download_url: None,
-                created_at: now,
-                release_state: Default::default(),
-                compliance: Default::default(),
-                metadata: serde_json::json!({}),
-            },
-            cost_metric: Default::default(),
-            time_model: Default::default(),
-            location_count: 2,
-            vehicle_type_count: 1,
-            unavailable_cell_count: 0,
-            profiles: vec![],
-            created_by: principal,
-            work_context: context,
-            created_at: now,
-        };
+        let record = travel_record(key.parse().unwrap(), principal, context, now);
         let uri = veoveo_types::ResourceAddress::to_uri(&record.travel_model_uri).unwrap();
         let product = crate::contract::MapTaskProduct::new(record).unwrap();
         let mut wrong = serde_json::to_value(&product).unwrap();
