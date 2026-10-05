@@ -607,6 +607,48 @@ during that work. Current-format task restart, authorization and failure recover
 still require qualification. Implementation and remaining qualification are tracked in the
 [consolidated plan](CONTRACT_CONSISTENCY_PLAN.md#modular-types-and-server-contracts).
 
+## CE-14: Agent Output Reaches Only Its Audience
+
+An agent run acts with the authority of the principal who asked, and each of its
+outputs has an audience: the principals who will see it. A chat reply goes to the
+chat's current members, an operation's Activity record to its invoker, and a memory
+write to the members of that memory's scope. A one-member chat is an audience of one.
+Veoveo applies one rule to every audience size and has no separate private reply mode.
+
+Two checks apply to every run. The requester's authority admits each tool call, so
+membership in a group grants no additional capability. Content enters model input
+only when every audience member can read it. Retrieval therefore uses the intersection
+of the audience's access, which never exceeds the requester's own. The gateway applies
+both checks before the model receives content. Model instructions cannot enforce
+access, because a model that has seen restricted content can disclose it through
+paraphrase or inference.
+
+Readability uses the existing decision in
+[Work Context governance](WORK_CONTEXT_GOVERNANCE.md#output-ownership-and-access): the
+same tenant, membership or a live grant under the read policy, and clearance for every
+data label. Knowledge observations and Artifacts already carry these inputs. A tool
+result may carry the same `AccessDescriptor` under the optional `_meta` key
+`ai.veoveo/result-access`, defined by the hosted-server contract. Servers adopt it as
+their domains need it and list any gap in their Contract Compliance section. A result
+without a descriptor is readable only by its invoker. Results from third-party servers
+stay with the invoker until a concrete requirement justifies another decision.
+
+A run records the descriptors of everything it read. It may publish a reply or write
+memory only to an audience whose every member satisfies all of them. The audience is
+fixed at admission and checked again at publication, and a failed check withholds the
+reply. A member who joins later sees an agent reply only when that member satisfies
+its recorded requirements. The requester receives no private notice about excluded
+content, because that notice would create a second audience.
+
+Chat-agent memory, when adopted, has one chat as its scope. Its audience then equals
+the audience of the history each run reads. Learning crosses chats when a person
+publishes it into the Work Context, where Knowledge indexes it with its own
+descriptor. Managed agents act under their own identity and own their memory. This
+decision leaves their authority unchanged.
+
+The [output audience plan](OUTPUT_AUDIENCE_PLAN.md) records delivery. Workspace keeps
+its receipt-only tool results until that plan's Workspace phase passes acceptance.
+
 ## Delivery And Decision Checkpoints
 
 | Work | Owner and shortest implementation path | Acceptance and release relationship |
@@ -620,6 +662,7 @@ still require qualification. Implementation and remaining qualification are trac
 | Deployment and storage efficiency | Image planner, Computers/provider package, installation owner | Asset-only and no-op runs reuse unchanged artifacts; retained homes survive maintenance; required affected-path acceptance |
 | Artifact route experiment | Artifact service, upload client, installation ingress | Matched performance/security comparison first; a separate implementation decision follows measured evidence |
 | Modular types and server contracts | `platform/types`, shared MCP integration, and each server library | Foundations Phase 3: foundation, Time, Map, and Frames contract isolation pass independent consumer checks; Time resources/cursors and Frames world addresses use shared URI components; Time and Frames own typed persistence interfaces and private driver records; Map owns geodetic names and RRD owns its recording metadata; gateway completion and discovery use typed templates; the [unified audit contract](../platform/audit/contract/DESIGN.md) preserves native Task and opaque route identities. Concrete URI admission passes on the reference installation. Map consumes checked setup and typed direct authoring addresses. The Python template consumes generic checked setup and nominal scope/resource builders. Remaining Store domain keys, DTO relationships and owner-specific installed qualification, are pending; the checked Python template passes installed hosted and documentation-source checks |
+| Agent output audiences | Shared access contract, hosted-server contract, Knowledge store, gateway reads and Workspace runs; see the [output audience plan](OUTPUT_AUDIENCE_PLAN.md) | Not started. Workspace keeps receipt-only tool results until audience-filtered reads, publication checks and the reference adopter pass two-person acceptance |
 
 The [Computers design](../platform/computers/DESIGN.md#qualification-limits) owns its
 qualification gates. Its release

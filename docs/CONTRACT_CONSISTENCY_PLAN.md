@@ -1314,7 +1314,7 @@ process and hardware acceptance remain open.
 | Console and Workspace | New schema bundles in `tools/xtask/src/commands/client_types/mod.rs` for every hand-mirrored contract; hand-written interfaces become imports from `src/generated`; `npm run build` then type-checks every field access |
 | Python peers of the Map helper, cuOpt executor, reason and speech runners and the UAV runtime | pydantic models with `extra="forbid"`; one test per protocol compares the model's JSON Schema with the Rust schema snapshot |
 | MCP App HTML assets (View, Stream, Timeseries, UAV, workbench) | Use available generated contracts and maintained browser checks; phase 8’s literal scanner supplements runtime behavior checks |
-| Agent kernel built-in tools | Derive controlled schemas from owner types and qualify the invoking clients |
+| Agent kernel built-in tools | Derive controlled schemas from owner types and qualify the invoking clients. The [agent memory plan](AGENT_MEMORY_PLAN.md) replaces `memory_query` and `memory_write` with `memory_sql` |
 | SDKs, templates and cross-server clients | Complete the wider owner-local types and builders in the F-register, including catalog continuation and current-format result consumers |
 
 | Gate | Pass condition |

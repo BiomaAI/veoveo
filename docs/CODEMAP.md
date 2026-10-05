@@ -18,7 +18,7 @@ component:
 | [`docs/README.md`](README.md) | task-oriented entry point, which document governs what, and delivery status |
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
-| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted contract decisions (provider recovery, capacity and authority, renewable access, test tooling, evidence scope, version transitions, deployment boundaries, transfer profiles, the `veoveo.ai` identifier cut, knowledge through resources, one audit record per logical action, and modular types with server-owned contracts) and the implementation work that remains |
+| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted contract decisions (provider recovery, capacity and authority, renewable access, test tooling, evidence scope, version transitions, deployment boundaries, transfer profiles, the `veoveo.ai` identifier cut, knowledge through resources, one audit record per logical action, modular types with server-owned contracts, and agent output audiences) and the implementation work that remains |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
@@ -58,6 +58,8 @@ planned change lands:
 | [`CONTRACT_CONSISTENCY_PLAN.md`](CONTRACT_CONSISTENCY_PLAN.md) | single consolidated plan under review: accepted Foundations baseline, required owner/acceptance transfer register, modular contracts and SQL, generated clients, naming cut, conformance/enforcement, and explicit hardening follow-ups |
 | [`PLATFORM_FOUNDATIONS_PROGRESS.md`](PLATFORM_FOUNDATIONS_PROGRESS.md) | historical foundations implementation, publication and acceptance checkpoints; current requirements and remaining work stay in the active plan |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
+| [`AGENT_MEMORY_PLAN.md`](AGENT_MEMORY_PLAN.md) | managed tool selection enforcement and agent-owned DuckDB memory for managed agents; chat-agent memory deferred |
+| [`OUTPUT_AUDIENCE_PLAN.md`](OUTPUT_AUDIENCE_PLAN.md) | CE-14 delivery: shared access vocabulary, `ai.veoveo/result-access`, audience-filtered reads and Workspace run audiences |
 
 Component designs live beside the code whose contract they specify:
 
