@@ -458,8 +458,11 @@ reason. Strict inputs apply to controlled shapes; opaque provider maps and negot
 extension metadata retain their declared extensibility. External formats keep their
 own spelling. No proposed rule is installed merely by consolidating the plans.
 
-Phase 8 adds C33 with its conformance check, updates C02 to `resultUri`, and changes
-the Rust/Python declarations and server compliance projections together. Phase 9
+Phase 8 adds C33 with its conformance check, updates C02 to `resultUri`, and advances
+the hosted MCP contract from revision 3 to 4. The separate requirement catalog advances
+from revision 1 to 2. Registration checks, SDK declarations and server compliance
+projections change together under the coordinated drain; revision 3 inputs receive an
+upgrade diagnostic. The MCP protocol remains `2026-07-28`. Phase 9
 provides the typed catalog and generated projections; its catalog work may land
 before phase 8. Record reviewed architecture changes in
 [CONTRACT_EVOLUTION.md](CONTRACT_EVOLUTION.md) when their implementation is qualified.
@@ -1967,6 +1970,7 @@ checks.
 | Computers AEAD associated data, HMAC inputs and sealed plaintexts; BFF cookies; forwarder queue `stream.json` | Internal, unchanged |
 | Internal gateway JWT and gateway OAuth access token claims | JWT format, unchanged (D1) |
 | Gateway control-plane SHA-256, Frames `spec_digest`, knowledge registration and member revisions, `runtime_template_revision`, View composition digests, Map request digests | Recomputed after the cut |
+| Hosted MCP contract revision 3, `veoveo.ai/hosted-mcp/v3`; requirement catalog revision 1 | Revision 4 / `veoveo.ai/hosted-mcp/v4`; catalog revision 2 with C33; registrations and all declarations change together |
 | Recording manifest v9 | v10 |
 | Playback manifest v10 | v11, coordinated with the Console BFF |
 | Reason and stream results, speech transcript, travel-model artifact, optimization problem and solution documents | Next version with a `veoveo.ai/<name>/v<N>` tag |
@@ -1977,6 +1981,10 @@ checks.
 | Offline bundle and `images.lock.json` | `schema_version` 2 |
 | Map analytics DuckDB | `SCHEMA_VERSION` 12, rebuilt |
 | Installation pins in `examples/bioma` | Regenerated: `controlPlaneRevision`, `knowledge.configurationRevision`, `computers.configurationRevision`, `host.configurationRevision`, the agent template `config_map` and `config_digest`, the UAV world `contentSha256` |
+
+The table is a starting inventory. D5 also requires a version bump for every other
+changed versioned format, including Recording projection handles and catalog grants.
+Refresh that inventory against the final producer and consumer graph before the cut.
 
 The naming cut runs in four waves. Partitions identify ownership and may proceed
 independently when their dependencies permit; they do not require multiple agents. Sizes count types, literal sites and files from the
@@ -2026,9 +2034,9 @@ non-Rust peer.
 | S–M | `duckdb-mcp`; `timeseries-mcp` with the forecast app |
 | S | `artifact-mcp`, `speech-mcp` with its runner, `frames-mcp`, `knowledge-mcp`, `recording-mcp`, `computers-mcp`, `showcase/sumo/sumo-mcp`, `mcp/apps-extension` |
 
-`mcp/apps-extension`'s `WorkbenchStreamResult` emits `tool_name` while
-`workbench.html` reads `toolName`, so the recording workbench stream step never runs
-today. The cut fixes it.
+The generated Workbench configuration and its consuming stream hook change together
+to `toolName`. Phase 6 admits the current owner spelling before stream effects;
+phase 8 changes that spelling across the producer, generated schema and consumer.
 
 Wave 4 covers consumers and installation.
 
