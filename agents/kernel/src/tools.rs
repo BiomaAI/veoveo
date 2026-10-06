@@ -17,6 +17,11 @@ use crate::{
     timeline::{TimelineQuery, query_segments},
 };
 
+/// Rig advertises the schema of the exact DTO its decoder uses.
+pub(crate) fn argument_schema<Args: schemars::JsonSchema>() -> serde_json::Value {
+    schemars::schema_for!(Args).into()
+}
+
 const MAX_QUERY_ROWS: u64 = 500;
 
 #[derive(Debug)]
@@ -36,11 +41,14 @@ impl From<anyhow::Error> for MemoryToolError {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MemoryQueryArgs {
     /// One read-only SELECT (or WITH ... SELECT) statement.
     pub sql: String,
+    /// Row cap: omitted or null uses 50; execution caps admitted u64 values at 500.
     #[serde(default)]
+    #[schemars(range(max = u64::MAX))]
     pub max_rows: Option<u64>,
 }
 
@@ -68,19 +76,12 @@ impl Tool for MemoryQueryTool {
 
     fn description(&self) -> String {
         "Run one read-only SELECT over your own memory database. Kernel state lives in the \
-         `kernel` schema (episodes, task_ledger, wakes); your domain tables live in `main`."
+         `agent_memory` schema (migrations, kv, episode_log); your domain tables live in `main`."
             .to_string()
     }
 
     fn parameters(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "sql": { "type": "string", "description": "A single SELECT or WITH statement." },
-                "max_rows": { "type": "integer", "description": "Row cap (default 50, max 500)." }
-            },
-            "required": ["sql"]
-        })
+        argument_schema::<MemoryQueryArgs>()
     }
 
     async fn call(
@@ -133,17 +134,7 @@ impl Tool for MemoryWriteTool {
     }
 
     fn parameters(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "op": { "type": "string", "enum": ["insert", "update", "delete"] },
-                "table": { "type": "string" },
-                "row": { "type": "object", "description": "Column values for insert." },
-                "set": { "type": "object", "description": "Column values for update." },
-                "where": { "type": "object", "description": "Equality filters for update/delete." }
-            },
-            "required": ["op", "table"]
-        })
+        argument_schema::<MemoryWrite>()
     }
 
     async fn call(
@@ -192,14 +183,7 @@ impl Tool for TimelineQueryTool {
     }
 
     fn parameters(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "entities": { "type": "string", "description": "Entity path filter, e.g. /agent/** (default /**)." },
-                "timeline": { "type": "string", "description": "Index timeline: log_time (default) or episode." },
-                "max_rows": { "type": "integer", "description": "Row cap (default 50)." }
-            }
-        })
+        argument_schema::<TimelineQuery>()
     }
 
     async fn call(
@@ -219,5 +203,135 @@ impl Tool for TimelineQueryTool {
             row_count: rows.len(),
             rows,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn admit<Args: serde::de::DeserializeOwned>(
+        schema: &serde_json::Value,
+        value: serde_json::Value,
+        expected: bool,
+    ) {
+        let validator = jsonschema::validator_for(schema).unwrap();
+        assert_eq!(
+            validator.is_valid(&value),
+            expected,
+            "schema admission for {value}"
+        );
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Args>(&bytes).is_ok(),
+            expected,
+            "decoder admission for {value}"
+        );
+    }
+
+    #[test]
+    fn rig_parameters_match_memory_and_timeline_argument_decoders() {
+        let dir = tempfile::tempdir().unwrap();
+        let memory = MemoryStore::open(&dir.path().join("memory.duckdb")).unwrap();
+        let rrd = Arc::new(
+            RrdRecorder::open(dir.path(), "rrd", 1024, "parameters", &memory, None).unwrap(),
+        );
+        let query = MemoryQueryTool::new(memory.clone());
+        let write = MemoryWriteTool::new(memory, rrd.clone(), vec!["readings".into()]);
+        let timeline = TimelineQueryTool::new(rrd);
+        let query_schema = query.parameters();
+        for value in [
+            json!({"sql":"SELECT 1"}),
+            json!({"sql":"SELECT 1","max_rows":null}),
+            json!({"sql":"SELECT 1","max_rows":0}),
+            json!({"sql":"SELECT 1","max_rows":u64::MAX}),
+        ] {
+            admit::<MemoryQueryArgs>(&query_schema, value, true);
+        }
+        for value in [
+            json!({}),
+            json!({"sql":1}),
+            json!({"sql":"SELECT 1","extra":true}),
+            json!({"sql":"SELECT 1","max_rows":-1}),
+            json!({"sql":"SELECT 1","max_rows":0.5}),
+            json!({"sql":"SELECT 1","max_rows":1e20}),
+        ] {
+            admit::<MemoryQueryArgs>(&query_schema, value, false);
+        }
+        let write_schema = write.parameters();
+        for value in [
+            json!({"op":"insert","table":"readings","row":{"domain_extension":{"nested":[1,true,null]}}}),
+            json!({"op":"update","table":"readings","set":{"value":3},"where":{"sensor":"a","domain_filter":null}}),
+            json!({"op":"delete","table":"readings","where":{"sensor":"a"}}),
+        ] {
+            admit::<MemoryWrite>(&write_schema, value.clone(), true);
+            let mut extra = value.clone();
+            extra["extra"] = json!(true);
+            admit::<MemoryWrite>(&write_schema, extra, false);
+            let mut missing_table = value;
+            missing_table.as_object_mut().unwrap().remove("table");
+            admit::<MemoryWrite>(&write_schema, missing_table, false);
+        }
+        for value in [
+            json!({"op":"insert","table":"readings"}),
+            json!({"op":"insert","table":"readings","row":[]}),
+            json!({"op":"update","table":"readings","set":{}}),
+            json!({"op":"update","table":"readings","where":{}}),
+            json!({"op":"delete","table":"readings"}),
+            json!({"op":"delete","table":"readings","where":{},"row":{}}),
+            json!({"op":"unknown","table":"readings","row":{}}),
+            json!({"table":"readings","row":{}}),
+            json!({"op":"update","table":"readings","set":[],"where":{}}),
+            json!({"op":"delete","table":"readings","where":[]}),
+        ] {
+            admit::<MemoryWrite>(&write_schema, value, false);
+        }
+        let timeline_schema = timeline.parameters();
+        for value in [
+            json!({}),
+            json!({"timeline":"custom_capture_index","entities":"/domain/**","max_rows":u64::MAX}),
+            json!({"max_rows":0}),
+        ] {
+            admit::<TimelineQuery>(&timeline_schema, value, true);
+        }
+        for value in [
+            json!({"timeline":1}),
+            json!({"entities":null}),
+            json!({"max_rows":null}),
+            json!({"max_rows":-1}),
+            json!({"max_rows":1e20}),
+            json!({"extra":true}),
+        ] {
+            admit::<TimelineQuery>(&timeline_schema, value, false);
+        }
+        let defaults: TimelineQuery = serde_json::from_str("{}").unwrap();
+        assert_eq!(defaults.entities, "/**");
+        assert_eq!(defaults.timeline, "log_time");
+        assert_eq!(defaults.max_rows, 50);
+        assert_eq!(timeline_schema["properties"]["max_rows"]["default"], 50);
+        assert!(query.description().contains("agent_memory"));
+        assert!(!query.description().contains("task_ledger"));
+    }
+
+    #[tokio::test]
+    async fn memory_query_execution_preserves_default_and_caps_admitted_u64() {
+        let dir = tempfile::tempdir().unwrap();
+        let memory = MemoryStore::open(&dir.path().join("memory.duckdb")).unwrap();
+        let tool = MemoryQueryTool::new(memory);
+        let mut context = ToolContext::new();
+        for (max_rows, expected) in [(None, 50), (Some(u64::MAX), 500)] {
+            let result = tool
+                .call(
+                    &mut context,
+                    MemoryQueryArgs {
+                        sql: "SELECT * FROM range(600)".into(),
+                        max_rows,
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(result.row_count, expected);
+        }
     }
 }

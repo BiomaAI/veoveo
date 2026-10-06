@@ -12,6 +12,7 @@ name = "agent"
 path = "src/bin/agent.rs"
 
 [dependencies]
+schemars.workspace = true
 veoveo-duckdb-mcp = { path = "../../servers/duckdb-mcp", default-features = false, features = ["contract"] }
 veoveo-types.workspace = true
 veoveo-mcp-knowledge-extension = { workspace = true, features = ["mcp"] }
@@ -50,5 +51,6 @@ veoveo-platform-store.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+jsonschema.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }
 tempfile = "3"

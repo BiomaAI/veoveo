@@ -564,8 +564,11 @@ fn map_read_error(uri: &str, error: McpClientError) -> ResourceReadErrorAction {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ResourceReadArgs {
+    /// An authorized non-browser resource URI from a tool result or resource listing.
+    /// URI admission happens at call time to preserve correction guidance.
     pub uri: String,
 }
 
@@ -604,17 +607,7 @@ impl Tool for ResourceReadTool {
     }
 
     fn parameters(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": "object",
-            "properties": {
-                "uri": {
-                    "type": "string",
-                    "description": "An authorized non-browser resource URI from a tool result or resource listing."
-                }
-            },
-            "required": ["uri"],
-            "additionalProperties": false
-        })
+        crate::tools::argument_schema::<ResourceReadArgs>()
     }
 
     async fn call(
@@ -1061,8 +1054,36 @@ mod tests {
         });
         let limits = ResourceReadLimits::default();
         let tool = ResourceReadTool::new(epoch_rx, limits.clone());
+        let schema = tool.parameters();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        for value in [
+            serde_json::json!({"uri":"map://layers/current"}),
+            serde_json::json!({"uri":"not a URI"}),
+        ] {
+            assert!(validator.is_valid(&value));
+            assert!(
+                serde_json::from_slice::<ResourceReadArgs>(&serde_json::to_vec(&value).unwrap())
+                    .is_ok()
+            );
+        }
+        for value in [
+            serde_json::json!({}),
+            serde_json::json!({"uri":1}),
+            serde_json::json!({"uri":"map://layers/current", "extra":true}),
+        ] {
+            assert!(!validator.is_valid(&value));
+            assert!(
+                serde_json::from_slice::<ResourceReadArgs>(&serde_json::to_vec(&value).unwrap())
+                    .is_err()
+            );
+        }
         let mut context = ToolContext::new();
         context.insert(ResourceReadLedger::new(limits));
+        let malformed = serde_json::from_str::<ResourceReadArgs>(r#"{"uri":"not a URI"}"#).unwrap();
+        assert!(matches!(
+            tool.call(&mut context, malformed).await.unwrap(),
+            ResourceReadOutput::CorrectionRequired { .. }
+        ));
 
         let first = tool
             .call(

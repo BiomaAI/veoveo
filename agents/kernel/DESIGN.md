@@ -8,6 +8,7 @@ Model completion uses the approved Chat Completions adapter, without claiming
 every provider API. JSON manifests, managed generation admission and the dispatch
 preflight endpoint are repository-owned contracts. SurrealDB owns scheduling and
 Task delivery; DuckDB and Rerun hold local analytical projections.
+Rig tool argument schemas use JSON Schema 2020-12 generated from their Serde DTOs.
 Resource reads negotiate `ai.veoveo/knowledge-source` through the shared extension
 contract and validate its SHA-256 content binding.
 
@@ -83,3 +84,20 @@ closed delivery vocabulary. Wake rendering, priority scheduling and heartbeat
 recognition match typed payloads; output bodies remain backend-owned JSON.
 Runtime settlement and consumption transactions own wake deduplication, episode
 lineage and retention release across kernel replacement.
+
+## Rig Tool Parameters
+
+The four local Rig tools generate parameters from the DTO used by their actual
+argument decoder. Memory writes expose insert/update/delete alternatives with
+variant-specific required fields. Controlled argument objects reject unknown keys;
+SQL result rows, column values and equality maps keep their open domain payloads.
+Memory queries describe the `agent_memory` migrations, key-value and episode-log
+tables alongside domain tables in `main`.
+
+Omitted query row caps use fifty, and execution caps admitted unsigned values at
+five hundred. Timeline queries accept Rerun timeline names, including custom names.
+Resource read arguments keep URI text through decoding; call-time governed URI
+admission supplies correction guidance for malformed and inadmissible addresses.
+Parameter-schema and byte-decoder tests exercise the real Rig parameter methods;
+existing transaction, recorder, timeline, resource-budget and knowledge-read tests
+qualify their execution paths.

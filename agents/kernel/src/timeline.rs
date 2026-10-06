@@ -18,16 +18,18 @@ use serde::{Deserialize, Serialize};
 const MAX_TIMELINE_OUTPUT_BYTES: usize = 16 * 1024;
 const MAX_TIMELINE_CELL_BYTES: usize = 4 * 1024;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TimelineQuery {
     /// Entity path filter expression, e.g. `/agent/**` (Rerun filter syntax).
     #[serde(default = "default_entity_filter")]
     pub entities: String,
-    /// Index timeline to order by (`log_time` or `episode`).
+    /// Rerun timeline name to order by; omitted defaults to `log_time`.
     #[serde(default = "default_timeline")]
     pub timeline: String,
+    /// Row cap defaults to 50; execution caps admitted u64 values at 500.
     #[serde(default = "default_max_rows")]
+    #[schemars(range(max = u64::MAX))]
     pub max_rows: u64,
 }
 

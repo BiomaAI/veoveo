@@ -199,7 +199,7 @@ pub fn ensure_single_select(sql: &str) -> Result<()> {
 }
 
 /// One typed mutation for `memory_write`. Raw SQL never reaches this path.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MemoryWrite {
     Insert {
