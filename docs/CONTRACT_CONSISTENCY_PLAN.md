@@ -1,9 +1,9 @@
 # Platform Foundations And Contract Consistency Plan
 
 Status: Phase 0 is source-qualified. Phases 1–5 have qualified source checkpoints.
-Phase 6 generated consumers and Phase 7 embedding identity and producer provenance
-are being implemented. The installation cut, remaining conformance work and final
-installed acceptance in phases 8–10 are open. The cluster stays stopped during local
+The implemented Phase 6 consumer batch and Phase 7 embedding identity and producer
+provenance pass source qualification. Wider owner rows, the installation cut and
+remaining conformance and installed acceptance in phases 8–10 are open. The cluster stays stopped during local
 development. See [Current Status](#current-status) for accepted checks and remaining
 gates.
 
@@ -55,8 +55,8 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
 | 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery | Complete required owner rows and qualify the final composed source and installation |
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
-| 6 — Generated consumers | Console schemas, snapshots and events have passing browser checks; Kernel tool schemas and MCP App consumers are being integrated | Finish App admission and the affected native, isolated-contract and generated-output checks |
-| 7 — Embedding identity | Reviewed producer-profile design is being implemented across the client, Knowledge and Store | Complete native failure/race cases and qualify an installation-supplied NVIDIA runtime bundle |
+| 6 — Generated consumers | The implemented Console, Kernel and MCP App batch passes owning native and browser checks, isolation, strict lint and generation | Complete wider owner DTO relationships and required installed consumers in the F-register |
+| 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification | Measure the NVIDIA runtime bundle, then qualify its full production workload before installation selection |
 | 8 — Installation and naming cut | Required work is specified; implementation has not started | Update the full producer/consumer closure, drain incompatible writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | Typed requirement-catalog design is reviewed | Implement complete owner profiles, generated declarations, generic conformance and component/scenario discovery |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
@@ -66,17 +66,25 @@ module prerequisites, Media cancellation receipts and Task cleanup, Recording
 completion admission, and the expanded input matrix. These checkpoints do not close
 all required rows in phases 1–4 or qualify the installation cut.
 
-The Console checkpoint passes its affected compilation, generated schemas,
-115 Console cases and 22 Workspace cases, with builds and Console lint. These are
-browser behavior and contract checks. Kernel tool schemas now derive from their
-argument DTOs, and the remaining MCP Apps are adopting generated owner contracts
-with admission before effects. Their full combined native qualification is pending;
-changes to the App generator's dependency graph require a completed source freeze.
+The browser checkpoint passes 115 Console cases and 22 Workspace cases, with
+builds and Console lint on MCP SDK 2.3.1. Six App entrypoints pass their actual
+JavaScript type checks, owner-schema cases and asset builds. Their controlled
+results are admitted before effects. These checks establish browser behavior and
+contract agreement; they do not establish rendering or GPU execution. Kernel tool
+schemas derive from their argument DTOs. The combined native build and owning suites
+pass, alongside strict lint over 22 packages, scoped formatting, generated-output
+verification and isolated contract dependency checks.
 
-Phase 7 adds immutable execution profiles, directional qualifications and producer
-receipts. Generation publication and all four ranking depths must check the retained
-producer set. Runtime identity comes from an installation-supplied qualified bundle;
-model and image names cannot establish measured precision or compatible vectors.
+Phase 7 supplies immutable execution profiles, directional qualifications and
+producer receipts. Its 15 embedding-client checks and 41 Store/Knowledge checks
+pass, including publication rollback, receipt reclamation, all four ranking-depth
+races and the hosted generation-change response. The fresh schema and independent
+consumer agree on 169 owner tables plus three runner tables. Reclamation deletes
+chunk rows before removing their table, then cascades generation receipts in the
+same transaction. Shared runtime registries survive. The single installed/hardware
+Knowledge case remains unexecuted. Runtime identity comes from an installation-supplied
+qualified bundle; model and image names cannot establish measured precision or compatible
+vectors.
 Native and synthetic checks cannot substitute for the required NVIDIA qualification.
 The current installation is untouched. The new format requires a coordinated drain
 and fresh state before rollout.
@@ -92,6 +100,19 @@ RTX 4090 WebGL supplied flight visual acceptance, with 0.198-second lag against 
 one-second gate. Installed Map/UAV handoff and Computers grant consumers, and the
 complete unattended cold-start gate, remain open. Ready pods alone do not close them.
 Knowledge and Embedding are core services; Reason runs in its separate batch.
+
+The current source checkpoints are:
+
+| Concern | Implementation revision |
+|---|---|
+| Kernel tool schemas | `4d78a5e80` |
+| Console snapshots, events and lightweight owners | `14f1f99bd` |
+| MCP App contract admission and generated consumers | `808d80d29` |
+| Optimization preparation gate | `b27d53adc` |
+| Embedding profiles and Knowledge producer/search fences | `89cf4f9d2` |
+
+These revisions qualify their implemented source concerns. They do not close the
+wider F-register or the hardware and installed gates.
 
 The cluster stays stopped during these local batches. The
 [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
@@ -184,8 +205,8 @@ generation remains explicitly unqualified under the existing user restriction.
 Review covers the breadth of mandatory derives (D14), kernel/module classification
 and migration-job cost (D8–D10), the naming scope (D1–D6), and embedding space reuse
 (D13). Each phase records its accepted scope and outstanding qualification. D13's
-source architecture review is recorded in Phase 7; implementation and hardware
-qualification remain open. Existing owning designs and AGENTS.md govern behavior
+source architecture review is recorded in Phase 7; hardware qualification remains
+open after the implemented source batch passes. Existing owning designs and AGENTS.md govern behavior
 until their qualified replacements land.
 
 ## Working Rules
@@ -1750,39 +1771,30 @@ a count of `Value` fields is not proof that every one can share a closed schema.
 
 ## Phase 6: Generated Cross-Language Types
 
-The accepted browser baseline contains six generated bundles: agent management,
-audit, computers, console, speech and workspace. The current integration batch adds
-agent control, Artifact transfer, Recording playback, App catalog and cluster
-inventory from their Rust owners. The BFF exposes its App and cluster DTOs through
-a contract-only library feature. Gateway App import and discovery DTOs move to
-`platform/gateway/contract`, breaking the browser contract's inherited MCP runtime
-dependency without duplicating declarations. Both browser clients consume these
-owner types; browser presentation models and selected-file requirements stay local.
+Browser generation covers agent management, audit, computers, Console, speech,
+Workspace, agent control, Artifact transfer, Recording playback, App catalog and
+cluster inventory. Each bundle comes from its Rust owner. The BFF exposes its
+installation DTOs through a contract-only library feature. Gateway App import and
+discovery DTOs belong to `platform/gateway/contract`, allowing browser contracts to
+exclude MCP runtime dependencies. Both browser clients consume these owner types;
+browser presentation models and selected-file requirements stay local.
 
-Generation, browser tests and production builds pass for this batch. The isolated
-BFF contract excludes MCP, HTTP, async runtime and database dependencies; all eleven
-generated bundles match their owner schemas. Installation snapshot and upload SSE
-mirrors still require owner extraction: several fields use
-Store runtime vocabularies or gateway-private types. Phases 2–3 must establish their
-lightweight owners without copying enums or importing runtime dependencies into a
-browser contract. Broader Artifact/grant, Task, Agent and policy projections remain
-required. Python peers and MCP App assets also retain the work listed below.
+The BFF contract excludes MCP, HTTP, async runtime and database dependencies.
+Installation snapshots and upload notifications use generated owner schemas;
+their browser consumers pass. Snapshot and row-event contracts include every
+Task recovery class, including `provider_wait`, and tie each entity to its row
+schema. Browser upload phases and file state remain presentation models.
+The wider F-register still governs owner DTO relationships and installed consumers.
 
-The Console Task mirror currently omits the implemented `provider_wait` recovery
-class. Generated snapshot and row-event contracts must cover every owner vocabulary
-and keep each event's row type tied to its entity. Upload notifications also need
-an owner-generated schema. Keep the upload queue's presentation phases local; they
-describe browser interaction rather than a server wire contract.
-
-The next extraction uses the BFF's existing contract feature for the nineteen
-installation snapshot and summary structs. Gateway composition keeps projection,
+The BFF's existing contract feature owns the nineteen installation snapshot and
+summary structs. Gateway composition keeps projection,
 authorization and replay behavior and imports those declarations. Bootstrap and
 server-health declarations belong in the lightweight Gateway contract. That crate
 cannot aggregate Agent summaries because the Agent contract already depends on it.
-Agent lifecycle moves below persistence into the existing Agent contract feature;
+Agent lifecycle lives below persistence in the existing Agent contract feature;
 Artifact, Recording and access vocabularies come from their existing owners.
 
-Task status and recovery require a small contract crate below Store and Task Runtime.
+Task status and recovery use a small contract crate below Store and Task Runtime.
 Importing a Task Runtime feature from Store would create a package cycle. The new
 contract's default graph excludes database and service dependencies; Store explicitly
 selects its optional native vocabulary adapter. The existing shared derive supplies
@@ -1824,11 +1836,11 @@ assurances alongside empty defaults; unknown normalized values reject. External
 JWT claim parsing keeps its separate normalization step.
 
 The controlled-input batch has completed source review and native qualification.
-The remaining source work is grouped into three batches. Browser generation covers
+The current source integration is grouped into three batches. Browser generation covers
 installation, Task, Artifact/grant, Agent and policy projections and upload SSE.
 Agent built-in tools derive their schemas from their implemented owner types.
 The separate memory plan owns the behavioral replacement described below.
-MCP App consumers adopt owner contracts for results,
+MCP App consumers use owner contracts for results,
 continuations and errors. The already-qualified private protocol graphs require
 their image and hardware checks in Phase 10, rather than another source migration.
 
@@ -2129,11 +2141,31 @@ explicit pending entries rather than an implicit `met` baseline. SUMO needs its
 missing adjacent documents and authenticated well-known surface; profile generation
 does not establish C18–C21. C33 joins the catalog with the naming cut in phase 8.
 
-The scenario descriptor/result contract identifies hardware, network, credentials,
-billed operations, timeouts and cleanup. Keep assertions in one harness. Reuse
-existing scenarios while moving their ownership; relocation does not require a second
-implementation or an installed replay of unchanged behavior. C33 itself lands in
-phase 8 with the naming rule. Future repository/security tooling follows X2–X5.
+The reviewed dispatch design discovers owner `smoke/scenarios.json` files from
+tracked and nonignored source inventory. Cargo metadata supplies package and target
+identity; Python and Node use their package manifests. Listing scenarios requires
+neither owner execution nor production builds. Typed native targets and prerequisites
+replace the central scenario enum. Descriptors declare hardware, network, identity,
+billed operations, execution deadlines and cleanup grace, and contain no credentials
+or shell commands. Unknown targets, duplicate identities, cycles, unsafe paths and
+unsupported revisions fail before effects.
+
+Cargo compiler-artifact output supplies executable paths for the selected prerequisite
+closure. A private artifact manifest carries those paths to owning harnesses, including
+external target directories and hashed test executables. Compatible feature selections
+build together; conflicting executable profiles reject. Exact integration-test selection
+must prove that the requested case executed. Each harness owns assertions and cleanup.
+The dispatcher forwards cancellation to its owned Linux process group, allows the
+declared cleanup grace, then terminates surviving children and verifies that the group
+has drained. An observation timeout cannot settle an external mutation.
+
+Generic certification and shared harness support must exclude production domain
+contracts and implementations. Move every domain utility and schema assertion to its
+owner or composition, update its callers, and preserve maintained protocol fixtures.
+The final dependency proof covers the actual certification binary. Reuse existing
+scenarios while moving their ownership; relocation does not require another harness
+or an installed replay of unchanged behavior. C33 lands in phase 8 with the naming
+rule. Future repository/security tooling follows X2–X5.
 
 ## Phase 10: Installed Acceptance And Closeout
 
@@ -2325,9 +2357,12 @@ existing `TODO(foundations)` entries until resolved; use this register rather th
 creating a second active plan. The open F-register and phase gates still prevent
 completion.
 
-| Requirement | Owner and code TODO | Cause and next check |
-|---|---|---|
-| Phase 2 / Phase 8 / F44: catalog startup admission | Optimization, `TODO(installation)` before recovery in [`server.rs`](../servers/optimization-mcp/src/bin/server.rs) | Binding the catalog adapter proves its declaration but not installed schema. Before activation, require the Tasks selection and Optimization catalog lanes to be installed and verified before recovery or traffic; qualify refusal with either lane missing and readiness after both pass. GPU readiness remains required. |
+Optimization's catalog-startup implementation deferral is resolved. Its
+[`RuntimeInstallation`](../servers/optimization-mcp/src/composition.rs) gate verifies
+preparation, installation identity and both Tasks and Optimization histories before
+recovery or HTTP startup. The native startup matrix and nine read cases pass. Phase 8
+and F44 still require the prepared installation to become ready with its mandatory
+GPU executor. This native result does not close their installed checks.
 
 The real Media generation check is explicitly unqualified under the user's restriction.
 It must appear as such in the final acceptance report; the fake-provider pass cannot
