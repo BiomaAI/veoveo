@@ -1,13 +1,11 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 is qualified. Phases 1–5 have qualified source checkpoints;
-the latest batch qualifies Knowledge authority, module prerequisites, Media receipts
-and expanded input coverage. Phase 6 Console snapshot/event integration is active.
-Phase 7 has an accepted embedding identity and producer-provenance design, with
-implementation next. The installation cut, remaining conformance work and final
-installed acceptance in phases 8–10 remain open. The cluster stays stopped during
-local development. See [Current Status](#current-status) for accepted checks and
-remaining gates.
+Status: Phase 0 is source-qualified. Phases 1–5 have qualified source checkpoints.
+Phase 6 generated consumers and Phase 7 embedding identity and producer provenance
+are being implemented. The installation cut, remaining conformance work and final
+installed acceptance in phases 8–10 are open. The cluster stays stopped during local
+development. See [Current Status](#current-status) for accepted checks and remaining
+gates.
 
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
@@ -52,135 +50,54 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 
 ## Current Status
 
-The latest local qualification batch for Phases 3–5 is complete. Work now integrates
-the remaining generated consumers in Phase 6. Native qualification covers the composed
-nineteen-owner schema, installation
-commands, normalized Rust/Python identity, Task storage and product URIs, owner SQL
-exports, contributed Task lookups, and Media's journaled callback/recovery profile.
-These source checkpoints preserve policy checks before paging and decoding,
-transaction rollback, grant revocation, retained products and subscription recovery.
+| Phase | Current state | Remaining gate |
+|---|---|---|
+| 0 — Shared declarations | Source qualification passes; owner admission, wire forms and schema metadata are preserved | Qualify affected installed consumers with the final cut |
+| 1–4 — Modules, extension points and storage | Qualified checkpoints cover selected lanes, owner SQL, native records, authority and recovery | Complete required owner rows and qualify the final composed source and installation |
+| 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
+| 6 — Generated consumers | Console schemas, snapshots and events have passing browser checks; Kernel tool schemas and MCP App consumers are being integrated | Finish App admission and the affected native, isolated-contract and generated-output checks |
+| 7 — Embedding identity | Reviewed producer-profile design is being implemented across the client, Knowledge and Store | Complete native failure/race cases and qualify an installation-supplied NVIDIA runtime bundle |
+| 8 — Installation and naming cut | Required work is specified; implementation has not started | Update the full producer/consumer closure, drain incompatible writers and prepare fresh reference state |
+| 9 — Conformance and enforcement | Typed requirement-catalog design is reviewed | Implement complete owner profiles, generated declarations, generic conformance and component/scenario discovery |
+| 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
-The storage checkpoint `4fa68eaa9` and upload cancellation fix `acf740abe` pass
-190 selected tests across 25 test groups, including native database suites and
-independent schema/contract consumers. The storage batch covers:
+The latest completed source batch qualifies Knowledge's optional-Agent authority and
+module prerequisites, Media cancellation receipts and Task cleanup, Recording
+completion admission, and the expanded input matrix. These checkpoints do not close
+all required rows in phases 1–4 or qualify the installation cut.
 
-| Owner | Qualified change |
-|---|---|
-| Map | Projection recovery resolves retained tenant/context metadata through Identity; corrupt associations fail without advancing the checkpoint |
-| Agents | Managed-instance HTTP reads hydrate checked revisions and verify definition and tenant relationships |
-| Time | Acquisition phases use one closed owner vocabulary in Rust and the database |
-| Computers | Maintenance source, progress and resume records use typed adapters and closed fields; whole-value fences and recovery receipts are preserved |
-| Audit | Profile, whole-target and whole-detail lookups are written with the admitted draft and checked on reads; frozen bytes and hashes are preserved |
-| Gateway and Artifacts | Profile policy metadata is declared and checked before upload admission and retained access; missing metadata rejects atomically |
+The Console checkpoint passes its affected compilation, generated schemas,
+115 Console cases and 22 Workspace cases, with builds and Console lint. These are
+browser behavior and contract checks. Kernel tool schemas now derive from their
+argument DTOs, and the remaining MCP Apps are adopting generated owner contracts
+with admission before effects. Their full combined native qualification is pending;
+changes to the App generator's dependency graph require a completed source freeze.
 
-Native acceptance also exposed an upload cancellation race between claim commit and
-lease-guard construction. The Artifact service now owns the guard before delivering
-the claim result and explicitly bounds that wait. All eleven native upload tests pass;
-unknown claim outcomes keep their existing lease-expiry recovery. Gateway control
-publication now runs through an isolated native fixture instead of silently skipping
-its assertions when an environment variable is absent.
+Phase 7 adds immutable execution profiles, directional qualifications and producer
+receipts. Generation publication and all four ranking depths must check the retained
+producer set. Runtime identity comes from an installation-supplied qualified bundle;
+model and image names cannot establish measured precision or compatible vectors.
+Native and synthetic checks cannot substitute for the required NVIDIA qualification.
+The current installation is untouched. The new format requires a coordinated drain
+and fresh state before rollout.
 
-Affected compilation, strict lint, formatting, SQL parsing and source policies pass.
-The four composed schema plans come from the current Gateway binary. Independent
-contract builds exclude runtime dependencies, and the ordinary Store runtime builds
-in isolation. Independent review found no unresolved defect in this batch.
+Media publication requires the reviewed host-tracing correction in Phase 3. The
+patch is unapplied pending the user's required host-contract approval, and real
+provider generation is unqualified. Computers' real provider-process suites also
+require a configured, qualified native execution profile before publication.
 
-Checkpoint `b91815151` implements controlled storage envelopes across
-Gateway, Tasks, Agents, Workspace, Frames, Computers and Media, and replaces
-Knowledge's nested document queries with declared lookups. The query audit also
-covers Optimization's opaque Task reads and Audit block delivery. The combined
-seventeen-package all-target compile and strict lint checks pass. Fresh composition
-of all nineteen owner lanes, disabled-owner absence, replay and the installation
-command lifecycle pass. The runner admits closed object assertions and the pure
-functions needed for byte and control-character validation; commit `d05d54fc9`
-contains that qualified admission change. Independent source review has no
-unresolved finding in these adapters. Owning native suites pass for Gateway, Store,
-Knowledge, Task Runtime, Audit, Agents, Workspace, Frames, Computers, Media,
-Optimization and Artifact's service. The Rust/Python storage exchange runs within
-the passing SDK, template and independent-consumer checks. The final schema consumer
-passes against the regenerated nineteen-owner plans. Corrected diagnostic fixtures
-retain their corruption, SQL admission and plaintext-absence assertions; production
-decoders continue to reject native database values inside JSON payloads.
+The accepted Foundations installation covered sixteen Rust servers, eighteen
+participating knowledge sources and the composed flight at `6d4cd2c5`. Headed
+RTX 4090 WebGL supplied flight visual acceptance, with 0.198-second lag against the
+one-second gate. Installed Map/UAV handoff and Computers grant consumers, and the
+complete unattended cold-start gate, remain open. Ready pods alone do not close them.
+Knowledge and Embedding are core services; Reason runs in its separate batch.
 
-Checkpoint `e878b4d3a` adds the five retained Task contribution adapters and four
-native row shapes listed in Phase 4. Map, Media and Reason preserve complete admitted
-result values; Knowledge and Audit bind their own records. Knowledge's generation
-requirements now declare the fields read during activation, and Agent chat admission
-reads the declared execution projection. Independent review, strict lint and affected
-native suites pass. Fresh schema composition and the independent consumer pass
-against all four regenerated installation plans. The Reason failure fixture now
-clears the product URI when setting a Task to failed, preserving its retained result
-and stale owner settlement for the SQL paging check. Source ownership review reconciles
-495 production SQL assets across the
-optional owners, including variable targets and stored record links. A further bind
-review reconciles 1,799 production database-binding call sites and helper calls.
-It identifies the three final nominal-adapter families qualified in Phase 4. Source
-review also resolves the six outstanding relationship families as retained or
-owner-managed lifetimes; their owning designs now state why deletion must not cascade.
-
-Checkpoint `b4740fb7d` qualifies Knowledge's optional-Agent resolver and observation
-port, plan-selected startup and read-only module prerequisite checks. Native tests
-cover kernel-only operation without Agent tables, managed authority and observed
-revocation rechecks, selected prerequisites and preparation fences. The shipping
-profile and an isolated server build without the managed adapter pass their startup
-checks. Agent registration, installation commands, Helm, independent dependency
-profiles and strict lint also pass.
-
-Checkpoint `e2211a9bf` qualifies Media's nominal cancellation receipt and Task-owned
-receipt cleanup. Native codec, late-webhook/cancellation and actual Task-pruning
-checks pass, along with fresh schema composition and its independent consumer.
-Capability contexts and billing usage keep their separate lifetimes. Neither
-checkpoint establishes installed acceptance of the consolidated cut.
-
-Checkpoint `91357aeca` qualifies 447 cases across 112 owner-local input families
-and all sixteen Rust servers. The shared fixtures exercise published schemas, byte
-decoders and existing hosted admission tests. Independent review confirmed the
-inventory and preserved original cases. All sixteen owning hosted admission tests
-pass, including Recording's explicitly enabled binary target. Both independent-consumer
-profiles pass the expanded matrix. Recording completion also passes its SQL-authority
-check through the service adapter corrected in `ea413ca14`.
-
-Commit `faf8b9cee` retires the completed pilot migration helpers and their private
-installation fixtures. The generic record-restoration check keeps bound native
-values and transactional rollback coverage; it and the six Bioma composition tests
-pass. Current pilot provisioning and retained-instance lifecycle stay with the
-managed runtime.
-
-Media deployment still requires the host tracing correction described in Phase 3;
-real provider generation is not part of local acceptance. Computers' real provider
-process suites require a configured, qualified native execution profile before
-publication.
-The remaining [Phase 3](#phase-3-module-ownership-of-persistence-and-queries) owner
-APIs, [Phase 4](#phase-4-database-field-types) field families and phases 5–10 keep
-the plan open. These source checkpoints do not qualify the installation cut.
-The cluster stays stopped during development.
-
-The following installed checkpoints establish the accepted Foundations baseline.
-They do not qualify the subsequent consolidation changes.
-
-The sixteen Rust servers passed the shared-host installed batches, including
-discovery, authenticated documents, completion, Host admission and the requested
-Linux suites. The unified audit log, native changefeeds replacing the outbox,
-reference cleanup and separated Computer payloads have qualified checkpoints.
-Eighteen participating knowledge sources passed their declared checks.
-
-The composed flight passed at `6d4cd2c5`: mission, live Stream, Recording replay
-and reconnect, return, landing and Artifact isolation. Headed RTX 4090 WebGL supplied
-visual evidence; source-to-viewer lag was 0.198 seconds against the one-second gate.
-The installed sixteen-collection Knowledge selection and CUDA embeddings passed.
-Knowledge and Embedding are core services. Reason runs only in its separate batch.
-
-Map/UAV route handoffs and Computers grant typing passed native and isolated-contract
-checks. Their five images were published from `0843500c` and selected by `60fd2cf8`.
-Rollout and a Map route check completed. Installed handoff preparation and grant
-consumer acceptance remain open. A subsequent cold start reached Ready without a
-manual pod restart, but the full cold-start acceptance has not been recorded as a
-pass. Preserve that distinction when resuming qualification.
-
-The [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) retains dated checkpoints and
-failures. Its historical status statements do not override this plan. Accepted
-checks are reused while their source, dependencies and execution environment match;
-shared changes invalidate the affected checks, not unrelated acceptance.
+The cluster stays stopped during these local batches. The
+[progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
+historical failures. Reuse accepted checks while their source, dependencies and
+execution environment match; rerun checks affected by shared changes. Historical
+status statements do not override this plan or its required transfer registers.
 
 | Former Foundations phase | Disposition in this plan |
 |---|---|
