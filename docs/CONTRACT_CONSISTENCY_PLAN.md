@@ -1873,6 +1873,22 @@ the checkpoint, image, pooling, precision or hardware. Keep that trust limitatio
 explicit and qualify the deployed configuration through the existing GPU harnesses;
 this change adds no attestation service or serving sidecar.
 
+Initial qualification cannot require the bundle it is meant to produce. The existing
+verification harnesses collect candidate measurements from an explicit measured
+execution profile through a verification-only transport. It shares the production
+protocol validators, deadlines, request budgets and secret handling, but cannot act
+as the production embedding provider. Candidate measurements never activate a
+production generation or manufacture passing qualification receipts.
+
+Use the existing owner-typed corpus, query task and chunker for GPU reference and
+vector-retrieval comparison. Record that report as runtime compatibility measurement;
+it does not qualify Knowledge's SQL or hybrid search. Passing reference, retrieval,
+scheduling and capacity reports can establish the first checked runtime bundle.
+Then run the existing full GPU Knowledge retrieval, rebuild and concurrent-search
+workload through the production client with that bundle before the installation
+selects it. Preserve corpus fingerprints and all consumer acceptance gates across
+both steps. Source and synthetic checks cannot replace either hardware step.
+
 Knowledge records which qualified execution profile produced each indexed batch and
 retains its immutable provenance alongside the data. Publish those associations in
 the existing owner transaction, so committed vectors cannot lack their producer
