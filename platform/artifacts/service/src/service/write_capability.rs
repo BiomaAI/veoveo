@@ -8,14 +8,6 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         request: IssueArtifactWriteCapabilityRequest,
     ) -> Result<IssuedArtifactWriteCapability, ArtifactPlaneError> {
         let now = Utc::now();
-        if uuid::Uuid::parse_str(&request.task_id)
-            .ok()
-            .is_none_or(|task_id| task_id.get_version_num() != 7)
-        {
-            return Err(ArtifactPlaneError::InvalidRequest(
-                "capability task_id must be a UUIDv7".into(),
-            ));
-        }
         if request.expires_at <= now || request.expires_at > now + CAPABILITY_MAX_TTL {
             return Err(ArtifactPlaneError::InvalidRequest(
                 "capability expiry must be within the next 24 hours".into(),
@@ -58,7 +50,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 authority,
                 profile: caller.identity.profile.clone(),
                 server: caller.identity.server.clone(),
-                task_id: request.task_id.clone(),
+                task_id: request.task_id,
                 token_hash: secret_hash(b"veoveo.artifact-write.v1", &secret),
                 labels: caller.clearance().clone(),
                 max_artifact_count: request.max_artifact_count.get(),
@@ -101,7 +93,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             .reserve_write_capability(WriteCapabilityReservation {
                 capability_id: request.capability_id,
                 token_hash: secret_hash(b"veoveo.artifact-write.v1", secret),
-                task_id: request.task_id.clone(),
+                task_id: request.task_id,
                 idempotency_key: request.idempotency_key.to_string(),
                 request_hash,
                 byte_len: bytes.len() as u64,

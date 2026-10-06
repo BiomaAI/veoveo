@@ -17,16 +17,17 @@ use base64::Engine;
 use futures::StreamExt as _;
 use serde::Deserialize;
 use veoveo_artifact_contract::{
+    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
+    ArtifactWriteCapabilityId, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    DecideArtifactAccessRequest, GrantList, IssueArtifactWriteCapabilityRequest,
+    ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
+    PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
+    SetArtifactReleaseStateRequest, StreamArtifactRequest,
+};
+use veoveo_artifact_contract::{
     ArtifactId, ArtifactLedgerIdError, ArtifactMetadata, ArtifactShareLinkId,
 };
-use veoveo_mcp_contract::{
-    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
-    ArtifactPlaneError, ArtifactWriteCapabilityId, CreateArtifactAccessRequest,
-    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
-    IssueArtifactWriteCapabilityRequest, ListArtifactAccessRequests, ListArtifactsRequest,
-    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest, StreamArtifactRequest,
-};
+use veoveo_mcp_contract::{ArtifactPlane, ArtifactPlaneError, PlaneCaller};
 use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;
 
@@ -444,7 +445,7 @@ async fn list_artifacts<R: ArtifactRepository, S: BlobStore>(
     State(state): State<AppState<R, S>>,
     Query(request): Query<ListArtifactsRequest>,
     headers: HeaderMap,
-) -> Result<Json<veoveo_mcp_contract::ArtifactPage>, ApiError> {
+) -> Result<Json<veoveo_artifact_contract::ArtifactPage>, ApiError> {
     let caller = caller(&state, &headers)?;
     Ok(Json(state.service.list(&caller, request).await?))
 }
@@ -764,17 +765,18 @@ pub(crate) mod tests {
     use sha2::{Digest, Sha256};
     use veoveo_artifact_client::HttpArtifactPlane;
     use veoveo_artifact_contract::ArtifactReleaseState;
+    use veoveo_artifact_contract::{
+        ArtifactWriteCapabilityId, CreateArtifactShareLinkRequest,
+        IssueArtifactWriteCapabilityRequest, PutArtifactRequest,
+        RedeemArtifactWriteCapabilityRequest,
+    };
     use veoveo_mcp_contract::gateway::{
         GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::{
         GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTrustBundle,
     };
-    use veoveo_mcp_contract::{
-        AccessDecision, ArtifactPlane, ArtifactWriteCapabilityId, CreateArtifactShareLinkRequest,
-        IssueArtifactWriteCapabilityRequest, PlaneCaller, Principal, PutArtifactRequest,
-        RedeemArtifactWriteCapabilityRequest,
-    };
+    use veoveo_mcp_contract::{AccessDecision, ArtifactPlane, PlaneCaller, Principal};
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
@@ -1017,16 +1019,102 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn raw_write_task_aliases_issue_and_redeem_one_canonical_identity() {
+        let (base, caller) = spawn_service().await;
+        let http = reqwest::Client::new();
+        let task = veoveo_artifact_contract::ArtifactTaskId::new();
+        let canonical = task.to_string();
+        let mut issuance = serde_json::json!({
+            "task_id":format!("urn:uuid:{canonical}"),
+            "expires_at":Utc::now() + TimeDelta::minutes(5),
+            "max_artifact_count":1,"max_total_bytes":16
+        });
+        let response = http
+            .post(format!("{base}/artifact-write-capabilities"))
+            .bearer_auth(&caller.bearer_token)
+            .json(&issuance)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+        let issued: serde_json::Value = response.json().await.unwrap();
+        assert_eq!(issued["task_id"], canonical);
+        let capability = issued["capability_id"].as_str().unwrap();
+        let secret = issued["secret"].as_str().unwrap();
+        let mut redemption = serde_json::json!({"capability_id":capability,
+            "task_id":veoveo_artifact_contract::ArtifactTaskId::new().to_string(),
+            "idempotency_key":"alias-output", "artifact":{}});
+        let url = format!("{base}/artifact-write-capabilities/{capability}/redeem");
+        let refused = http
+            .post(&url)
+            .bearer_auth(secret)
+            .header(
+                "x-artifact-capability-redeem",
+                serde_json::to_string(&redemption).unwrap(),
+            )
+            .body("bytes")
+            .send()
+            .await
+            .unwrap();
+        assert!(!refused.status().is_success());
+        let plane = HttpArtifactPlane::new(&base);
+        assert!(
+            plane
+                .list(&caller, ListArtifactsRequest::default())
+                .await
+                .unwrap()
+                .artifacts
+                .is_empty()
+        );
+        let mut artifact_id = None;
+        for alias in [
+            task.as_uuid().simple().to_string(),
+            canonical.to_uppercase(),
+        ] {
+            redemption["task_id"] = serde_json::json!(alias);
+            let response = http
+                .post(&url)
+                .bearer_auth(secret)
+                .header(
+                    "x-artifact-capability-redeem",
+                    serde_json::to_string(&redemption).unwrap(),
+                )
+                .body("bytes")
+                .send()
+                .await
+                .unwrap();
+            assert!(response.status().is_success());
+            let artifact: serde_json::Value = response.json().await.unwrap();
+            if let Some(id) = &artifact_id {
+                assert_eq!(&artifact["artifact_uri"], id);
+            } else {
+                artifact_id = Some(artifact["artifact_uri"].clone());
+            }
+        }
+        let mut bytes = *task.as_uuid().as_bytes();
+        bytes[8] &= 0x3f;
+        issuance["task_id"] = serde_json::json!(uuid::Uuid::from_bytes(bytes).to_string());
+        let response = http
+            .post(format!("{base}/artifact-write-capabilities"))
+            .bearer_auth(&caller.bearer_token)
+            .json(&issuance)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
     async fn capability_path_mismatch_is_rejected_before_redemption() {
         let (base, caller) = spawn_service().await;
         let plane = HttpArtifactPlane::new(&base);
-        let task_id = uuid::Uuid::now_v7().to_string();
+        let task_id = veoveo_artifact_contract::ArtifactTaskId::new();
         let issued = plane
             .issue_write_capability(
                 &caller,
                 &IssueArtifactWriteCapabilityRequest {
                     required_data_labels: Default::default(),
-                    task_id: task_id.clone(),
+                    task_id,
                     expires_at: Utc::now() + TimeDelta::minutes(5),
                     max_artifact_count: NonZeroU32::new(1).unwrap(),
                     max_total_bytes: NonZeroU64::new(16).unwrap(),
@@ -1037,7 +1125,7 @@ pub(crate) mod tests {
         let request = RedeemArtifactWriteCapabilityRequest {
             capability_id: issued.capability_id,
             task_id,
-            idempotency_key: veoveo_mcp_contract::ArtifactWriteIdempotencyKey::new("output-0")
+            idempotency_key: veoveo_artifact_contract::ArtifactWriteIdempotencyKey::new("output-0")
                 .unwrap(),
             artifact: PutArtifactRequest::default(),
         };

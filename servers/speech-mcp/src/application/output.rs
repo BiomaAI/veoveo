@@ -4,7 +4,7 @@ use anyhow::Result;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::Serialize;
 use veoveo_artifact_contract::ArtifactMetadata;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, PutArtifactRequest,
     RedeemArtifactWriteCapabilityRequest,
 };
@@ -61,7 +61,7 @@ impl SpeechService {
                 .await?;
             let request = RedeemArtifactWriteCapabilityRequest {
                 capability_id: capability.capability_id,
-                task_id: capability.task_id.clone(),
+                task_id: capability.task_id,
                 idempotency_key: ArtifactWriteIdempotencyKey::new(format!("speech:{task}:{kind}"))?,
                 artifact: PutArtifactRequest {
                     mime_type: Some(mime.into()),

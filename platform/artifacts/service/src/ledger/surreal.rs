@@ -3,15 +3,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use veoveo_artifact_contract::{
+    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
+    ArtifactAccessRequestState,
+};
+use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ArtifactShareLinkId,
     ComplianceMetadata, Grant,
 };
 use veoveo_mcp_contract::gateway::{
     GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
-};
-use veoveo_mcp_contract::{
-    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
-    ArtifactAccessRequestState,
 };
 use veoveo_platform_store as platform;
 use veoveo_platform_store::{RecordIdKey, StoreError as PlatformStoreError};
@@ -562,7 +562,8 @@ impl ArtifactRepository for SurrealArtifactRepository {
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             server: ServerSlug::parse(capability.server_key)
                 .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-            task_id: capability.task_id,
+            task_id: veoveo_artifact_contract::ArtifactTaskId::parse(capability.task_id)
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
             finalized: redemption.redemption.state
                 == platform::ArtifactWriteRedemptionState::Finalized,
             request_matches: redemption.request_matches,
@@ -785,7 +786,24 @@ impl ArtifactRepository for SurrealArtifactRepository {
 fn contract_access_request(
     record: platform::ArtifactAccessRequestRecord,
 ) -> Result<ArtifactAccessRequest, RepositoryError> {
-    Ok(ArtifactAccessRequest {
+    let actor_fields_agree = match record.state {
+        platform::ArtifactAccessRequestState::Pending => {
+            record.decided_by.is_none() && record.decided_by_key.is_none()
+        }
+        platform::ArtifactAccessRequestState::Approved
+        | platform::ArtifactAccessRequestState::Denied => {
+            record.decided_by.is_some() && record.decided_by_key.is_some()
+        }
+        platform::ArtifactAccessRequestState::Cancelled => {
+            record.decided_by.as_ref() == Some(&record.requester) && record.decided_by_key.is_some()
+        }
+    };
+    if !actor_fields_agree {
+        return Err(RepositoryError::Corrupt(
+            "artifact access request native decision actor fields must agree".into(),
+        ));
+    }
+    ArtifactAccessRequest::new(veoveo_artifact_contract::ArtifactAccessRequestValue {
         id: ArtifactAccessRequestId::parse(record_uuid(&record.id)?.to_string())
             .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
         artifact_id: ArtifactId::parse(record_uuid(&record.artifact)?.to_string())
@@ -807,6 +825,7 @@ fn contract_access_request(
         updated_at: record.updated_at,
         decided_at: record.decided_at,
     })
+    .map_err(|error| RepositoryError::Corrupt(error.to_string()))
 }
 
 fn platform_access_request_state(
@@ -1087,5 +1106,103 @@ fn record_uuid(record: &platform::RecordId) -> Result<uuid::Uuid, RepositoryErro
         _ => Err(RepositoryError::Corrupt(
             "governed artifact record requires a UUID identity".into(),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeDelta, Utc};
+
+    #[test]
+    fn native_progress_hydration_reuses_intrinsic_checks_without_read_repair() {
+        let now = Utc::now();
+        let record = platform::ArtifactAccessRequestRecord {
+            id: platform::ArtifactAccessRequestId::new().record_id(),
+            tenant: platform::RecordId::new("tenant", "fixture"),
+            artifact: platform::ArtifactId::new().record_id(),
+            work_context: platform::RecordId::new("work_context", "review"),
+            work_context_key: "review".into(),
+            requester: platform::RecordId::new("principal", "requester"),
+            requester_key: "requester".into(),
+            requested_level: platform::GrantPermission::Read,
+            justification: "Research access".into(),
+            state: platform::ArtifactAccessRequestState::Pending,
+            decided_by: None,
+            decided_by_key: None,
+            decision_note: None,
+            created_at: now,
+            updated_at: now,
+            decided_at: None,
+            revision: 0,
+        };
+        assert!(contract_access_request(record.clone()).is_ok());
+        for state in [
+            platform::ArtifactAccessRequestState::Approved,
+            platform::ArtifactAccessRequestState::Denied,
+        ] {
+            let mut decided = record.clone();
+            decided.state = state;
+            decided.decided_by = Some(platform::RecordId::new("principal", "reviewer"));
+            decided.decided_by_key = Some("reviewer".into());
+            decided.updated_at += TimeDelta::seconds(1);
+            decided.decided_at = Some(decided.updated_at);
+            decided.decision_note = Some(String::new());
+            assert_eq!(
+                contract_access_request(decided.clone())
+                    .unwrap()
+                    .decision_note
+                    .as_deref(),
+                Some("")
+            );
+            let mut missing_reference = decided.clone();
+            missing_reference.decided_by = None;
+            let saved = missing_reference.clone();
+            assert!(matches!(
+                contract_access_request(missing_reference.clone()),
+                Err(RepositoryError::Corrupt(_))
+            ));
+            assert_eq!(missing_reference, saved);
+            decided.decided_at = Some(now);
+            let saved = decided.clone();
+            assert!(matches!(
+                contract_access_request(decided.clone()),
+                Err(RepositoryError::Corrupt(_))
+            ));
+            assert_eq!(decided, saved);
+        }
+        let mut cancelled = record.clone();
+        cancelled.state = platform::ArtifactAccessRequestState::Cancelled;
+        cancelled.decided_by = Some(cancelled.requester.clone());
+        cancelled.decided_by_key = Some(cancelled.requester_key.clone());
+        cancelled.decided_at = Some(now);
+        assert!(contract_access_request(cancelled.clone()).is_ok());
+        let mut wrong_reference = cancelled.clone();
+        wrong_reference.decided_by = Some(platform::RecordId::new("principal", "other"));
+        let saved = wrong_reference.clone();
+        assert!(matches!(
+            contract_access_request(wrong_reference.clone()),
+            Err(RepositoryError::Corrupt(_))
+        ));
+        assert_eq!(wrong_reference, saved);
+        cancelled.decided_by_key = Some("other".into());
+        assert!(matches!(
+            contract_access_request(cancelled),
+            Err(RepositoryError::Corrupt(_))
+        ));
+        let mut stray_reference = record.clone();
+        stray_reference.decided_by = Some(record.requester.clone());
+        let saved = stray_reference.clone();
+        assert!(matches!(
+            contract_access_request(stray_reference.clone()),
+            Err(RepositoryError::Corrupt(_))
+        ));
+        assert_eq!(stray_reference, saved);
+        let mut pending = record;
+        pending.updated_at += TimeDelta::seconds(1);
+        assert!(matches!(
+            contract_access_request(pending),
+            Err(RepositoryError::Corrupt(_))
+        ));
     }
 }

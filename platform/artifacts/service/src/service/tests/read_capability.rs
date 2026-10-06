@@ -1,7 +1,7 @@
 use super::*;
 use crate::ledger::ReadContextVersion;
 use std::num::NonZeroU32;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactReadCapabilityId, ArtifactTaskId, IssueArtifactReadCapabilityRequest,
     IssuedArtifactReadCapability,
 };

@@ -12,7 +12,8 @@ use axum::{
 use futures::StreamExt;
 use serde::{Deserialize, de::DeserializeOwned};
 use std::num::NonZeroU32;
-use veoveo_mcp_contract::{self as contract, UploadErrorCode as Code};
+use veoveo_artifact_contract::UploadErrorCode as Code;
+use veoveo_mcp_contract::{self as contract};
 
 use crate::{
     store::BlobStoreError,
@@ -86,10 +87,10 @@ impl IntoResponse for UploadRequestError {
                 (
                     StatusCode::BAD_REQUEST,
                     [(header::CACHE_CONTROL, "no-store")],
-                    Json(contract::ArtifactUploadError {
+                    Json(veoveo_artifact_contract::ArtifactUploadError {
                         code: Code::Malformed,
                         message,
-                        request_id: contract::ArtifactUploadRequestId::new(),
+                        request_id: veoveo_artifact_contract::ArtifactUploadRequestId::new(),
                         required_bytes: None,
                         available_bytes: None,
                     }),
@@ -118,8 +119,8 @@ async fn json<T: DeserializeOwned>(
     serde_json::from_slice(&bytes).map_err(UploadRequestError::Json)
 }
 
-fn id(value: String) -> Result<contract::ArtifactUploadId, UploadFault> {
-    contract::ArtifactUploadId::parse(value).map_err(|_| Code::NotFound.into())
+fn id(value: String) -> Result<veoveo_artifact_contract::ArtifactUploadId, UploadFault> {
+    veoveo_artifact_contract::ArtifactUploadId::parse(value).map_err(|_| Code::NotFound.into())
 }
 
 fn required<'a>(headers: &'a HeaderMap, name: &str) -> Result<&'a str, UploadFault> {
@@ -146,9 +147,11 @@ async fn create(
     body: Body,
 ) -> Result<Response, UploadRequestError> {
     let caller = state.caller(&headers)?;
-    let request_id =
-        contract::ArtifactUploadRequestId::parse(required(&headers, "idempotency-key")?)
-            .map_err(|_| Code::Malformed)?;
+    let request_id = veoveo_artifact_contract::ArtifactUploadRequestId::parse(required(
+        &headers,
+        "idempotency-key",
+    )?)
+    .map_err(|_| Code::Malformed)?;
     let descriptor = json(&headers, body).await?;
     let (session, created) = state
         .service
@@ -200,12 +203,17 @@ async fn part(
 ) -> Result<Response, UploadFault> {
     let caller = state.caller(&headers)?;
     let number = number.parse::<NonZeroU32>().map_err(|_| Code::Malformed)?;
-    let len = required(&headers, contract::UPLOAD_PART_BYTE_LEN_HEADER)?
-        .parse::<u64>()
-        .map_err(|_| Code::Malformed)?;
-    let sha =
-        contract::UploadSha256::parse(required(&headers, contract::UPLOAD_PART_SHA256_HEADER)?)
-            .map_err(|_| Code::Malformed)?;
+    let len = required(
+        &headers,
+        veoveo_artifact_contract::UPLOAD_PART_BYTE_LEN_HEADER,
+    )?
+    .parse::<u64>()
+    .map_err(|_| Code::Malformed)?;
+    let sha = veoveo_artifact_contract::UploadSha256::parse(required(
+        &headers,
+        veoveo_artifact_contract::UPLOAD_PART_SHA256_HEADER,
+    )?)
+    .map_err(|_| Code::Malformed)?;
     if headers.contains_key(header::CONTENT_LENGTH) {
         let content_len = required(&headers, "content-length")?
             .parse::<u64>()
@@ -267,7 +275,7 @@ mod request_tests {
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),
         )]);
-        let error = json::<contract::PutArtifactRequest>(
+        let error = json::<veoveo_artifact_contract::PutArtifactRequest>(
             &headers,
             Body::from(r#"{"metadata":{},"extraField":true}"#),
         )
@@ -277,10 +285,11 @@ mod request_tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
         let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
-        let body: contract::ArtifactUploadError = serde_json::from_slice(&bytes).unwrap();
+        let body: veoveo_artifact_contract::ArtifactUploadError =
+            serde_json::from_slice(&bytes).unwrap();
         assert_eq!(body.code, Code::Malformed);
         assert!(body.message.contains("extraField"));
-        let descriptor = json::<contract::PutArtifactRequest>(
+        let descriptor = json::<veoveo_artifact_contract::PutArtifactRequest>(
             &headers,
             Body::from(r#"{"metadata":{"providerExtension":{"arbitrary":true}}}"#),
         )

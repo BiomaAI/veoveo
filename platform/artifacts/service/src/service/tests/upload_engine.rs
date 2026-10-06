@@ -32,7 +32,8 @@ async fn fixture(
         .unwrap()
         .unwrap();
     let mut identity = actor.identity.clone();
-    identity.server = contract::ServerSlug::parse(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap();
+    identity.server =
+        contract::ServerSlug::parse(veoveo_artifact_contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap();
     identity.profile = contract::GatewayProfileId::parse("fixture").unwrap();
     identity
         .actor
@@ -41,10 +42,13 @@ async fn fixture(
     bind_request_context(&mut identity);
     contract::VerifiedArtifactUploadIdentity {
         identity,
-        authorization: contract::ArtifactUploadAuthority {
-            control_plane_sha256: contract::UploadSha256::parse(version.control_plane_sha256)
+        authorization: veoveo_artifact_contract::ArtifactUploadAuthority {
+            control_plane_sha256: veoveo_artifact_contract::UploadSha256::parse(
+                version.control_plane_sha256,
+            )
+            .unwrap(),
+            context_digest: veoveo_artifact_contract::UploadSha256::parse(version.context_digest)
                 .unwrap(),
-            context_digest: contract::UploadSha256::parse(version.context_digest).unwrap(),
         },
     }
 }
@@ -52,10 +56,8 @@ async fn fixture(
 #[tokio::test]
 #[ignore = "requires VEOVEO_SURREAL_BINARY; owns native database and HTTP listener"]
 async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
-    use contract::{
-        ArtifactUploadSession, ArtifactUploadState, GatewayInternalTokenIssuer,
-        GatewayInternalTokenVerifier,
-    };
+    use contract::{GatewayInternalTokenIssuer, GatewayInternalTokenVerifier};
+    use veoveo_artifact_contract::{ArtifactUploadSession, ArtifactUploadState};
     let mut database = Database::start();
     let store = database.connect().await;
     let actor = caller("alice", "acme", &[]);
@@ -75,7 +77,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
         .unwrap();
     let verifier = GatewayInternalTokenVerifier::new(
         issuer_id,
-        contract::ServerSlug::parse(contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+        contract::ServerSlug::parse(veoveo_artifact_contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
         crate::http::tests::trust_bundle(),
     );
     let service = UploadService::new(
@@ -129,7 +131,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
         .unwrap();
     assert_eq!(policy.status(), 200);
     assert_eq!(policy.headers()["cache-control"], "no-store");
-    let key = contract::ArtifactUploadRequestId::new().to_string();
+    let key = veoveo_artifact_contract::ArtifactUploadRequestId::new().to_string();
     let data = vec![42_u8; 131_071];
     let sha = hex::encode(Sha256::digest(&data));
     let mut invalid = serde_json::to_value(descriptor(data.len())).unwrap();
@@ -179,8 +181,11 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
         client
             .put(&part_url)
             .bearer_auth(&token)
-            .header(contract::UPLOAD_PART_BYTE_LEN_HEADER, data.len() + 1)
-            .header(contract::UPLOAD_PART_SHA256_HEADER, &sha)
+            .header(
+                veoveo_artifact_contract::UPLOAD_PART_BYTE_LEN_HEADER,
+                data.len() + 1
+            )
+            .header(veoveo_artifact_contract::UPLOAD_PART_SHA256_HEADER, &sha)
             .body(data.clone())
             .send()
             .await
@@ -191,15 +196,18 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
     let part = client
         .put(&part_url)
         .bearer_auth(&token)
-        .header(contract::UPLOAD_PART_BYTE_LEN_HEADER, data.len())
-        .header(contract::UPLOAD_PART_SHA256_HEADER, &sha)
+        .header(
+            veoveo_artifact_contract::UPLOAD_PART_BYTE_LEN_HEADER,
+            data.len(),
+        )
+        .header(veoveo_artifact_contract::UPLOAD_PART_SHA256_HEADER, &sha)
         .body(data.clone())
         .send()
         .await
         .unwrap();
     assert_eq!(part.status(), 200);
     assert_eq!(
-        part.json::<contract::UploadPartReceipt>()
+        part.json::<veoveo_artifact_contract::UploadPartReceipt>()
             .await
             .unwrap()
             .byte_len,
@@ -306,8 +314,8 @@ fn stream(bytes: Vec<u8>) -> BlobStream {
     Box::pin(futures::stream::iter(chunks))
 }
 
-fn descriptor(bytes: usize) -> contract::CreateArtifactUpload {
-    contract::CreateArtifactUpload {
+fn descriptor(bytes: usize) -> veoveo_artifact_contract::CreateArtifactUpload {
+    veoveo_artifact_contract::CreateArtifactUpload {
         filename: "measurements.bin".into(),
         mime_type: "application/octet-stream".into(),
         byte_len: Some(bytes as u64),
@@ -329,8 +337,9 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
     assert!(policy.allowed);
     assert_eq!(policy.available_bytes, Some(214748364800));
     let bytes: Vec<_> = (0..262144).map(|i| (i % 251) as u8).collect();
-    let sha = contract::UploadSha256::parse(hex::encode(Sha256::digest(&bytes))).unwrap();
-    let key = contract::ArtifactUploadRequestId::new();
+    let sha =
+        veoveo_artifact_contract::UploadSha256::parse(hex::encode(Sha256::digest(&bytes))).unwrap();
+    let key = veoveo_artifact_contract::ArtifactUploadRequestId::new();
     let (session, created) = service
         .create(&verified, key, descriptor(bytes.len()))
         .await
@@ -347,7 +356,7 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
     assert!(matches!(
         service.status(&foreign, session.upload_id, 0).await,
         Err(crate::uploads::UploadFault(
-            contract::UploadErrorCode::NotFound
+            veoveo_artifact_contract::UploadErrorCode::NotFound
         ))
     ));
     let part = service
@@ -373,7 +382,7 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
         .await
         .unwrap();
     assert_eq!(part, repeated);
-    let complete = contract::CompleteArtifactUpload {
+    let complete = veoveo_artifact_contract::CompleteArtifactUpload {
         byte_len: bytes.len() as u64,
         part_count: NonZeroU32::new(1).unwrap(),
         sha256: Some(sha.clone()),
@@ -382,7 +391,10 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
         .complete(&verified, session.upload_id, complete.clone())
         .await
         .unwrap();
-    assert_eq!(finalizing.state, contract::ArtifactUploadState::Finalizing);
+    assert_eq!(
+        finalizing.state,
+        veoveo_artifact_contract::ArtifactUploadState::Finalizing
+    );
     assert_eq!(finalizing.accepted_bytes, bytes.len() as u64);
     assert!(finalizing.receipt.is_none());
     drop(service);
@@ -394,7 +406,7 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
                 .status(&verified, session.upload_id, 0)
                 .await
                 .unwrap();
-            if row.state == contract::ArtifactUploadState::Completed {
+            if row.state == veoveo_artifact_contract::ArtifactUploadState::Completed {
                 break row;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
@@ -442,7 +454,7 @@ async fn dropped_upload_request_releases_memory_and_cancellation_recovers_physic
     let (session, _) = service
         .create(
             &verified,
-            contract::ArtifactUploadRequestId::new(),
+            veoveo_artifact_contract::ArtifactUploadRequestId::new(),
             descriptor(1024),
         )
         .await
@@ -455,7 +467,7 @@ async fn dropped_upload_request_releases_memory_and_cancellation_recovers_physic
             session.upload_id,
             NonZeroU32::new(1).unwrap(),
             1024,
-            contract::UploadSha256::parse("a".repeat(64)).unwrap(),
+            veoveo_artifact_contract::UploadSha256::parse("a".repeat(64)).unwrap(),
             Box::pin(futures::stream::pending()),
         )
         .await
@@ -522,17 +534,17 @@ async fn dropped_upload_request_releases_memory_and_cancellation_recovers_physic
     );
     let mut stale = verified.clone();
     stale.authorization.control_plane_sha256 =
-        contract::UploadSha256::parse("d".repeat(64)).unwrap();
+        veoveo_artifact_contract::UploadSha256::parse("d".repeat(64)).unwrap();
     assert!(matches!(
         service
             .create(
                 &stale,
-                contract::ArtifactUploadRequestId::new(),
+                veoveo_artifact_contract::ArtifactUploadRequestId::new(),
                 descriptor(1)
             )
             .await,
         Err(crate::uploads::UploadFault(
-            contract::UploadErrorCode::Denied
+            veoveo_artifact_contract::UploadErrorCode::Denied
         ))
     ));
     recovery.abort();
@@ -550,7 +562,7 @@ async fn upload_ownership_filters_foreign_malformed_rows_before_decoding() {
         let verified = fixture(&store, &actor).await;
         let service = UploadService::new(store.clone(),
             ArtifactObjectStore::with_multipart(Arc::new(object_store::memory::InMemory::new())));
-        let (session, _) = service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
+        let (session, _) = service.create(&verified, veoveo_artifact_contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
         service.status(&verified, session.upload_id, 0).await.unwrap();
         store.client()
             .query(include_str!("../../../tests/queries/service/tests/upload_engine/upload_ownership_filters_foreign_malformed_rows_before_decoding.surql"))
@@ -569,11 +581,11 @@ async fn upload_ownership_filters_foreign_malformed_rows_before_decoding() {
                 _ => unreachable!(),
             }
             let result = service.status(&foreign, session.upload_id, 0).await;
-            assert!(matches!(result, Err(crate::uploads::UploadFault(contract::UploadErrorCode::NotFound))), "foreign {field}: {result:?}");
+            assert!(matches!(result, Err(crate::uploads::UploadFault(veoveo_artifact_contract::UploadErrorCode::NotFound))), "foreign {field}: {result:?}");
         }
         // A malformed owned row must still fail; the test must not mask corruption.
         assert!(matches!(service.status(&verified, session.upload_id, 0).await,
-            Err(crate::uploads::UploadFault(contract::UploadErrorCode::Unavailable))));
+            Err(crate::uploads::UploadFault(veoveo_artifact_contract::UploadErrorCode::Unavailable))));
         database.finish();
     }).await.expect("upload ownership qualification exceeded 90 seconds");
 }
@@ -588,7 +600,7 @@ async fn upload_checks_profile_lookup_before_initial_admission_and_retained_acce
         let actor = caller("alice", "acme", &[]);
         let verified = fixture(&store, &actor).await;
         let service = UploadService::new(store.clone(), ArtifactObjectStore::with_multipart(Arc::new(object_store::memory::InMemory::new())));
-        let (session, _) = service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
+        let (session, _) = service.create(&verified, veoveo_artifact_contract::ArtifactUploadRequestId::new(), descriptor(1)).await.unwrap();
         let mut response = store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_read.surql")).await.unwrap().check().unwrap();
         let rows: Vec<Value> = response.take(0).unwrap();
         assert_eq!(rows.len(), 1);
@@ -612,8 +624,8 @@ async fn upload_checks_profile_lookup_before_initial_admission_and_retained_acce
         inconsistent.insert("profile_policy_version", Value::String("different-valid-policy".to_owned()));
         store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_replace.surql")).bind(("id", id.clone())).bind(("row", Value::Object(inconsistent))).await.unwrap().check().unwrap();
         assert!(store.artifact_upload_authority_version("acme", verified.identity.authority.work_context.as_str(), "fixture").await.unwrap().unwrap().profile_policy_digest.is_some(), "a different valid policy still produces a digest; initial admission must check document agreement");
-        for result in [service.policy(&verified).await.map(|_| ()), service.create(&verified, contract::ArtifactUploadRequestId::new(), descriptor(1)).await.map(|_| ()), service.status(&verified, session.upload_id, 0).await.map(|_| ())] {
-            assert!(matches!(result, Err(crate::uploads::UploadFault(contract::UploadErrorCode::Unavailable))), "inconsistent metadata must fail before new admission and retained access");
+        for result in [service.policy(&verified).await.map(|_| ()), service.create(&verified, veoveo_artifact_contract::ArtifactUploadRequestId::new(), descriptor(1)).await.map(|_| ()), service.status(&verified, session.upload_id, 0).await.map(|_| ())] {
+            assert!(matches!(result, Err(crate::uploads::UploadFault(veoveo_artifact_contract::UploadErrorCode::Unavailable))), "inconsistent metadata must fail before new admission and retained access");
         }
         store.client().query(include_str!("../../../tests/queries/service/tests/upload_engine/profile_lookup_replace.surql")).bind(("id", id)).bind(("row", Value::Object(original))).await.unwrap().check().unwrap();
         assert!(service.policy(&verified).await.unwrap().allowed);

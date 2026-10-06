@@ -7,8 +7,9 @@ use fixture::{Client, Fixture};
 use rmcp::{model::*, service::Subscription};
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::PutArtifactRequest;
 use veoveo_artifact_mcp::contract::{ArtifactIndexCursor, ArtifactResource};
-use veoveo_mcp_contract::{ArtifactPlane, PlaneCaller, PutArtifactRequest};
+use veoveo_mcp_contract::{ArtifactPlane, PlaneCaller};
 use veoveo_mcp_knowledge_extension as extension;
 use veoveo_types::{AccessLevel, AccessSubject, ResourceUri};
 

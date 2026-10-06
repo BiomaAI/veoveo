@@ -84,21 +84,22 @@ async fn artifact_http_rejects_unknown_request_fields_and_keeps_metadata_open() 
             .unwrap();
         let id = metadata.artifact_id();
         let client = reqwest::Client::new();
-        let release = veoveo_mcp_contract::SetArtifactReleaseStateRequest {
+        let release = veoveo_artifact_contract::SetArtifactReleaseStateRequest {
             release_state: ArtifactReleaseState::Private,
         };
         let mut release_body = serde_json::to_value(&release).unwrap();
-        serde_json::from_value::<veoveo_mcp_contract::SetArtifactReleaseStateRequest>(
+        serde_json::from_value::<veoveo_artifact_contract::SetArtifactReleaseStateRequest>(
             release_body.clone(),
         )
         .unwrap();
         release_body["rootExtra"] = serde_json::json!(true);
-        let grant = veoveo_mcp_contract::PutGrantRequest {
+        let grant = veoveo_artifact_contract::PutGrantRequest {
             subject: AccessSubject::Principal(caller.identity.actor.id.clone()),
             level: veoveo_types::AccessLevel::Read,
         };
         let mut grant_body = serde_json::to_value(&grant).unwrap();
-        serde_json::from_value::<veoveo_mcp_contract::PutGrantRequest>(grant_body.clone()).unwrap();
+        serde_json::from_value::<veoveo_artifact_contract::PutGrantRequest>(grant_body.clone())
+            .unwrap();
         grant_body["subject"]["nestedExtra"] = serde_json::json!("secret-sentinel");
         let mut share_body =
             serde_json::to_value(CreateArtifactShareLinkRequest::default()).unwrap();

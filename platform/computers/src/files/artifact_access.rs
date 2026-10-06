@@ -7,7 +7,7 @@ use crate::{
 use chrono::{TimeDelta, Utc};
 use std::num::{NonZeroU32, NonZeroU64};
 use surrealdb::types::SurrealValue;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactTaskId, IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
 };
 
@@ -50,7 +50,10 @@ impl FileOperation {
             }
             FileTransferDirection::Export => {
                 FileCapabilityRequest::Export(IssueArtifactWriteCapabilityRequest {
-                    task_id: self.transfer_id().to_string(),
+                    task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(
+                        self.transfer_id().as_uuid(),
+                    )
+                    .map_err(|_| ComputerError::Unavailable)?,
                     expires_at,
                     max_artifact_count,
                     max_total_bytes,

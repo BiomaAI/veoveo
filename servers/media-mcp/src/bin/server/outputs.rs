@@ -1,7 +1,8 @@
 use axum::http::header::CONTENT_TYPE;
 use rmcp::model::CallToolResult;
+use veoveo_artifact_contract::ArtifactWriteIdempotencyKey;
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut};
-use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, now_utc};
+use veoveo_mcp_contract::now_utc;
 use veoveo_media_mcp::{
     contract::{MediaGenerationResult, MediaOutputArtifactMetadata},
     provider::Prediction,

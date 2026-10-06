@@ -12,9 +12,11 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};
+use veoveo_artifact_contract::{
+    CreateArtifactShareLinkRequest, PutGrantRequest, SetArtifactReleaseStateRequest,
+};
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, GatewayProfile, PlaneCaller,
-    PolicyTarget, PutGrantRequest, SetArtifactReleaseStateRequest,
+    ArtifactPlane, ArtifactPlaneError, GatewayProfile, PlaneCaller, PolicyTarget,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_types::{AccessSubject, ResourceUri};

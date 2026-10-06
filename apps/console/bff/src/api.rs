@@ -19,13 +19,13 @@ use serde::Serialize;
 use veoveo_agent_runtime::contract::control::{
     AgentInputRequestDecision, AgentOperatorMessageRequest,
 };
-use veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};
-use veoveo_http::RequestJson;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactAccessRequestId, ArtifactAccessRequestScope, ArtifactAccessRequestState,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     ListArtifactAccessRequests, PutGrantRequest, SetArtifactReleaseStateRequest,
 };
+use veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};
+use veoveo_http::RequestJson;
 use veoveo_types::AccessSubject;
 
 use crate::{

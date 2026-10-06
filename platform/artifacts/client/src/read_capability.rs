@@ -1,8 +1,9 @@
 use super::*;
-use veoveo_mcp_contract::{
-    ArtifactReadAuthority, ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactTaskId,
-    IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
+use veoveo_artifact_contract::{
+    ArtifactReadCapabilityId, ArtifactTaskId, IssueArtifactReadCapabilityRequest,
+    IssuedArtifactReadCapability,
 };
+use veoveo_mcp_contract::{ArtifactReadAuthority, ArtifactReadCapabilityScope};
 
 impl HttpArtifactPlane {
     pub async fn issue_read_capability(

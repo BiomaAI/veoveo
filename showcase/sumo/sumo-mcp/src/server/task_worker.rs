@@ -13,11 +13,11 @@ use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::Serialize;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactWriteIdempotencyKey, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, PlaneCaller, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
 };
+use veoveo_mcp_contract::PlaneCaller;
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskFailure, TaskPayloadState, TaskRetentionPin, TaskSnapshot,
     TaskTransition,
@@ -64,7 +64,10 @@ pub(super) async fn start_operation(
                     &caller,
                     &IssueArtifactWriteCapabilityRequest {
                         required_data_labels: Default::default(),
-                        task_id: task_id.to_string(),
+                        task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(
+                            task_id.as_uuid(),
+                        )
+                        .map_err(|error| error.to_string())?,
                         expires_at: Utc::now() + TimeDelta::hours(24),
                         max_artifact_count: NonZeroU32::new(1).expect("one is non-zero"),
                         max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)
@@ -369,7 +372,7 @@ async fn run_offline(
             &capability.secret,
             &RedeemArtifactWriteCapabilityRequest {
                 capability_id: capability.capability_id,
-                task_id: capability.task_id.clone(),
+                task_id: capability.task_id,
                 idempotency_key: ArtifactWriteIdempotencyKey::new(format!(
                     "sumo:{}",
                     operation.task_type()

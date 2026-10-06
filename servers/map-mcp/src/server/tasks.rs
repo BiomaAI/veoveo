@@ -15,10 +15,10 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 use veoveo_artifact_contract::{ArtifactProvenance, ArtifactPut, ComplianceMetadata};
-use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, PlaneCaller, PrincipalKind,
+use veoveo_artifact_contract::{
+    ArtifactWriteIdempotencyKey, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
 };
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PrincipalKind};
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
     TaskTransition,
@@ -912,7 +912,7 @@ async fn issue_output_capability(
             caller,
             &IssueArtifactWriteCapabilityRequest {
                 required_data_labels: Default::default(),
-                task_id: task_id.to_string(),
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid())?,
                 expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                 max_artifact_count: NonZeroU32::new(1).expect("one is non-zero"),
                 max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)

@@ -40,19 +40,9 @@ pub use access::{
 };
 #[cfg(feature = "analytics")]
 pub use analytics::{DuckDbAnalytics, SharedDuckDbConnection, open_duckdb};
-pub use artifact_service::upload::*;
 pub use artifact_service::{
-    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
-    ArtifactAccessRequestPage, ArtifactAccessRequestScope, ArtifactAccessRequestState,
-    ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactReadAuthority,
-    ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactReadCapabilitySecret,
-    ArtifactTaskId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
-    ArtifactWriteIdempotencyKey, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
-    DecideArtifactAccessRequest, GrantList, IssueArtifactReadCapabilityRequest,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactReadCapability,
-    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
-    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest, StreamArtifactRequest,
+    ArtifactPlane, ArtifactPlaneError, ArtifactReadAuthority, ArtifactReadCapabilityScope,
+    PlaneCaller,
 };
 pub use bootstrap::{
     SERVER_BOOTSTRAP_FLAG, SERVER_BOOTSTRAP_ISSUER, SERVER_BOOTSTRAP_MOUNT_PATH,

@@ -6,11 +6,11 @@ use anyhow::{Context, Result, ensure};
 use axum::body::Bytes;
 use sha2::{Digest, Sha256};
 use std::num::NonZeroU32;
+use veoveo_artifact_contract::UploadSha256;
 use veoveo_artifact_service::{
     ArtifactObjectStore, BlobStore,
     store::multipart::{StoredUploadPart, VerifiedUploadPayload},
 };
-use veoveo_mcp_contract::UploadSha256;
 
 async fn payload(bytes: &[u8]) -> Result<VerifiedUploadPayload> {
     let sha = UploadSha256::parse(hex::encode(Sha256::digest(bytes)))?;

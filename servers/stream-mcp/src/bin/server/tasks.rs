@@ -7,10 +7,10 @@ use anyhow::{Result, ensure};
 use chrono::{TimeDelta, Utc};
 use rmcp::model::{CallToolResult, ContentBlock};
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{
-    ArtifactReadAuthority, ArtifactTaskId, GatewayInternalIdentity,
-    IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest, PlaneCaller,
+use veoveo_artifact_contract::{
+    ArtifactTaskId, IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
 };
+use veoveo_mcp_contract::{ArtifactReadAuthority, GatewayInternalIdentity, PlaneCaller};
 use veoveo_recording_video::contract::validate_video_selection;
 use veoveo_recording_video::runtime::{materialize_video, timeline_kind};
 use veoveo_stream_mcp::{
@@ -58,7 +58,8 @@ pub(super) async fn start_stream_task(
             &caller,
             &IssueArtifactWriteCapabilityRequest {
                 required_data_labels: Default::default(),
-                task_id: task_id.to_string(),
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid())
+                    .map_err(|error| error.to_string())?,
                 expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                 max_artifact_count: input.artifact_count(),
                 max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)

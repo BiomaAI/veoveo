@@ -1,7 +1,7 @@
 //! Upload-only assertion binds the gateway decision to its checked configuration.
 
 use super::*;
-use crate::{ARTIFACT_UPLOAD_AUDIENCE, ArtifactUploadAuthority};
+use veoveo_artifact_contract::{ARTIFACT_UPLOAD_AUDIENCE, ArtifactUploadAuthority};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedArtifactUploadIdentity {

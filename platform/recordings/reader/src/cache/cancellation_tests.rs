@@ -1,6 +1,6 @@
 use super::*;
 use tokio::io::AsyncReadExt;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
     IssuedArtifactReadCapability,
 };

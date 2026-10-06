@@ -1,7 +1,6 @@
 use super::*;
-use veoveo_mcp_contract::{
-    ArtifactReadAuthority, ArtifactTaskId, IssueArtifactReadCapabilityRequest,
-};
+use veoveo_artifact_contract::{ArtifactTaskId, IssueArtifactReadCapabilityRequest};
+use veoveo_mcp_contract::ArtifactReadAuthority;
 
 #[tokio::test]
 async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {

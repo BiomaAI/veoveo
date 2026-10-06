@@ -238,10 +238,10 @@ async fn signed_callback_requires_dispatch_binding_after_private_context_prune()
                 recovery_class: RecoveryClass::WebhookWait, idempotency_key: None,
                 ttl_ms: Some(60_000), poll_interval_ms: Some(100), retention_pins: Default::default(),
             }).await.unwrap().snapshot;
-            let capability = veoveo_mcp_contract::IssuedArtifactWriteCapability {
-                capability_id: veoveo_mcp_contract::ArtifactWriteCapabilityId::new(),
-                secret: veoveo_mcp_contract::ArtifactWriteCapabilitySecret::new("s".repeat(32)).unwrap(),
-                task_id: task_id.to_string(), expires_at: Utc::now() + TimeDelta::hours(1),
+            let capability = veoveo_artifact_contract::IssuedArtifactWriteCapability {
+                capability_id: veoveo_artifact_contract::ArtifactWriteCapabilityId::new(),
+                secret: veoveo_artifact_contract::ArtifactWriteCapabilitySecret::new("s".repeat(32)).unwrap(),
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid()).unwrap(), expires_at: Utc::now() + TimeDelta::hours(1),
             };
             state.durable.persist_task_context(&snapshot, &capability).await.unwrap();
             let binding = webhook::CallbackBinding::derive(&capability.secret, task_id, &owner.authority.tenant, &provider);

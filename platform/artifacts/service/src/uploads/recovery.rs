@@ -152,7 +152,7 @@ impl UploadService {
             .claim_artifact_upload_work(id, owner, WORK_LEASE_SECONDS)
             .await?;
         if row.lease_owner != Some(owner) {
-            return Err(contract::UploadErrorCode::Busy.into());
+            return Err(veoveo_artifact_contract::UploadErrorCode::Busy.into());
         }
         let fence = platform::ArtifactUploadFence {
             upload_id: id,
@@ -162,13 +162,13 @@ impl UploadService {
         let result = self.drive_work(&row, &fence).await;
         if let Err(fault) = &result {
             let failure = match fault.0 {
-                contract::UploadErrorCode::Integrity => {
+                veoveo_artifact_contract::UploadErrorCode::Integrity => {
                     Some(platform::ArtifactUploadFailure::Integrity)
                 }
-                contract::UploadErrorCode::Denied => {
+                veoveo_artifact_contract::UploadErrorCode::Denied => {
                     Some(platform::ArtifactUploadFailure::AuthorityChanged)
                 }
-                contract::UploadErrorCode::Expired => {
+                veoveo_artifact_contract::UploadErrorCode::Expired => {
                     Some(platform::ArtifactUploadFailure::Expired)
                 }
                 _ => None,
@@ -196,9 +196,9 @@ impl UploadService {
                 _ = tick.tick() => {
                     let current = self.database.renew_artifact_upload_work(fence, WORK_LEASE_SECONDS).await?;
                     if matches!(row.state, platform::ArtifactUploadState::Open | platform::ArtifactUploadState::Finalizing | platform::ArtifactUploadState::Verifying) {
-                        if matches!(current.state, platform::ArtifactUploadState::Cancelled | platform::ArtifactUploadState::Expired | platform::ArtifactUploadState::Failed) { return Err(contract::UploadErrorCode::Conflict.into()); }
-                        if current.expires_at <= Utc::now() { return Err(contract::UploadErrorCode::Expired.into()); }
-                        if !self.authority_current(&current).await? { return Err(contract::UploadErrorCode::Denied.into()); }
+                        if matches!(current.state, platform::ArtifactUploadState::Cancelled | platform::ArtifactUploadState::Expired | platform::ArtifactUploadState::Failed) { return Err(veoveo_artifact_contract::UploadErrorCode::Conflict.into()); }
+                        if current.expires_at <= Utc::now() { return Err(veoveo_artifact_contract::UploadErrorCode::Expired.into()); }
+                        if !self.authority_current(&current).await? { return Err(veoveo_artifact_contract::UploadErrorCode::Denied.into()); }
                     }
                 }
             }
@@ -231,10 +231,10 @@ impl UploadService {
         use platform::ArtifactUploadState::*;
         if matches!(row.state, Open | Finalizing | Verifying) {
             if row.expires_at <= Utc::now() {
-                return Err(contract::UploadErrorCode::Expired.into());
+                return Err(veoveo_artifact_contract::UploadErrorCode::Expired.into());
             }
             if !self.authority_current(row).await? {
-                return Err(contract::UploadErrorCode::Denied.into());
+                return Err(veoveo_artifact_contract::UploadErrorCode::Denied.into());
             }
         }
         match row.state {
@@ -304,7 +304,7 @@ impl UploadService {
                 let expected_sha = manifest
                     .sha256
                     .clone()
-                    .map(contract::UploadSha256::parse)
+                    .map(veoveo_artifact_contract::UploadSha256::parse)
                     .transpose()
                     .map_err(|_| UploadFault::unavailable())?;
                 let verified = self

@@ -29,24 +29,25 @@ impl UploadService {
     pub async fn put_part(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        id: contract::ArtifactUploadId,
+        id: veoveo_artifact_contract::ArtifactUploadId,
         number: NonZeroU32,
         byte_len: u64,
-        sha256: contract::UploadSha256,
+        sha256: veoveo_artifact_contract::UploadSha256,
         stream: BlobStream,
-    ) -> Result<contract::UploadPartReceipt, UploadFault> {
+    ) -> Result<veoveo_artifact_contract::UploadPartReceipt, UploadFault> {
         let (authority, row) = self.owned(caller, id).await?;
         view::layout(&row.layout)?.validate_part(number, byte_len)?;
         let multipart = row
             .multipart_id
             .as_deref()
-            .ok_or(contract::UploadErrorCode::Busy)?;
+            .ok_or(veoveo_artifact_contract::UploadErrorCode::Busy)?;
         let timeout = authority.policy.part_timeout_seconds.get();
         let owner = uuid::Uuid::now_v7();
         let claim = platform::ClaimArtifactUploadPart {
             upload_id: id.as_uuid(),
             part_number: number.get(),
-            byte_len: i64::try_from(byte_len).map_err(|_| contract::UploadErrorCode::TooLarge)?,
+            byte_len: i64::try_from(byte_len)
+                .map_err(|_| veoveo_artifact_contract::UploadErrorCode::TooLarge)?,
             sha256: sha256.as_str().to_owned(),
             lease_owner: owner,
             lease_seconds: (timeout + 15) as u32,
@@ -85,7 +86,7 @@ impl UploadService {
             return view::part(&part);
         }
         if part.lease_owner != Some(owner) {
-            return Err(contract::UploadErrorCode::Busy.into());
+            return Err(veoveo_artifact_contract::UploadErrorCode::Busy.into());
         }
         let fence = guard
             .fence

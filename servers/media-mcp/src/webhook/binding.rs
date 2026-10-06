@@ -2,7 +2,7 @@
 use hmac::{KeyInit, Mac};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
-use veoveo_mcp_contract::ArtifactWriteCapabilitySecret;
+use veoveo_artifact_contract::ArtifactWriteCapabilitySecret;
 use veoveo_types::{ExtensionName, Sha256Digest, TaskId, TenantId};
 
 type HmacSha256 = hmac::Hmac<Sha256>;

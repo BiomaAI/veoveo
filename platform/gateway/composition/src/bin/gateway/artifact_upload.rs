@@ -12,7 +12,8 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use serde::Deserialize;
 use std::num::NonZeroU32;
-use veoveo_mcp_contract::{self as contract, UploadErrorCode as Code};
+use veoveo_artifact_contract::UploadErrorCode as Code;
+use veoveo_mcp_contract::{self as contract};
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 
 use crate::runtime::{ArtifactHttpState, current_catalog};
@@ -39,7 +40,7 @@ pub(super) fn router(state: ArtifactHttpState) -> Router {
 #[derive(Deserialize)]
 struct Route {
     profile: contract::GatewayProfileId,
-    upload_id: Option<contract::ArtifactUploadId>,
+    upload_id: Option<veoveo_artifact_contract::ArtifactUploadId>,
     part_number: Option<NonZeroU32>,
 }
 
@@ -134,7 +135,7 @@ async fn proxy(
             .unwrap_or_else(|| "Current Work Context".into());
         return (
             [(header::CACHE_CONTROL, "no-store")],
-            Json(contract::EffectiveArtifactUploadPolicy {
+            Json(veoveo_artifact_contract::EffectiveArtifactUploadPolicy {
                 allowed: false,
                 explanation: explanation.into(),
                 actor: subject.actor.id,
@@ -171,13 +172,15 @@ async fn proxy(
         return fault(Code::Unavailable);
     }
     let binding = match (
-        contract::UploadSha256::parse(configuration_sha256),
-        contract::UploadSha256::parse(version.context_digest),
+        veoveo_artifact_contract::UploadSha256::parse(configuration_sha256),
+        veoveo_artifact_contract::UploadSha256::parse(version.context_digest),
     ) {
-        (Ok(control_plane_sha256), Ok(context_digest)) => contract::ArtifactUploadAuthority {
-            control_plane_sha256,
-            context_digest,
-        },
+        (Ok(control_plane_sha256), Ok(context_digest)) => {
+            veoveo_artifact_contract::ArtifactUploadAuthority {
+                control_plane_sha256,
+                context_digest,
+            }
+        }
         _ => return fault(Code::Unavailable),
     };
     let expires = std::cmp::min(
@@ -223,8 +226,8 @@ async fn proxy(
         .body(reqwest::Body::wrap_stream(body.into_data_stream()));
     for name in [
         "idempotency-key",
-        contract::UPLOAD_PART_BYTE_LEN_HEADER,
-        contract::UPLOAD_PART_SHA256_HEADER,
+        veoveo_artifact_contract::UPLOAD_PART_BYTE_LEN_HEADER,
+        veoveo_artifact_contract::UPLOAD_PART_SHA256_HEADER,
         "content-type",
         "content-length",
     ] {
@@ -272,10 +275,10 @@ fn fault(code: Code) -> Response {
     (
         StatusCode::from_u16(code.http_status()).unwrap_or(StatusCode::SERVICE_UNAVAILABLE),
         [(header::CACHE_CONTROL, "no-store")],
-        Json(contract::ArtifactUploadError {
+        Json(veoveo_artifact_contract::ArtifactUploadError {
             code,
             message: message.into(),
-            request_id: contract::ArtifactUploadRequestId::new(),
+            request_id: veoveo_artifact_contract::ArtifactUploadRequestId::new(),
             required_bytes: None,
             available_bytes: None,
         }),

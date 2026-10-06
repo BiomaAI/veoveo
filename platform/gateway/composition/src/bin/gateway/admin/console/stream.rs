@@ -4,10 +4,10 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use veoveo_console_bff::contract::events::*;
-use veoveo_mcp_contract::artifact_service::upload::{
+use veoveo_artifact_contract::upload::{
     ArtifactUploadNotification, ArtifactUploadNotificationState,
 };
+use veoveo_console_bff::contract::events::*;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -769,9 +769,9 @@ impl ConsoleStreamState {
                             return Ok(None);
                         };
                         let event = ArtifactUploadNotification::Changed {
-                            upload_id: veoveo_mcp_contract::ArtifactUploadId::parse(record_key(
-                                &upload.id,
-                            )?)?,
+                            upload_id: veoveo_artifact_contract::ArtifactUploadId::parse(
+                                record_key(&upload.id)?,
+                            )?,
                             state: notification_state,
                         };
                         Ok(out(ConsoleStreamEvent::Upload(event)))

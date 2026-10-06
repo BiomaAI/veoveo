@@ -5,7 +5,9 @@ use crate::{
 };
 use chrono::{TimeDelta, Utc};
 use surrealdb::types::SurrealValue;
-use veoveo_mcp_contract::{IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability};
+use veoveo_artifact_contract::{
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+};
 
 /// Publication has a separate finite allowance after foreground execution. This
 /// is a capability lifetime bound, not permission to continue after revocation.
@@ -35,7 +37,10 @@ impl CommandOperation {
             }
         }
         Ok(Some(IssueArtifactWriteCapabilityRequest {
-            task_id: self.execution_id().to_string(),
+            task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(
+                self.execution_id().as_uuid(),
+            )
+            .map_err(|_| ComputerError::Unavailable)?,
             expires_at: Utc::now()
                 + TimeDelta::seconds(i64::from(
                     payload.limits().maximum_seconds

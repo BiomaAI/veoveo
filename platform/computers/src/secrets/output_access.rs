@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{ComputerError, Result};
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::IssuedArtifactWriteCapability;
+use veoveo_artifact_contract::IssuedArtifactWriteCapability;
 use zeroize::Zeroizing;
 
 pub(super) const MAX_OUTPUT_ACCESS_BYTES: usize = 8192;
@@ -30,10 +30,7 @@ impl CommandOutputAccess {
         Ok(access)
     }
     fn validate(&self) -> Result<()> {
-        if uuid::Uuid::parse_str(&self.capability.task_id)
-            .ok()
-            .is_none_or(|id| id.get_version_num() != 7)
-            || !(1..=67108864).contains(&self.maximum_output_bytes)
+        if !(1..=67108864).contains(&self.maximum_output_bytes)
             || self.capability.secret.expose_secret().len() > 256
         {
             return Err(ComputerError::InvalidInput);
@@ -48,7 +45,7 @@ impl CommandOutputAccess {
     }
     pub(super) fn check_binding(&self, binding: &CommandBinding) -> Result<()> {
         self.validate()?;
-        if self.capability.task_id != binding.execution_id.to_string() {
+        if self.capability.task_id.as_uuid() != binding.execution_id.as_uuid() {
             return Err(ComputerError::InvalidInput);
         }
         Ok(())

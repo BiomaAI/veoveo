@@ -15,6 +15,7 @@ use rmcp::{
 };
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
+use veoveo_artifact_contract::{CreateArtifactShareLinkRequest, ListArtifactsRequest};
 use veoveo_artifact_mcp::contract::{
     ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactIndexPage, ArtifactMetadataOutput,
     ArtifactMutationOutput, ArtifactReference, ArtifactResource, ArtifactShareOutput,
@@ -23,8 +24,7 @@ use veoveo_artifact_mcp::contract::{
     SetArtifactReleaseRequest, parse_grants_uri, parse_metadata_uri,
 };
 use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, ListArtifactsRequest,
-    PlaneCaller,
+    ArtifactPlane, ArtifactPlaneError, PlaneCaller,
     hosting::{
         CATALOG_PAGE_SIZE, DomainAddress, DomainRead, DomainServer, Listing, SubscriptionListener,
         json_read, plane_caller, structured_result, unknown_prompt,

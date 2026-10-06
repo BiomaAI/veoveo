@@ -15,6 +15,7 @@ use futures::FutureExt;
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use uuid::Uuid;
 use veoveo_artifact_client::HttpArtifactPlane;
+use veoveo_artifact_contract::PutArtifactRequest;
 use veoveo_artifact_service::{
     ArtifactService, ObjectStoreConfig, PlaneAuthenticator, SurrealArtifactRepository,
 };
@@ -24,8 +25,7 @@ use veoveo_computers::{
 use veoveo_computers_mcp::{FileWorker, LifecycleWorker, RetainedHomes, WorkerStep};
 use veoveo_computers_runtime::{Binding, ExecIntent, Phase};
 use veoveo_mcp_contract::{
-    ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, PlaneCaller, PutArtifactRequest, ServerSlug,
-    TokenIssuer,
+    ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, PlaneCaller, ServerSlug, TokenIssuer,
 };
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
 use veoveo_types::InvocationProvenance;

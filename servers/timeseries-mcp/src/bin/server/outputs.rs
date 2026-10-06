@@ -2,9 +2,8 @@ use std::collections::BTreeMap;
 
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
-use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, UsageKind, UsageRecord, now_utc,
-};
+use veoveo_artifact_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability};
+use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
 use veoveo_timeseries_mcp::{
     contract::{TimeseriesArtifactUri, TimeseriesForecastSummary},

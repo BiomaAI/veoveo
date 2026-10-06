@@ -16,19 +16,20 @@ use base64::Engine;
 use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 use veoveo_artifact_contract::{
+    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
+    ArtifactAccessRequestScope, ArtifactPage, ArtifactWriteCapabilityId,
+    ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    DecideArtifactAccessRequest, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
+    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
+    StreamArtifactRequest,
+};
+use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState,
     ArtifactShareLink, ArtifactShareLinkId, ComplianceMetadata, Grant,
 };
 use veoveo_mcp_contract::access::{AccessDecision, AccessRequest, decide};
-use veoveo_mcp_contract::{
-    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
-    ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError,
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest,
-    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
-    ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
-};
+use veoveo_mcp_contract::{ArtifactPlane, ArtifactPlaneError, PlaneCaller};
 use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, DataLabelId};
 use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
@@ -414,7 +415,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 "streaming artifact must not be empty".into(),
             ));
         }
-        let sha = BlobSha256::new(request.expected_sha256.clone())
+        let sha = BlobSha256::new(request.expected_sha256.as_str())
             .map_err(|reason| ArtifactPlaneError::InvalidRequest(reason.into()))?;
         let actor = Self::actor(caller)?;
         let authority = caller.identity.authority.clone();
@@ -486,7 +487,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                             "artifact occurrence {artifact_id} was concurrently reserved"
                         ))
                     })?;
-                let expected_sha = BlobSha256::new(request.expected_sha256.clone())
+                let expected_sha = BlobSha256::new(request.expected_sha256.as_str())
                     .expect("stream digest was validated");
                 if stream_retry_matches(
                     &existing,
@@ -1301,14 +1302,15 @@ pub(crate) mod tests {
     use axum::body::Bytes;
     use chrono::{TimeDelta, Utc};
     use futures::TryStreamExt;
+    use veoveo_artifact_contract::{
+        ArtifactAccessRequestDecision, ArtifactAccessRequestScope, ArtifactAccessRequestState,
+        ArtifactWriteIdempotencyKey,
+    };
     use veoveo_mcp_contract::gateway::{
         GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
-    use veoveo_mcp_contract::{
-        ArtifactAccessRequestDecision, ArtifactAccessRequestScope, ArtifactAccessRequestState,
-        ArtifactWriteIdempotencyKey, JwtId, Principal,
-    };
+    use veoveo_mcp_contract::{JwtId, Principal};
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
@@ -1427,7 +1429,10 @@ pub(crate) mod tests {
                 ..PutArtifactRequest::default()
             },
             expected_byte_len: bytes.len() as u64,
-            expected_sha256: hex::encode(Sha256::digest(bytes)),
+            expected_sha256: veoveo_artifact_contract::UploadSha256::parse(hex::encode(
+                Sha256::digest(bytes),
+            ))
+            .unwrap(),
         }
     }
 
@@ -1493,7 +1498,8 @@ pub(crate) mod tests {
 
         let artifact_id = ArtifactId::new();
         let mut request = streamed_request(artifact_id, bytes);
-        request.expected_sha256 = "00".repeat(32);
+        request.expected_sha256 =
+            veoveo_artifact_contract::UploadSha256::parse("00".repeat(32)).unwrap();
         assert!(
             service
                 .put_stream(
@@ -1606,13 +1612,13 @@ pub(crate) mod tests {
     async fn capability_redemption_is_task_label_byte_and_count_bound() {
         let (service, _) = service();
         let alice = caller("alice", "acme", &["cui"]);
-        let task_id = uuid::Uuid::now_v7().to_string();
+        let task_id = veoveo_artifact_contract::ArtifactTaskId::new();
         let issued = service
             .issue_write_capability(
                 &alice,
                 IssueArtifactWriteCapabilityRequest {
                     required_data_labels: Default::default(),
-                    task_id: task_id.clone(),
+                    task_id,
                     expires_at: Utc::now() + TimeDelta::minutes(10),
                     max_artifact_count: NonZeroU32::new(1).unwrap(),
                     max_total_bytes: NonZeroU64::new(4).unwrap(),
@@ -1622,7 +1628,7 @@ pub(crate) mod tests {
             .unwrap();
         let request = RedeemArtifactWriteCapabilityRequest {
             capability_id: issued.capability_id,
-            task_id: uuid::Uuid::now_v7().to_string(),
+            task_id: veoveo_artifact_contract::ArtifactTaskId::new(),
             idempotency_key: ArtifactWriteIdempotencyKey::new("media-output-0").unwrap(),
             artifact: PutArtifactRequest::default(),
         };
@@ -1658,7 +1664,7 @@ pub(crate) mod tests {
             Err(ArtifactPlaneError::Unauthenticated)
         );
         let mut wrong_task = request.clone();
-        wrong_task.task_id = uuid::Uuid::now_v7().to_string();
+        wrong_task.task_id = veoveo_artifact_contract::ArtifactTaskId::new();
         assert_eq!(
             service
                 .redeem_write_capability(
@@ -1692,7 +1698,7 @@ pub(crate) mod tests {
 
         let exhausted = RedeemArtifactWriteCapabilityRequest {
             capability_id: issued.capability_id,
-            task_id: issued.task_id.clone(),
+            task_id: issued.task_id,
             idempotency_key: ArtifactWriteIdempotencyKey::new("media-output-1").unwrap(),
             artifact: PutArtifactRequest::default(),
         };
@@ -1712,13 +1718,13 @@ pub(crate) mod tests {
     async fn staged_capability_write_recovers_after_occurrence_before_finalize() {
         let (service, repository) = service();
         let alice = caller("alice", "acme", &["cui"]);
-        let task_id = uuid::Uuid::now_v7().to_string();
+        let task_id = veoveo_artifact_contract::ArtifactTaskId::new();
         let issued = service
             .issue_write_capability(
                 &alice,
                 IssueArtifactWriteCapabilityRequest {
                     required_data_labels: Default::default(),
-                    task_id: task_id.clone(),
+                    task_id,
                     expires_at: Utc::now() + TimeDelta::minutes(10),
                     max_artifact_count: NonZeroU32::new(1).unwrap(),
                     max_total_bytes: NonZeroU64::new(4).unwrap(),
@@ -1735,7 +1741,7 @@ pub(crate) mod tests {
             .reserve_write_capability(WriteCapabilityReservation {
                 capability_id: issued.capability_id,
                 token_hash: secret_hash(b"veoveo.artifact-write.v1", issued.secret.expose_secret()),
-                task_id: task_id.clone(),
+                task_id,
                 idempotency_key: "media:task:output:0".into(),
                 request_hash,
                 byte_len: bytes.len() as u64,
@@ -1785,13 +1791,13 @@ pub(crate) mod tests {
     async fn unstaged_reservation_rebinds_to_nondeterministic_retry() {
         let (service, repository) = service();
         let alice = caller("alice", "acme", &[]);
-        let task_id = uuid::Uuid::now_v7().to_string();
+        let task_id = veoveo_artifact_contract::ArtifactTaskId::new();
         let issued = service
             .issue_write_capability(
                 &alice,
                 IssueArtifactWriteCapabilityRequest {
                     required_data_labels: Default::default(),
-                    task_id: task_id.clone(),
+                    task_id,
                     expires_at: Utc::now() + TimeDelta::minutes(10),
                     max_artifact_count: NonZeroU32::new(1).unwrap(),
                     max_total_bytes: NonZeroU64::new(16).unwrap(),
@@ -1807,7 +1813,7 @@ pub(crate) mod tests {
             .reserve_write_capability(WriteCapabilityReservation {
                 capability_id: issued.capability_id,
                 token_hash: secret_hash(b"veoveo.artifact-write.v1", issued.secret.expose_secret()),
-                task_id: task_id.clone(),
+                task_id,
                 idempotency_key: "optimization:task:artifact:0".into(),
                 request_hash: first_hash,
                 byte_len: first_bytes.len() as u64,

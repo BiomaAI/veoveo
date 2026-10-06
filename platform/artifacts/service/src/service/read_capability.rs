@@ -1,9 +1,10 @@
 use super::*;
 use crate::ledger::{ReadCapabilityAuthentication, ReadCapabilityDraft};
-use veoveo_mcp_contract::{
-    ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactReadCapabilitySecret,
-    ArtifactTaskId, IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
+use veoveo_artifact_contract::{
+    ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
+    IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
 };
+use veoveo_mcp_contract::ArtifactReadCapabilityScope;
 
 const HASH_DOMAIN: &[u8] = b"veoveo.artifact-read.v1";
 

@@ -9,7 +9,7 @@ use reqwest::header::{HOST, HeaderMap, HeaderValue};
 use secrecy::ExposeSecret as _;
 use url::Url;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
-use veoveo_mcp_contract::{PutArtifactRequest, StreamArtifactRequest};
+use veoveo_artifact_contract::{PutArtifactRequest, StreamArtifactRequest};
 use veoveo_recording_contract::RecordingProducerScope;
 use veoveo_recording_forwarder::{
     config::ClientAssertionAlgorithm,
@@ -124,11 +124,11 @@ impl GatewayLayerPublisher {
             artifact_id,
             artifact,
             expected_byte_len,
-            expected_sha256: expected_sha256.to_owned(),
+            expected_sha256: veoveo_artifact_contract::UploadSha256::parse(expected_sha256)?,
         };
         let descriptor = serde_json::to_string(&request)?;
         ensure!(
-            descriptor.len() <= veoveo_mcp_contract::MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
+            descriptor.len() <= veoveo_artifact_contract::MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
             "recording layer publication descriptor exceeds the Artifact limit"
         );
         let mut token = self.tokens.access_token().await?;

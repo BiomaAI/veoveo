@@ -67,7 +67,7 @@ pub struct ArtifactWriteCapabilityDraft {
     pub authority: InvocationAuthorityRecord,
     pub profile_key: String,
     pub server_key: String,
-    pub task_id: String,
+    pub task_id: veoveo_artifact_contract::ArtifactTaskId,
     pub actor_kind: PrincipalKind,
     pub actor_issuer: String,
     pub actor_subject: String,
@@ -305,7 +305,7 @@ impl PlatformStore {
             actor_subject: draft.actor_subject,
             profile_key: draft.profile_key,
             server_key: draft.server_key,
-            task_id: draft.task_id,
+            task_id: draft.task_id.to_string(),
             token_hash: draft.token_hash,
             labels: draft.labels,
             max_artifact_count: draft.max_artifact_count,
@@ -341,13 +341,18 @@ impl PlatformStore {
         &self,
         capability_id: ArtifactWriteCapabilityId,
         token_hash: &str,
-        task_id: &str,
+        task_id: &veoveo_artifact_contract::ArtifactTaskId,
         idempotency_key: &str,
         request_hash: &str,
         byte_len: i64,
         requested_labels: &[String],
         proposed_artifact_id: ArtifactId,
     ) -> Result<ArtifactWriteReservation, StoreError> {
+        let binding = ArtifactWriteBinding {
+            capability_id,
+            task_id,
+            idempotency_key,
+        };
         self.authenticate_artifact_write_capability(
             capability_id,
             token_hash,
@@ -356,11 +361,7 @@ impl PlatformStore {
         )
         .await?;
         let redemption_id = artifact_write_redemption_id(capability_id, idempotency_key);
-        if let Some(reservation) = self
-            .artifact_write_reservation(capability_id, token_hash, redemption_id)
-            .await?
-        {
-            validate_reservation_identity(&reservation, task_id, idempotency_key)?;
+        if let Some(reservation) = self.artifact_write_reservation(binding, token_hash).await? {
             let request_matches = reservation.redemption.request_hash == request_hash
                 && reservation.redemption.byte_len == byte_len;
             if !request_matches
@@ -368,6 +369,7 @@ impl PlatformStore {
                 && let Some(rebound) = self
                     .rebind_artifact_write_reservation(
                         &reservation,
+                        binding,
                         token_hash,
                         request_hash,
                         byte_len,
@@ -388,12 +390,8 @@ impl PlatformStore {
             id: redemption_id.record_id(),
             capability: capability_id.record_id(),
             tenant: RecordId::new("tenant", "placeholder"),
-            task: crate::task_record_id(task_id.parse::<TaskId>().map_err(|_| {
-                StoreError::ArtifactWriteConflict {
-                    key: idempotency_key.to_owned(),
-                }
-            })?),
-            task_id: task_id.to_owned(),
+            task: crate::task_record_id(TaskId::from_uuid(task_id.as_uuid())),
+            task_id: task_id.to_string(),
             idempotency_key: idempotency_key.to_owned(),
             request_hash: request_hash.to_owned(),
             byte_len,
@@ -410,7 +408,7 @@ impl PlatformStore {
             ))
             .bind(("capability", capability_id.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
-            .bind(("task_id", task_id.to_owned()))
+            .bind(("task_id", task_id.to_string()))
             .bind(("task", redemption.task.clone()))
             .bind(("requested_labels", requested_labels.to_vec()))
             .bind(("byte_len", byte_len))
@@ -427,11 +425,7 @@ impl PlatformStore {
                 },
             );
         if let Err(error) = result {
-            if let Some(reservation) = self
-                .artifact_write_reservation(capability_id, token_hash, redemption_id)
-                .await?
-            {
-                validate_reservation_identity(&reservation, task_id, idempotency_key)?;
+            if let Some(reservation) = self.artifact_write_reservation(binding, token_hash).await? {
                 let request_matches = reservation.redemption.request_hash == request_hash
                     && reservation.redemption.byte_len == byte_len;
                 if !request_matches
@@ -439,6 +433,7 @@ impl PlatformStore {
                     && let Some(rebound) = self
                         .rebind_artifact_write_reservation(
                             &reservation,
+                            binding,
                             token_hash,
                             request_hash,
                             byte_len,
@@ -461,7 +456,7 @@ impl PlatformStore {
             }
             return Err(error.into());
         }
-        self.artifact_write_reservation(capability_id, token_hash, redemption_id)
+        self.artifact_write_reservation(binding, token_hash)
             .await?
             .ok_or(StoreError::MissingRecord {
                 operation: "artifact write reservation readback",
@@ -501,17 +496,18 @@ impl PlatformStore {
 
     async fn artifact_write_reservation(
         &self,
-        capability_id: ArtifactWriteCapabilityId,
+        binding: ArtifactWriteBinding<'_>,
         token_hash: &str,
-        redemption_id: ArtifactWriteRedemptionId,
     ) -> Result<Option<ArtifactWriteReservation>, StoreError> {
+        let redemption_id =
+            artifact_write_redemption_id(binding.capability_id, binding.idempotency_key);
         let mut response = self
             .db
             .query(include_str!(
                 "queries/artifacts/artifact_write_reservation.surql"
             ))
             .bind(("redemption", redemption_id.record_id()))
-            .bind(("capability", capability_id.record_id()))
+            .bind(("capability", binding.capability_id.record_id()))
             .bind(("token_hash", token_hash.to_owned()))
             .await?
             .check()?;
@@ -522,18 +518,20 @@ impl PlatformStore {
         let capability = response
             .take::<Option<ArtifactWriteCapabilityRecord>>(1)?
             .ok_or(StoreError::ArtifactWriteDenied)?;
-        Ok(Some(ArtifactWriteReservation {
+        let reservation = ArtifactWriteReservation {
             capability,
             redemption,
             request_matches: true,
-        }))
+        };
+        validate_reservation_identity(&reservation, binding)?;
+        Ok(Some(reservation))
     }
 
     async fn authenticate_artifact_write_capability(
         &self,
         capability_id: ArtifactWriteCapabilityId,
         token_hash: &str,
-        task_id: &str,
+        task_id: &veoveo_artifact_contract::ArtifactTaskId,
         requested_labels: &[String],
     ) -> Result<ArtifactWriteCapabilityRecord, StoreError> {
         let mut response = self
@@ -548,7 +546,7 @@ impl PlatformStore {
         let capability = response
             .take::<Option<ArtifactWriteCapabilityRecord>>(0)?
             .ok_or(StoreError::ArtifactWriteDenied)?;
-        let task_matches = capability.task_id == task_id;
+        let task_matches = retained_artifact_task_id(&capability.task_id)? == *task_id;
         let labels_allowed = requested_labels
             .iter()
             .all(|label| capability.labels.contains(label));
@@ -561,6 +559,7 @@ impl PlatformStore {
     async fn rebind_artifact_write_reservation(
         &self,
         reservation: &ArtifactWriteReservation,
+        binding: ArtifactWriteBinding<'_>,
         token_hash: &str,
         request_hash: &str,
         byte_len: i64,
@@ -600,14 +599,8 @@ impl PlatformStore {
             }
             return Err(error.into());
         }
-        let redemption_id =
-            ArtifactWriteRedemptionId::from_uuid(record_uuid(&reservation.redemption.id)?);
         Ok(self
-            .artifact_write_reservation(
-                ArtifactWriteCapabilityId::from_uuid(record_uuid(&reservation.capability.id)?),
-                token_hash,
-                redemption_id,
-            )
+            .artifact_write_reservation(binding, token_hash)
             .await?
             .map(|reservation| ArtifactWriteReservation {
                 request_matches: true,
@@ -715,19 +708,44 @@ fn artifact_write_redemption_id(
     ))
 }
 
+/// Current-format retained bindings are canonical. An older alias row requires the installation drain.
+fn retained_artifact_task_id(
+    value: &str,
+) -> Result<veoveo_artifact_contract::ArtifactTaskId, StoreError> {
+    let id = veoveo_artifact_contract::ArtifactTaskId::parse(value)
+        .map_err(|_| StoreError::ArtifactWriteDenied)?;
+    if id.to_string() != value {
+        return Err(StoreError::ArtifactWriteDenied);
+    }
+    Ok(id)
+}
+
+#[derive(Clone, Copy)]
+struct ArtifactWriteBinding<'a> {
+    capability_id: ArtifactWriteCapabilityId,
+    task_id: &'a veoveo_artifact_contract::ArtifactTaskId,
+    idempotency_key: &'a str,
+}
+
 fn validate_reservation_identity(
     reservation: &ArtifactWriteReservation,
-    task_id: &str,
-    idempotency_key: &str,
+    binding: ArtifactWriteBinding<'_>,
 ) -> Result<(), StoreError> {
-    let valid = reservation.redemption.capability == reservation.capability.id
-        && reservation.redemption.task_id == task_id
-        && reservation.redemption.idempotency_key == idempotency_key;
+    let valid = reservation.capability.id == binding.capability_id.record_id()
+        && reservation.redemption.id
+            == artifact_write_redemption_id(binding.capability_id, binding.idempotency_key)
+                .record_id()
+        && reservation.redemption.capability == reservation.capability.id
+        && retained_artifact_task_id(&reservation.capability.task_id)? == *binding.task_id
+        && retained_artifact_task_id(&reservation.redemption.task_id)? == *binding.task_id
+        && reservation.redemption.task
+            == crate::task_record_id(TaskId::from_uuid(binding.task_id.as_uuid()))
+        && reservation.redemption.idempotency_key == binding.idempotency_key;
     if valid {
         Ok(())
     } else {
         Err(StoreError::ArtifactWriteConflict {
-            key: idempotency_key.to_owned(),
+            key: binding.idempotency_key.to_owned(),
         })
     }
 }

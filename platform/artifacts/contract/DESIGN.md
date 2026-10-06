@@ -5,8 +5,11 @@
 | Standard or format | Supported profile |
 |---|---|
 | UUID, RFC 9562 | UUID 1.25.0 parses occurrence identities; admission requires version 7 and the RFC variant. Serialization uses lowercase hyphenated form. `ArtifactId::new` generates a v7 identity using the system clock and entropy. |
-| JSON | Serde string identities and structured metadata; constructors validate nested identity fields during deserialization |
-| JSON Schema 2020-12 | Schemars schemas for public identity, metadata, compliance, provenance, and release-state values; provenance uses mode-specific alternatives with required attribution identities |
+| JSON | Serde identity strings, metadata, capability issuance/redemption values, mutable access-request progress and transfer descriptors/results. Owner admission checks intrinsic identities and progress relationships; producer metadata stays open. |
+| JSON Schema 2020-12 | Schemars schemas for identity, metadata, compliance, provenance, release/grant/control values, capabilities, progress, upload policy/limits and transfer notifications. Provenance has mode-specific required attribution; the transfer bundle selects the actual owner declarations. |
+| SHA-256 | `UploadSha256` admits exactly 64 lowercase hexadecimal characters with no prefix. Streaming descriptors and transfer receipts use this bare digest representation; services own hashing, byte-integrity settlement and hash preimages. |
+| Artifact upload and notification declarations | Upload JSON preserves snake_case keys and closed state/error vocabularies. Contentless notifications carry `op: "changed"`, canonical `upload_id` and one of six emitted states. Policy, multipart layout, receipts, byte/count limits and header names are pure declarations; notification consumers perform a currently authorized status read. |
+| HTTP and authenticated Artifact service adapters | The [Artifact service](../service/DESIGN.md#standards-and-protocols) owns routes, streaming, credential verification, current policy and provider transport. This library supplies their wire values and limits without implementing HTTP or authentication. |
 | RFC 3339 timestamps | Chrono 0.4.45 date/time values with Serde support; this crate excludes Chrono's clock feature |
 | Veoveo Artifact addresses | Neutral `artifact://{id}` occurrences and server presentations such as `media://artifact/{id}` |
 | [Veoveo concrete resource profile](../../types/DESIGN.md#concrete-resource-components) | URL 2.5.8 parses components and builds addresses; Artifact addresses exclude escapes, queries, fragments, credentials, ports, templates, and additional path segments |
@@ -14,8 +17,9 @@
 ## Ownership And Dependencies
 
 This library owns the Artifact plane's occurrence identity, metadata, compliance,
-provenance, release state, grant records, share-link values and identities, and
-in-process byte handoff values. The Artifact service,
+provenance, release state, grant records, share-link values and identities,
+capability requests and results, access-request progress, transfer policy and limits,
+and in-process byte handoff values. The Artifact service,
 HTTP client, MCP server, and other domains import these definitions directly.
 The library depends on foundational identity types, UUID, date/time values, and
 serialization/schema support. It has no MCP, asynchronous runtime, database, GPU,
@@ -28,13 +32,21 @@ model below both adapters. It introduces no process or deployment requirement.
 The MCP server exposes the plane model through its isolated `contract` feature,
 alongside its tool DTOs and resource families.
 
-Artifact access evaluation, Work Context membership, grant composition, capabilities,
-and transport-facing request/response types currently live in `mcp/contract`.
-`ledger.rs` owns distinct UUIDv7 identities for access requests, read and write
-capabilities, uploads, upload requests and Artifact Tasks. Its `ArtifactLedgerAddress` builder constructs
-private `veoveo://artifact-plane/` addresses for audit targets and related ledger
-objects. These addresses grant no access and declare no public MCP read route.
-The service and gateway import the same builder; MCP transport DTOs re-export its IDs.
+`capabilities.rs` owns task-bound requests, issuance results and redacted bearer
+values. `plane.rs` owns public control and streaming descriptors. `upload.rs` and
+`upload/policy.rs` own resumable upload declarations, notification schemas and
+transfer limits. `access_requests.rs` owns mutable access-request progress and its
+shared intrinsic checks. `ledger.rs` owns distinct UUIDv7 identities for access
+requests, read and write capabilities, uploads, upload requests and Artifact Tasks.
+Its `ArtifactLedgerAddress` builder constructs private `veoveo://artifact-plane/`
+addresses for audit targets and related ledger objects. These addresses grant no
+access and declare no public MCP read route.
+
+The MCP adapter owns verified callers, read authority and its full gateway identity
+facts, the asynchronous plane interface and transport/policy errors. Scalar admission
+returns an input-safe `ArtifactWireError`: Serde reports its `invalid request: `
+prefix, while adapter conversion receives the bare detail. Secret formatting and
+admission errors never include bearer values.
 This library neither authenticates metadata nor authorizes a read or mutation.
 Artifact service continues to enforce current tenant, context, clearance, and grants.
 `Grant` implements the foundational `AccessGrant` trait for the shared evaluator;
@@ -165,3 +177,27 @@ The Artifact contract owns the flat principal/group grant-subject vocabulary.
 Console grant rows couple this kind to a typed principal or group identifier.
 The tagged foundational `AccessSubject` continues to carry ownership and access
 identities; the flat kind names only the grant projection profile.
+
+## Capability And Progress Admission
+
+Write and read capability requests carry `ArtifactTaskId` through services and
+repositories. Request admission accepts the existing UUID aliases, requires the
+RFC variant and version 7, and emits lowercase hyphenated text. The Store driver
+writes that text and checks retained capability and redemption bindings without
+repairing noncanonical values. Streaming descriptors carry the existing bare
+lowercase `UploadSha256`; transfer integrity and request-hash preimages keep their
+service-owned checks.
+
+Access-request writers update mutable progress together, then validate the completed
+transition. Construction, JSON decoding, serialization and native hydration use the
+same intrinsic checks. Pending progress has equal creation/update times and no
+decision fields. Reopening resets both times. Approved and Denied progress records
+a decision actor and equal decision/update times at or after creation; optional
+notes preserve empty text. Cancelled progress records the requester as actor and
+has no decision note. Services establish current access, grants and review authority.
+
+The installation cut drains existing Task capability snapshots and recreates write
+capability/redemption rows before these writers and readers run. It tightens write
+Task admission to the owner's RFC variant and canonical persisted spelling.
+Unsupported old or corrupt retained bindings fail closed. No historical reader,
+read normalization, SQL alias fallback or overlapping writer profile is supported.

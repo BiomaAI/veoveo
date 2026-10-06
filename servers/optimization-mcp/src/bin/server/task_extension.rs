@@ -8,9 +8,8 @@ use veoveo_optimization_mcp::contract::OptimizationTaskKind;
 use veoveo_types::TaskTypeDefinition;
 
 use chrono::{TimeDelta, Utc};
-use veoveo_mcp_contract::{
-    GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, PlaneCaller,
-};
+use veoveo_artifact_contract::IssueArtifactWriteCapabilityRequest;
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_optimization_mcp::task_records::{
     OptimizationTaskRequest, PreparedVerifyTask, SolveTaskCommon,
 };
@@ -1112,7 +1111,7 @@ fn common(
     profile_uri: veoveo_optimization_mcp::contract::OptimizationProfileUri,
     _task_id: TaskId,
     submitted_at: chrono::DateTime<Utc>,
-    artifact_write_capability: veoveo_mcp_contract::IssuedArtifactWriteCapability,
+    artifact_write_capability: veoveo_artifact_contract::IssuedArtifactWriteCapability,
 ) -> Result<SolveTaskCommon, rmcp::ErrorData> {
     Ok(SolveTaskCommon {
         problem_id: prepared.resource().record.problem_id.clone(),
@@ -1130,14 +1129,14 @@ async fn issue_output_capability(
     caller: &PlaneCaller,
     task_id: TaskId,
     count: u32,
-) -> anyhow::Result<veoveo_mcp_contract::IssuedArtifactWriteCapability> {
+) -> anyhow::Result<veoveo_artifact_contract::IssuedArtifactWriteCapability> {
     state
         .artifacts
         .issue_write_capability(
             caller,
             &IssueArtifactWriteCapabilityRequest {
                 required_data_labels: Default::default(),
-                task_id: task_id.to_string(),
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid())?,
                 expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                 max_artifact_count: NonZeroU32::new(count)
                     .ok_or_else(|| anyhow::anyhow!("artifact count must be positive"))?,

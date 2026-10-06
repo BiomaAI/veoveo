@@ -7,7 +7,7 @@ use std::{collections::BTreeSet, time::Duration};
 use chrono::{TimeDelta, Utc};
 use futures::StreamExt;
 use serde_json::json;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
 };
 use veoveo_media_mcp::{
@@ -127,7 +127,7 @@ async fn create_prepared_task(
     let capability = IssuedArtifactWriteCapability {
         capability_id: ArtifactWriteCapabilityId::new(),
         secret: ArtifactWriteCapabilitySecret::new("s".repeat(32)).unwrap(),
-        task_id: task_id.to_string(),
+        task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid()).unwrap(),
         expires_at: Utc::now() + TimeDelta::hours(1),
     };
     state
@@ -428,8 +428,8 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
                 .unwrap()
                 .unwrap()
                 .artifact_write_capability
-                .task_id,
-            task_id.to_string()
+                .task_id.as_uuid(),
+            task_id.as_uuid()
         );
         assert!(first_state.pending_events(10).await.unwrap().is_empty());
 

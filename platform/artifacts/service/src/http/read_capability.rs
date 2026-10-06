@@ -1,9 +1,10 @@
 use super::*;
-use veoveo_http::RequestJson;
-use veoveo_mcp_contract::{
-    ArtifactReadCapabilityId, ArtifactReadCapabilityScope, ArtifactTaskId,
-    IssueArtifactReadCapabilityRequest, IssuedArtifactReadCapability,
+use veoveo_artifact_contract::{
+    ArtifactReadCapabilityId, ArtifactTaskId, IssueArtifactReadCapabilityRequest,
+    IssuedArtifactReadCapability,
 };
+use veoveo_http::RequestJson;
+use veoveo_mcp_contract::ArtifactReadCapabilityScope;
 
 pub(super) fn routes<R: ArtifactRepository + 'static, S: BlobStore + 'static>()
 -> Router<AppState<R, S>> {

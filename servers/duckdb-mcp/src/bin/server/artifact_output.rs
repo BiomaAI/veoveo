@@ -3,11 +3,9 @@ use super::app_state::AppState;
 use rmcp::ErrorData as McpError;
 use std::collections::BTreeSet;
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut, ComplianceMetadata};
+use veoveo_artifact_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability};
 use veoveo_duckdb_mcp::contract::{DuckDbArtifactOrigin, DuckDbTaskKind};
-use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, GatewayInternalIdentity, IssuedArtifactWriteCapability,
-    PlaneCaller,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_types::{DataLabelId, TaskId, TaskTypeDefinition};
 
 pub(super) struct ArtifactWriter(Writer);
@@ -105,7 +103,7 @@ fn task_write_key(
     if !matches!(operation, DuckDbTaskKind::Query | DuckDbTaskKind::Export) {
         return Err("DuckDB operation does not publish artifacts".into());
     }
-    if capability.task_id != task_id.to_string() {
+    if capability.task_id.as_uuid() != task_id.as_uuid() {
         return Err("artifact write capability belongs to another Task".into());
     }
     veoveo_duckdb_mcp::contract::DuckDbTaskUsageUri::new(task_id)
@@ -147,14 +145,14 @@ pub(super) async fn put_op_artifact(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veoveo_artifact_contract::{ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret};
     use veoveo_duckdb_mcp::contract::DuckDbArtifactOperation;
-    use veoveo_mcp_contract::{ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret};
 
     fn capability(task_id: TaskId) -> IssuedArtifactWriteCapability {
         IssuedArtifactWriteCapability {
             capability_id: ArtifactWriteCapabilityId::new(),
             secret: ArtifactWriteCapabilitySecret::new("a".repeat(32)).unwrap(),
-            task_id: task_id.to_string(),
+            task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid()).unwrap(),
             expires_at: chrono::Utc::now() + chrono::TimeDelta::hours(1),
         }
     }

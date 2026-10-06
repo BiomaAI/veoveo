@@ -12,11 +12,12 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_artifact_contract::{ArtifactId, ArtifactLedgerAddress};
-use veoveo_mcp_contract::{
-    ArtifactAccessRequestId, ArtifactPlane, ArtifactPlaneError, CreateArtifactAccessRequest,
-    DecideArtifactAccessRequest, ListArtifactAccessRequests, PlaneCaller, PolicyTarget,
+use veoveo_artifact_contract::{
+    ArtifactAccessRequestId, CreateArtifactAccessRequest, DecideArtifactAccessRequest,
+    ListArtifactAccessRequests,
 };
+use veoveo_artifact_contract::{ArtifactId, ArtifactLedgerAddress};
+use veoveo_mcp_contract::{ArtifactPlane, ArtifactPlaneError, PlaneCaller, PolicyTarget};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 
 use crate::{

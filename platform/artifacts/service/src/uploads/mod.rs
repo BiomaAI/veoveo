@@ -36,9 +36,9 @@ impl UploadService {
     pub async fn create(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        request_id: contract::ArtifactUploadRequestId,
-        descriptor: contract::CreateArtifactUpload,
-    ) -> Result<(contract::ArtifactUploadSession, bool), UploadFault> {
+        request_id: veoveo_artifact_contract::ArtifactUploadRequestId,
+        descriptor: veoveo_artifact_contract::CreateArtifactUpload,
+    ) -> Result<(veoveo_artifact_contract::ArtifactUploadSession, bool), UploadFault> {
         let authority = self.authorize(caller).await?;
         let layout = authority.policy.admit(&descriptor)?;
         let row = authority.admission(caller, request_id, descriptor, &layout)?;
@@ -68,7 +68,7 @@ impl UploadService {
         Ok((
             self.status(
                 caller,
-                contract::ArtifactUploadId::parse(id.to_string())
+                veoveo_artifact_contract::ArtifactUploadId::parse(id.to_string())
                     .map_err(|_| UploadFault::unavailable())?,
                 0,
             )
@@ -80,16 +80,16 @@ impl UploadService {
     pub async fn status(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        id: contract::ArtifactUploadId,
+        id: veoveo_artifact_contract::ArtifactUploadId,
         after: u32,
-    ) -> Result<contract::ArtifactUploadSession, UploadFault> {
+    ) -> Result<veoveo_artifact_contract::ArtifactUploadSession, UploadFault> {
         let (_, row) = self.owned(caller, id).await?;
         let parts = self
             .database
             .artifact_upload_parts(
                 id.as_uuid(),
                 after,
-                (contract::UPLOAD_PART_PAGE_LIMIT + 1) as u32,
+                (veoveo_artifact_contract::UPLOAD_PART_PAGE_LIMIT + 1) as u32,
                 true,
             )
             .await?;
@@ -99,16 +99,16 @@ impl UploadService {
     pub async fn complete(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        id: contract::ArtifactUploadId,
-        mut manifest: contract::CompleteArtifactUpload,
-    ) -> Result<contract::ArtifactUploadSession, UploadFault> {
+        id: veoveo_artifact_contract::ArtifactUploadId,
+        mut manifest: veoveo_artifact_contract::CompleteArtifactUpload,
+    ) -> Result<veoveo_artifact_contract::ArtifactUploadSession, UploadFault> {
         let (_, row) = self.owned(caller, id).await?;
         if manifest.sha256.is_none() {
             manifest.sha256 = row
                 .descriptor
                 .sha256
                 .clone()
-                .map(contract::UploadSha256::parse)
+                .map(veoveo_artifact_contract::UploadSha256::parse)
                 .transpose()
                 .map_err(|_| UploadFault::unavailable())?;
         }
@@ -119,7 +119,7 @@ impl UploadService {
                     && saved.sha256.as_deref() == manifest.sha256.as_ref().map(|sha| sha.as_str())
             });
             if !same {
-                return Err(contract::UploadErrorCode::Conflict.into());
+                return Err(veoveo_artifact_contract::UploadErrorCode::Conflict.into());
             }
             return self.status(caller, id, 0).await;
         }
@@ -137,7 +137,7 @@ impl UploadService {
                 id.as_uuid(),
                 platform::ArtifactUploadManifest {
                     byte_len: i64::try_from(manifest.byte_len)
-                        .map_err(|_| contract::UploadErrorCode::TooLarge)?,
+                        .map_err(|_| veoveo_artifact_contract::UploadErrorCode::TooLarge)?,
                     part_count: i64::from(manifest.part_count.get()),
                     sha256: manifest.sha256.map(Into::into),
                 },
@@ -145,7 +145,7 @@ impl UploadService {
                 caller
                     .identity
                     .audit_context()
-                    .map_err(|_| contract::UploadErrorCode::Denied)?,
+                    .map_err(|_| veoveo_artifact_contract::UploadErrorCode::Denied)?,
             )
             .await?;
         self.wake.notify_one();
@@ -155,7 +155,7 @@ impl UploadService {
     pub async fn cancel(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        id: contract::ArtifactUploadId,
+        id: veoveo_artifact_contract::ArtifactUploadId,
     ) -> Result<(), UploadFault> {
         // Ownership/current authority are checked even on an idempotent cancellation.
         self.owned(caller, id).await?;

@@ -2,10 +2,10 @@
 use super::*;
 use crate::app_state::{Caps, ServerDirs};
 use serde_json::json;
+use veoveo_artifact_contract::{ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret};
 use veoveo_duckdb_mcp::{
     artifacts::ArtifactRepository, engine::EngineSettings, usage::DuckDbUsage,
 };
-use veoveo_mcp_contract::{ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret};
 use veoveo_task_runtime::{TaskPayloadState, TaskRuntime};
 
 use crate::store_fixture as store;
@@ -39,7 +39,7 @@ async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {
             let capability = task_needs_artifact_capability(&args).then(|| IssuedArtifactWriteCapability {
                 capability_id: ArtifactWriteCapabilityId::new(),
                 secret: ArtifactWriteCapabilitySecret::new("n".repeat(32)).unwrap(),
-                task_id: if wrong_capability { TaskId::new().to_string() } else { task_id.to_string() },
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(if wrong_capability { TaskId::new() } else { task_id }.as_uuid()).unwrap(),
                 expires_at: Utc::now() + TimeDelta::hours(1),
             });
             let recovery_class = task_recovery_class(&args);

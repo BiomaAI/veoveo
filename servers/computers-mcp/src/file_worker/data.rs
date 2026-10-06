@@ -2,12 +2,12 @@ use super::*;
 use futures::StreamExt;
 use sha2::{Digest, Sha256};
 use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::{
+    ArtifactWriteIdempotencyKey, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
+};
 use veoveo_computer_execution::FileFailure;
 use veoveo_computers::{api::FileTransfer, files::FilePreparation, secrets::FileTransferAccess};
-use veoveo_mcp_contract::{
-    ArtifactReadAuthority, ArtifactWriteIdempotencyKey, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest,
-};
+use veoveo_mcp_contract::ArtifactReadAuthority;
 
 pub(super) struct Buffer {
     bytes: Vec<u8>,
@@ -146,7 +146,7 @@ impl FileWorker {
         let descriptor = serde_json::json!({"computer_id":operation.computer_id(),"transfer_id":operation.transfer_id(),"sha256":hex::encode(receipt.sha256)});
         let request = RedeemArtifactWriteCapabilityRequest {
             capability_id: capability.capability_id,
-            task_id: capability.task_id.clone(),
+            task_id: capability.task_id,
             idempotency_key: ArtifactWriteIdempotencyKey::new("file")
                 .map_err(|_| FileWorkerError::Configuration)?,
             artifact: PutArtifactRequest {

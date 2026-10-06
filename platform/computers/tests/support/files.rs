@@ -93,13 +93,13 @@ pub async fn queue(
             capability: command_fixture::output_capability(operation.task_id()),
         },
         FileTransfer::Import { .. } => FileTransferAccess::Import {
-            capability: veoveo_mcp_contract::IssuedArtifactReadCapability {
-                capability_id: veoveo_mcp_contract::ArtifactReadCapabilityId::new(),
-                secret: veoveo_mcp_contract::ArtifactReadCapabilitySecret::new(
+            capability: veoveo_artifact_contract::IssuedArtifactReadCapability {
+                capability_id: veoveo_artifact_contract::ArtifactReadCapabilityId::new(),
+                secret: veoveo_artifact_contract::ArtifactReadCapabilitySecret::new(
                     "private-file-read-capability-fixture-1234567890",
                 )
                 .unwrap(),
-                task_id: veoveo_mcp_contract::ArtifactTaskId::parse(
+                task_id: veoveo_artifact_contract::ArtifactTaskId::parse(
                     operation.transfer_id().to_string(),
                 )
                 .unwrap(),

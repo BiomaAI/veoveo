@@ -7,6 +7,12 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, num::NonZeroU32};
 use tokio::io::AsyncWriteExt;
 use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::{
+    ArtifactUploadError, ArtifactUploadId, ArtifactUploadReceipt, ArtifactUploadSession,
+    CompleteArtifactUpload, CreateArtifactUpload, EffectiveArtifactUploadPolicy,
+    UPLOAD_PART_BYTE_LEN_HEADER, UPLOAD_PART_SHA256_HEADER, UploadErrorCode, UploadPartReceipt,
+    UploadSha256,
+};
 use veoveo_mcp_contract::*;
 
 #[path = "artifact_consumers/python.rs"]

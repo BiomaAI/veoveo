@@ -14,8 +14,9 @@ use prost::Message;
 use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreKind};
 use sha2::{Digest, Sha256};
+use veoveo_artifact_contract::PutArtifactRequest;
 use veoveo_mcp_contract::{
-    GatewayInternalResourceIdentity, PrincipalKind as ContractPrincipalKind, PutArtifactRequest,
+    GatewayInternalResourceIdentity, PrincipalKind as ContractPrincipalKind,
 };
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, PrincipalId, PrincipalKind, RecordId, RecordIdKey, TenantId,

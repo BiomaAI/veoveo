@@ -6,10 +6,10 @@ use std::{
     num::{NonZeroU32, NonZeroU64},
     sync::Arc,
 };
-use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactTaskId, GatewayInternalIdentity, IssueArtifactReadCapabilityRequest,
-    IssueArtifactWriteCapabilityRequest, PlaneCaller, PrincipalKind,
+use veoveo_artifact_contract::{
+    ArtifactTaskId, IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
 };
+use veoveo_mcp_contract::{ArtifactPlane, GatewayInternalIdentity, PlaneCaller, PrincipalKind};
 use veoveo_speech_contract::{MAX_SOURCE_BYTES, TranscribeRequest, validate_source};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskSnapshot};
 use veoveo_types::TaskId;
@@ -65,7 +65,7 @@ impl SpeechService {
             .issue_write_capability(
                 caller,
                 &IssueArtifactWriteCapabilityRequest {
-                    task_id: task_id.to_string(),
+                    task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid())?,
                     required_data_labels: source.compliance.data_labels.clone(),
                     expires_at: Utc::now() + TimeDelta::hours(24),
                     max_artifact_count: NonZeroU32::new(2).unwrap(),

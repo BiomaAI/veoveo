@@ -1,11 +1,20 @@
 //! Public resumable HTTP upload contract. File bytes never enter MCP messages.
 
-use super::*;
+use crate::{
+    ArtifactAccessRequest, ArtifactAccessRequestPage, ArtifactId, ArtifactUploadId,
+    ArtifactUploadRequestId, ArtifactWireError,
+};
+use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::BTreeSet,
+    num::{NonZeroU32, NonZeroU64},
+};
+use veoveo_types::{PrincipalId, WorkContextId};
 
 mod policy;
 pub use policy::*;
-
-pub use veoveo_artifact_contract::{ArtifactUploadId, ArtifactUploadRequestId};
 
 pub const UPLOAD_PART_BYTE_LEN_HEADER: &str = "x-veoveo-part-byte-len";
 pub const UPLOAD_PART_SHA256_HEADER: &str = "x-veoveo-part-sha256";
@@ -29,15 +38,15 @@ impl JsonSchema for UploadSha256 {
 }
 
 impl UploadSha256 {
-    pub fn parse(value: impl Into<String>) -> Result<Self, ArtifactPlaneError> {
+    pub fn parse(value: impl Into<String>) -> Result<Self, ArtifactWireError> {
         let value = value.into();
         if value.len() != 64
             || !value
                 .bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         {
-            return Err(ArtifactPlaneError::InvalidRequest(
-                "sha256 must contain 64 lowercase hexadecimal characters".into(),
+            return Err(ArtifactWireError::invalid(
+                "sha256 must contain 64 lowercase hexadecimal characters",
             ));
         }
         Ok(Self(value))
@@ -49,7 +58,7 @@ impl UploadSha256 {
 }
 
 impl TryFrom<String> for UploadSha256 {
-    type Error = ArtifactPlaneError;
+    type Error = ArtifactWireError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::parse(value)
     }
@@ -105,15 +114,21 @@ pub fn valid_upload_mime_type(value: &str) -> bool {
         })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum ArtifactUploadState {
+    #[vocabulary(rename = "open")]
     Open,
+    #[vocabulary(rename = "finalizing")]
     Finalizing,
+    #[vocabulary(rename = "verifying")]
     Verifying,
+    #[vocabulary(rename = "completed")]
     Completed,
+    #[vocabulary(rename = "cancelled")]
     Cancelled,
+    #[vocabulary(rename = "expired")]
     Expired,
+    #[vocabulary(rename = "failed")]
     Failed,
 }
 
@@ -184,7 +199,7 @@ pub struct CompleteArtifactUpload {
 pub struct ArtifactUploadReceipt {
     pub upload_id: ArtifactUploadId,
     pub artifact_id: ArtifactId,
-    pub artifact_uri: veoveo_artifact_contract::ArtifactUri,
+    pub artifact_uri: crate::ArtifactUri,
     pub sha256: UploadSha256,
     pub byte_len: u64,
     pub mime_type: String,
@@ -220,20 +235,31 @@ pub struct ArtifactUploadAuthority {
     pub context_digest: UploadSha256,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
 pub enum UploadErrorCode {
+    #[vocabulary(rename = "malformed")]
     Malformed,
+    #[vocabulary(rename = "unauthenticated")]
     Unauthenticated,
+    #[vocabulary(rename = "denied")]
     Denied,
+    #[vocabulary(rename = "not_found")]
     NotFound,
+    #[vocabulary(rename = "conflict")]
     Conflict,
+    #[vocabulary(rename = "expired")]
     Expired,
+    #[vocabulary(rename = "too_large")]
     TooLarge,
+    #[vocabulary(rename = "unsupported_type")]
     UnsupportedType,
+    #[vocabulary(rename = "integrity")]
     Integrity,
+    #[vocabulary(rename = "quota_exceeded")]
     QuotaExceeded,
+    #[vocabulary(rename = "busy")]
     Busy,
+    #[vocabulary(rename = "unavailable")]
     Unavailable,
 }
 
@@ -280,7 +306,7 @@ struct ArtifactTransferSchema {
     policy: EffectiveArtifactUploadPolicy,
     access_request: ArtifactAccessRequest,
     access_request_page: ArtifactAccessRequestPage,
-    share_link: veoveo_artifact_contract::ArtifactShareLink,
+    share_link: crate::ArtifactShareLink,
 }
 
 pub fn schema_bundle() -> schemars::Schema {
@@ -294,7 +320,7 @@ mod notification_tests {
     #[test]
     fn accepted_aliases_emit_the_canonical_shared_notification() {
         let fixture: serde_json::Value =
-            serde_json::from_str(include_str!("../../testdata/upload-notifications.json")).unwrap();
+            serde_json::from_str(include_str!("../testdata/upload-notifications.json")).unwrap();
         let notification: ArtifactUploadNotification =
             serde_json::from_value(fixture["alias"].clone()).unwrap();
         assert_eq!(

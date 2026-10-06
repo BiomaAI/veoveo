@@ -1,4 +1,5 @@
 //! Actual CUDA, disposable database and governed Artifact HTTP service.
+use veoveo_artifact_contract::PutArtifactRequest;
 use veoveo_types::AccessLevel;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;

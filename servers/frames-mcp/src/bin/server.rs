@@ -29,6 +29,9 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use veoveo_artifact_contract::{
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+};
 use veoveo_frames_mcp::contract::{CoordinateOperationId, CoordinateSpace};
 use veoveo_frames_mcp::{
     artifacts::ArtifactRepository,
@@ -41,8 +44,7 @@ use veoveo_frames_mcp::{
     uris,
 };
 use veoveo_mcp_contract::{
-    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
-    TelemetryGuard,
+    GatewayInternalTrustBundle, TelemetryGuard,
     hosting::{
         DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, gateway_identity,
         structured_result, unknown_prompt,
@@ -380,7 +382,10 @@ async fn start_batch_task(
                     &caller,
                     &IssueArtifactWriteCapabilityRequest {
                         required_data_labels: Default::default(),
-                        task_id: task_id.to_string(),
+                        task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(
+                            task_id.as_uuid(),
+                        )
+                        .map_err(|error| error.to_string())?,
                         expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                         max_artifact_count: NonZeroU32::new(1).expect("one artifact is non-zero"),
                         max_total_bytes: NonZeroU64::new(state.max_artifact_bytes)

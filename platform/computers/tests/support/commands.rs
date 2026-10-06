@@ -84,14 +84,14 @@ pub async fn queue_claim(
 /// obtain a real capability from the Artifact service before publication.
 pub fn output_capability(
     task: veoveo_types::TaskId,
-) -> veoveo_mcp_contract::IssuedArtifactWriteCapability {
-    veoveo_mcp_contract::IssuedArtifactWriteCapability {
-        capability_id: veoveo_mcp_contract::ArtifactWriteCapabilityId::new(),
-        secret: veoveo_mcp_contract::ArtifactWriteCapabilitySecret::new(
+) -> veoveo_artifact_contract::IssuedArtifactWriteCapability {
+    veoveo_artifact_contract::IssuedArtifactWriteCapability {
+        capability_id: veoveo_artifact_contract::ArtifactWriteCapabilityId::new(),
+        secret: veoveo_artifact_contract::ArtifactWriteCapabilitySecret::new(
             "private-computer-output-capability-fixture",
         )
         .unwrap(),
-        task_id: task.to_string(),
+        task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task.as_uuid()).unwrap(),
         expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(10),
     }
 }

@@ -10,7 +10,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::IssuedArtifactWriteCapability;
+use veoveo_artifact_contract::IssuedArtifactWriteCapability;
 use veoveo_types::TaskTypeDefinition;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

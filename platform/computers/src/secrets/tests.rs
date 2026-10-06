@@ -240,7 +240,7 @@ fn identical_raw_keys_under_different_ids_cannot_substitute_an_envelope() {
 
 #[test]
 fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
-    use veoveo_mcp_contract::{
+    use veoveo_artifact_contract::{
         ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
     };
     let mut binding = binding();
@@ -252,7 +252,8 @@ fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
         capability_id: ArtifactWriteCapabilityId::new(),
         secret: ArtifactWriteCapabilitySecret::new("private-output-capability-secret-fixture")
             .unwrap(),
-        task_id: binding.execution_id.to_string(),
+        task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(binding.execution_id.as_uuid())
+            .unwrap(),
         expires_at: chrono::Utc::now() + chrono::TimeDelta::minutes(10),
     };
     let access = CommandOutputAccess::new(capability.clone(), 1024).unwrap();

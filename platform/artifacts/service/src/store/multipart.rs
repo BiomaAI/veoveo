@@ -3,7 +3,7 @@
 use super::*;
 use object_store::{PutMultipartOptions, PutPayload, PutPayloadMut, multipart::PartId};
 use std::num::NonZeroU32;
-use veoveo_mcp_contract::UploadSha256;
+use veoveo_artifact_contract::UploadSha256;
 
 const COALESCE_BYTES: usize = 64 * 1024;
 

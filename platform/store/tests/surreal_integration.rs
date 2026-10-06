@@ -13,7 +13,6 @@ use veoveo_platform_store::{
     StoreError, WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
     deterministic_work_context_id, gateway_replay_record_id,
 };
-use veoveo_types::TaskId;
 
 #[path = "surreal_integration/audit_transactions.rs"]
 mod audit_transactions;
@@ -254,7 +253,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     assert!(committed.len() >= 2);
 
     let capability_id = ArtifactWriteCapabilityId::new();
-    let capability_task_id = TaskId::new().to_string();
+    let capability_task_id = veoveo_artifact_contract::ArtifactTaskId::new();
     store
         .create_artifact_write_capability(ArtifactWriteCapabilityDraft {
             audit: artifact_audit_context(&identity),
@@ -263,7 +262,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
             authority: artifact_authority(&identity),
             profile_key: "operator".into(),
             server_key: "media".into(),
-            task_id: capability_task_id.clone(),
+            task_id: capability_task_id,
             actor_kind: PrincipalKind::User,
             actor_issuer: "https://idp.example.com".into(),
             actor_subject: "alice-subject".into(),
@@ -281,7 +280,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
             .reserve_artifact_write_capability(
                 capability_id,
                 &"b".repeat(64),
-                &TaskId::new().to_string(),
+                &veoveo_artifact_contract::ArtifactTaskId::new(),
                 "media:wrong:output:0",
                 &"d".repeat(64),
                 4,
@@ -335,19 +334,15 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
         .await
         .unwrap();
     for (token, task, labels) in [
+        ("0".repeat(64), capability_task_id, vec!["cui".into()]),
         (
-            "0".repeat(64),
-            capability_task_id.clone(),
+            "b".repeat(64),
+            veoveo_artifact_contract::ArtifactTaskId::new(),
             vec!["cui".into()],
         ),
         (
             "b".repeat(64),
-            TaskId::new().to_string(),
-            vec!["cui".into()],
-        ),
-        (
-            "b".repeat(64),
-            capability_task_id.clone(),
+            capability_task_id,
             vec!["restricted".into()],
         ),
     ] {
@@ -433,7 +428,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
     ));
 
     let rebind_capability_id = ArtifactWriteCapabilityId::new();
-    let rebind_task_id = TaskId::new().to_string();
+    let rebind_task_id = veoveo_artifact_contract::ArtifactTaskId::new();
     store
         .create_artifact_write_capability(ArtifactWriteCapabilityDraft {
             audit: artifact_audit_context(&identity),
@@ -442,7 +437,7 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
             authority: artifact_authority(&identity),
             profile_key: "operator".into(),
             server_key: "optimization".into(),
-            task_id: rebind_task_id.clone(),
+            task_id: rebind_task_id,
             actor_kind: PrincipalKind::User,
             actor_issuer: "https://idp.example.com".into(),
             actor_subject: "alice-subject".into(),

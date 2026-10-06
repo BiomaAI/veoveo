@@ -1,7 +1,8 @@
 use super::{fixture::Fixture, result_fixture};
 use anyhow::Result;
+use veoveo_artifact_contract::PutArtifactRequest;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
-use veoveo_mcp_contract::{ArtifactPlane, PutArtifactRequest};
+use veoveo_mcp_contract::ArtifactPlane;
 use veoveo_reason_mcp::contract::*;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRuntime};
 use veoveo_types::{AccessLevel, AccessSubject, TaskId, TaskTypeDefinition};

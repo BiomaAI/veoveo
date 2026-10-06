@@ -2,11 +2,12 @@
 
 use anyhow::Context;
 use tracing_subscriber::EnvFilter;
+use veoveo_artifact_contract::ARTIFACT_UPLOAD_AUDIENCE;
 use veoveo_artifact_service::config::Config;
 use veoveo_artifact_service::http::{AppState, router};
 use veoveo_artifact_service::{ArtifactService, PlaneAuthenticator, SurrealArtifactRepository};
 use veoveo_artifact_service::{ObjectStoreConfig, uploads::UploadService};
-use veoveo_mcp_contract::{ARTIFACT_UPLOAD_AUDIENCE, GatewayInternalTokenVerifier, ServerSlug};
+use veoveo_mcp_contract::{GatewayInternalTokenVerifier, ServerSlug};
 use veoveo_platform_store::PlatformStore;
 
 #[tokio::main]

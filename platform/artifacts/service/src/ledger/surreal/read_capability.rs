@@ -2,7 +2,8 @@ use super::*;
 use crate::ledger::{
     ReadCapabilityAuthentication, ReadCapabilityDraft, ReadCapabilityRepository, ReadContextVersion,
 };
-use veoveo_mcp_contract::{ArtifactReadCapabilityId, ArtifactTaskId, GroupMembership, GroupRole};
+use veoveo_artifact_contract::{ArtifactReadCapabilityId, ArtifactTaskId};
+use veoveo_mcp_contract::{GroupMembership, GroupRole};
 
 impl ReadCapabilityRepository for SurrealArtifactRepository {
     async fn read_context(

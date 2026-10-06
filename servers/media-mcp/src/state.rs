@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
 };
 use veoveo_platform_store::{
@@ -125,7 +125,7 @@ impl MediaState {
         owner: &TaskOwner,
         capability: &IssuedArtifactWriteCapability,
     ) -> Result<(), StoreError> {
-        if capability.task_id != task_id.to_string() {
+        if capability.task_id.as_uuid() != task_id.as_uuid() {
             return Err(StoreError::ArtifactWriteConflict {
                 key: task_id.to_string(),
             });
@@ -178,7 +178,10 @@ impl MediaState {
                 .map_err(|_| StoreError::MissingRecord {
                 operation: "media task capability secret",
             })?,
-            task_id: snapshot.task_id.to_string(),
+            task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(snapshot.task_id.as_uuid())
+                .map_err(|_| StoreError::MissingRecord {
+                    operation: "media task capability Task identity",
+                })?,
             expires_at: context.capability_expires_at,
         };
         Ok(Some(MediaTaskContext {

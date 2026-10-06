@@ -11,7 +11,7 @@ use axum::{
 };
 use serde::Deserialize;
 use std::num::NonZeroU32;
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactUploadId, UPLOAD_PART_BYTE_LEN_HEADER, UPLOAD_PART_SHA256_HEADER,
 };
 

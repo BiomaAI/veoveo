@@ -121,8 +121,11 @@ foundational names, platform identity types, access subjects, resolved invocatio
 authority and output defaults, reference types, and provenance digests live in `veoveo-types`; consumers import
 them directly. Authentication and authorization still use the existing Principal,
 Work Context membership, and policy implementations. Domain-owned Artifact identity
-and metadata live in [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESIGN.md).
-That owner also supplies `ArtifactUri`. Artifact service interfaces and server URI
+metadata, pure capability and control DTOs, access-request progress, upload policy,
+limits and schemas live in [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESIGN.md).
+That owner also supplies `ArtifactUri`. MCP retains verified Artifact callers, read
+authority and complete gateway identity facts, the asynchronous plane interface
+and transport/policy errors. Artifact service interfaces and server URI
 conventions consume it and the foundational `ResourceScheme`; MCP does not enumerate
 producing domains. Metadata JSON keeps its published identity fields with checked
 ID/URI agreement. Other generic URI convention families still need builder adoption.

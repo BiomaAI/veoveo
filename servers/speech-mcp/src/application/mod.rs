@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::ArtifactMetadata;
-use veoveo_mcp_contract::{IssuedArtifactReadCapability, IssuedArtifactWriteCapability};
+use veoveo_artifact_contract::{IssuedArtifactReadCapability, IssuedArtifactWriteCapability};
 use veoveo_task_runtime::TaskRuntime;
 
 pub use admission::owner;

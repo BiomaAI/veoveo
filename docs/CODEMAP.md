@@ -567,15 +567,13 @@ sequences delivery.
 
 ### `mcp/contract`
 
-This crate owns types shared across services. A domain tool schema stays in its server,
-even when that server is first-party.
+This crate owns the shared MCP contract and hosted service adapter interfaces.
+Each domain owns its tool schemas and pure wire models in its library.
 
 | File | Responsibility |
 |---|---|
 | `access.rs` | artifact access levels, grants and decision composition using foundational subjects and Artifact-plane identities |
-| `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
-| `testdata/upload-notifications.json` | shared admitted alias and canonical emitted upload notification consumed by Rust and browser schema tests |
-| `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, six-state contentless notifications, errors, explicit quota policy, and checked multipart layout/manifest validation |
+| `artifact_service.rs` | verified Artifact callers and read authority, live policy and transport errors, and the async plane interface; pure wire values belong to the Artifact contract |
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
 | `docs/knowledge.rs` | docs collection declaration, typed index pages and authenticated ordinary/conditional document reads shared by hosted servers |
@@ -837,16 +835,26 @@ build and runtime assembly. Command and route modules live in `src/bin/gateway`.
 ### `platform/artifacts/contract`
 
 The domain-owned `veoveo-artifact-contract` library supplies occurrence identity,
-metadata, compliance, provenance, release state, grant/share values and byte handoffs. It depends
-on foundational identity, UUID, date/time, and serialization/schema support. The
+metadata, compliance, provenance, release state, grants, shares, capabilities,
+access-request progress and byte handoffs. It depends on foundational identity,
+UUID, date/time, and serialization/schema support. The
 [design](../platform/artifacts/contract/DESIGN.md) records the dependency-cycle reason
-for separating the plane model from its MCP adapter. `src/identity.rs` owns occurrence
-IDs; `src/access.rs` owns public grant and share values below MCP and HTTP;
-`src/uri.rs` owns typed neutral and server-presented addresses and construction;
-`src/metadata.rs` owns the public model; `src/snapshot.rs` owns checked metadata and
-read-access snapshots. `src/provenance.rs`
-maps foundational invocation attribution to Artifact's flat wire profile. Access
-evaluation and transport-facing service interfaces currently live in `mcp/contract`.
+for separating the plane model from its MCP adapter. Access evaluation and the
+transport-facing service interface live in `mcp/contract`.
+
+| File | Responsibility |
+|---|---|
+| `src/identity.rs` and `src/ledger.rs` | occurrence and distinct ledger identities, with private ledger address construction |
+| `src/access.rs` | public grant and share values below MCP and HTTP |
+| `src/uri.rs` | typed neutral and server-presented addresses and construction |
+| `src/metadata.rs` and `src/snapshot.rs` | public metadata, checked metadata and read-access snapshots |
+| `src/provenance.rs` | foundational invocation attribution mapped to Artifact's flat wire profile |
+| `src/capabilities.rs` | typed task-bound capability requests, issuance results and redacted bearer values |
+| `src/plane.rs` | control-plane and streaming wire descriptors |
+| `src/access_requests.rs` | mutable access-request progress with shared state, actor and timestamp checks |
+| `src/upload.rs` and `src/upload/policy.rs` | resumable upload identities, descriptors, receipts, notifications, errors, quotas and multipart admission |
+| `src/wire_error.rs` | input-safe scalar admission errors and adapter conversion details |
+| `testdata/upload-notifications.json` | shared admitted alias and emitted upload notification consumed by Rust and browser schema tests |
 
 ### `platform/artifacts/service`
 
@@ -1758,8 +1766,8 @@ Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness
 
 - Change foundational identity, attribution, scope names, resource references, and extension traits in
   `platform/types`; keep each domain's vocabulary in its owning library.
-- Change Artifact-plane identity and metadata in `platform/artifacts/contract`.
-- Change authentication, policy, and Artifact service interfaces in `mcp/contract`, then update the
+- Change Artifact-plane identity, metadata, capability and transfer wire values in `platform/artifacts/contract`.
+- Change authentication, policy, and the Artifact async service interface in `mcp/contract`, then update the
   platform store and every affected boundary.
 - Change persistence shape in `platform/store` with an ordered migration and matching Rust API.
 - Change durable task lifecycle and its official MCP Task surface in

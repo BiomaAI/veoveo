@@ -1,16 +1,17 @@
 #[path = "support/commands.rs"]
 mod command_support;
 mod support;
+use veoveo_artifact_contract::{
+    ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
+    IssuedArtifactReadCapability,
+};
 use veoveo_computers::{
     ComputerActor, ComputerError, ComputersStore,
     api::*,
     files::FileCapabilityRequest,
     secrets::{FileTransferAccess, FileTransferPayload},
 };
-use veoveo_mcp_contract::{
-    ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
-    IssuedArtifactReadCapability, LocalToolName,
-};
+use veoveo_mcp_contract::LocalToolName;
 use veoveo_task_runtime::{RecoveryClass, TaskRuntime};
 
 async fn setup(

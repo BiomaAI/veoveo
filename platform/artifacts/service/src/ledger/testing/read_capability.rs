@@ -1,5 +1,5 @@
 use super::*;
-use veoveo_mcp_contract::ArtifactReadCapabilityId;
+use veoveo_artifact_contract::ArtifactReadCapabilityId;
 use veoveo_types::WorkContextId;
 
 pub(super) struct CapabilityState {

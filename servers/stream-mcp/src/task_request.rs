@@ -2,7 +2,7 @@
 use crate::contract::*;
 use serde::{Deserialize, Serialize};
 use std::num::NonZeroU32;
-use veoveo_mcp_contract::{IssuedArtifactReadCapability, IssuedArtifactWriteCapability};
+use veoveo_artifact_contract::{IssuedArtifactReadCapability, IssuedArtifactWriteCapability};
 use veoveo_task_runtime::RecoveryClass;
 use veoveo_types::TaskTypeDefinition;
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -4,7 +4,8 @@ use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::Serialize;
 use serde_json::json;
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut, ComplianceMetadata};
-use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
+use veoveo_artifact_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability};
+use veoveo_mcp_contract::now_utc;
 use veoveo_optimization_mcp::{
     contract::{
         ConvexOutputPolicy, MilpOutputPolicy, OptimizationProblemResource, OptimizationSolution,

@@ -26,3 +26,14 @@ pub use metadata::{
 pub use provenance::ArtifactProvenance;
 pub use snapshot::{ArtifactMetadataSnapshot, ArtifactReadGrant, ArtifactSnapshotError};
 pub use uri::{ArtifactAddress, ArtifactUri, ArtifactUriError};
+
+mod access_requests;
+mod capabilities;
+mod plane;
+pub mod upload;
+mod wire_error;
+pub use access_requests::*;
+pub use capabilities::*;
+pub use plane::*;
+pub use upload::*;
+pub use wire_error::ArtifactWireError;

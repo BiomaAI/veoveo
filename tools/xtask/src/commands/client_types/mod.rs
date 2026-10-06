@@ -70,7 +70,7 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         (
             "artifact-transfer",
             "apps/console/web/src/generated",
-            serde_json::to_value(veoveo_mcp_contract::artifact_service::upload::schema_bundle())?,
+            serde_json::to_value(veoveo_artifact_contract::upload::schema_bundle())?,
         ),
         (
             "audit",

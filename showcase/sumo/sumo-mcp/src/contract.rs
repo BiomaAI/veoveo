@@ -203,7 +203,7 @@ pub enum DurableOperation {
 pub struct DurableTaskRequest {
     pub operation: DurableOperation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub artifact_write_capability: Option<veoveo_mcp_contract::IssuedArtifactWriteCapability>,
+    pub artifact_write_capability: Option<veoveo_artifact_contract::IssuedArtifactWriteCapability>,
     #[serde(default)]
     pub data_labels: std::collections::BTreeSet<veoveo_types::DataLabelId>,
 }

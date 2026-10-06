@@ -10,7 +10,7 @@ pub(super) async fn install_profile(store: &platform::PlatformStore) {
 
 pub(super) async fn install_profile_policy(
     store: &platform::PlatformStore,
-    upload: Option<veoveo_mcp_contract::ArtifactUploadPolicy>,
+    upload: Option<veoveo_artifact_contract::ArtifactUploadPolicy>,
 ) {
     let now = Utc::now();
     let revision = platform::RecordId::new("gateway_control_revision", "upload-fixture");

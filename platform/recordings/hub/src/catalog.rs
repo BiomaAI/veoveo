@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, NaiveDate, Utc};
-use veoveo_mcp_contract::{PutArtifactRequest, TokenIssuer, TokenSubject};
+use veoveo_artifact_contract::PutArtifactRequest;
+use veoveo_mcp_contract::{TokenIssuer, TokenSubject};
 use veoveo_platform_store::{
     InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
     RecordIdKey,

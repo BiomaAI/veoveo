@@ -8,18 +8,19 @@
 
 use base64::Engine;
 use veoveo_artifact_contract::{
+    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
+    ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    DecideArtifactAccessRequest, GrantList, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
+    PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
+    StreamArtifactRequest,
+};
+use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState, ArtifactShareLink,
     ArtifactShareLinkId, Grant,
 };
 use veoveo_mcp_contract::access::AccessDecision;
-use veoveo_mcp_contract::{
-    ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
-    ArtifactPlane, ArtifactPlaneError, ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest,
-    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
-    ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
-};
+use veoveo_mcp_contract::{ArtifactPlane, ArtifactPlaneError, PlaneCaller};
 use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;
 
@@ -477,7 +478,7 @@ impl ArtifactPlane for HttpArtifactPlane {
             .http
             .put(self.url(&format!("/artifacts/{artifact_id}/release-state")))
             .bearer_auth(&caller.bearer_token)
-            .json(&veoveo_mcp_contract::SetArtifactReleaseStateRequest { release_state })
+            .json(&veoveo_artifact_contract::SetArtifactReleaseStateRequest { release_state })
             .send()
             .await
             .map_err(transport)?;

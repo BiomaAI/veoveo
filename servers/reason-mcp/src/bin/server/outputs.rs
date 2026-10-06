@@ -4,7 +4,8 @@ use veoveo_reason_mcp::contract::{AnalysisId, ReasonArtifactMetadata, ReasonArti
 use anyhow::{Context, Result};
 use rmcp::model::CallToolResult;
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
-use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
+use veoveo_artifact_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability};
+use veoveo_mcp_contract::now_utc;
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_reason_mcp::{
     annotation::{MP4_MIME_TYPE, RESULTS_MIME_TYPE, RRD_MIME_TYPE},
@@ -213,7 +214,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::*;
-    use veoveo_mcp_contract::{MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PutArtifactRequest};
+    use veoveo_artifact_contract::{MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PutArtifactRequest};
 
     #[test]
     fn artifact_descriptors_reference_bounded_snapshot_digests() {

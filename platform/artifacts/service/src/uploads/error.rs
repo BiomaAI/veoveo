@@ -6,24 +6,24 @@ use axum::{
 };
 
 #[derive(Debug)]
-pub struct UploadFault(pub contract::UploadErrorCode);
+pub struct UploadFault(pub veoveo_artifact_contract::UploadErrorCode);
 
 impl UploadFault {
     pub(super) fn unavailable() -> Self {
-        Self(contract::UploadErrorCode::Unavailable)
+        Self(veoveo_artifact_contract::UploadErrorCode::Unavailable)
     }
 }
 
-impl From<contract::UploadErrorCode> for UploadFault {
-    fn from(code: contract::UploadErrorCode) -> Self {
+impl From<veoveo_artifact_contract::UploadErrorCode> for UploadFault {
+    fn from(code: veoveo_artifact_contract::UploadErrorCode) -> Self {
         Self(code)
     }
 }
 
 impl From<platform::StoreError> for UploadFault {
     fn from(error: platform::StoreError) -> Self {
-        use contract::UploadErrorCode as Code;
         use platform::ArtifactUploadRejection as Rejection;
+        use veoveo_artifact_contract::UploadErrorCode as Code;
         let code = match &error {
             platform::StoreError::ArtifactUpload(reason) => match reason {
                 Rejection::Conflict => Code::Conflict,
@@ -48,11 +48,11 @@ impl From<crate::store::BlobStoreError> for UploadFault {
         use crate::store::BlobStoreError;
         let code = match &error {
             BlobStoreError::TooLarge { .. } | BlobStoreError::VerificationFailed { .. } => {
-                contract::UploadErrorCode::Integrity
+                veoveo_artifact_contract::UploadErrorCode::Integrity
             }
             _ => {
                 tracing::error!(error = %error, "upload storage operation failed");
-                contract::UploadErrorCode::Unavailable
+                veoveo_artifact_contract::UploadErrorCode::Unavailable
             }
         };
         Self(code)
@@ -61,7 +61,7 @@ impl From<crate::store::BlobStoreError> for UploadFault {
 
 impl IntoResponse for UploadFault {
     fn into_response(self) -> Response {
-        use contract::UploadErrorCode::*;
+        use veoveo_artifact_contract::UploadErrorCode::*;
         let message = match self.0 {
             Malformed => "The upload request is invalid.",
             Unauthenticated => "Sign in to continue this upload.",
@@ -77,10 +77,10 @@ impl IntoResponse for UploadFault {
             Unavailable => "The upload service is temporarily unavailable.",
         };
         let retry = matches!(self.0, Busy | Unavailable);
-        let body = contract::ArtifactUploadError {
+        let body = veoveo_artifact_contract::ArtifactUploadError {
             code: self.0,
             message: message.into(),
-            request_id: contract::ArtifactUploadRequestId::new(),
+            request_id: veoveo_artifact_contract::ArtifactUploadRequestId::new(),
             required_bytes: None,
             available_bytes: None,
         };

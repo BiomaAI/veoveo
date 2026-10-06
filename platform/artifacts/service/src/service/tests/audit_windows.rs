@@ -66,13 +66,13 @@ async fn access_request_and_capability_denials_keep_requested_targets_and_caller
         repository.audit_records().last().unwrap().reason(),
         AuditReason::InsufficientAccess
     );
-    let capability = veoveo_mcp_contract::ArtifactReadCapabilityId::new();
+    let capability = veoveo_artifact_contract::ArtifactReadCapabilityId::new();
     assert!(
         service
             .head_with_read_capability(
                 capability,
                 "invalid",
-                veoveo_mcp_contract::ArtifactTaskId::new(),
+                veoveo_artifact_contract::ArtifactTaskId::new(),
                 artifact
             )
             .await

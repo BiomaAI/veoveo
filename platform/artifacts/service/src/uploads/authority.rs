@@ -5,7 +5,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 pub(super) struct Authority {
-    pub policy: contract::ArtifactUploadPolicy,
+    pub policy: veoveo_artifact_contract::ArtifactUploadPolicy,
     pub policy_digest: String,
     pub version: platform::ArtifactUploadAuthorityVersion,
     pub context: platform::WorkContextRecord,
@@ -15,7 +15,7 @@ pub(super) struct Authority {
 #[derive(Deserialize)]
 struct ProfileUploadPolicy {
     policy_version: veoveo_types::PolicyVersion,
-    artifact_upload: Option<contract::ArtifactUploadPolicy>,
+    artifact_upload: Option<veoveo_artifact_contract::ArtifactUploadPolicy>,
 }
 
 impl UploadService {
@@ -25,11 +25,11 @@ impl UploadService {
     ) -> Result<Authority, UploadFault> {
         let identity = &caller.identity;
         let actor = &identity.actor;
-        let denied = contract::UploadErrorCode::Denied;
-        if identity.server.as_str() != contract::ARTIFACT_UPLOAD_AUDIENCE
+        let denied = veoveo_artifact_contract::UploadErrorCode::Denied;
+        if identity.server.as_str() != veoveo_artifact_contract::ARTIFACT_UPLOAD_AUDIENCE
             || identity.expires_at <= Utc::now()
         {
-            return Err(contract::UploadErrorCode::Unauthenticated.into());
+            return Err(veoveo_artifact_contract::UploadErrorCode::Unauthenticated.into());
         }
         let tenant = actor.tenant.as_ref().ok_or(denied)?;
         if &identity.authority.tenant != tenant
@@ -114,7 +114,7 @@ impl UploadService {
     pub(super) async fn owned(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        id: contract::ArtifactUploadId,
+        id: veoveo_artifact_contract::ArtifactUploadId,
     ) -> Result<(Authority, platform::ArtifactUploadRecord), UploadFault> {
         // Foreign rows never enter the descriptor decoder, even when malformed.
         let identity = &caller.identity;
@@ -122,7 +122,7 @@ impl UploadService {
             .actor
             .tenant
             .as_ref()
-            .ok_or(contract::UploadErrorCode::NotFound)?;
+            .ok_or(veoveo_artifact_contract::UploadErrorCode::NotFound)?;
         let row = self
             .database
             .owned_artifact_upload(
@@ -137,7 +137,7 @@ impl UploadService {
                 },
             )
             .await?
-            .ok_or(contract::UploadErrorCode::NotFound)?;
+            .ok_or(veoveo_artifact_contract::UploadErrorCode::NotFound)?;
         let authority = self.authorize(caller).await?;
         if !matches!(
             row.state,
@@ -149,7 +149,7 @@ impl UploadService {
             || row.policy_digest != authority.policy_digest
             || Some(&row.profile_policy_digest) != authority.version.profile_policy_digest.as_ref())
         {
-            return Err(contract::UploadErrorCode::Denied.into());
+            return Err(veoveo_artifact_contract::UploadErrorCode::Denied.into());
         }
         Ok((authority, row))
     }
@@ -157,7 +157,7 @@ impl UploadService {
     pub async fn policy(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-    ) -> Result<contract::EffectiveArtifactUploadPolicy, UploadFault> {
+    ) -> Result<veoveo_artifact_contract::EffectiveArtifactUploadPolicy, UploadFault> {
         let authority = self.authorize(caller).await?;
         let usage = self
             .database
@@ -173,7 +173,7 @@ impl UploadService {
         let owner_is_actor = authority.context.output_policy.owner_kind
             == platform::ArtifactGrantSubjectKind::Principal
             && authority.context.output_policy.owner_key == caller.identity.actor.id.as_str();
-        Ok(contract::EffectiveArtifactUploadPolicy {
+        Ok(veoveo_artifact_contract::EffectiveArtifactUploadPolicy {
             allowed: true,
             explanation: "Files become governed artifacts after verification.".into(),
             actor: caller.identity.actor.id.clone(),
@@ -200,9 +200,9 @@ impl Authority {
     pub fn admission(
         &self,
         caller: &contract::VerifiedArtifactUploadIdentity,
-        request_id: contract::ArtifactUploadRequestId,
-        descriptor: contract::CreateArtifactUpload,
-        layout: &contract::UploadLayout,
+        request_id: veoveo_artifact_contract::ArtifactUploadRequestId,
+        descriptor: veoveo_artifact_contract::CreateArtifactUpload,
+        layout: &veoveo_artifact_contract::UploadLayout,
     ) -> Result<platform::ArtifactUploadRecord, UploadFault> {
         let id = uuid::Uuid::now_v7();
         let now = Utc::now();
@@ -217,7 +217,7 @@ impl Authority {
                 caller
                     .identity
                     .audit_context()
-                    .map_err(|_| contract::UploadErrorCode::Denied)?,
+                    .map_err(|_| veoveo_artifact_contract::UploadErrorCode::Denied)?,
             ),
             id: platform::upload_record_id(id),
             tenant: self.identity.tenant_id.record_id(),
@@ -239,7 +239,7 @@ impl Authority {
                 .version
                 .profile_policy_digest
                 .clone()
-                .ok_or(contract::UploadErrorCode::Denied)?,
+                .ok_or(veoveo_artifact_contract::UploadErrorCode::Denied)?,
             request_id: request_id.as_uuid(),
             descriptor: platform::ArtifactUploadDescriptor {
                 filename: descriptor.filename,

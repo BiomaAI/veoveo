@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue, Value};
 mod records;
 pub(crate) use records::{TravelModelInputRecord, TravelModelResultRecord};
-use veoveo_mcp_contract::{GatewayInternalIdentity, IssuedArtifactWriteCapability};
+use veoveo_artifact_contract::IssuedArtifactWriteCapability;
+use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_task_runtime::{
     OwnedTaskTable, TaskContribution, TaskContributions, TaskCreation, TaskError, TaskRuntime,
     TaskSettlement, TaskSnapshot,
@@ -109,9 +110,7 @@ fn identity(
         veoveo_mcp_contract::PrincipalKind::User => veoveo_task_runtime::PrincipalKind::User,
         veoveo_mcp_contract::PrincipalKind::Service => veoveo_task_runtime::PrincipalKind::Service,
     };
-    if veoveo_types::TaskId::parse(&request.artifact_write_capability.task_id)
-        .map_err(|e| TaskError::InvalidRecord(e.to_string()))?
-        != task_id
+    if request.artifact_write_capability.task_id.as_uuid() != task_id.as_uuid()
         || request.identity.server.as_str() != "map"
         || actor.id.as_str() != owner.principal_key
         || kind != owner.principal_kind

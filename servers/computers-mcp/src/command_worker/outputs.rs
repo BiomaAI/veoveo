@@ -1,10 +1,10 @@
 use super::*;
 use serde::Serialize;
-use veoveo_computers::api::ExecutionOutput;
-use veoveo_computers_runtime::{ExecChunk, OutputStream, RuntimeFailure};
-use veoveo_mcp_contract::{
+use veoveo_artifact_contract::{
     ArtifactWriteIdempotencyKey, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
 };
+use veoveo_computers::api::ExecutionOutput;
+use veoveo_computers_runtime::{ExecChunk, OutputStream, RuntimeFailure};
 
 pub(super) struct CapturedOutput {
     stdout: Vec<u8>,
@@ -81,7 +81,7 @@ impl CommandWorker {
         };
         let request = RedeemArtifactWriteCapabilityRequest {
             capability_id: capability.capability_id,
-            task_id: capability.task_id.clone(),
+            task_id: capability.task_id,
             idempotency_key: ArtifactWriteIdempotencyKey::new(stream)
                 .map_err(|_| CommandWorkerError::Configuration)?,
             artifact: PutArtifactRequest {

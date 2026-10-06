@@ -720,12 +720,13 @@ pub(crate) mod tests {
         );
         let verifier = GatewayInternalTokenVerifier::new(
             TokenIssuer::parse("veoveo-internal").unwrap(),
-            ServerSlug::parse(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+            ServerSlug::parse(veoveo_artifact_contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
             trust_bundle("key-1"),
         );
-        let binding = crate::ArtifactUploadAuthority {
-            control_plane_sha256: crate::UploadSha256::parse("a".repeat(64)).unwrap(),
-            context_digest: crate::UploadSha256::parse("b".repeat(64)).unwrap(),
+        let binding = veoveo_artifact_contract::ArtifactUploadAuthority {
+            control_plane_sha256: veoveo_artifact_contract::UploadSha256::parse("a".repeat(64))
+                .unwrap(),
+            context_digest: veoveo_artifact_contract::UploadSha256::parse("b".repeat(64)).unwrap(),
         };
         let actor = principal();
         let invocation = authority();
@@ -771,7 +772,7 @@ pub(crate) mod tests {
         let ordinary = issuer
             .issue(
                 GatewayProfileId::parse("default").unwrap(),
-                ServerSlug::parse(crate::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
+                ServerSlug::parse(veoveo_artifact_contract::ARTIFACT_UPLOAD_AUDIENCE).unwrap(),
                 principal(),
                 authority(),
                 None,

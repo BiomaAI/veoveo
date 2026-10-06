@@ -1,11 +1,11 @@
 use anyhow::{Result, anyhow};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactPut};
-use veoveo_mcp_contract::{
-    ArtifactPlane, ArtifactPlaneError, ArtifactWriteIdempotencyKey,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, PlaneCaller,
-    PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
+use veoveo_artifact_contract::{
+    ArtifactWriteIdempotencyKey, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
 };
+use veoveo_mcp_contract::{ArtifactPlane, ArtifactPlaneError, PlaneCaller};
 use veoveo_types::AccessLevel;
 
 use crate::uris::SCHEME;
@@ -61,7 +61,7 @@ impl ArtifactRepository {
     ) -> Result<ArtifactMetadata> {
         let request = RedeemArtifactWriteCapabilityRequest {
             capability_id: capability.capability_id,
-            task_id: capability.task_id.clone(),
+            task_id: capability.task_id,
             idempotency_key,
             artifact: PutArtifactRequest {
                 mime_type: artifact.mime_type,

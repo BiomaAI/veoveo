@@ -1,4 +1,4 @@
-import notificationFixture from "../../../../mcp/contract/testdata/upload-notifications.json" with { type: "json" };
+import notificationFixture from "../../../../platform/artifacts/contract/testdata/upload-notifications.json" with { type: "json" };
 import assert from "node:assert/strict";
 import test from "node:test";
 import { demoSnapshot } from "./demo.ts";

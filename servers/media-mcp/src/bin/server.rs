@@ -47,9 +47,9 @@ use rmcp::{
 use secrecy::ExposeSecret;
 use serde_json::{Value, json};
 use tokio::sync::RwLock;
+use veoveo_artifact_contract::IssueArtifactWriteCapabilityRequest;
 use veoveo_mcp_contract::{
-    GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest, SubscriptionHub,
-    TelemetryGuard,
+    GatewayInternalTrustBundle, SubscriptionHub, TelemetryGuard,
     hosting::{
         DomainAddress, DomainRead, DomainServer, Hosted, HostedServer, completion,
         rank_completions, unknown_prompt,
@@ -349,7 +349,8 @@ async fn start_media_task(
             &caller,
             &IssueArtifactWriteCapabilityRequest {
                 required_data_labels: Default::default(),
-                task_id: task_id.to_string(),
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(task_id.as_uuid())
+                    .map_err(|error| error.to_string())?,
                 expires_at: Utc::now() + TimeDelta::hours(ARTIFACT_WRITE_CAPABILITY_TTL_HOURS),
                 max_artifact_count: NonZeroU32::new(ARTIFACT_WRITE_CAPABILITY_MAX_ARTIFACTS)
                     .expect("artifact count limit is non-zero"),

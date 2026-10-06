@@ -4,14 +4,14 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
 use veoveo_artifact_contract::{
+    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
+    ArtifactAccessRequestState, ArtifactWriteCapabilityId,
+};
+use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactReleaseState, ArtifactShareLinkId, Grant,
 };
 use veoveo_mcp_contract::gateway::{
     GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
-};
-use veoveo_mcp_contract::{
-    ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
-    ArtifactAccessRequestState, ArtifactWriteCapabilityId,
 };
 use veoveo_types::InvocationAuthority;
 use veoveo_types::{AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId, WorkContextId};
@@ -125,7 +125,7 @@ pub struct WriteCapabilityDraft {
     pub authority: InvocationAuthority,
     pub profile: GatewayProfileId,
     pub server: ServerSlug,
-    pub task_id: String,
+    pub task_id: veoveo_artifact_contract::ArtifactTaskId,
     pub token_hash: String,
     pub labels: BTreeSet<DataLabelId>,
     pub max_artifact_count: u32,
@@ -137,7 +137,7 @@ pub struct WriteCapabilityDraft {
 pub struct WriteCapabilityReservation {
     pub capability_id: ArtifactWriteCapabilityId,
     pub token_hash: String,
-    pub task_id: String,
+    pub task_id: veoveo_artifact_contract::ArtifactTaskId,
     pub idempotency_key: String,
     pub request_hash: String,
     pub byte_len: u64,
@@ -154,7 +154,7 @@ pub struct RedeemedWriteCapability {
     pub labels: BTreeSet<DataLabelId>,
     pub profile: GatewayProfileId,
     pub server: ServerSlug,
-    pub task_id: String,
+    pub task_id: veoveo_artifact_contract::ArtifactTaskId,
     pub finalized: bool,
     pub request_matches: bool,
 }
@@ -325,7 +325,7 @@ pub(crate) mod testing {
         artifacts: HashMap<ArtifactId, StoredArtifact>,
         capabilities: HashMap<ArtifactWriteCapabilityId, CapabilityState>,
         read_capabilities: HashMap<
-            veoveo_mcp_contract::ArtifactReadCapabilityId,
+            veoveo_artifact_contract::ArtifactReadCapabilityId,
             read_capability::CapabilityState,
         >,
         read_contexts: HashMap<(TenantId, WorkContextId), ReadContextVersion>,
@@ -610,7 +610,7 @@ pub(crate) mod testing {
                     labels: capability.draft.labels.clone(),
                     profile: capability.draft.profile.clone(),
                     server: capability.draft.server.clone(),
-                    task_id: capability.draft.task_id.clone(),
+                    task_id: capability.draft.task_id,
                     finalized: redemption.finalized,
                     request_matches: redemption.request_hash == request_hash
                         && redemption.byte_len == byte_len,
@@ -641,7 +641,7 @@ pub(crate) mod testing {
                 labels: capability.draft.labels.clone(),
                 profile: capability.draft.profile.clone(),
                 server: capability.draft.server.clone(),
-                task_id: capability.draft.task_id.clone(),
+                task_id: capability.draft.task_id,
                 finalized: false,
                 request_matches: true,
             };
@@ -804,22 +804,27 @@ pub(crate) mod testing {
                     existing.updated_at = now;
                     existing.decided_at = None;
                 }
+                existing
+                    .validate()
+                    .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
                 return Ok(existing.clone());
             }
-            let created = ArtifactAccessRequest {
-                id: request.request_id,
-                artifact_id: request.artifact_id,
-                work_context: context,
-                requester: request.actor.principal,
-                requested_level: request.requested_level,
-                justification: request.justification,
-                state: ArtifactAccessRequestState::Pending,
-                decided_by: None,
-                decision_note: None,
-                created_at: now,
-                updated_at: now,
-                decided_at: None,
-            };
+            let created =
+                ArtifactAccessRequest::new(veoveo_artifact_contract::ArtifactAccessRequestValue {
+                    id: request.request_id,
+                    artifact_id: request.artifact_id,
+                    work_context: context,
+                    requester: request.actor.principal,
+                    requested_level: request.requested_level,
+                    justification: request.justification,
+                    state: ArtifactAccessRequestState::Pending,
+                    decided_by: None,
+                    decision_note: None,
+                    created_at: now,
+                    updated_at: now,
+                    decided_at: None,
+                })
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
             state
                 .access_requests
                 .insert(request.request_id, created.clone());
@@ -893,6 +898,9 @@ pub(crate) mod testing {
             request.decision_note = decision.note;
             request.decided_at = Some(Utc::now());
             request.updated_at = request.decided_at.expect("decision timestamp");
+            request
+                .validate()
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
             let decided = request.clone();
             if decided.state == ArtifactAccessRequestState::Approved {
                 let artifact = state
@@ -935,6 +943,9 @@ pub(crate) mod testing {
             request.decided_by = Some(cancellation.actor.principal);
             request.decided_at = Some(now);
             request.updated_at = now;
+            request
+                .validate()
+                .map_err(|error| RepositoryError::Corrupt(error.to_string()))?;
             Ok(request.clone())
         }
     }

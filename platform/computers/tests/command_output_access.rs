@@ -39,7 +39,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
         CommandStage::Queued
     );
     let request = command.output_capability_request(&keys).unwrap().unwrap();
-    assert_eq!(request.task_id, command.execution_id().to_string());
+    assert_eq!(request.task_id.as_uuid(), command.execution_id().as_uuid());
     assert_eq!(request.max_artifact_count.get(), 2);
     assert_eq!(request.max_total_bytes.get(), 1024);
     assert_eq!(

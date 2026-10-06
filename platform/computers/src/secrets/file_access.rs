@@ -6,7 +6,7 @@ use super::{
 use crate::{ComputerError, Result, api::FileTransferDirection};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{IssuedArtifactReadCapability, IssuedArtifactWriteCapability};
+use veoveo_artifact_contract::{IssuedArtifactReadCapability, IssuedArtifactWriteCapability};
 use zeroize::Zeroizing;
 
 pub(super) const MAX_FILE_ACCESS_BYTES: usize = 8192;
@@ -42,7 +42,7 @@ impl FileTransferAccess {
             }
             Self::Export { capability } => {
                 binding.direction == FileTransferDirection::Export
-                    && capability.task_id == binding.transfer_id.to_string()
+                    && capability.task_id.as_uuid() == binding.transfer_id.as_uuid()
             }
         };
         if !valid {
@@ -91,7 +91,7 @@ mod tests {
     use super::*;
     use crate::secrets::ComputerSealingKey;
     use uuid::Uuid;
-    use veoveo_mcp_contract::{
+    use veoveo_artifact_contract::{
         ArtifactReadCapabilityId, ArtifactReadCapabilitySecret, ArtifactTaskId,
     };
 
@@ -152,12 +152,15 @@ mod tests {
         assert!(keys.seal_file_access(&changed, &access).is_err());
         let write = FileTransferAccess::Export {
             capability: IssuedArtifactWriteCapability {
-                capability_id: veoveo_mcp_contract::ArtifactWriteCapabilityId::new(),
-                secret: veoveo_mcp_contract::ArtifactWriteCapabilitySecret::new(
+                capability_id: veoveo_artifact_contract::ArtifactWriteCapabilityId::new(),
+                secret: veoveo_artifact_contract::ArtifactWriteCapabilitySecret::new(
                     "private-write-capability-fixture-1234567890",
                 )
                 .unwrap(),
-                task_id: changed.transfer_id.to_string(),
+                task_id: veoveo_artifact_contract::ArtifactTaskId::try_from(
+                    changed.transfer_id.as_uuid(),
+                )
+                .unwrap(),
                 expires_at: access.expires_at(),
             },
         };

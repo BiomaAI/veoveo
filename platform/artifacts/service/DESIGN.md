@@ -153,7 +153,7 @@ profile/policy documents, so a later control change invalidates the retained gra
 ## Resumable Upload Contract
 
 The public upload contract is defined in
-`mcp/contract/src/artifact_service/upload.rs`. The typed contract
+`platform/artifacts/contract/src/upload.rs`. The typed contract
 requires an explicit installation quota and transfer policy, validates MIME admission,
 and negotiates part size within the S3 multipart profile. The `artifact_upload` gateway
 action has no MCP method. Public routes require both durable S3 storage and an
@@ -403,3 +403,27 @@ and return only the receipt to the App. Bytes stay in the host origin. The
 Artifact service native fixtures include complete statements from `tests/queries/`,
 grouped by source responsibility. Runtime test values remain bound. Store owns the
 production Artifact persistence statements and their transaction admission.
+
+## Wire Admission And Retained Task Bindings
+
+The lightweight [Artifact contract](../contract/DESIGN.md) owns public requests,
+results, upload policy/limits and intrinsic progress checks. The service authenticates
+callers and applies current tenant, context, clearance, grants and review policy.
+Its adapters convert safe scalar errors into `ArtifactPlaneError::InvalidRequest`
+without duplicating the decoder prefix or exposing secrets.
+
+Write capabilities carry `ArtifactTaskId` into contexts, reservations and repository
+APIs. The driver persists canonical UUIDv7 text. Request aliases compare by UUID
+identity; retained alias or malformed bindings are rejected without normalization.
+The coordinated installation drains retained Task capability snapshots and recreates
+capability/redemption rows before activating this writer profile. This cut requires
+the RFC variant for writes, matching the existing Artifact Task owner admission.
+Current-format restart and idempotent redemption keep their fences and byte/count
+budgets. Request hashes, secret hashes and blob hashes preserve their preimages.
+
+Mutable access progress validates state, actor and times at construction, decoding,
+hydration and after completed mutations. Pending create/reopen has equal creation
+and update times without decision fields. Approved and Denied decisions record an
+actor and equal decision/update times at or after creation. Empty optional decision
+notes remain admitted. Cancellation records the requester as actor and no note.
+The service still establishes who may decide, cancel or reopen a request.
