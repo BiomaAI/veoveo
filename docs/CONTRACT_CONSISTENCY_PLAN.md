@@ -2074,12 +2074,22 @@ status; profiles cannot silently inherit `met`. `not_applicable` is admitted onl
 for a catalog-defined condition, and conformance compares that condition with
 discovery. A server declaring Knowledge cannot use it to bypass C32.
 
+Each owner authors `contract-compliance.json` beside its documents. Rust, Python and
+Node decode that file into checked models; they do not maintain independent status
+lists. The catalog has its own revision, initially 1, separate from hosted contract
+revision 3. Profiles and served declarations bind both revisions. Adding C33 advances
+the catalog revision, and consumers reject unsupported revisions.
+
 The contract resource and the marked compliance section in each owner's manual
 derive from that profile. Generate the checked-in manual before embedding it, and
 check for stale output. The embedded bytes and their content digest stay identical
 to the served document; runtime rendering does not replace `embedded_document!`.
-Python and Node profiles validate against a revision-bound generated catalog, with
-unsupported revisions rejected. The permissive Markdown parser stops being the
+Rust setup and Python/Node loading compare the marked manual section with the
+profile's deterministic rendering. A matching document digest cannot admit a stale
+profile. Python and Node package the generated catalog and owner profile for offline
+loading. Python's isolated Hatch hook and runtime share one stdlib-only admission
+module, without importing the runtime dependency graph into the build hook.
+Unsupported revisions reject. The permissive Markdown parser stops being the
 source of declaration authority.
 
 Checklist IDs and runtime check IDs identify different things. Preserve the current
@@ -2087,8 +2097,13 @@ Checklist IDs and runtime check IDs identify different things. Preserve the curr
 its K-series checks. A declared `met` status and a report containing skipped checks
 do not establish runtime qualification. Acceptance covers complete-profile rejection,
 C32 applicability, language parity, generated-section and embedded-digest agreement,
-and onboarding the independent server without a new core registry entry. C33 joins
-the catalog with the implemented naming cut in phase 8.
+and onboarding the independent server without a new core registry entry. C32
+applicability is checked against Discover in both directions. Checked Rust setup
+already adopts docs Knowledge, so its template keeps C32 applicable with a pending
+qualification reason. Complete the independent fixture's partial declaration with
+explicit pending entries rather than an implicit `met` baseline. SUMO needs its
+missing adjacent documents and authenticated well-known surface; profile generation
+does not establish C18–C21. C33 joins the catalog with the naming cut in phase 8.
 
 The scenario descriptor/result contract identifies hardware, network, credentials,
 billed operations, timeouts and cleanup. Keep assertions in one harness. Reuse
