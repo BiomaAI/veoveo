@@ -61,7 +61,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 9 — Conformance and enforcement | The typed catalog, complete profiles and generated declarations pass independent Rust, Python and Node checks across 22 owners | Complete the protected shared-host fixture gate, then finish generic conformance and component/scenario discovery |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
-The latest completed source batch qualifies Knowledge's optional-Agent authority and
+Qualified source batches cover Knowledge's optional-Agent authority and
 module prerequisites, Media cancellation receipts and Task cleanup, Recording
 completion admission, and the expanded input matrix. These checkpoints do not close
 all required rows in phases 1–4 or qualify the installation cut.
@@ -112,6 +112,7 @@ The current source checkpoints are:
 | Embedding profiles and Knowledge producer/search fences | `89cf4f9d2` |
 | Map repository, product and selected-record admission | `9e0318410` |
 | Recorded video, Stream, Reason and Timeseries relationships | `09540a03d` |
+| Artifact wire ownership, Task bindings and access-progress admission | `6bdcbb919` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
@@ -132,8 +133,24 @@ cases, strict all-target lint over twelve packages, five isolated owner contract
 and both independent consumer profiles. The generated Apps pass 23 cases and their
 type checks and builds; Reason's private protocol passes 21 Python cases. Formatting
 and generation checks pass. These checkpoints preserve the pending catalog batch.
-Installed and hardware conditions stay open. Artifact wire ownership and typed
-capability references in F25 and F27 are the next source batch.
+Installed and hardware conditions stay open. The Artifact source pass in F25 and
+the Rust portion of F27 moves pure wire values to its existing lightweight
+contract and carries typed Task identities through callers and database drivers.
+It adds shared access-progress admission and controls for raw UUID aliases and
+retained binding corruption. Independent review accepts the completed source.
+The affected graph passes 223 native cases, all-target compilation and strict lint
+over 28 packages. The isolated Artifact contract and both independent consumer
+profiles pass. Generated outputs are unchanged; Console and Workspace tests and
+builds pass, alongside Console lint. The Artifact owner's normal dependencies
+exclude MCP and runtime adapters. SDK metadata and address admission in F27 and
+F68 stay open. Computers provider workers, Speech GPU execution, external byte
+stores and installed consumers remain separate unqualified gates.
+
+The resource-listener audit selects Speech's duplicate Task-to-transcript loop for
+the next source batch. Stream and Reason already use the shared Task watch. Other
+owners also observe domain mutations, grants, usage or live runtime state; those
+sources keep their current delivery semantics. F62 still requires the Speech
+migration and affected consumer qualification.
 
 The cluster stays stopped during these local batches. The
 [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
@@ -2405,7 +2422,7 @@ reason rather than growing an unbounded generic typing task.
 | F59 | UAV contract | Check adapter reply parents and accepted/rejected semantics before notifications/startup continuation; share world digest/frame and portable state/child admission with Python producers; qualify installed GPU consumers and recovery |
 | F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
 | F61 | Reason | Qualify installed delivery, restart recovery and GPU behavior with source-qualified full results, visible summary/provenance relationships and owner-derived summaries |
-| F62 | Task-backed resource notifications | Adopt for other Task-backed domains while preserving their additional admission policy; qualify remaining domain consumers and coordinated replacement |
+| F62 | Task-backed resource notifications | Reuse the Stream/Reason shared Task watch; replace Speech's duplicate Task-to-transcript listener with that watch while preserving Speech authorization. Audit other Task-backed domains, retain independent domain-change sources and qualify remaining consumers and coordinated replacement. |
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
