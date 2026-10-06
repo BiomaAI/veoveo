@@ -72,3 +72,14 @@ The policy fixture compares selection with concrete `ResourcesRead` decisions ac
 scheme, prefix and template exposure, principal requirements and deny rules. Extending
 resource rules with URI-specific predicates requires extending this API and its parity
 cases in the same change. It cannot silently approximate a stronger rule.
+
+## Internal Client Authority Port
+
+`internal_clients` declares an object-safe current-authority resolver and typed
+membership/tool result. The pure evaluator keeps no Store or Agent dependency.
+The static implementation evaluates installed registration against the current
+profile and rejects managed attribution. A composition selects it only when the
+admitted plan excludes Agents. Agent adapters check live registration and collision
+before selecting static or managed authority and declare the owner tables that wake
+subscribers. Callers authenticate assertions, validate identity/control freshness,
+and repeat resolution before delivery. Resolver results grant no cached lease.

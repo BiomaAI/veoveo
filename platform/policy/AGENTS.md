@@ -8,3 +8,7 @@ freshness before they can treat an Allow decision as action authority.
 Preserve one evaluator for gateway and background workers. Add policy cases to the
 owning fixture suite whenever a rule changes. Do not import gateway, agent runtime,
 provider SDKs or analytics to evaluate an action.
+
+`internal_clients` declares typed current-authority and owner observation ports.
+Its static resolver may evaluate immutable catalog input; persistence adapters live
+with the owner. Keep Store and Agents out of normal/build Policy dependencies.

@@ -104,7 +104,7 @@ impl ManagedOAuthClientResolver {
         id: &OAuthClientId,
     ) -> Result<Option<ResolvedClient>> {
         let managed = AgentRepository::new(self.platform.clone())
-            .managed_agent_registration(id.as_str())
+            .managed_agent_registration(id)
             .await?;
         let installed = catalog.oauth_client(id);
         ensure!(

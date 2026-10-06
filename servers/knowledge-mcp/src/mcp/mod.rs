@@ -27,6 +27,8 @@ use veoveo_platform_store::PlatformStore;
 
 pub struct KnowledgeMcp<E> {
     pub(crate) store: PlatformStore,
+    pub(crate) client_authority:
+        Arc<dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver>,
     pub(crate) catalog_registry: veoveo_gateway_contract::CatalogRegistry,
     pub(crate) embeddings: Arc<E>,
     changes: tokio::sync::watch::Sender<Option<veoveo_platform_store::ResourceInvalidation>>,
@@ -36,6 +38,7 @@ impl<E> Clone for KnowledgeMcp<E> {
     fn clone(&self) -> Self {
         Self {
             store: self.store.clone(),
+            client_authority: self.client_authority.clone(),
             catalog_registry: self.catalog_registry.clone(),
             embeddings: self.embeddings.clone(),
             changes: self.changes.clone(),
@@ -48,10 +51,12 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         store: PlatformStore,
         embeddings: Arc<E>,
         catalog_registry: veoveo_gateway_contract::CatalogRegistry,
+        client_authority: Arc<dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver>,
     ) -> Self {
         Self {
             store,
             catalog_registry,
+            client_authority,
             embeddings,
             changes: tokio::sync::watch::channel(None).0,
             tool_router: Arc::new(Self::declared_tool_router()),
@@ -68,6 +73,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         let authority = authorize(
             &self.store,
             &self.catalog_registry,
+            self.client_authority.as_ref(),
             &identity,
             scope,
             action,
@@ -102,10 +108,15 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         } else {
             KnowledgeScope::Embed
         };
-        let authority =
-            crate::authority::authenticate(&self.store, &self.catalog_registry, &identity, scope)
-                .await
-                .map_err(error)?;
+        let authority = crate::authority::authenticate(
+            &self.store,
+            &self.catalog_registry,
+            self.client_authority.as_ref(),
+            &identity,
+            scope,
+        )
+        .await
+        .map_err(error)?;
         let tools = tools
             .into_iter()
             .filter(|tool| {
@@ -135,6 +146,7 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         let authority = crate::authority::authenticate(
             &self.store,
             &self.catalog_registry,
+            self.client_authority.as_ref(),
             &identity,
             KnowledgeScope::Read,
         )
@@ -168,6 +180,7 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         let authority = crate::authority::authenticate(
             &self.store,
             &self.catalog_registry,
+            self.client_authority.as_ref(),
             &identity,
             KnowledgeScope::Read,
         )
@@ -200,6 +213,7 @@ impl<E: Embeddings + 'static> DomainServer for KnowledgeMcp<E> {
         authorize(
             &self.store,
             &self.catalog_registry,
+            self.client_authority.as_ref(),
             identity,
             KnowledgeScope::Read,
             GatewayAction::ResourcesRead,

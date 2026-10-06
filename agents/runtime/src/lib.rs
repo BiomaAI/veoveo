@@ -89,3 +89,6 @@ pub use observation::AgentObservationTable;
 
 #[cfg(feature = "persistence")]
 pub mod persistence;
+
+#[cfg(feature = "internal-clients")]
+pub mod internal_clients;

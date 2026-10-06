@@ -58,6 +58,10 @@ pub(crate) enum Operation {
         preparation: Option<PreparationKey>,
     },
     History,
+    Prerequisites {
+        modules: Vec<String>,
+        key: PreparationKey,
+    },
 }
 #[derive(Debug)]
 pub(crate) enum Output {
@@ -245,14 +249,40 @@ pub(crate) async fn execute<C: Connection>(
                     .and_then(|response| response.check())
                     .map_err(|_| failure("migration history transaction failed", None))?;
                 }
-                Operation::History => {
-                    let mut response = wait(
-                        &mut receiver,
-                        limits.operation_timeout,
-                        transaction.query(include_str!("../../../queries/history.surql")),
-                    )
-                    .await?
-                    .map_err(|_| failure("history transaction failed", None))?;
+                Operation::History | Operation::Prerequisites { .. } => {
+                    if let Operation::Prerequisites { key, .. } = &operation {
+                        let mut response = wait(
+                            &mut receiver,
+                            limits.operation_timeout,
+                            transaction
+                                .query(include_str!("../../../queries/preparation_read.surql"))
+                                .bind(("record", record_id())),
+                        )
+                        .await?
+                        .map_err(|_| failure("runtime preparation inspection failed", None))?;
+                        let record: Option<PreparationRecord> = response
+                            .take(0)
+                            .map_err(|_| failure("invalid runtime preparation marker", None))?;
+                        let record = record.ok_or_else(|| {
+                            failure("runtime installation preparation is absent", None)
+                        })?;
+                        record.check_advance(key)?;
+                        if !record.matches(key) || !record.complete {
+                            return Err(failure(
+                                "runtime installation preparation is incomplete",
+                                None,
+                            ));
+                        }
+                    }
+                    let query = match &operation {
+                        Operation::Prerequisites { modules, .. } => transaction
+                            .query(include_str!("../../../queries/prerequisite_history.surql"))
+                            .bind(("modules", modules.clone())),
+                        _ => transaction.query(include_str!("../../../queries/history.surql")),
+                    };
+                    let mut response = wait(&mut receiver, limits.operation_timeout, query)
+                        .await?
+                        .map_err(|_| failure("history transaction failed", None))?;
                     let headers = response
                         .take(0)
                         .map_err(|_| failure("invalid lane history", None))?;
@@ -265,12 +295,22 @@ pub(crate) async fn execute<C: Connection>(
             Ok(Output::Written)
         }
         .await;
-        if result.is_err() || matches!(operation, Operation::History) || receiver.try_recv().is_ok()
+        if result.is_err()
+            || matches!(
+                operation,
+                Operation::History | Operation::Prerequisites { .. }
+            )
+            || receiver.try_recv().is_ok()
         {
             tokio::time::timeout(limits.cancel_timeout, transaction.cancel()).await
                 .map_err(|_| failure("transaction cancel timed out; database session cleanup required", None))?
                 .map_err(|_| failure("transaction cancel could not be confirmed; database session cleanup required", None))?;
-            if result.is_ok() && !matches!(operation, Operation::History) {
+            if result.is_ok()
+                && !matches!(
+                    operation,
+                    Operation::History | Operation::Prerequisites { .. }
+                )
+            {
                 return Err(TransactionError::observe(failure(
                     "transaction cancelled before commit",
                     None,

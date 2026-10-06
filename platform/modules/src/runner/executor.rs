@@ -112,7 +112,7 @@ fn failure(operation: &str, module: Option<&ModuleName>) -> RunnerError {
 }
 
 impl PreparedInstallation<'_> {
-    fn validate_history(
+    pub(super) fn validate_history(
         &self,
         headers: &[Header],
         applied: &[Applied],
@@ -484,7 +484,7 @@ struct TableInfo {
     indexes: BTreeMap<String, String>,
     events: BTreeMap<String, String>,
 }
-async fn infrastructure_state<C: Connection>(
+pub(super) async fn infrastructure_state<C: Connection>(
     db: &Surreal<C>,
     limits: ExecutionLimits,
 ) -> Result<bool, RunnerError> {

@@ -22,8 +22,9 @@ impl ManagedKernel {
     /// The manager injects the generation and approved connection. The authoring
     /// API accepts neither environment variables nor provider destinations.
     pub async fn load(store: &PlatformStore, manifest: &mut AgentManifest) -> Result<Option<Self>> {
+        let client = veoveo_types::OAuthClientId::parse(&manifest.gateway.client_id)?;
         let registration = AgentRepository::new(store.clone())
-            .managed_agent_registration(&manifest.gateway.client_id)
+            .managed_agent_registration(&client)
             .await?;
         let generation = std::env::var("VEOVEO_MANAGED_GENERATION").ok();
         let Some(registration) = registration else {

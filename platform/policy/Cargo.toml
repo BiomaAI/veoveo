@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-modules = { workspace = true, default-features = false }
 veoveo-gateway-contract.workspace = true
 veoveo-types.workspace = true
 anyhow.workspace = true
@@ -14,6 +15,7 @@ serde_json.workspace = true
 veoveo-mcp-contract.workspace = true
 
 [dev-dependencies]
+veoveo-audit-contract.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-computers-contract.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime", default-features = false, features = ["contract"] }

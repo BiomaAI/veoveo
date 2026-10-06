@@ -80,23 +80,8 @@ pub(super) fn preparation_key(
     args: &PlanArgs,
     plan: &ModulePlanDocument,
 ) -> anyhow::Result<veoveo_modules::PreparationKey> {
-    use sha2::{Digest, Sha256};
-    let mut hash = Sha256::new();
-    for bytes in [
-        b"veoveo.ai/installation-preparation/v1".as_slice(),
-        serde_json::to_vec(plan)?.as_slice(),
-        args.runtime_username.as_bytes(),
-    ] {
-        hash.update((bytes.len() as u64).to_be_bytes());
-        hash.update(bytes);
-    }
-    let digest: String = hash
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    Ok(veoveo_modules::PreparationKey::new(
-        plan.generation(),
-        digest,
+    Ok(veoveo_modules::preparation_key(
+        plan,
+        &args.runtime_username,
     )?)
 }

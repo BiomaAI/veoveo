@@ -221,7 +221,7 @@ designs above.
 | `platform/artifacts/contract/src/ledger.rs` | Artifact access-request and capability IDs and the shared private ledger address builder |
 | `platform/gateway/src/audit.rs` | typed request attribution and conversion of gateway policy targets to audit records |
 | `platform/policy/src/resource_policy.rs` | typed resource/template ownership and shared lexical exposure checks |
-| `platform/policy/` | shared policy evaluator, immutable catalog view and session-family predicate; callers own authentication, store reads and freshness |
+| `platform/policy/` | shared policy evaluator, immutable catalog view and session-family predicate; `src/internal_clients.rs` declares typed current-client resolver and owner observation ports |
 | `platform/computers/src/computer_access/` and `queries/admitted_computers.surql` | private read permits, current-authority rechecks and SQL selection before public Computer page limits |
 | `platform/computers/src/authority.rs` | verified identity for operation admission and the source context that execution policy checks |
 | `platform/computers/src/audit.rs` and `audit/` | typed Computer lifecycle, access, execution and maintenance records bound into domain transactions |
@@ -426,7 +426,9 @@ changefeed replay capability without database dependencies. Optional owners expo
 their table vocabularies through schema features; Store consumes these declarations.
 The optional `src/plan.rs` serialization surface describes
 the selected composition, execution commands and runtime bindings without enumerating
-owners. `src/runner/` contains the optional parser adapter, prepared SQL admission,
+owners. `src/runner/readiness.rs` exposes the read-only compiled prerequisite closure;
+`src/plan.rs::preparation_key` shares the full-plan and runtime-username identity.
+`src/runner/` contains the optional parser adapter, prepared SQL admission,
 native transaction executor and installation preparation fence. Kernel declarations
 live under `platform/store/src/schema/`; optional owners expose `schema::module_setup`. The
 [independent schema consumer](../testing/fixtures/module-schema-consumer/README.md)
@@ -934,6 +936,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
+| `servers/knowledge-mcp/src/composition.rs` | selects the explicit static or Agent-owned authority adapter from admitted plan lanes after read-only Modules prerequisite validation |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
 | `servers/speech-mcp/src/dictation/audit.rs` | private dictation open, denial and terminal counts with verified request attribution |
 | `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
@@ -1255,10 +1258,10 @@ Media-specific ownership:
 | `servers/media-mcp/src/webhook/binding.rs` | private per-dispatch callback credential derivation and verification against the retained digest |
 | `servers/media-mcp/src/reads/` | SQL selection of usage, prediction and retained generation result resources under current Task owner and parent-record checks |
 | `servers/media-mcp/src/task_results.rs` | Media-owned current MCP completion handoff and authorization/parent checks for Task reads and subscriptions |
+| `servers/media-mcp/src/state/cancellation.rs` | typed cancellation receipt encoding preserves JSON timestamps and provider outcomes at the domain-neutral Tasks journal handoff |
 | `servers/media-mcp/src/state/usage.rs` | ledger writes, retention and paged SQL billing recovery |
 | `servers/media-mcp/src/bin/server/setup.rs` | checked MCP startup, fixed discovery and typed resource templates |
 | `servers/media-mcp/src/bin/server/resources.rs` and `subscriptions.rs` | owner resource dispatch and SQL-backed subscription admission |
-| `servers/media-mcp/src/state/cancellation.rs` | typed cancellation receipt encoding preserves JSON timestamps and provider outcomes at the domain-neutral Tasks journal handoff |
 | `servers/media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |
 | `servers/media-mcp/src/webhook.rs` | signature parsing and constant-time verification |
 | `servers/media-mcp/src/bin/server/generation_task.rs` | durable submission/WebhookWait/terminal flow |
@@ -1582,6 +1585,7 @@ SurrealDB-backed agent, episode, task watcher, wake, lease, and scheduling persi
 | `src/contract/authoring/` | definition and instance DTOs, model connections, templates, typed installation/caller facts and configuration digests; generates the browser authoring schema |
 | `src/contract/control.rs` | operator-message, input-request decision, wake-receipt and conversation DTOs; generates the browser agent-control schema |
 | `src/catalog.rs` | separately gated adapter that validates a control-plane revision against its supplied registry and projects installation and caller facts; Manager consumes it without the gateway runtime |
+| `src/internal_clients.rs` | separately gated managed internal-client authority resolver, current registration and attribution checks, and Agent-owned observation declarations supplied through Policy |
 | `src/persistence/envelopes.rs` | owner wake variants, retained deferred-tool descriptors and task-delivery outcomes; tool outputs and backend reconstruction data keep their open JSON shape |
 | `src/persistence/instances/runtime_bindings.rs` | strict native decoding of managed readiness and episode generation bindings, including parent record kinds |
 | `control.rs` | database-authenticated operator messages and input-request decisions scoped to their tenant and Work Context, with UUIDv7 idempotency, wakes, actor attribution, and a domain-neutral conversation view over wakes and episodes |

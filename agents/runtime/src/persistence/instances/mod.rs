@@ -12,6 +12,24 @@ use super::{AgentCatalogAuthority, AgentManagementError, Result, agent_definitio
 use crate::persistence::AgentRepository;
 use veoveo_platform_store::deterministic_principal_id;
 
+#[derive(Clone)]
+struct OAuthClientBinding(veoveo_types::OAuthClientId);
+impl SurrealValue for OAuthClientBinding {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::String
+    }
+    fn into_value(self) -> surrealdb::types::Value {
+        self.0.to_string().into_value()
+    }
+    fn from_value(
+        value: surrealdb::types::Value,
+    ) -> std::result::Result<Self, surrealdb::types::Error> {
+        veoveo_types::OAuthClientId::parse(String::from_value(value)?)
+            .map(Self)
+            .map_err(|_| surrealdb::types::Error::internal("invalid OAuth client binding".into()))
+    }
+}
+
 pub fn managed_agent_record(tenant: &RecordId, key: &str) -> Result<RecordId> {
     super::validation::key(key)?;
     Ok(RecordId::new(
@@ -103,10 +121,10 @@ impl AgentRepository {
 
     pub async fn managed_agent_registration(
         &self,
-        client_id: &str,
+        client_id: &veoveo_types::OAuthClientId,
     ) -> Result<Option<ManagedAgentRegistration>> {
         self.managed_query(
-            client_id.to_owned(),
+            OAuthClientBinding(client_id.clone()),
             include_str!("../queries/instances/mod/managed_agent_registration.surql"),
         )
         .await

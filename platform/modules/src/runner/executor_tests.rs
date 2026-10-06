@@ -749,3 +749,181 @@ async fn native_private_function_effects_share_the_caller_transaction() {
         }
     }).await.expect("native private function transaction exceeded 120 seconds");
 }
+
+fn runtime_plan(catalog: &ModuleRegistry, enabled: Vec<ModuleName>) -> ModulePlanDocument {
+    ModulePlanDocument::generate(
+        catalog,
+        &ModuleSelectionDocument::new(
+            enabled,
+            "1".parse().unwrap(),
+            CredentialRevision::new("fixture-v1").unwrap(),
+        )
+        .unwrap(),
+        CompositionIdentity::new(format!("sha256:{}", "a".repeat(64))).unwrap(),
+        vec![],
+    )
+    .unwrap()
+}
+#[test]
+fn runtime_prerequisites_match_only_the_required_compiled_closure() {
+    let catalog = registry(
+        vec![migration(0, "base", BASE, vec![])],
+        vec![migration(0, "feature", FEATURE, vec![])],
+    );
+    let selected = runtime_plan(&catalog, vec![name("feature")]);
+    assert!(
+        crate::runner::RuntimePrerequisites::new(&catalog, &selected, &[name("store")]).is_ok()
+    );
+    assert!(
+        crate::runner::RuntimePrerequisites::new(&catalog, &selected, &[name("feature")]).is_ok()
+    );
+    assert!(
+        crate::runner::RuntimePrerequisites::new(&catalog, &selected, &[name("unknown")]).is_err()
+    );
+    assert!(crate::runner::RuntimePrerequisites::new(&catalog, &selected, &[]).is_err());
+    let dependency_drift = ModuleRegistry::new(vec![
+        catalog.module(&name("store")).unwrap().clone(),
+        module(
+            "feature",
+            "fixture_optional",
+            ModuleLayer::Optional,
+            vec![migration(0, "feature", FEATURE, vec![])],
+            vec![LaneRequirement::AtLeast {
+                module: name("store"),
+                version: MigrationVersion::new(0),
+            }],
+        ),
+    ])
+    .unwrap();
+    assert!(
+        crate::runner::RuntimePrerequisites::new(&dependency_drift, &selected, &[name("feature")])
+            .is_err()
+    );
+    let kernels = runtime_plan(&catalog, vec![]);
+    assert!(
+        crate::runner::RuntimePrerequisites::new(&catalog, &kernels, &[name("feature")]).is_err()
+    );
+    let mut document = serde_json::to_value(&selected).unwrap();
+    document["lanes"][0]["laneSha256"] = serde_json::json!(format!("sha256:{}", "b".repeat(64)));
+    let drift = serde_json::from_value(document).unwrap();
+    assert!(
+        crate::runner::RuntimePrerequisites::new(&catalog, &drift, &[name("feature")]).is_err()
+    );
+    assert_ne!(
+        crate::preparation_key(&selected, "runtime-a").unwrap(),
+        crate::preparation_key(&selected, "runtime-b").unwrap()
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires locally available pinned SurrealDB fixture"]
+async fn native_runtime_prerequisites_require_preparation_and_scoped_complete_histories() {
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let (_fixture, a, _) = fixture().await;
+        let catalog = registry(
+            vec![migration(0, "base", BASE, vec![])],
+            vec![migration(
+                0,
+                "feature",
+                FEATURE,
+                vec![LaneRequirement::Satisfied(name("store"))],
+            )],
+        );
+        let selected = runtime_plan(&catalog, vec![name("feature")]);
+        let key = crate::preparation_key(&selected, "fixture-runtime").unwrap();
+        let readiness =
+            crate::runner::RuntimePrerequisites::new(&catalog, &selected, &[name("store")])
+                .unwrap();
+        let prepared = prepare(catalog.select(vec![name("feature")]).unwrap()).unwrap();
+        prepared.initialize(&a).await.unwrap();
+        assert!(
+            readiness
+                .require(&a, &key, Default::default())
+                .await
+                .is_err(),
+            "absent preparation"
+        );
+        prepared.claim_preparation(&a, &key).await.unwrap();
+        assert!(
+            readiness
+                .require(&a, &key, Default::default())
+                .await
+                .is_err(),
+            "partial preparation"
+        );
+        prepared
+            .complete_preparation(
+                &a,
+                &key,
+                crate::runner::DatabaseEditorCredentials::new(
+                    "fixture-runtime",
+                    "fixture-password",
+                )
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            readiness
+                .require(&a, &key, Default::default())
+                .await
+                .is_err(),
+            "missing required lane histories"
+        );
+        prepared.apply(&a).await.unwrap();
+        readiness
+            .require(&a, &key, Default::default())
+            .await
+            .unwrap();
+        let wrong = crate::preparation_key(&selected, "different-runtime").unwrap();
+        assert!(
+            readiness
+                .require(&a, &wrong, Default::default())
+                .await
+                .is_err()
+        );
+        // Full status keeps rejecting unknown histories; the runtime port is explicitly scoped.
+        let partial =
+            ModuleRegistry::new(vec![catalog.module(&name("store")).unwrap().clone()]).unwrap();
+        assert!(
+            prepare(partial.select(vec![]).unwrap())
+                .unwrap()
+                .status(&a)
+                .await
+                .is_err()
+        );
+        a.query(include_str!(
+            "../../queries/tests/executor/runtime_history_drift.surql"
+        ))
+        .bind(("module", "feature".to_owned()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+        readiness
+            .require(&a, &key, Default::default())
+            .await
+            .unwrap();
+        assert!(
+            prepared.status(&a).await.is_err(),
+            "full registry still checks unrelated history"
+        );
+        a.query(include_str!(
+            "../../queries/tests/executor/runtime_history_drift.surql"
+        ))
+        .bind(("module", "store".to_owned()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+        assert!(
+            readiness
+                .require(&a, &key, Default::default())
+                .await
+                .is_err(),
+            "required checksum drift"
+        );
+    })
+    .await
+    .expect("runtime prerequisite fixture exceeded 120 seconds");
+}

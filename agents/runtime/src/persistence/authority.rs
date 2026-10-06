@@ -8,6 +8,11 @@ impl AgentRepository {
         context_key: &str,
         oauth_client: &str,
     ) -> Result<Option<InvocationAuthorityRecord>, StoreError> {
+        let admitted_client = veoveo_types::OAuthClientId::parse(oauth_client).map_err(|_| {
+            StoreError::AdministrationFailed {
+                operation: "managed authority client admission",
+            }
+        })?;
         let tenant_id = deterministic_tenant_id(tenant_key)?;
         let Some(context) = self
             .store
@@ -17,7 +22,7 @@ impl AgentRepository {
             return Ok(None);
         };
         if let Some(managed) = self
-            .managed_agent_registration(oauth_client)
+            .managed_agent_registration(&admitted_client)
             .await
             .map_err(|_| StoreError::AdministrationFailed {
                 operation: "managed authority resolution",

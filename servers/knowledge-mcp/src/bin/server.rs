@@ -14,6 +14,16 @@ use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 struct Args {
     #[arg(long, default_value_t = 8800)]
     port: u16,
+    #[arg(long = "module-plan", env = "VEOVEO_MODULE_PLAN")]
+    module_plan: PathBuf,
+    #[arg(long, env = "VEOVEO_MODULE_COMPOSITION")]
+    module_composition: veoveo_modules::CompositionIdentity,
+    #[arg(long, env = "VEOVEO_INSTALLATION_GENERATION")]
+    installation_generation: veoveo_modules::InstallationGeneration,
+    #[arg(long, env = "VEOVEO_CREDENTIAL_REVISION")]
+    credential_revision: veoveo_modules::CredentialRevision,
+    #[arg(long, env = "VEOVEO_SURREAL_RUNTIME_USERNAME")]
+    surreal_runtime_username: String,
     #[arg(long, env = "PUBLIC_BASE_URL")]
     public_base_url: String,
     #[arg(long = "allowed-host")]
@@ -58,6 +68,16 @@ async fn main() -> anyhow::Result<()> {
         )
         .build()?,
     )
+    .await?;
+    let plan = serde_json::from_slice(&tokio::fs::read(&args.module_plan).await?)?;
+    let client_authority = veoveo_knowledge_mcp::composition::RuntimeInstallation {
+        plan: &plan,
+        composition: &args.module_composition,
+        generation: args.installation_generation,
+        credential_revision: &args.credential_revision,
+        runtime_username: &args.surreal_runtime_username,
+    }
+    .authority(&store)
     .await?;
     let space = serde_json::from_slice(&tokio::fs::read(&args.embedding_space_file).await?)?;
     let embeddings = Arc::new(
@@ -112,7 +132,12 @@ async fn main() -> anyhow::Result<()> {
     }
     let readiness = IndexingReadiness::new(states)?;
     let server = veoveo_knowledge_mcp::host::server(
-        veoveo_knowledge_mcp::mcp::KnowledgeMcp::new(store, embeddings, catalog_registry),
+        veoveo_knowledge_mcp::mcp::KnowledgeMcp::new(
+            store,
+            embeddings,
+            catalog_registry,
+            client_authority,
+        ),
         &deployment,
         args.allow_loopback_hosts,
         args.allowed_hosts,

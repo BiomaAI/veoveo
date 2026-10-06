@@ -127,6 +127,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
         let current = authorize(
             &self.store,
             &self.catalog_registry,
+            self.client_authority.as_ref(),
             &identity,
             KnowledgeScope::Read,
             GatewayAction::CompletionComplete,

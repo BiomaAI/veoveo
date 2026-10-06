@@ -8,6 +8,7 @@ name = "veoveo_agent_runtime"
 path = "src/lib.rs"
 
 [features]
+internal-clients = ["persistence", "dep:veoveo-policy"]
 contract = ["dep:veoveo-gateway-contract", "dep:veoveo-types", "dep:serde", "dep:serde_json", "dep:schemars", "dep:chrono", "dep:uuid", "dep:sha2", "dep:hex", "dep:url", "dep:anyhow"]
 catalog = ["contract", "dep:veoveo-mcp-contract"]
 gateway = ["dep:veoveo-http", "runtime", "catalog", "dep:veoveo-mcp-gateway", "dep:anyhow", "dep:jsonwebtoken", "dep:veoveo-types", "dep:axum", "dep:parking_lot", "dep:reqwest", "dep:rmcp", "dep:secrecy", "dep:sha2", "dep:hex", "dep:tokio-util", "dep:tower-http", "dep:tracing", "dep:url"]
@@ -34,6 +35,7 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-policy = { path = "../../platform/policy", optional = true }
 veoveo-http = { workspace = true, optional = true }
 veoveo-gateway-contract = { workspace = true, optional = true }
 schemars = { workspace = true, features = ["chrono04", "uuid1"], optional = true }

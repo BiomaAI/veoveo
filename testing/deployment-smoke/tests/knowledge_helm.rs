@@ -95,7 +95,31 @@ fn deployment_uses_private_credentials_shared_gpu_and_independent_liveness() -> 
     ensure!(key.get("value").is_none());
     ensure!(key["valueFrom"]["secretKeyRef"] == json!({"name":"veoveo-embedding","key":"api-key"}));
     let volumes = pod["volumes"].as_array().context("volumes")?;
-    ensure!(volumes.len() == 3);
+    ensure!(volumes.len() == 4);
+    ensure!(
+        deployment["spec"]["template"]["metadata"]["annotations"]["checksum/module-plan"]
+            .is_string()
+    );
+    for name in [
+        "VEOVEO_MODULE_PLAN",
+        "VEOVEO_MODULE_COMPOSITION",
+        "VEOVEO_INSTALLATION_GENERATION",
+        "VEOVEO_CREDENTIAL_REVISION",
+        "VEOVEO_SURREAL_RUNTIME_USERNAME",
+    ] {
+        ensure!(
+            env.iter().any(|value| value["name"] == name),
+            "missing module plan input {name}"
+        );
+    }
+    ensure!(env.iter().any(|value| value["name"] == "VEOVEO_MODULE_PLAN"
+        && value["value"] == "/etc/veoveo/modules/plan.json"));
+    ensure!(volumes.iter().any(|value| {
+        value["name"] == "module-plan"
+            && value["configMap"]["name"]
+                .as_str()
+                .is_some_and(|name| name.contains("-module-plan-"))
+    }));
     let signing = volumes
         .iter()
         .find(|v| v["name"] == "signing")
@@ -201,5 +225,19 @@ fn full_selection_includes_knowledge_and_configuration_revision_controls_rollout
     ensure!(find(&first, "Deployment", "embedding")? == find(&changed, "Deployment", "embedding")?);
     values["installationPreset"] = json!("foundation");
     ensure!(find(&objects(render(&values)?)?, "Deployment", "knowledge-mcp").is_err());
+    Ok(())
+}
+
+#[test]
+fn disabled_gateway_and_knowledge_emit_no_module_plan_or_mount() -> Result<()> {
+    let mut values = selection();
+    values["components"] = json!(["platform-store"]);
+    values["mcpServers"] = json!([]);
+    let rendered = objects(render(&values)?)?;
+    ensure!(!rendered.iter().any(
+        |object| object["metadata"]["labels"]["app.kubernetes.io/component"] == "module-plan"
+    ));
+    ensure!(find(&rendered, "Deployment", "knowledge-mcp").is_err());
+    ensure!(find(&rendered, "Deployment", "gateway").is_err());
     Ok(())
 }

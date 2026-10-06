@@ -52,6 +52,7 @@ spec:
       annotations:
         {{- include "veoveo.podAnnotations" . | nindent 8 }}
         {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
+        checksum/module-plan: {{ .Values.moduleInstallation.planJson | sha256sum | quote }}
         checksum/knowledge-configuration: {{ .Values.knowledge.configurationRevision | quote }}
         checksum/embedding-space: {{ $space | sha256sum | quote }}
     spec:
@@ -77,6 +78,7 @@ spec:
             {{- end }}
           env:
             {{- include "veoveo.commonEnv" . | nindent 12 }}
+            {{- include "veoveo.modulePlanEnv" . | nindent 12 }}
             - name: PUBLIC_BASE_URL
               value: {{ .Values.global.publicBaseUrl | quote }}
             - name: VEOVEO_EMBEDDING_ENDPOINT
@@ -119,10 +121,14 @@ spec:
           resources:
             {{- toYaml .Values.knowledge.resources | nindent 12 }}
           volumeMounts:
+            - {name: module-plan, mountPath: /etc/veoveo/modules, readOnly: true}
             - {name: configuration, mountPath: /etc/veoveo/knowledge/config, readOnly: true}
             - {name: signing, mountPath: /etc/veoveo/knowledge/signing, readOnly: true}
             - {name: embedding-space, mountPath: /etc/veoveo/knowledge/embedding, readOnly: true}
       volumes:
+        - name: module-plan
+          configMap:
+            name: {{ include "veoveo.modulePlanName" . }}
         - name: configuration
           configMap:
             name: {{ $configuration | quote }}

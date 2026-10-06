@@ -183,3 +183,14 @@ instance, definition revision, generation and dispatch epoch. Their native
 adapters reject unknown members, wrong record parents and invalid counters;
 episode admission and readiness queries check the current instance relationship.
 The stop transaction reads the retained binding to select the running episode.
+
+## Internal Client Authority
+
+The `internal-clients` feature supplies `ManagedInternalClientAuthorityResolver`
+with persistence and contract dependencies independently of the full runtime and
+Gateway. It checks live managed registration even for an installed static client,
+rejecting registration collisions before choosing a branch. Managed admission
+checks enabled state, tenant and Work Context, instance generation and dispatch
+epoch, profile/issuer/resource/authorization server, session-family exclusion,
+scopes, roles and revision tools. The adapter declares ManagedAgent and
+AgentDefinition observation tables to trigger current-authority revalidation.

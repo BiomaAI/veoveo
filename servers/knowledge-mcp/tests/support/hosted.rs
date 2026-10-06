@@ -20,6 +20,26 @@ use veoveo_types::{
 };
 
 pub async fn native_database() -> crate::fixture::TestDb {
+    let db = crate::fixture::TestDb::new().await;
+    let mut response =
+        db.a.client()
+            .query(include_str!(
+                "../queries/support/hosted/database_info.surql"
+            ))
+            .await
+            .unwrap();
+    let info: Option<veoveo_platform_store::Value> = response.take(0).unwrap();
+    let info = info.unwrap().into_json_value();
+    for table in ["agent_definition", "managed_agent", "agent", "wake"] {
+        assert!(
+            info["tables"].get(table).is_none(),
+            "kernel-only fixture has optional Agent table {table}"
+        );
+    }
+    db
+}
+
+pub async fn managed_native_database() -> crate::fixture::TestDb {
     crate::fixture::TestDb::with_modules(vec![
         veoveo_agent_runtime::schema::module_setup(
             crate::fixture::module_lanes::execution("agents").unwrap(),
@@ -302,6 +322,20 @@ impl Server {
         embeddings: Arc<E>,
         signing: &Signing,
     ) -> Self {
+        Self::with_authority(
+            store,
+            embeddings,
+            signing,
+            Arc::new(veoveo_policy::internal_clients::StaticInternalClientAuthorityResolver),
+        )
+        .await
+    }
+    pub async fn with_authority<E: Embeddings + 'static>(
+        store: PlatformStore,
+        embeddings: Arc<E>,
+        signing: &Signing,
+        authority: Arc<dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver>,
+    ) -> Self {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let stop = CancellationToken::new();
@@ -310,9 +344,10 @@ impl Server {
         );
         let router = veoveo_knowledge_mcp::host::server(
             KnowledgeMcp::new(
-                store,
+                store.clone(),
                 embeddings,
                 veoveo_gateway_catalog::registry().expect("catalog recipe"),
+                authority,
             ),
             &veoveo_mcp_contract::PublicDeployment::new(format!("http://{address}")).unwrap(),
             true,

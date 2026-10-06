@@ -378,10 +378,10 @@ async fn browser_session_revocation_and_scope_and_time_boundaries_are_current() 
 #[tokio::test]
 async fn managed_execution_requires_signed_attribution_and_current_registration() {
     tokio::time::timeout(Duration::from_secs(180), async {
-        let db = native_database().await;
+        let db = managed_native_database().await;
         let mut plane = plane(&[]);
         let mut identity = identity(&plane);
-        let (_, _, instance) = managed::provision(&db.a, &plane, &identity).await;
+        let (_, definition, instance) = managed::provision(&db.a, &plane, &identity).await;
         identity.actor.roles = ["managed-pilot".parse().unwrap()].into();
         let request = identity.request_context.as_mut().unwrap();
         request.principal.roles = identity.actor.roles.clone();
@@ -412,6 +412,7 @@ async fn managed_execution_requires_signed_attribution_and_current_registration(
             veoveo_knowledge_mcp::authority::authorize(
                 store,
                 &veoveo_gateway_catalog::registry().unwrap(),
+                &veoveo_agent_runtime::internal_clients::ManagedInternalClientAuthorityResolver::new(store.clone()),
                 identity,
                 KnowledgeScope::Search,
                 veoveo_gateway_contract::GatewayAction::ToolsCall,
@@ -436,6 +437,66 @@ async fn managed_execution_requires_signed_attribution_and_current_registration(
         );
         let identity = verifier.verify(&issued.bearer_token).unwrap();
         assert!(admit(&db.a, &identity, &target).await);
+        assert!(veoveo_knowledge_mcp::authority::authorize(&db.a, &veoveo_gateway_catalog::registry().unwrap(), &veoveo_policy::internal_clients::StaticInternalClientAuthorityResolver, &identity, KnowledgeScope::Search, veoveo_gateway_contract::GatewayAction::ToolsCall, &target).await.is_err(), "kernel-only resolver rejects managed attribution");
+        let tables = veoveo_policy::internal_clients::InternalClientAuthorityResolver::observation_tables(&veoveo_agent_runtime::internal_clients::ManagedInternalClientAuthorityResolver::new(db.a.clone()));
+        assert_eq!(tables.iter().map(|table| table.as_str()).collect::<Vec<_>>(), ["managed_agent", "agent_definition"]);
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use veoveo_policy::internal_clients::{
+            AuthorityFuture, InternalClientAuthorityRequest, InternalClientAuthorityResolver,
+        };
+        struct RejectionProbe {
+            delegate: veoveo_agent_runtime::internal_clients::ManagedInternalClientAuthorityResolver,
+            started: AtomicU64,
+            completed_rejections: tokio::sync::mpsc::Sender<u64>,
+        }
+        impl InternalClientAuthorityResolver for RejectionProbe {
+            fn resolve<'a>(&'a self, request: InternalClientAuthorityRequest<'a>) -> AuthorityFuture<'a> {
+                // A call that started before the mutation cannot satisfy its wake proof,
+                // even when its rejected result completes after the mutation.
+                let sequence = self.started.fetch_add(1, Ordering::SeqCst) + 1;
+                Box::pin(async move {
+                    let result = self.delegate.resolve(request).await;
+                    if result.is_err() {
+                        let _ = self.completed_rejections.send(sequence).await;
+                    }
+                    result
+                })
+            }
+            fn observation_tables(&self) -> Vec<veoveo_modules::ObservationTable> {
+                self.delegate.observation_tables()
+            }
+        }
+        async fn fresh_rejection(receiver: &mut tokio::sync::mpsc::Receiver<u64>, after: u64) {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    let sequence = receiver.recv().await.expect("hosted resolver probe is alive");
+                    if sequence > after {
+                        break;
+                    }
+                }
+            })
+            .await
+            .expect("owner mutation did not cause a completed hosted authority rejection");
+        }
+        let (completed_rejections, mut rejections) = tokio::sync::mpsc::channel(8);
+        let probe = Arc::new(RejectionProbe {
+            delegate: veoveo_agent_runtime::internal_clients::ManagedInternalClientAuthorityResolver::new(db.b.clone()),
+            started: AtomicU64::new(0),
+            completed_rejections,
+        });
+        let server = Server::with_authority(db.b.clone(), Arc::new(SyntheticEmbeddings::new()), &signing, probe.clone()).await;
+        let mut client = server.sdk(signing.issue(identity.clone()).bearer_token).await;
+        let filter = rmcp::model::SubscriptionFilter::builder().resources_list_changed().build();
+        let mut definition_listener = client.listen(filter.clone()).await.unwrap();
+        assert!(matches!(tokio::time::timeout(Duration::from_secs(10), definition_listener.next()).await.unwrap().unwrap(), Some(rmcp::model::ServerNotification::ResourceListChangedNotification(_))));
+        let before_definition_mutation = probe.started.load(Ordering::SeqCst);
+        db.a.client().query(include_str!("queries/http/definition_disabled.surql")).bind(("definition", definition.id.clone())).bind(("disabled", true)).await.unwrap().check().unwrap();
+        fresh_rejection(&mut rejections, before_definition_mutation).await;
+        assert!(tokio::time::timeout(Duration::from_secs(10), definition_listener.next()).await.unwrap().is_err(), "managed definition revocation wakes and revalidates the listener");
+        drop(definition_listener);
+        db.a.client().query(include_str!("queries/http/definition_disabled.surql")).bind(("definition", definition.id.clone())).bind(("disabled", false)).await.unwrap().check().unwrap();
+        let mut registration_listener = client.listen(filter).await.unwrap();
+        assert!(matches!(tokio::time::timeout(Duration::from_secs(10), registration_listener.next()).await.unwrap().unwrap(), Some(rmcp::model::ServerNotification::ResourceListChangedNotification(_))));
         for mutation in 0..8 {
             let mut changed = identity.clone();
             let request = changed.request_context.as_mut().unwrap();
@@ -488,6 +549,7 @@ async fn managed_execution_requires_signed_attribution_and_current_registration(
             tool: "embed".parse().unwrap(),
         };
         assert!(!admit(&db.a, &identity, &denied_tool).await);
+        let before_registration_mutation = probe.started.load(Ordering::SeqCst);
         db.a.client()
             .query(include_str!("queries/http/admit.surql"))
             .bind(("instance", instance.id.clone()))
@@ -496,7 +558,163 @@ async fn managed_execution_requires_signed_attribution_and_current_registration(
             .check()
             .unwrap();
         assert!(!admit(&db.a, &identity, &target).await);
+        fresh_rejection(&mut rejections, before_registration_mutation).await;
+        assert!(tokio::time::timeout(Duration::from_secs(10), registration_listener.next()).await.unwrap().is_err(), "managed dispatch epoch change wakes and revalidates the listener");
+        client.close().await.unwrap();
     })
     .await
     .expect("managed receiver authority deadline");
+}
+
+#[cfg(feature = "server")]
+#[tokio::test]
+async fn startup_uses_selected_lanes_and_requires_committed_preparation() {
+    tokio::time::timeout(Duration::from_secs(180), async {
+        for managed in [false, true] {
+            let db = if managed {
+                managed_native_database().await
+            } else {
+                native_database().await
+            };
+            let optional = if managed {
+                vec![
+                    veoveo_agent_runtime::schema::module_setup(
+                        fixture::module_lanes::execution("agents").unwrap(),
+                    )
+                    .unwrap(),
+                ]
+            } else {
+                vec![]
+            };
+            let registry = fixture::module_lanes::registry(optional).unwrap();
+            let enabled = if managed {
+                vec![veoveo_modules::ModuleName::new("agents").unwrap()]
+            } else {
+                vec![]
+            };
+            let selection = veoveo_modules::ModuleSelectionDocument::new(
+                enabled.clone(),
+                "1".parse().unwrap(),
+                veoveo_modules::CredentialRevision::new("fixture-v1").unwrap(),
+            )
+            .unwrap();
+            let plan = veoveo_modules::ModulePlanDocument::generate(
+                &registry,
+                &selection,
+                veoveo_modules::CompositionIdentity::new(format!("sha256:{}", "a".repeat(64)))
+                    .unwrap(),
+                vec![],
+            )
+            .unwrap();
+            let startup = veoveo_knowledge_mcp::composition::RuntimeInstallation {
+                plan: &plan,
+                composition: plan.composition(),
+                generation: plan.generation(),
+                credential_revision: plan.credential_revision(),
+                runtime_username: db.a.config().username(),
+            };
+            assert!(
+                startup.authority(&db.a).await.is_err(),
+                "missing committed preparation"
+            );
+            let prepared =
+                veoveo_modules::runner::prepare(registry.select(enabled).unwrap()).unwrap();
+            let key = veoveo_modules::preparation_key(&plan, db.a.config().username()).unwrap();
+            let admin = db.admin().await;
+            prepared
+                .claim_preparation(admin.client(), &key)
+                .await
+                .unwrap();
+            assert!(
+                startup.authority(&db.a).await.is_err(),
+                "claimed preparation is incomplete"
+            );
+            prepared
+                .complete_preparation(
+                    admin.client(),
+                    &key,
+                    veoveo_modules::runner::DatabaseEditorCredentials::new(
+                        db.a.config().username(),
+                        "isolated-fixture-runtime-password",
+                    )
+                    .unwrap(),
+                )
+                .await
+                .unwrap();
+            // Preparation replaces the runtime account; authenticate its new session
+            // before inspecting prerequisites rather than reusing the invalidated one.
+            let runtime = veoveo_platform_store::PlatformStore::connect(
+                veoveo_platform_store::StoreConfig::builder(
+                    db.a.config().endpoint().as_str(),
+                    db.a.config().namespace(),
+                    db.a.config().database(),
+                    veoveo_platform_store::StoreCredentials::database(
+                        db.a.config().username(),
+                        "isolated-fixture-runtime-password",
+                    ),
+                )
+                .audit_targets(Arc::new(db.a.audit_targets().clone()))
+                .build()
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+            if managed && !cfg!(feature = "managed-clients") {
+                let Err(error) = startup.authority(&runtime).await else {
+                    panic!("selected managed adapter must be unavailable");
+                };
+                assert!(
+                    error
+                        .to_string()
+                        .contains("requires the Knowledge managed-clients adapter"),
+                    "selected adapter must fail with the configuration diagnostic"
+                );
+                continue;
+            }
+            let adapter = startup.authority(&runtime).await.unwrap();
+            assert_eq!(
+                adapter.observation_tables().len(),
+                if managed { 2 } else { 0 }
+            );
+            let wrong_composition =
+                veoveo_modules::CompositionIdentity::new(format!("sha256:{}", "b".repeat(64)))
+                    .unwrap();
+            assert!(
+                veoveo_knowledge_mcp::composition::RuntimeInstallation {
+                    composition: &wrong_composition,
+                    ..startup
+                }
+                .authority(&runtime)
+                .await
+                .is_err()
+            );
+            assert!(
+                veoveo_knowledge_mcp::composition::RuntimeInstallation {
+                    generation: "2".parse().unwrap(),
+                    ..startup
+                }
+                .authority(&runtime)
+                .await
+                .is_err()
+            );
+            let wrong_revision =
+                veoveo_modules::CredentialRevision::new("different-rotation").unwrap();
+            assert!(
+                veoveo_knowledge_mcp::composition::RuntimeInstallation {
+                    credential_revision: &wrong_revision,
+                    ..startup
+                }
+                .authority(&runtime)
+                .await
+                .is_err()
+            );
+            let wrong = veoveo_knowledge_mcp::composition::RuntimeInstallation {
+                runtime_username: "different-runtime",
+                ..startup
+            };
+            assert!(wrong.authority(&runtime).await.is_err());
+        }
+    })
+    .await
+    .expect("startup plan qualification exceeded 180 seconds");
 }

@@ -286,3 +286,21 @@ Leaf signatures also admit native `datetime` parameters and literals. A service
 query can obtain one database timestamp and pass it into a pure admission export;
 leaf bodies still reject `time::now()`. Pure `array::min` inspects every argument
 under the existing read-only argument rules, including nested expressions.
+
+## Runtime Prerequisite Readiness
+
+`runner::RuntimePrerequisites` grants only read inspection. Its constructor matches
+compiled owner lane descriptors and their dependency closure against effective
+`ModulePlanDocument::lanes()`. It checks lane bodies and prerequisites with the same
+admission as installation execution. Inspection reads the committed preparation
+marker and bound required-lane histories in one native transaction, then uses the
+runner's existing full migration identity, checksum, receipt and gap validation.
+Unrelated selected or retained histories are outside this explicit capability.
+`PreparedInstallation::status` still checks the entire compiled registry and rejects
+unknown histories. Cancellation and operation deadlines use the owned transaction
+runner, which confirms cancellation without leaving caller-owned handles.
+
+The serialization surface owns `preparation_key`: SHA-256 over length-framed v1
+identity, full serialized plan and runtime username. Gateway and runtime consumers
+share its bytes. Serialization enables Serde JSON; the default declaration library
+has no dependencies. Readiness requires runner and serialization features.

@@ -32,3 +32,6 @@ pub mod mcp;
 pub mod host;
 #[cfg(feature = "runtime")]
 pub mod indexing;
+
+#[cfg(feature = "server")]
+pub mod composition;

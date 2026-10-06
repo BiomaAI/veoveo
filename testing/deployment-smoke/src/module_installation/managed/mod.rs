@@ -324,10 +324,11 @@ impl Managed {
                         "pvc",
                         &resources.volume_claim,
                     )?;
+                    let client = veoveo_types::OAuthClientId::parse(&instance.identity.client_id)?;
                     let registration = database(
                         &self.runtime,
                         AgentRepository::new(self.store.clone())
-                            .managed_agent_registration(&instance.identity.client_id),
+                            .managed_agent_registration(&client),
                     )?
                     .context("managed OAuth registration absent")?;
                     ensure!(

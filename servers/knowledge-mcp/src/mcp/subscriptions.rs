@@ -20,6 +20,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
     pub(crate) fn observe_catalog(&self, cancellation: CancellationToken) {
         let store = self.store.clone();
         let changes = self.changes.clone();
+        let authority_tables = self.client_authority.observation_tables();
         tokio::spawn(async move {
             use PlatformTable::*;
             let mut tables: Vec<ObservationTable> = vec![
@@ -39,11 +40,10 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
             .map(Into::into)
             .collect();
             tables.extend([
-                veoveo_agent_runtime::AgentObservationTable::ManagedAgent.into(),
-                veoveo_agent_runtime::AgentObservationTable::AgentDefinition.into(),
                 PlatformTable::KnowledgeSync.into(),
                 PlatformTable::KnowledgeCoordinator.into(),
             ]);
+            tables.extend(authority_tables);
             let mut stream = store.resource_changes(tables);
             loop {
                 tokio::select! {
@@ -130,6 +130,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
             let admitted = crate::authority::authenticate(
                 &self.store,
                 &self.catalog_registry,
+                self.client_authority.as_ref(),
                 identity,
                 KnowledgeScope::Read,
             )
@@ -192,6 +193,7 @@ impl<E: Embeddings + 'static> KnowledgeMcp<E> {
             let current = crate::authority::authenticate(
                 &self.store,
                 &self.catalog_registry,
+                self.client_authority.as_ref(),
                 identity,
                 KnowledgeScope::Read,
             )

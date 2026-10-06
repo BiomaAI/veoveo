@@ -557,3 +557,21 @@ Search requests and source pages use `Checked` over unchanged Wire fields. Their
 Store-backed native fixture statements live in `tests/queries/`, grouped by the
 calling harness. Colocated fixtures include those files with their existing bindings
 and result slots. Complete static statements cover finite SQL grammar choices.
+
+## Installation And Client Authority
+
+The reusable `runtime` receives an explicit Policy internal-client resolver and
+has no normal Agent persistence dependency. Each read resolves current authority
+and repeats it before delivery. Catalog observation uses the resolver's owner table
+declarations; the static resolver watches no Agent tables. Kernel-only HTTP and
+subscription fixtures assert those tables are absent.
+
+Server composition reads the revisioned module plan through `VEOVEO_MODULE_PLAN`
+and the existing expected composition, generation, credential revision and runtime
+username inputs. Modules readiness verifies Knowledge/Gateway/Identity dependencies
+and committed preparation in one read-only native snapshot. A selected Agents lane
+adds the managed adapter and its prerequisites. `managed-clients` enables that
+adapter's compiled availability; lane selection chooses its use. An unavailable
+selected adapter or missing/drifting preparation fails configuration before source
+workers or embeddings start. Startup never infers an authority mode from table
+existence and never substitutes static authority for selected Agents.

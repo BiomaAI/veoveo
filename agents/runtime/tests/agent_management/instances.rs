@@ -1178,7 +1178,8 @@ async fn registration_and_reconciliation_reject_stored_revision_fields_and_proje
                 .unwrap();
             assert!(
                 matches!(
-                    repo.managed_agent_registration("managed-one").await,
+                    repo.managed_agent_registration(&"managed-one".parse().unwrap())
+                        .await,
                     Err(AgentManagementError::Unavailable)
                         | Err(AgentManagementError::Invalid("stored revision projections"))
                 ),
@@ -1213,7 +1214,7 @@ async fn registration_and_reconciliation_reject_stored_revision_fields_and_proje
             .check()
             .unwrap();
         assert!(
-            repo.managed_agent_registration("managed-one")
+            repo.managed_agent_registration(&"managed-one".parse().unwrap())
                 .await
                 .unwrap()
                 .is_some()

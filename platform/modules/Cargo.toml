@@ -6,8 +6,8 @@ publish = false
 
 [features]
 default = []
-serialization = ["dep:serde", "dep:sha2"]
-runner = ["dep:serde_json", "dep:serde", "dep:sha2", "dep:surrealdb", "dep:surrealdb-syn", "dep:surrealdb-sql", "dep:tokio"]
+serialization = ["dep:serde", "dep:serde_json", "dep:sha2"]
+runner = ["serialization","dep:serde_json", "dep:serde", "dep:sha2", "dep:surrealdb", "dep:surrealdb-syn", "dep:surrealdb-sql", "dep:tokio"]
 
 [dependencies]
 serde_json = { workspace = true, optional = true }

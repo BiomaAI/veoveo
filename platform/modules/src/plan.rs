@@ -328,3 +328,27 @@ fn lane_identity(module: &ModuleSetup) -> Result<LaneIdentity, DeclarationError>
         .collect();
     LaneIdentity::new(format!("sha256:{hex}"))
 }
+
+/// Shared installation identity. Preserve the v1 full-plan/username length framing.
+pub fn preparation_key(
+    plan: &ModulePlanDocument,
+    runtime_username: &str,
+) -> Result<PreparationKey, DeclarationError> {
+    let mut hash = Sha256::new();
+    for bytes in [
+        b"veoveo.ai/installation-preparation/v1".as_slice(),
+        serde_json::to_vec(plan)
+            .map_err(|_| DeclarationError::new("cannot encode preparation plan"))?
+            .as_slice(),
+        runtime_username.as_bytes(),
+    ] {
+        hash.update((bytes.len() as u64).to_be_bytes());
+        hash.update(bytes);
+    }
+    let digest: String = hash
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    PreparationKey::new(plan.generation(), digest)
+}

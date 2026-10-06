@@ -34,3 +34,6 @@ pub fn prepare(selection: ModuleSelection<'_>) -> Result<PreparedInstallation<'_
     policy::admit(&selection)?;
     Ok(PreparedInstallation { selection })
 }
+
+mod readiness;
+pub use readiness::RuntimePrerequisites;

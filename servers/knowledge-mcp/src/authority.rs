@@ -8,7 +8,6 @@ use crate::{
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use veoveo_agent_runtime::persistence::AgentRepository;
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::{
     GatewayControlPlane, GatewayInternalIdentity, PolicyEffect, PolicyTarget, TraceId,
@@ -18,7 +17,7 @@ use veoveo_platform_store::{
     gateway_refresh_family_record_id,
 };
 use veoveo_policy::{PolicyCatalog, PolicyCatalogView, PolicyRequest};
-use veoveo_types::{ScopeDefinition, WorkContextId, WorkContextMembershipLevel};
+use veoveo_types::ScopeDefinition;
 
 pub struct RequestAuthority {
     catalog: PolicyCatalog,
@@ -35,12 +34,13 @@ pub struct RequestAuthority {
 pub async fn authorize(
     store: &PlatformStore,
     registry: &veoveo_gateway_contract::CatalogRegistry,
+    resolver: &dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver,
     identity: &GatewayInternalIdentity,
     scope: KnowledgeScope,
     action: GatewayAction,
     target: &PolicyTarget,
 ) -> Result<RequestAuthority, ServiceError> {
-    let authority = authenticate(store, registry, identity, scope).await?;
+    let authority = authenticate(store, registry, resolver, identity, scope).await?;
     if !authority.allows(identity, action, target) {
         return Err(ServiceError::AccessChanged);
     }
@@ -107,12 +107,13 @@ impl RequestAuthority {
 pub(crate) async fn authenticate(
     store: &PlatformStore,
     registry: &veoveo_gateway_contract::CatalogRegistry,
+    resolver: &dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver,
     identity: &GatewayInternalIdentity,
     scope: KnowledgeScope,
 ) -> Result<RequestAuthority, ServiceError> {
     tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        resolve(store, registry, identity, scope),
+        resolve(store, registry, resolver, identity, scope),
     )
     .await
     .map_err(|_| ServiceError::Deadline)?
@@ -120,6 +121,7 @@ pub(crate) async fn authenticate(
 async fn resolve(
     store: &PlatformStore,
     registry: &veoveo_gateway_contract::CatalogRegistry,
+    resolver: &dyn veoveo_policy::internal_clients::InternalClientAuthorityResolver,
     identity: &GatewayInternalIdentity,
     scope: KnowledgeScope,
 ) -> Result<RequestAuthority, ServiceError> {
@@ -186,93 +188,17 @@ async fn resolve(
     if token.issuer != authorization_server.issuer || token.audience != profile.protected_resource {
         return Err(ServiceError::AccessChanged);
     }
-    let installed = control
-        .oauth_clients
-        .iter()
-        .find(|client| client.id == token.oauth_client_id);
-    let managed = AgentRepository::new(store.clone())
-        .managed_agent_registration(token.oauth_client_id.as_str())
+    let resolved = resolver
+        .resolve(
+            veoveo_policy::internal_clients::InternalClientAuthorityRequest {
+                catalog: &catalog,
+                identity,
+            },
+        )
         .await
         .map_err(|_| ServiceError::AccessChanged)?;
-    let mut allowed_tools = None;
-    let memberships: BTreeMap<WorkContextId, WorkContextMembershipLevel> =
-        match (installed, managed, &token.managed_execution) {
-            (Some(client), None, None) => {
-                if client.authorization_server != profile.authorization_server
-                    || client.invocation_mode != token.invocation_mode
-                    || !client
-                        .allowed_resources
-                        .contains(&profile.protected_resource)
-                    || !token.scopes.is_subset(&client.allowed_scopes)
-                    || client
-                        .tenant
-                        .as_ref()
-                        .is_some_and(|tenant| tenant != &identity.authority.tenant)
-                {
-                    return Err(ServiceError::AccessChanged);
-                }
-                control
-                    .work_contexts
-                    .iter()
-                    .filter(|context| context.tenant == identity.authority.tenant)
-                    .filter_map(|context| {
-                        context
-                            .membership_for(&request.principal, &client.id)
-                            .map(|level| (context.id.clone(), level))
-                    })
-                    .collect()
-            }
-            (None, Some(managed), Some(binding)) => {
-                let current = &managed.instance;
-                if !managed.enabled
-                    || managed.tenant_key != identity.authority.tenant.as_str()
-                    || managed.context_key != identity.authority.work_context.as_str()
-                    || binding.instance.as_str() != current.key
-                    || Some(binding.generation)
-                        != checked_execution_counter(current.active_generation)
-                    || Some(binding.dispatch_epoch)
-                        != checked_execution_counter(current.dispatch_epoch)
-                    || current.identity.profile != identity.profile.as_str()
-                    || current.identity.issuer != token.issuer.as_str()
-                    || current.identity.resource != token.audience.as_str()
-                    || current.identity.authorization_server
-                        != profile.authorization_server.as_str()
-                    || token.session_family.is_some()
-                    || token
-                        .scopes
-                        .iter()
-                        .any(|scope| !current.identity.scopes.iter().any(|s| s == scope.as_str()))
-                    || request
-                        .principal
-                        .roles
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<std::collections::BTreeSet<_>>()
-                        != current.identity.roles.iter().cloned().collect()
-                {
-                    return Err(ServiceError::AccessChanged);
-                }
-                allowed_tools = Some(
-                    managed
-                        .revision
-                        .content
-                        .tools
-                        .iter()
-                        .map(|name| name.parse())
-                        .collect::<Result<_, _>>()
-                        .map_err(|_| ServiceError::AccessChanged)?,
-                );
-                use veoveo_platform_store::WorkContextMembershipLevel as Stored;
-                let level = match current.identity.membership {
-                    Stored::Viewer => WorkContextMembershipLevel::Viewer,
-                    Stored::Contributor => WorkContextMembershipLevel::Contributor,
-                    Stored::Custodian => WorkContextMembershipLevel::Custodian,
-                    Stored::Owner => WorkContextMembershipLevel::Owner,
-                };
-                [(identity.authority.work_context.clone(), level)].into()
-            }
-            _ => return Err(ServiceError::AccessChanged),
-        };
+    let memberships = resolved.memberships;
+    let allowed_tools = resolved.allowed_tools;
     if let Some(family) = &token.session_family {
         let id = gateway_refresh_family_record_id(
             family
@@ -380,25 +306,4 @@ fn check_lifetime(identity: &GatewayInternalIdentity) -> Result<(), ServiceError
         return Err(ServiceError::AccessChanged);
     }
     Ok(())
-}
-
-fn checked_execution_counter(value: i64) -> Option<std::num::NonZeroU64> {
-    u64::try_from(value)
-        .ok()
-        .and_then(std::num::NonZeroU64::new)
-}
-
-#[cfg(test)]
-mod execution_counter_tests {
-    use super::checked_execution_counter;
-    #[test]
-    fn stored_counters_require_positive_lossless_conversion() {
-        for value in [i64::MIN, -1, 0] {
-            assert!(checked_execution_counter(value).is_none());
-        }
-        assert_eq!(
-            checked_execution_counter(i64::MAX).unwrap().get(),
-            u64::try_from(i64::MAX).unwrap()
-        );
-    }
 }
