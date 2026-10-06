@@ -3,9 +3,9 @@
 Status: Phase 0 is source-qualified. Phases 1–5 have qualified source checkpoints.
 The implemented Phase 6 consumer batch and Phase 7 embedding identity and producer
 provenance pass source qualification. Wider owner rows, the installation cut and
-remaining conformance and installed acceptance in phases 8–10 are open. The cluster stays stopped during local
-development. See [Current Status](#current-status) for accepted checks and remaining
-gates.
+remaining conformance and installed acceptance in phases 8–10 are open. The cluster
+stays stopped during local development. See [Current Status](#current-status) for
+accepted checks and remaining gates.
 
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
@@ -58,7 +58,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 6 — Generated consumers | The implemented Console, Kernel and MCP App batch passes owning native and browser checks, isolation, strict lint and generation | Complete wider owner DTO relationships and required installed consumers in the F-register |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification | Measure the NVIDIA runtime bundle, then qualify its full production workload before installation selection |
 | 8 — Installation and naming cut | Required work is specified; implementation has not started | Update the full producer/consumer closure, drain incompatible writers and prepare fresh reference state |
-| 9 — Conformance and enforcement | Typed requirement-catalog design is reviewed | Implement complete owner profiles, generated declarations, generic conformance and component/scenario discovery |
+| 9 — Conformance and enforcement | The typed catalog, complete profiles and generated declarations pass independent Rust, Python and Node checks across 22 owners | Complete the protected shared-host fixture gate, then finish generic conformance and component/scenario discovery |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 
 The latest completed source batch qualifies Knowledge's optional-Agent authority and
@@ -110,9 +110,30 @@ The current source checkpoints are:
 | MCP App contract admission and generated consumers | `808d80d29` |
 | Optimization preparation gate | `b27d53adc` |
 | Embedding profiles and Knowledge producer/search fences | `89cf4f9d2` |
+| Map repository, product and selected-record admission | `9e0318410` |
+| Recorded video, Stream, Reason and Timeseries relationships | `09540a03d` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
+
+The uncommitted catalog batch passes 101 unique Rust cases, 449 Python SDK cases
+and 37 Charts cases. Template and independent-fork checks, local Charts image API
+checks, generated documents and strict all-target lint over 22 packages also pass.
+Those counts cover the affected source checks, not every server's domain suite or
+installed acceptance. The shared-host module suite awaits approval to update its
+old document fixture under the protected hosting path. Its prepared change leaves
+the transport and authorization assertions intact.
+
+The latest source checkpoints implement Map repository/product admission and the
+recorded video, Stream, Reason and Timeseries result relationships in F10, F12,
+F39, F45–F49, F61, F63 and F64. Independent review accepts both source batches after
+the caller and relationship repairs. The affected graph passes 358 unique native
+cases, strict all-target lint over twelve packages, five isolated owner contracts
+and both independent consumer profiles. The generated Apps pass 23 cases and their
+type checks and builds; Reason's private protocol passes 21 Python cases. Formatting
+and generation checks pass. These checkpoints preserve the pending catalog batch.
+Installed and hardware conditions stay open. Artifact wire ownership and typed
+capability references in F25 and F27 are the next source batch.
 
 The cluster stays stopped during these local batches. The
 [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
@@ -280,6 +301,7 @@ CE register or owning designs by appearing in this plan.
 | D1 | JWT claim sets and the identity family they carry: `Principal`, `InvocationAuthority`, `WorkContextOutputPolicy`, `WorkContextGrant`, `InvocationProvenance`, `GatewayRequestContext`, `AccessTokenSubject`, `GatewayInternalIdentity` and the internal claim structs | Keep snake_case under the JWT convention. These types are the claim sets and also the snapshots stored in task owners, computers grants and refresh families, so authorization SQL and the Python SDK claim models stay unchanged |
 | D1a | Wire documents that embed identity types | Gateway work-context configuration gets a camelCase `OutputPolicyConfig` that converts into `WorkContextOutputPolicy`. `ArtifactProvenanceWire` replaces its embedded `InvocationProvenance` with its own camelCase fields and tag `invocationMode` |
 | D2 | Declared identifiers | Tool names, prompt names, prompt argument names, URI template variables and completion argument names stay snake_case. All 188 multi-word template variables and every tool name already comply |
+| D2a | Naming roles | CamelCase applies to DTO field names; dictionary keys follow their admitted key vocabulary or identity profile. Scope and Task names, resource/extension identities and versioned format tags keep their owner or protocol grammar. Ordinary controlled enum values use snake_case. Source-emitted schema classification must distinguish these roles without a server registry or a subtree-wide exemption |
 | D3 | Storage and phase 8 transition | Drain writers and bootstrap empty SurrealDB, object storage and Map DuckDB. Qualify phases 3–8 with fresh current-format fixtures and deploy them together. Reject old formats with an actionable diagnostic; add no backfills, dual readers or historical-data qualification |
 | D4 | Audit | Freeze the audit record, block, checkpoint and export formats. The audit contract owns copies of the knowledge enums it embeds. Archives exported before the cut verify with the same format |
 | D5 | Versioned formats | Every versioned format whose keys or values change bumps its tag, and legacy tags move to the `veoveo.ai/<name>/v<N>` form as they bump. The `ai.veoveo/knowledge-source` identifier stays, because the extension is unreleased and the cut is coordinated |
@@ -1961,6 +1983,25 @@ The inventory found 1,241 serde types with multi-word snake_case keys, kebab-cas
 values or conflicting attributes: 703 wire, 118 external, 206 database, 44 internal
 and 170 mixed. D1 moves most mixed types into the exempt identity family.
 
+Naming applies to serialized roles, rather than every string or object key. Typed
+dictionary keys represent vocabulary values or identities; they are not DTO field
+names. Scope and Task vocabularies can contain colon, dot and hyphen spellings under
+their existing admission profiles. Resource identities, extension keys and format
+tags follow their declared grammar and D5 versioning. D2 keeps the declared protocol
+names separate from tool argument DTO field names.
+
+Current schemas do not distinguish these roles reliably. Scope/Task vocabulary
+derives emit unclassified string enums, and finite enum-keyed maps can resemble
+closed structs. The cut must emit narrow scalar and dictionary classifications from
+their owners and shared declaration mechanics. Generic C33 validation defaults
+unclassified controlled enums to snake_case, validates classification structure and
+supported grammar, and continues checking nested controlled shapes. External, JWT
+and frozen-format exceptions identify their precise profile and subtree; an
+identity annotation cannot exempt an enclosing DTO. Source qualification establishes
+the truth of an exception that remote schema inspection cannot prove. Adversarial
+controls reject unknown profiles, invalid Scope/Task spellings, incorrect key roles
+and annotations that hide unrelated fields. No core domain registry is introduced.
+
 | Class | Casing after the cut | Members |
 |---|---|---|
 | Wire | camelCase keys, snake_case values | Tool inputs and outputs of every Veoveo server, resource bodies, HTTP APIs, SSE events, runner and helper protocols, cross-component artifacts, configuration files, `CallToolResult` structured content |
@@ -1988,7 +2029,8 @@ checks.
 | Reason and stream results, speech transcript, travel-model artifact, optimization problem and solution documents | Next version with a `veoveo.ai/<name>/v<N>` tag |
 | cuOpt executor `veoveo.ai/cuopt-executor/v1`, reason runner request v3, speech worker v1, Map helper `schema_version: 1` | Next version, both sides in the same commit |
 | UAV acceptance scenario v12, deployment v8, deployment lock v8, component mutation plan v2 | v13, v9, v9 and v3; `deploy/contract/src/decoding.rs` rejects the old versions with an upgrade diagnostic |
-| Opaque cursors (11 types) | Version byte bumped |
+| Owner-defined opaque continuations | Advance affected envelope versions; qualify every codec and receiving validator |
+| Map source-feature query domain `veoveo.ai/map/source-feature-query/v2` | v3 with renamed cursor fields and recomputed admitted-request digest |
 | Console `localStorage` key `veoveo.uploads.v1` | `veoveo.uploads.v2` |
 | Offline bundle and `images.lock.json` | `schema_version` 2 |
 | Map analytics DuckDB | `SCHEMA_VERSION` 12, rebuilt |
@@ -1997,6 +2039,23 @@ checks.
 The table is a starting inventory. D5 also requires a version bump for every other
 changed versioned format, including Recording projection handles and catalog grants.
 Refresh that inventory against the final producer and consumer graph before the cut.
+The continuation inventory spans 22 version-1 owner files with multiple variants,
+plus Map's version-2 source-feature query domain. Inspect each codec's actual bytes;
+the unversioned authoring continuation carries only admitted feature-ID bytes and
+needs no casing change. Preserve each encoding, parent and query context when
+advancing a changed format.
+
+Include Phase 7's Embedding contract and client, candidate collectors and production
+report consumers in that inventory. Space, execution-profile, qualification and report
+shapes already use camelCase; classify unchanged formats accordingly. Changes to
+serialized bytes require the matching format and digest updates and tests of the
+receiving validators. Recompute reports bound to changed inputs through their owning
+tools. Historical hardware reports cannot be relabeled as qualification of new bytes.
+
+Preserve the implemented `veoveo.ai/gateway-internal-assertion/v2` and
+`veoveo.ai/gateway-request-context/v2` formats. Include every Rust and Python producer
+and receiver in the coordinated image and drain closure. The JWT casing exemption
+does not allow an old installed peer to survive the cut.
 
 The naming cut runs in four waves. Partitions identify ownership and may proceed
 independently when their dependencies permit; they do not require multiple agents. Sizes count types, literal sites and files from the
@@ -2061,7 +2120,7 @@ Wave 4 covers consumers and installation.
 | Helm | Agent policy CEL references, `agent-admission.yaml`, `agent-manager.yaml`, `server-bootstrap.yaml`, stream and reason templates, `values.schema.json` (37 entries), map-provider values | M |
 | Pins and offline bundle | Every pin in the format table; `deploy/offline` scripts and lock | S |
 | Harnesses | `testing/smoke` (59 `json!` literals), `testing/flight-smoke`, `testing/browser-smoke`, `mcp/conformance` fixtures and literals, `testing/fixtures/gateway-request-context.json` | M |
-| Documents | Served server documents (70 references in 22 files), C33 in 21 Contract Compliance lists, prompts (about 80 references), tool descriptions, `docs/*.md` examples and prose, `showcase/uav-sim/agents/instructions.md` | M |
+| Documents | Served server documents, C33 in every generated owner compliance section, prompts, tool descriptions, `docs/*.md` examples and prose, `showcase/uav-sim/agents/instructions.md` | M |
 
 One-time audit scripts run from the scratchpad and are not committed. They must
 report zero unexplained items before the naming commit.
@@ -2105,7 +2164,10 @@ checks, rather than becoming the sole proof of compliance.
 The reviewed catalog design puts a closed requirement vocabulary and exhaustive
 metadata in `mcp/contract`. Each owner supplies one complete checked compliance
 profile. Construction and decoding reject missing, duplicate or unknown requirements
-and empty explanations. A new catalog requirement forces every owner to declare its
+and empty explanations. Raw JSON decoding rejects duplicate fields, including escaped
+spellings of the same key. Generated language catalogs carry the Rust owner's
+whitespace rule for note admission; language-specific trimming cannot change it.
+A new catalog requirement forces every owner to declare its
 status; profiles cannot silently inherit `met`. `not_applicable` is admitted only
 for a catalog-defined condition, and conformance compares that condition with
 discovery. A server declaring Knowledge cannot use it to bypass C32.
@@ -2162,7 +2224,9 @@ has drained. An observation timeout cannot settle an external mutation.
 Generic certification and shared harness support must exclude production domain
 contracts and implementations. Move every domain utility and schema assertion to its
 owner or composition, update its callers, and preserve maintained protocol fixtures.
-The final dependency proof covers the actual certification binary. Reuse existing
+The final dependency proof covers the actual certification binary and the eventual
+discovered-scenario graph. Completing the catalog does not establish generic C33,
+H03 or H05 acceptance against the current production-dependent registry. Reuse existing
 scenarios while moving their ownership; relocation does not require another harness
 or an installed replay of unchanged behavior. C33 lands in phase 8 with the naming
 rule. Future repository/security tooling follows X2–X5.
@@ -2289,26 +2353,26 @@ reason rather than growing an unbounded generic typing task.
 | F07 | Resource templates | Extend checked declarations and domain-builder agreement across remaining servers |
 | F08 | Gateway completion and audit targets | Qualify installed authorization and current-format audit reads; tighten the opaque resource validator after remaining URI families are inventoried |
 | F09 | Platform identity and attribution | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
-| F10 | Map | Complete DTO relationships and Store query IDs; qualify remaining product-specific consumers |
+| F10 | Map | Qualify remaining installed product-specific consumers and selected body/index agreement; preserve the source-qualified typed repository APIs and immutable DTO admission |
 | F11 | Coordinate vocabulary | Qualify installed consumers with the current absolute frame-ID profile |
-| F12 | Map identity admission | Apply the owner admission profile to remaining IDs and Store query APIs; qualify current-format installed consumption |
-| F13 | Time | Complete broader DTO types and qualify current-format installed behavior; completion now requires the advertised reserved-expansion zone template |
+| F12 | Map identity admission | Qualify current-format installed consumption of the specific owner IDs and preserved admitted aliases |
+| F13 | Time | Share expression, projection, calendar, clock and HTTPS-source admission across construction and decoding; preserve the distinct expression/resource zone profiles and advertised reserved-expansion template; qualify installed consumers |
 | F14 | Time identity admission | Qualify installed admission; use the distinct current public and stored ID profiles when strengthening metadata construction |
-| F15 | Time scalar admission | Qualify installed numeric admission; finish remaining expression/projection scalar types and acquisition-state relationships |
+| F15 | Time scalar admission | Admit GPS/Julian and projection scalars, recurrence and acquisition status/phase/staged-release combinations using current engine/producer rules; qualify native selected records and installed numeric boundaries |
 | F16 | Time intervals | Qualify current-format installed schedule Tasks and restart recovery |
 | F17 | Time active-pointer admission | Qualify installed parent admission and transactional conflict rollback |
 | F18 | Time authority contexts | Qualify installed restart/replica behavior and the declared coordinated upgrade |
 | F19 | Time authority metadata | Qualify current binding validation and installed startup |
 | F20 | Time resolution metadata | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
 | F21 | Time activation preflight | Qualify installed activation and concurrent conflict rollback |
-| F22 | Digest wire profiles | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
-| F23 | Computers | Qualify the published grant typing batch; complete remaining grant/input and state-view DTO relationships; qualify installed maintenance, pairing and current-format recovery |
-| F24 | Speech | Qualify current-profile CUDA transcription/dictation and installed delivery; strengthen remaining transcript result relationships |
-| F25 | Artifact plane model | Separate the remaining access/service request contracts and qualify changed consumers. Reuse accepted full/HEAD/range reads, sharing and SQL owner-admission cases when their inputs match. |
+| F22 | Digest wire profiles | Preserve each owner's admitted bare-hex spelling and hash preimage through typed Speech, UAV, Optimization and Recording/publication APIs; qualify installed Time and changed consumers |
+| F23 | Computers | Share intrinsic grant/Execute-limit and pairing input/token checks with public decoding; admit collection parents and unique children without freezing live permission; qualify native and installed maintenance, pairing and recovery |
+| F24 | Speech | Admit transcript intervals/duration and document/output schema, source, Task and Artifact relationships; reject errored retained envelopes before delivery; qualify current-profile CUDA transcription/dictation separately |
+| F25 | Artifact plane model | Move pure access/service wire DTOs and admission into the existing lightweight Artifact contract; keep verified caller, policy and transport in their adapters. Qualify changed consumers and reuse unaffected byte-plane/SQL cases. |
 | F26 | Artifact identity and URI admission | Qualify installed consumption of the current identity and URI contract |
-| F27 | Remaining Artifact references | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
+| F27 | Remaining Artifact references | Keep capability Task and stream digest types through issuance/redemption; admit access-decision relationships and SDK metadata/address agreement; preserve external transfer locations and declare any profile change |
 | F28 | Artifact attribution construction | Qualify installed metadata consumption; native construction, schema/decoder and independent-consumer checks already have a passing checkpoint. |
-| F29 | Media public contract and hosted setup | Complete remaining DTO relationships and model catalog paging; qualify registration, installed behavior and provider recovery budgets |
+| F29 | Media public contract and hosted setup | Share model-catalog count/schema-URI and Artifact presentation admission; add tool/resource continuations bound to filters and registry consistency, rejecting duplicate model IDs; qualify registration and provider recovery budgets |
 | F30 | Frames hosted setup | Qualify current resource admission and subscriptions through installed clients |
 | F31 | Frames world reads | Qualify installed paging and completion with current catalog consumers |
 | F32 | Frames mutation inputs | Qualify installed publication and concurrent replay under current writer policy |
@@ -2318,17 +2382,17 @@ reason rather than growing an unbounded generic typing task.
 | F36 | Frames usage visibility and pages | Qualify installed reads and subscriptions with current catalog consumers |
 | F37 | Frames operation visibility | Qualify installed direct/Task operation reads and current-format recovery |
 | F38 | Timeseries resource admission | Qualify current Artifact handoffs and installed resource consumption |
-| F39 | Timeseries forecast admission | Qualify installed forecast admission and Artifact output; wider result relationships remain open |
+| F39 | Timeseries forecast admission | Qualify installed output and Artifact handoff; preserve source-qualified summary/preview relationships, finite-point checks before publication and the 501-point bound |
 | F40 | Timeseries usage | Qualify the coordinated replica replacement and installed reads |
 | F41 | DuckDB usage and discovery | Qualify installed page consumers and headed hardware Workbench acceptance |
 | F42 | Optimization usage and contract | Qualify the coordinated control/executor replacement and installed reads |
 | F43 | Optimization catalogs | Qualify current catalog permissions and installed consumers |
-| F44 | Optimization resource admission | Qualify installed readiness and resource admission; finish DTO relationship checks |
-| F45 | Map travel-model reads and shared references | Qualify installed page traversal with current consumers; complete DTO relationship admission |
-| F46 | Map restriction reads | Qualify installed summary pages with current consumers; finish broader restriction DTO admission |
-| F47 | Map product addresses | Type the remaining product DTO references and parent relationships; qualify current installed consumption |
-| F48 | Map route handoffs | Qualify the published Map/UAV handoff and current installed mission admission; complete broader product DTO relationships |
-| F49 | Map routing authority | Qualify installed routing; finish other internal release selections |
+| F44 | Optimization resource admission | Share intrinsic problem validation and problem/run/solution/output relationships, verification findings and existing digest preimages before publication; preserve contextual feasibility and qualify installed GPU readiness/resource reads |
+| F45 | Map travel-model reads and shared references | Qualify installed page traversal with current consumers and source-qualified identity/manifest admission |
+| F46 | Map restriction reads | Qualify installed summary pages and the declared effect/limit policy with source-qualified geometry, family, record, validity and finite ordered vertical-band admission |
+| F47 | Map product addresses | Qualify installed lineage and derivation consumers with source-qualified parent, revision and Artifact checks; external country/state codes keep their distinct types |
+| F48 | Map route handoffs | Qualify the published Map/UAV handoff and current installed mission admission with source-qualified product DTO relationships |
+| F49 | Map routing authority | Qualify installed routing, activation conflict rollback and prepare/commit/projection order with source-qualified exact/set SQL selections and lifecycle policies |
 | F50 | Map source catalog | Qualify current source-ID and document admission and installed page traversal |
 | F51 | Map mobility catalogs | Qualify installed traversal with current consumers; UAV grants/handoff and the flight harness consume Map-owned addresses |
 | F52 | UAV Map admission | Qualify current adapter/Task restart recovery and installed grant/mission behavior |
@@ -2338,16 +2402,34 @@ reason rather than growing an unbounded generic typing task.
 | F56 | Native Task identity | Qualify installed consumption; native APIs, changed admission adapters and isolated-contract consumers already have a passing checkpoint. |
 | F57 | Shared public Task reads and notifications | Qualify current-format installed delivery and audit domain-specific adapters for additional policy; preserve transactional owner/context/operation rechecks and the qualified rollback/race cases. |
 | F58 | DuckDB source contract | Qualify installed source consumption, catalog pages, the fresh owner-directory/metadata formats and Artifact publication/recovery |
-| F59 | UAV contract | Complete broader DTO relationships and cross-language construction; qualify current installed consumers, URI admission and recovery |
+| F59 | UAV contract | Check adapter reply parents and accepted/rejected semantics before notifications/startup continuation; share world digest/frame and portable state/child admission with Python producers; qualify installed GPU consumers and recovery |
 | F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
-| F61 | Reason | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
+| F61 | Reason | Qualify installed delivery, restart recovery and GPU behavior with source-qualified full results, visible summary/provenance relationships and owner-derived summaries |
 | F62 | Task-backed resource notifications | Adopt for other Task-backed domains while preserving their additional admission policy; qualify remaining domain consumers and coordinated replacement |
-| F63 | Stream | Strengthen remaining result relationships |
-| F64 | Shared recorded video | Finish selector construction and broader result relationships; qualify installed snapshot digests and consumers |
+| F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
+| F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| F66 | Recording | Complete remaining Recording/RRD identity and publication adapters; qualify installed behavior |
+| F66 | Recording | Keep distinct dataset/recording/layer IDs and digest types through RRD normalization, inspection and publication; admit sealed properties while preserving native timestamp/hash preimages and layer-to-Artifact occurrence mapping; qualify installed ingest/Rerun |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
-| F68 | SDKs, clients, templates, and showcase servers | Qualify the remaining installed multi-page consumers and complete wider owner-local SDK types |
+| F68 | SDKs, clients, templates, and showcase servers | Admit immutable SDK Artifact metadata/address/compliance and usage parent/finite/derived-total relationships through actual template/client callers; preserve explicit external/native Task profiles; qualify installed multi-page consumers |
+
+Map's related and evidence references adopt the existing generic `ResourceUri`
+profile with their eight allowed schemes, 1024-byte item limit and 64-item list
+limit. The coordinated admission cut requires lowercase schemes and absolute,
+hierarchical escaped references. It preserves generic query, fragment and port
+syntax without imposing the stricter concrete address profile or normalizing
+stored text. The owning authoring design declares the rejected URL-only spellings;
+builder/decoder checks qualify the change before the installation cut.
+
+Artifact write-capability Task references adopt `ArtifactTaskId` admission and
+canonical lowercase hyphenated UUID emission. Issuance and redemption compare
+the admitted Task identity rather than the submitted alias spelling. This changes
+the existing string-bound writer profile as well as RFC-variant admission. The
+coordinated drain and fresh-state cut recreates retained write rows and worker
+capability snapshots inside durable Task requests. Issuance, redemption, repository
+bindings and recovery readers use the same admitted identity. No historical
+normalization or fallback is added. Alias round trips and current-format recovery
+qualify the replacement before publication.
 
 ## Deferred Work
 
