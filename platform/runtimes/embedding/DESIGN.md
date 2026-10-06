@@ -18,8 +18,9 @@ model access pass on the reference cluster. The controlled domain-corpus compari
 qualifies 0.6B, 4B and 8B through Knowledge retrieval and selects 0.6B. Composed
 GPU-memory qualification with the selected concurrent workloads remains open in the
 [implementation plan](../../../docs/CONTRACT_CONSISTENCY_PLAN.md#knowledge-service).
-The reference installation runs Knowledge and Reason acceptance in separate batches;
-it keeps both services and embedding stopped during the composed flight check.
+Reason runs in its own acceptance batch. Installed qualification keeps Knowledge and
+Embedding enabled as core services and includes their GPU allocation in the workload
+budget.
 
 ## Standards And Protocols
 

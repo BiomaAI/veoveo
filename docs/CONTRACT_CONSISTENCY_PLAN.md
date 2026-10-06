@@ -113,6 +113,7 @@ The current source checkpoints are:
 | Map repository, product and selected-record admission | `9e0318410` |
 | Recorded video, Stream, Reason and Timeseries relationships | `09540a03d` |
 | Artifact wire ownership, Task bindings and access-progress admission | `6bdcbb919` |
+| Time, Computers, Speech, Media, Optimization, UAV, Recording and SDK value admission | `2b32885bf` |
 
 These revisions qualify their implemented source concerns. They do not close the
 wider F-register or the hardware and installed gates.
@@ -142,15 +143,40 @@ The affected graph passes 223 native cases, all-target compilation and strict li
 over 28 packages. The isolated Artifact contract and both independent consumer
 profiles pass. Generated outputs are unchanged; Console and Workspace tests and
 builds pass, alongside Console lint. The Artifact owner's normal dependencies
-exclude MCP and runtime adapters. SDK metadata and address admission in F27 and
-F68 stay open. Computers provider workers, Speech GPU execution, external byte
+exclude MCP and runtime adapters. The current SDK batch qualifies metadata and
+address admission in F27 and F68 locally; installed multi-page consumers stay open.
+Computers provider workers, Speech GPU execution, external byte
 stores and installed consumers remain separate unqualified gates.
 
-The resource-listener audit selects Speech's duplicate Task-to-transcript loop for
-the next source batch. Stream and Reason already use the shared Task watch. Other
-owners also observe domain mutations, grants, usage or live runtime state; those
-sources keep their current delivery semantics. F62 still requires the Speech
-migration and affected consumer qualification.
+The source checkpoint covers Time, Computers, Speech, Media, Optimization,
+UAV, Recording and the Python SDK with their direct consumers. Independent review
+accepts their source, including Recording's stage-fact admission before reconstructing
+seal bytes, Media's single registry snapshot, Optimization's selected-parent checks
+and pairing token/grant agreement. The affected native suites and strict all-target
+lint over 29 packages pass after grouped caller and fixture repairs. Isolated
+contract graphs, doctests and both independent consumer profiles pass. The latter
+decode all 34 Optimization input branches before exercising their schema, default
+and negative controls. Generated schemas and client types agree with their actual
+producers. Console, Workspace, the UAV App and Workbench pass their affected checks;
+the headed-GPU and installed gates remain open. Qualification also passes against
+the current main contract independently of the staged catalog: both consumer
+profiles, seventeen document/setup controls, SDK and template callers, and repository
+policy checks pass. The catalog's protected shared-host fixture remains separate.
+
+Recording's public seal recovery passes over retained Writing and Staged properties,
+including refusal of mismatched bytes without rewriting them or reserving another
+Artifact occurrence. Sixteen independent properties encodes produce identical
+complete files. Maintained readers verify their messages, CRCs, footer spans and
+schema identities. Sorting the footer's schema fields corrects the producer's
+unordered output and changes complete-file hashes; Phase 8 includes those newly
+produced bytes in its fresh-state manifest and playback cut.
+
+Speech's Task-to-transcript listener adopts the shared Task watch already used by
+Stream and Reason. Its owning control passes actual listener delivery,
+current-policy refusal and subscription-context cancellation through the notification
+sink, and affected source consumers pass. Other owners also observe domain mutations,
+grants, usage or live runtime state; those sources keep their current delivery semantics.
+F62's installed consumers and coordinated replacement remain open.
 
 The cluster stays stopped during these local batches. The
 [progress log](PLATFORM_FOUNDATIONS_PROGRESS.md) preserves checkpoint details and
@@ -1943,6 +1969,19 @@ workload through the production client with that bundle before the installation
 selects it. Preserve corpus fingerprints and all consumer acceptance gates across
 both steps. Source and synthetic checks cannot replace either hardware step.
 
+For the reference installation's selected 0.6B profile, declare these acceptance
+limits before the new hardware run. Candidate vector ranking requires mean recall
+at ten of at least 0.95 and no judged recall loss against the CUDA reference.
+The full production workload uses the same report-bound 0.95 minimum and must
+additionally retain every judged relevant member in the first ten results for all
+78 cases, giving mean recall 1.0. Inspect its per-case results; candidate ranking
+does not establish hybrid retrieval quality. The existing six-batch scheduling
+fixture requires at least 250 inputs per second, an interactive embedding response
+within 250 milliseconds and completion ahead of at least four bulk batches.
+These are qualification limits for that fixture, not an installed search latency
+objective. Preserve failed reports and investigate failures rather than lowering
+the limits or changing judgments after measurement.
+
 Knowledge records which qualified execution profile produced each indexed batch and
 retains its immutable provenance alongside the data. Publish those associations in
 the existing owner transaction, so committed vectors cannot lack their producer
@@ -2040,7 +2079,11 @@ checks.
 | Computers AEAD associated data, HMAC inputs and sealed plaintexts; BFF cookies; forwarder queue `stream.json` | Internal, unchanged |
 | Internal gateway JWT and gateway OAuth access token claims | JWT format, unchanged (D1) |
 | Gateway control-plane SHA-256, Frames `spec_digest`, knowledge registration and member revisions, `runtime_template_revision`, View composition digests, Map request digests | Recomputed after the cut |
+| Artifact write-request hash domain `veoveo.artifact-write-request.v1` | `veoveo.ai/artifact-write-request/v2`; the serialized owned request grammar changes. Preserve NUL framing and bare blob digest, and recompute reservation, rebind, redemption and retained receipt bindings |
 | Hosted MCP contract revision 3, `veoveo.ai/hosted-mcp/v3`; requirement catalog revision 1 | Revision 4 / `veoveo.ai/hosted-mcp/v4`; catalog revision 2 with C33; registrations and all declarations change together |
+| Hosted-server conformance profile v1 | v2; its admitted hosted-revision grammar advances from v3 to v4 |
+| Development image lock v1 | v2; tagged origin payload fields change alongside the already camelCase root |
+| Independent fork fixture state v2 | v3; public decoding rejects snake_case field aliases, and internal constructors adapt to the admitted camelCase wire profile |
 | Recording manifest v9 | v10 |
 | Playback manifest v10 | v11, coordinated with the Console BFF |
 | Reason and stream results, speech transcript, travel-model artifact, optimization problem and solution documents | Next version with a `veoveo.ai/<name>/v<N>` tag |
@@ -2056,11 +2099,20 @@ checks.
 The table is a starting inventory. D5 also requires a version bump for every other
 changed versioned format, including Recording projection handles and catalog grants.
 Refresh that inventory against the final producer and consumer graph before the cut.
-The continuation inventory spans 22 version-1 owner files with multiple variants,
+The refreshed continuation inventory spans 26 version-1 owner files with multiple variants,
 plus Map's version-2 source-feature query domain. Inspect each codec's actual bytes;
 the unversioned authoring continuation carries only admitted feature-ID bytes and
 needs no casing change. Preserve each encoding, parent and query context when
 advancing a changed format.
+
+The complete format review classifies 201 entries across the current producer and
+consumer graph: 90 changed formats, 89 unchanged formats, four mixed profiles and
+eighteen digest preimages. Implementation and qualification are still required.
+A naming annotation can change schema or package bytes without changing instance
+bytes; classify and rebind those identities separately. The simulation-overlay
+identity files and their Docker COPY routes supply the reader's actual producers.
+Verify their final image bytes with the receiving probe. An open report does not
+need a format bump solely because it contains a new admitted requirement value.
 
 Include Phase 7's Embedding contract and client, candidate collectors and production
 report consumers in that inventory. Space, execution-profile, qualification and report
@@ -2231,16 +2283,55 @@ unsupported revisions fail before effects.
 
 Cargo compiler-artifact output supplies executable paths for the selected prerequisite
 closure. A private artifact manifest carries those paths to owning harnesses, including
-external target directories and hashed test executables. Compatible feature selections
-build together; conflicting executable profiles reject. Exact integration-test selection
-must prove that the requested case executed. Each harness owns assertions and cleanup.
-The dispatcher forwards cancellation to its owned Linux process group, allows the
-declared cleanup grace, then terminates surviving children and verifies that the group
-has drained. An observation timeout cannot settle an external mutation.
+configured external target directories, hashed test executables and owner-staged native
+libraries. The DuckDB-consuming harnesses keep their Cargo build-script staging and
+receive the resulting library paths. Qualification launches a relocated DuckDB consumer,
+a hashed test target and a target built under an external directory.
+
+Build grouping compares effective transitive feature selections. Separate an isolated
+contract or certification selection when another root would enable runtime dependencies.
+Conflicting executable profiles reject. Prove the actual standalone certification
+binary's normal/build graph independently of hosted fixture and development graphs.
+Exact integration-test selection must prove that the requested case executed. Missing,
+ignored, skipped or zero-executed selections cannot pass through a successful exit code.
+
+Each harness owns assertions and cleanup. At execution deadline D, or earlier
+interruption, the dispatcher requests cancellation. Cleanup ends G after the first
+cancellation, no later than D plus G; repeated signals cannot extend it. Preserve registrations for separately owned
+local process groups and remote fixtures. Before forcing local groups to stop, observe
+the direct child without reaping it, then kill the groups and reap the child to avoid
+signalling a reused process identity. Verify local group drain separately from complete
+fixture cleanup. A forced termination fails and reports unresolved fixture identities.
+An observation timeout cannot settle an external mutation or authorize a retry.
 
 Generic certification and shared harness support must exclude production domain
 contracts and implementations. Move every domain utility and schema assertion to its
 owner or composition, update its callers, and preserve maintained protocol fixtures.
+Freeze the complete command, scenario, source-import and executable-caller transfer map
+before editing. It includes composed schema exports, token utilities, provider fakes,
+Media completion and subscription assertions, and native runtime-library delivery.
+Keep the shared issuer and verifier with their runtime owner. Generic certification uses
+its bearer input; owner tooling supplies tokens for direct hosted checks through the
+same signing implementation. Update the issuing callers and private credential handling
+in the same cut. A new signer or silent removal of direct hosted acceptance is invalid.
+The MCP contract gates runtime dependencies and modules with a positive runtime feature.
+Its declaration-only selection preserves one checked catalog implementation and the
+default selection preserves the runtime API.
+Shared support cannot import `hosting::testing` through its normal dependency graph;
+owning hosted fixtures continue to use it through their development graph.
+Relocated targets reuse existing owner packages and gate support binaries and their
+dependencies behind a non-default smoke feature. Compact Rust harness packages for
+non-Rust owners need the concrete assertion and dependency-isolation reason; they
+create no service boundary. Installation acceptance uses the existing reference
+composition. A harness that needs the Gateway installation registry belongs to
+Gateway composition or the existing Bioma acceptance package. The registry composes
+Map and Media schema contracts; a domain package cannot depend back on that
+composition without creating a package cycle. Domain-only assertions stay with
+their owner. The transfer map distinguishes assertion ownership from executable
+delivery and reuses each assertion once. Metadata qualification checks those
+cross-component targets and prerequisites. Generic schema export keeps the
+profile/report pair, while Gateway composition keeps every full-export filename
+and its offline bundle consumers.
 The final dependency proof covers the actual certification binary and the eventual
 discovered-scenario graph. Completing the catalog does not establish generic C33,
 H03 or H05 acceptance against the current production-dependent registry. Reuse existing
@@ -2368,7 +2459,7 @@ reason rather than growing an unbounded generic typing task.
 | F05 | Concrete URI components | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | F06 | HTTPS network addresses | Adopt this profile where other domain contracts require HTTPS; qualify installed source consumers |
 | F07 | Resource templates | Extend checked declarations and domain-builder agreement across remaining servers |
-| F08 | Gateway completion and audit targets | Qualify installed authorization and current-format audit reads; tighten the opaque resource validator after remaining URI families are inventoried |
+| F08 | Gateway completion and audit targets | Qualify installed completion authorization, owner-registry binding and current-format audit reads; preserve distinct admitted concrete-resource and URI-template profiles |
 | F09 | Platform identity and attribution | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | F10 | Map | Qualify remaining installed product-specific consumers and selected body/index agreement; preserve the source-qualified typed repository APIs and immutable DTO admission |
 | F11 | Coordinate vocabulary | Qualify installed consumers with the current absolute frame-ID profile |
@@ -2395,7 +2486,7 @@ reason rather than growing an unbounded generic typing task.
 | F32 | Frames mutation inputs | Qualify installed publication and concurrent replay under current writer policy |
 | F33 | Frames world metadata construction | Qualify current world metadata with installed consumers |
 | F34 | Frames operation references | Qualify installed consumption and current provenance checks |
-| F35 | Frames stream references | Qualify installed behavior; complete each producer's typed builders |
+| F35 | Frames stream references | Qualify installed stream-reference admission and current consumers; preserve the independent typed producer seam and qualify each actual producer's route and parent IDs before advertising it |
 | F36 | Frames usage visibility and pages | Qualify installed reads and subscriptions with current catalog consumers |
 | F37 | Frames operation visibility | Qualify installed direct/Task operation reads and current-format recovery |
 | F38 | Timeseries resource admission | Qualify current Artifact handoffs and installed resource consumption |
@@ -2422,13 +2513,13 @@ reason rather than growing an unbounded generic typing task.
 | F59 | UAV contract | Check adapter reply parents and accepted/rejected semantics before notifications/startup continuation; share world digest/frame and portable state/child admission with Python producers; qualify installed GPU consumers and recovery |
 | F60 | UAV scopes | Qualify current scope enforcement on every installed UAV replica |
 | F61 | Reason | Qualify installed delivery, restart recovery and GPU behavior with source-qualified full results, visible summary/provenance relationships and owner-derived summaries |
-| F62 | Task-backed resource notifications | Reuse the Stream/Reason shared Task watch; replace Speech's duplicate Task-to-transcript listener with that watch while preserving Speech authorization. Audit other Task-backed domains, retain independent domain-change sources and qualify remaining consumers and coordinated replacement. |
+| F62 | Task-backed resource notifications | Speech now uses the Stream/Reason shared Task watch; owning delivery, current-policy refusal, context cancellation and affected source consumers pass. Retain independent domain-change sources and qualify installed consumers and coordinated replacement. |
 | F63 | Stream | Qualify installed replay/live results and browser consumers; preserve source-qualified replay/detection, visible terminal provenance and browser admission before state effects |
 | F64 | Shared recorded video | Qualify installed snapshot digests and Stream/Reason consumers; preserve signed timeline indices and source-qualified shared construction/decoder admission |
 | F65 | View | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| F66 | Recording | Keep distinct dataset/recording/layer IDs and digest types through RRD normalization, inspection and publication; admit sealed properties while preserving native timestamp/hash preimages and layer-to-Artifact occurrence mapping; qualify installed ingest/Rerun |
+| F66 | Recording | Typed dataset/recording/layer IDs, checked sealed properties and public seal recovery pass locally over retained Writing/Staged properties, including unchanged source facts and refusal without rewriting mismatched bytes or reserving another occurrence. Deterministic footer ordering changes complete-file hashes while preserving timestamp, schema-digest and layer-to-Artifact occurrence rules. Qualify final manifest/playback bytes after Phase 8, then installed ingest/Rerun |
 | F67 | Shared consumers | Keep imports direct and preserve authorization, identity serialization, and schemas |
-| F68 | SDKs, clients, templates, and showcase servers | Admit immutable SDK Artifact metadata/address/compliance and usage parent/finite/derived-total relationships through actual template/client callers; preserve explicit external/native Task profiles; qualify installed multi-page consumers |
+| F68 | SDKs, clients, templates, and showcase servers | SDK Artifact metadata/address/compliance and usage parent/finite/derived-total admission pass affected SDK and template callers locally. Preserve explicit external/native Task profiles and qualify installed multi-page consumers |
 
 Map's related and evidence references adopt the existing generic `ResourceUri`
 profile with their eight allowed schemes, 1024-byte item limit and 64-item list
