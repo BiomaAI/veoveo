@@ -44,7 +44,8 @@ fn selection() -> Value {
         "knowledge":{
             "existingConfigMap":"indexing-public", "existingSigningSecret":"indexing-private",
             "configurationRevision":"b".repeat(64),
-            "indexingConfigKeys":["first.json","second.json"]
+            "indexingConfigKeys":["first.json","second.json"],
+            "embeddingRuntimeConfigKey":"qualified-runtime.json"
         }
     })
 }
@@ -95,7 +96,12 @@ fn deployment_uses_private_credentials_shared_gpu_and_independent_liveness() -> 
     ensure!(key.get("value").is_none());
     ensure!(key["valueFrom"]["secretKeyRef"] == json!({"name":"veoveo-embedding","key":"api-key"}));
     let volumes = pod["volumes"].as_array().context("volumes")?;
-    ensure!(volumes.len() == 4);
+    ensure!(volumes.len() == 3);
+    let configuration = volumes
+        .iter()
+        .find(|volume| volume["name"] == "configuration")
+        .context("qualified runtime and indexing configuration volume")?;
+    ensure!(configuration["configMap"]["name"] == "indexing-public");
     ensure!(
         deployment["spec"]["template"]["metadata"]["annotations"]["checksum/module-plan"]
             .is_string()
@@ -145,25 +151,21 @@ fn deployment_uses_private_credentials_shared_gpu_and_independent_liveness() -> 
                 .as_str()
                 .is_some_and(|s| s.starts_with("knowledge"))
     }));
-    let space: Value = serde_json::from_str(
-        find(&rendered, "ConfigMap", "knowledge-embedding-space")?["data"]["space.json"]
-            .as_str()
-            .context("embedding space")?,
-    )?;
-    let qualified: Value = serde_json::from_str(include_str!(
-        "../../../platform/runtimes/embedding/verification/reference.json"
-    ))?;
     ensure!(
-        space == qualified["space"],
-        "rendered embedding identity differs from the qualified reference"
+        !rendered
+            .iter()
+            .any(|v| v["kind"] == "ConfigMap"
+                && v["metadata"]["name"] == "knowledge-embedding-space")
     );
-    let runtime =
-        &find(&rendered, "Deployment", "embedding")?["spec"]["template"]["spec"]["containers"][0];
+    let env = container["env"].as_array().context("environment")?;
     ensure!(
-        runtime["image"]
-            .as_str()
-            .context("runtime image")?
-            .ends_with(space["runtimeImage"].as_str().context("runtime digest")?)
+        env.iter()
+            .any(|v| v["name"] == "VEOVEO_EMBEDDING_RUNTIME_FILE"
+                && v["value"] == "/etc/veoveo/knowledge/config/qualified-runtime.json")
+    );
+    ensure!(
+        !env.iter()
+            .any(|v| v["name"] == "VEOVEO_EMBEDDING_SPACE_FILE")
     );
     Ok(())
 }
@@ -172,6 +174,7 @@ fn deployment_uses_private_credentials_shared_gpu_and_independent_liveness() -> 
 fn renderer_rejects_incomplete_authority_and_dependency_configuration() -> Result<()> {
     for patch in [
         json!({"existingConfigMap":""}),
+        json!({"embeddingRuntimeConfigKey":""}),
         json!({"existingSigningSecret":""}),
         json!({"configurationRevision":""}),
         json!({"indexingConfigKeys":[]}),

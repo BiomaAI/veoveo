@@ -43,7 +43,11 @@ async fn source_to_hybrid_search_with_sql_policy_metadata_and_invalidation() {
         let indexer = Indexer { lease: &lease, store: &db.a, source: &source, embeddings: &embedding };
         let generation = indexer.build(&content.tenant, &registrations, &spec).await.unwrap();
         assert!(!embedding.inputs.lock().unwrap().iter().any(|text| text.contains("BODY-MUST-NEVER")));
-        db.a.activate_knowledge_generation(&lease, &content.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&content.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&content.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
 
         // A denied row that cannot be decoded proves SQL admits before decoding.
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
@@ -132,9 +136,22 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
             )
             .await
             .unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
-            .await
-            .unwrap();
+        db.a.activate_knowledge_generation(
+            &lease,
+            &registration.tenant,
+            generation,
+            None,
+            &embedding_fixture::runtime(
+                db.a.knowledge_generation(&registration.tenant, generation)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .space()
+                    .clone(),
+            ),
+        )
+        .await
+        .unwrap();
         for query in ["facility", "unmatchedkeyword"] {
             let request = SearchRequest::new(
                 EmbeddingText::new(query).unwrap(),
@@ -185,6 +202,14 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
                     generation,
                     &query,
                     &vector,
+                    &db.b
+                        .admit_knowledge_embeddings(
+                            &registration.tenant,
+                            generation,
+                            &embedding_fixture::runtime(vector.space().clone()),
+                        )
+                        .await
+                        .unwrap(),
                     &BTreeSet::new(),
                     3,
                     window,
@@ -206,6 +231,14 @@ async fn duplicate_chunks_expand_the_window_and_failed_rebuild_preserves_active(
                     generation,
                     &query,
                     &vector,
+                    &db.b
+                        .admit_knowledge_embeddings(
+                            &registration.tenant,
+                            generation,
+                            &embedding_fixture::runtime(vector.space().clone()),
+                        )
+                        .await
+                        .unwrap(),
                     &BTreeSet::new(),
                     3,
                     window,
@@ -262,7 +295,11 @@ async fn profile_uri_selection_precedes_both_rankings_and_denied_row_decoding() 
         let source = Source(Mutex::new(records));
         let generation = Indexer { lease: &lease, store: &db.a, source: &source, embeddings: &embedding }
             .build(&registration.tenant, std::slice::from_ref(&registration), &spec).await.unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&registration.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
         db.a.client().query(include_str!("queries/pipeline/profile_uri_selection_precedes_both_rankings_and_denied_row_decoding.surql"))
             .bind(("table", table.clone()))

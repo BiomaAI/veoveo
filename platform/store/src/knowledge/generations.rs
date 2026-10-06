@@ -1,5 +1,7 @@
+use super::profiles::{ExecutionDocument, RuntimeRows, registration_query};
 use super::*;
 use crate::PlatformStore;
+use veoveo_embedding_contract::QualifiedEmbeddingRuntime;
 use veoveo_knowledge_contract::GenerationSpec;
 
 #[derive(Debug, Clone, SurrealValue)]
@@ -57,12 +59,18 @@ impl PlatformStore {
         tenant: &TenantId,
         id: GenerationId,
         spec: &GenerationSpec,
+        runtime: &QualifiedEmbeddingRuntime,
     ) -> Result<(), StoreError> {
         let _mutation = lease.mutation().await;
         lease.check_tenant(tenant)?;
+        if spec.space() != runtime.space() {
+            return Err(StoreError::Knowledge(
+                "generation uses another qualified embedding space",
+            ));
+        }
         // The native HNSW grammar requires a literal dimension from the checked spec.
         let table = chunk_table(id);
-        let schema = include_str!("../queries/knowledge/generation.surql")
+        let schema = registration_query(include_str!("../queries/knowledge/generation.surql"))
             .replace("__DIMENSION__", &spec.space().dimension.get().to_string());
         let collections: Vec<_> = spec
             .collections()
@@ -72,14 +80,17 @@ impl PlatformStore {
                 revision: revision.clone(),
             })
             .collect();
-        lease
-            .bind(self.client().query(&schema))
-            .bind(("chunk_table", table))
-            .bind(("generation", generation_record(id)))
-            .bind(("tenant", tenant.to_string()))
-            .bind(("document", Document(spec.clone())))
-            .bind(("revision", spec.revision().to_string()))
-            .bind(("collections", collections))
+        RuntimeRows::new(runtime)
+            .bind(
+                lease
+                    .bind(self.client().query(&schema))
+                    .bind(("chunk_table", table))
+                    .bind(("generation", generation_record(id)))
+                    .bind(("tenant", tenant.to_string()))
+                    .bind(("document", ExecutionDocument(spec.clone())))
+                    .bind(("revision", spec.revision().to_string()))
+                    .bind(("collections", collections)),
+            )
             .await?
             .knowledge_check()?;
         Ok(())
@@ -99,8 +110,26 @@ impl PlatformStore {
             .bind(("tenant", tenant.to_string()))
             .await?
             .knowledge_check()?;
-        let document: Option<Document<GenerationSpec>> = response.take(0)?;
-        Ok(document.map(|d| d.0))
+        #[derive(SurrealValue)]
+        struct GenerationRow {
+            document: ExecutionDocument<GenerationSpec>,
+            #[surreal(wrap)]
+            revision: veoveo_types::Sha256Digest,
+            #[surreal(wrap)]
+            space_revision: veoveo_types::Sha256Digest,
+        }
+        let row: Option<GenerationRow> = response.take(0)?;
+        row.map(|row| {
+            if row.revision != row.document.0.revision()
+                || row.space_revision != row.document.0.space().revision()
+            {
+                return Err(StoreError::Knowledge(
+                    "generation lookup disagrees with its specification",
+                ));
+            }
+            Ok(row.document.0)
+        })
+        .transpose()
     }
 
     pub async fn activate_knowledge_generation(
@@ -109,18 +138,20 @@ impl PlatformStore {
         tenant: &TenantId,
         generation: GenerationId,
         previous: Option<GenerationId>,
+        runtime: &QualifiedEmbeddingRuntime,
     ) -> Result<(), StoreError> {
         let _mutation = lease.mutation().await;
         lease.check_tenant(tenant)?;
-        lease
+        let sql = registration_query(include_str!("../queries/knowledge/activate.surql"));
+        RuntimeRows::new(runtime)
             .bind(
-                self.client()
-                    .query(include_str!("../queries/knowledge/activate.surql")),
+                lease
+                    .bind(self.client().query(sql))
+                    .bind(("tenant", tenant.to_string()))
+                    .bind(("generation", generation_record(generation)))
+                    .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))
+                    .bind(("previous", previous.map(generation_record))),
             )
-            .bind(("tenant", tenant.to_string()))
-            .bind(("generation", generation_record(generation)))
-            .bind(("active", RecordId::new("knowledge_active", tenant.as_str())))
-            .bind(("previous", previous.map(generation_record)))
             .await?
             .knowledge_check()?;
         Ok(())

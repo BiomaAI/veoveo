@@ -1,7 +1,7 @@
 use crate::{CollectionApproval, CollectionRegistration, GenerationSpec, KnowledgeError};
 use serde::Serialize;
 use std::ops::Range;
-use veoveo_embedding_contract::EmbeddingVector;
+use veoveo_embedding_contract::{EmbeddingVector, QualifiedEmbeddingRuntime};
 use veoveo_mcp_knowledge_extension::{IndexingMode, Observation, content_digest};
 use veoveo_types::{ResourceUri, ResourceUriParts, Sha256Digest};
 
@@ -16,6 +16,7 @@ impl IndexedChunk {
         range: Range<usize>,
         vector: EmbeddingVector,
         generation: &GenerationSpec,
+        runtime: &QualifiedEmbeddingRuntime,
     ) -> Result<Self, KnowledgeError> {
         let text = text.get(range).ok_or(KnowledgeError(
             "chunk range must select complete UTF-8 characters",
@@ -23,6 +24,8 @@ impl IndexedChunk {
         if text.trim().is_empty()
             || text.chars().count() > generation.chunking().max_characters() as usize
             || vector.space() != generation.space()
+            || runtime.space() != generation.space()
+            || vector.profile_id() != runtime.profile().id()
         {
             return Err(KnowledgeError(
                 "chunk exceeds its character cap or uses another embedding space",
@@ -151,6 +154,9 @@ impl IndexedMember {
                 .scheme()
             || chunks.len() > 256
             || chunks.is_empty()
+            || chunks
+                .windows(2)
+                .any(|pair| pair[0].vector.profile_id() != pair[1].vector.profile_id())
         {
             return Err(KnowledgeError(
                 "member requires an owned URI and 1..=256 chunks",

@@ -46,8 +46,8 @@ struct Args {
     embedding_endpoint: String,
     #[arg(long, env = "VEOVEO_EMBEDDING_API_KEY", hide_env_values = true)]
     embedding_api_key: SecretString,
-    #[arg(long, env = "VEOVEO_EMBEDDING_SPACE_FILE")]
-    embedding_space_file: PathBuf,
+    #[arg(long, env = "VEOVEO_EMBEDDING_RUNTIME_FILE")]
+    embedding_runtime_file: PathBuf,
     /// One typed machine/source configuration per tenant served by this process.
     #[arg(long, required = true, num_args = 1..)]
     indexing_config: Vec<PathBuf>,
@@ -79,12 +79,12 @@ async fn main() -> anyhow::Result<()> {
     }
     .authority(&store)
     .await?;
-    let space = serde_json::from_slice(&tokio::fs::read(&args.embedding_space_file).await?)?;
+    let runtime = serde_json::from_slice(&tokio::fs::read(&args.embedding_runtime_file).await?)?;
     let embeddings = Arc::new(
         EmbeddingClient::connect(EmbeddingClientConfig::new(
             EmbeddingEndpoint::parse(&args.embedding_endpoint)?,
             args.embedding_api_key,
-            space,
+            runtime,
         ))
         .await?,
     );

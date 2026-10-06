@@ -1,4 +1,12 @@
 BEGIN TRANSACTION;
+LET $gen = (SELECT * FROM ONLY $generation
+    WHERE tenant = $tenant AND state = 'active'
+        AND profile_epoch = $embedding_epoch
+        AND producer_profiles = $embedding_retained_producers);
+IF $gen = NONE OR $active.generation != $generation {
+    THROW 'knowledge_embedding_publication_changed';
+};
+-- VALIDATE_EMBEDDING_RUNTIME
 -- Profile selectors are bound data. Templates consume the first next delimiter;
 -- later delimiters cannot rescue an empty variable or an unmatched suffix.
 LET $resource_selected = |$collection: string, $uri: string, $selections: array| {

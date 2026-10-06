@@ -1,3 +1,5 @@
+#[path = "../../../../testing/fixtures/embedding.rs"]
+mod embedding_fixture;
 use veoveo_knowledge_contract::{ChunkSettings, GenerationId};
 
 #[test]
@@ -50,7 +52,10 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
         model: EmbeddingModelId::parse("fixture").unwrap(),
         revision: EmbeddingModelRevision::parse("v1").unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
-        runtime_image: Sha256Digest::from_bytes([2; 32]),
+        pooling: EmbeddingPooling::LastToken,
+        normalization: EmbeddingNormalization::L2,
+        precision: EmbeddingPrecision::Float32,
+        max_input_tokens: EmbeddingMaxInputTokens::new(8192).unwrap(),
     };
     let spec = GenerationSpec::new(
         space.clone(),
@@ -74,8 +79,21 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
     .build(&registration.descriptor)
     .unwrap();
     let title = MemberTitle::new("Inspection").unwrap();
-    let vector = || EmbeddingVector::new(space.clone(), vec![1.0, 0.0, 0.0]).unwrap();
-    let body_chunk = IndexedChunk::from_range(text, 0..text.len(), vector(), &spec).unwrap();
+    let vector = || {
+        EmbeddingVector::new(
+            &embedding_fixture::runtime(space.clone()),
+            vec![1.0, 0.0, 0.0],
+        )
+        .unwrap()
+    };
+    let body_chunk = IndexedChunk::from_range(
+        text,
+        0..text.len(),
+        vector(),
+        &spec,
+        &embedding_fixture::runtime(spec.space().clone()),
+    )
+    .unwrap();
     let uri = ResourceUri::new("fixture://records/one").unwrap();
     assert!(
         IndexedMember::metadata(
@@ -102,7 +120,14 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
         .is_err()
     );
     let metadata = metadata_text(&title, &observation);
-    let chunk = IndexedChunk::from_range(&metadata, 0..metadata.len(), vector(), &spec).unwrap();
+    let chunk = IndexedChunk::from_range(
+        &metadata,
+        0..metadata.len(),
+        vector(),
+        &spec,
+        &embedding_fixture::runtime(spec.space().clone()),
+    )
+    .unwrap();
     assert!(
         IndexedMember::metadata(
             &registration,
@@ -115,4 +140,71 @@ fn metadata_constructor_rejects_body_chunks_and_mismatched_mode() {
         )
         .is_ok()
     );
+}
+
+#[test]
+fn generation_digest_excludes_execution_but_includes_query_chunking_and_approvals() {
+    use veoveo_embedding_contract::*;
+    use veoveo_knowledge_contract::*;
+    let space = EmbeddingSpace {
+        model: "synthetic".parse().unwrap(),
+        revision: "fixture".parse().unwrap(),
+        dimension: EmbeddingDimension::new(3).unwrap(),
+        pooling: EmbeddingPooling::LastToken,
+        normalization: EmbeddingNormalization::L2,
+        precision: EmbeddingPrecision::Float32,
+        max_input_tokens: EmbeddingMaxInputTokens::new(8192).unwrap(),
+    };
+    let a = embedding_fixture::profile(space.clone(), 1);
+    let b = embedding_fixture::profile(space, 2);
+    let collections = [(
+        "fixture.records".parse().unwrap(),
+        veoveo_types::Sha256Digest::from_bytes([1; 32]),
+    )]
+    .into();
+    let chunking = ChunkSettings::new("structure-v1", 1000, 100).unwrap();
+    let first = GenerationSpec::new(
+        a.space().clone(),
+        "Find passages",
+        chunking.clone(),
+        collections,
+    )
+    .unwrap();
+    let replaced = GenerationSpec::new(
+        b.space().clone(),
+        first.query_task(),
+        chunking.clone(),
+        first.collections().clone(),
+    )
+    .unwrap();
+    assert_ne!(a.id(), b.id());
+    assert_eq!(first.revision(), replaced.revision());
+    let query_changed = GenerationSpec::new(
+        a.space().clone(),
+        "Find other passages",
+        chunking.clone(),
+        first.collections().clone(),
+    )
+    .unwrap();
+    assert_ne!(query_changed.revision(), first.revision());
+    let chunk_changed = GenerationSpec::new(
+        a.space().clone(),
+        first.query_task(),
+        ChunkSettings::new("structure-v2", 1000, 100).unwrap(),
+        first.collections().clone(),
+    )
+    .unwrap();
+    assert_ne!(chunk_changed.revision(), first.revision());
+    let collection_changed = GenerationSpec::new(
+        a.space().clone(),
+        first.query_task(),
+        chunking,
+        [(
+            "fixture.records".parse().unwrap(),
+            veoveo_types::Sha256Digest::from_bytes([2; 32]),
+        )]
+        .into(),
+    )
+    .unwrap();
+    assert_ne!(collection_changed.revision(), first.revision());
 }

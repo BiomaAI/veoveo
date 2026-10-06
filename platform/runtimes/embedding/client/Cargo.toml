@@ -4,7 +4,13 @@ version.workspace = true
 edition.workspace = true
 publish = false
 
+[features]
+default = []
+verification = ["dep:sha2", "dep:veoveo-types"]
+
 [dependencies]
+sha2 = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
 veoveo-embedding-contract.workspace = true
 reqwest = { workspace = true, features = ["rustls-no-provider", "json", "stream"] }
 rustls.workspace = true

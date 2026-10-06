@@ -96,12 +96,18 @@ same rules.
   Client clones share request permits and reserve capacity from bulk admission. Runtime
   qualification measures whether interactive work completes ahead of queued indexing.
 
-Every response carries the shared contract's `EmbeddingSpace`: model name, checkpoint revision,
-dimension, and the vLLM image digest. The client verifies the served model through
-`/v1/models`; deployment configuration supplies the revision, dimension and image digest.
-A consumer stores the space with its vectors and compares
-vectors only within one space. A model change therefore creates a new space, and each
-consumer rebuilds its vectors deliberately.
+Every vector carries its complete `EmbeddingSpace` and producer execution profile ID.
+The space covers model, checkpoint revision, dimension, pooling, normalization,
+effective precision and maximum input tokens. The immutable execution profile
+separately covers runtime image, checkpoint manifest, measured NVIDIA environment
+and effective serving configuration. Installation-selected qualification bundles bind
+passing reference, retrieval, scheduling and capacity report identities to directional
+query/producer compatibility. `/v1/models` checks an advertised model name only.
+A consumer can reuse same-space vectors under a new execution profile only when that
+profile has qualification for every retained producer. Different space semantics
+require a new generation. The current installation must continue using its qualified
+inputs until measured replacement bundles and the fresh-state transition are ready;
+synthetic fixtures and historical reports cannot qualify newly declared profiles.
 
 ## Model Selection
 

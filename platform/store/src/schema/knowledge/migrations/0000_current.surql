@@ -12,6 +12,10 @@ DEFINE TABLE knowledge_coverage TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
 
 DEFINE TABLE knowledge_evaluation TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
 
+DEFINE TABLE knowledge_embedding_profile TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
+DEFINE TABLE knowledge_embedding_qualification TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
+DEFINE TABLE knowledge_embedding_batch TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
+
 DEFINE TABLE knowledge_generation TYPE NORMAL SCHEMAFULL CHANGEFEED 1w PERMISSIONS NONE;
 
 DEFINE TABLE knowledge_member TYPE NORMAL SCHEMAFULL CHANGEFEED 1w PERMISSIONS NONE;
@@ -134,3 +138,25 @@ DEFINE FIELD OVERWRITE approval ON knowledge_collection TYPE { collection: strin
 DEFINE FIELD OVERWRITE required_scopes ON knowledge_collection TYPE array<string> PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE change_signal ON knowledge_collection TYPE 'listen' | 'immutable' | 'revalidate' PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE entity_kind ON knowledge_collection TYPE string PERMISSIONS FULL;
+
+-- Execution facts are immutable installation admissions; decoding verifies their content identities.
+DEFINE FIELD OVERWRITE id ON knowledge_embedding_profile TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE document ON knowledge_embedding_profile TYPE { id: string, contents: { space: { model: string, revision: string, dimension: int, pooling: 'last_token' | 'mean' | 'cls', normalization: 'l2', precision: 'float32' | 'float16' | 'bfloat16' | 'int8' | 'int4', maxInputTokens: int }, runtimeImage: string, checkpointManifest: string, vllmVersion: string, environment: { gpu: string, driver: string, cuda: string }, serving: { precision: 'float32' | 'float16' | 'bfloat16' | 'int8' | 'int4', scheduling: 'priority', graphAllowance: 'graphs_allowed' | 'enforce_eager', observedGraphExecution: 'eager' | 'cuda_graph', attentionBackend: string, explicitKvCacheBytes: int | null, maxInputTokens: int, maxNumBatchedTokens: int, maxNumSequences: int, gpuMemoryBasisPoints: int } } } READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE id ON knowledge_embedding_qualification TYPE string PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE document ON knowledge_embedding_qualification TYPE { id: string, contents: { queryProfile: string, producerProfile: string, space: { model: string, revision: string, dimension: int, pooling: 'last_token' | 'mean' | 'cls', normalization: 'l2', precision: 'float32' | 'float16' | 'bfloat16' | 'int8' | 'int4', maxInputTokens: int }, evidence: { referenceReport: string, retrievalReport: string, schedulingReport: string, capacityReport: string, minimumCosineMillionths: int, retrievalPassed: bool, interactivePriorityPassed: bool, capacityPassed: bool } } } READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE query_profile ON knowledge_embedding_qualification TYPE record<knowledge_embedding_profile> READONLY REFERENCE ON DELETE REJECT PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE producer_profile ON knowledge_embedding_qualification TYPE record<knowledge_embedding_profile> READONLY REFERENCE ON DELETE REJECT PERMISSIONS FULL;
+DEFINE INDEX knowledge_embedding_pair ON knowledge_embedding_qualification FIELDS query_profile, producer_profile;
+DEFINE FIELD OVERWRITE id ON knowledge_embedding_batch TYPE array PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE generation ON knowledge_embedding_batch TYPE record<knowledge_generation> READONLY REFERENCE ON DELETE CASCADE PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE collection ON knowledge_embedding_batch TYPE record<knowledge_collection> READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE member_uri ON knowledge_embedding_batch TYPE string READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE source_epoch ON knowledge_embedding_batch TYPE int ASSERT $value > 0 READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE member_epoch ON knowledge_embedding_batch TYPE int ASSERT $value > 0 READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE producer_profile ON knowledge_embedding_batch TYPE record<knowledge_embedding_profile> READONLY REFERENCE ON DELETE REJECT PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE chunk_count ON knowledge_embedding_batch TYPE int ASSERT $value >= 0 AND $value <= 1024 READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE recorded_at ON knowledge_embedding_batch TYPE datetime READONLY PERMISSIONS FULL;
+DEFINE INDEX knowledge_embedding_batches ON knowledge_embedding_batch FIELDS generation, producer_profile;
+DEFINE FIELD OVERWRITE space_revision ON knowledge_generation TYPE string READONLY PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE producer_profiles ON knowledge_generation TYPE array<record<knowledge_embedding_profile>> ASSERT array::len($value) <= 64 PERMISSIONS FULL;
+DEFINE FIELD OVERWRITE profile_epoch ON knowledge_generation TYPE int ASSERT $value > 0 PERMISSIONS FULL;

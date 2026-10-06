@@ -1,4 +1,6 @@
 //! Persistence qualification uses synthetic normalized vectors, never inference or GPU evidence.
+#[path = "../../../testing/fixtures/embedding.rs"]
+mod embedding_fixture;
 use chrono::Utc;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -24,13 +26,18 @@ mod catalog;
 mod coordinator;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "knowledge/provenance.rs"]
+mod provenance;
 
 fn space(revision: &str) -> EmbeddingSpace {
     EmbeddingSpace {
         model: EmbeddingModelId::parse("synthetic-fixture").unwrap(),
         revision: EmbeddingModelRevision::parse(revision).unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
-        runtime_image: Sha256Digest::from_bytes([7; 32]),
+        pooling: EmbeddingPooling::LastToken,
+        normalization: EmbeddingNormalization::L2,
+        precision: EmbeddingPrecision::Float32,
+        max_input_tokens: EmbeddingMaxInputTokens::new(8192).unwrap(),
     }
 }
 fn registration(tenant: &str) -> CollectionRegistration {
@@ -130,8 +137,19 @@ fn member_with_access(
     .access(access)
     .build(&registration.descriptor)
     .unwrap();
-    let vector = EmbeddingVector::new(spec.space().clone(), vec![1.0, 0.0, 0.0]).unwrap();
-    let chunk = IndexedChunk::from_range(text, 0..text.len(), vector, spec).unwrap();
+    let vector = EmbeddingVector::new(
+        &embedding_fixture::runtime(spec.space().clone()),
+        vec![1.0, 0.0, 0.0],
+    )
+    .unwrap();
+    let chunk = IndexedChunk::from_range(
+        text,
+        0..text.len(),
+        vector,
+        spec,
+        &embedding_fixture::runtime(spec.space().clone()),
+    )
+    .unwrap();
     let uri = veoveo_types::ResourceUriBuilder::new("fixture://records")
         .unwrap()
         .segment(veoveo_types::UriSegment::new(id).unwrap())
@@ -157,7 +175,14 @@ async fn insert(
     member: &IndexedMember,
 ) {
     let ticket = store
-        .begin_knowledge_member_read(lease, registration, gen_id, spec, member.uri())
+        .begin_knowledge_member_read(
+            lease,
+            registration,
+            gen_id,
+            spec,
+            member.uri(),
+            &embedding_fixture::runtime(spec.space().clone()),
+        )
         .await
         .unwrap();
     store
@@ -208,7 +233,11 @@ async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_own
         db.a.register_knowledge_collection(&registration, None)
             .await
             .unwrap();
-        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification)
+        db.a.create_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+&specification,
+&embedding_fixture::runtime(specification.space().clone()))
             .await
             .unwrap();
         let member = member_with_policy(
@@ -232,7 +261,11 @@ async fn source_scopes_and_selected_context_membership_cannot_be_bypassed_by_own
         complete(&db.a, &lease, &registration, generation)
             .await
             .unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
+        db.a.activate_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&registration.tenant, generation).await.unwrap().unwrap().space().clone()))
             .await
             .unwrap();
         let mut caller = scope(&registration);
@@ -286,7 +319,11 @@ async fn selected_context_and_expiry_are_admitted_in_sql_before_decoding() {
         let specification = spec(&registration, "expiry");
         let generation = GenerationId::new();
         db.a.register_knowledge_collection(&registration, None).await.unwrap();
-        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification).await.unwrap();
+        db.a.create_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+&specification,
+&embedding_fixture::runtime(specification.space().clone())).await.unwrap();
         let past = Utc::now() - chrono::TimeDelta::minutes(1);
         let deadline = Utc::now() + chrono::TimeDelta::seconds(4);
         let reader = AccessSubject::Principal("reader".parse().unwrap());
@@ -308,7 +345,11 @@ async fn selected_context_and_expiry_are_admitted_in_sql_before_decoding() {
             insert(&db.a, &lease, &registration, generation, &specification, &member).await;
         }
         complete(&db.a, &lease, &registration, generation).await.unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&registration.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
         let mut reader = scope(&registration);
         reader.subjects.insert(group);
         assert_candidates(&db.b, &reader, generation, &["eee-selected", "fff-live-grant", "zzz-visible"]).await;
@@ -355,9 +396,15 @@ async fn qualify_read_policies() {
     db.a.register_knowledge_collection(&registration, None)
         .await
         .unwrap();
-    db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification)
-        .await
-        .unwrap();
+    db.a.create_knowledge_generation(
+        &lease,
+        &registration.tenant,
+        generation,
+        &specification,
+        &embedding_fixture::runtime(specification.space().clone()),
+    )
+    .await
+    .unwrap();
     let records = [
         ("aaa-owner", ReadPolicy::Subjects {}, vec![]),
         (
@@ -403,9 +450,22 @@ async fn qualify_read_policies() {
     complete(&db.a, &lease, &registration, generation)
         .await
         .unwrap();
-    db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
-        .await
-        .unwrap();
+    db.a.activate_knowledge_generation(
+        &lease,
+        &registration.tenant,
+        generation,
+        None,
+        &embedding_fixture::runtime(
+            db.a.knowledge_generation(&registration.tenant, generation)
+                .await
+                .unwrap()
+                .unwrap()
+                .space()
+                .clone(),
+        ),
+    )
+    .await
+    .unwrap();
 
     let reader = scope(&registration);
     assert_candidates(&db.b, &reader, generation, &["eee-shared", "zzz-tenant"]).await;
@@ -547,13 +607,32 @@ async fn qualify() {
     );
     let first = GenerationId::new();
     let first_spec = spec(&registration, "space-one");
-    db.a.create_knowledge_generation(&lease, tenant, first, &first_spec)
-        .await
-        .unwrap();
+    db.a.create_knowledge_generation(
+        &lease,
+        tenant,
+        first,
+        &first_spec,
+        &embedding_fixture::runtime(first_spec.space().clone()),
+    )
+    .await
+    .unwrap();
     assert!(
-        db.b.activate_knowledge_generation(&lease, tenant, first, None)
-            .await
-            .is_err()
+        db.b.activate_knowledge_generation(
+            &lease,
+            tenant,
+            first,
+            None,
+            &embedding_fixture::runtime(
+                db.b.knowledge_generation(tenant, first)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .space()
+                    .clone()
+            )
+        )
+        .await
+        .is_err()
     );
     let visible = member(&registration, &first_spec, "visible", "operations", &[]);
     let hidden = member(
@@ -575,9 +654,22 @@ async fn qualify() {
             .unwrap(),
         "building members cannot authorize subscriptions"
     );
-    db.a.activate_knowledge_generation(&lease, tenant, first, None)
-        .await
-        .unwrap();
+    db.a.activate_knowledge_generation(
+        &lease,
+        tenant,
+        first,
+        None,
+        &embedding_fixture::runtime(
+            db.a.knowledge_generation(tenant, first)
+                .await
+                .unwrap()
+                .unwrap()
+                .space()
+                .clone(),
+        ),
+    )
+    .await
+    .unwrap();
     assert_eq!(
         db.b.active_knowledge_generation(tenant).await.unwrap(),
         Some(first)
@@ -642,13 +734,27 @@ async fn qualify() {
     );
 
     let late =
-        db.a.begin_knowledge_member_read(&lease, &registration, first, &first_spec, visible.uri())
-            .await
-            .unwrap();
+        db.a.begin_knowledge_member_read(
+            &lease,
+            &registration,
+            first,
+            &first_spec,
+            visible.uri(),
+            &embedding_fixture::runtime(first_spec.space().clone()),
+        )
+        .await
+        .unwrap();
     let current =
-        db.b.begin_knowledge_member_read(&lease, &registration, first, &first_spec, visible.uri())
-            .await
-            .unwrap();
+        db.b.begin_knowledge_member_read(
+            &lease,
+            &registration,
+            first,
+            &first_spec,
+            visible.uri(),
+            &embedding_fixture::runtime(first_spec.space().clone()),
+        )
+        .await
+        .unwrap();
     assert!(
         !db.a
             .knowledge_member_observed(&registration, visible.uri())
@@ -685,9 +791,16 @@ async fn qualify() {
     );
 
     let deletion =
-        db.b.begin_knowledge_member_read(&lease, &registration, first, &first_spec, visible.uri())
-            .await
-            .unwrap();
+        db.b.begin_knowledge_member_read(
+            &lease,
+            &registration,
+            first,
+            &first_spec,
+            visible.uri(),
+            &embedding_fixture::runtime(first_spec.space().clone()),
+        )
+        .await
+        .unwrap();
     db.a.confirm_knowledge_member_deleted(&deletion)
         .await
         .unwrap();
@@ -712,12 +825,24 @@ async fn qualify() {
 
     let second = GenerationId::new();
     let second_spec = spec(&registration, "space-two");
-    db.a.create_knowledge_generation(&lease, tenant, second, &second_spec)
-        .await
-        .unwrap();
-    let ticket = db
-        .a
-        .begin_knowledge_member_read(&lease, &registration, second, &second_spec, visible.uri())
+    db.a.create_knowledge_generation(
+        &lease,
+        tenant,
+        second,
+        &second_spec,
+        &embedding_fixture::runtime(second_spec.space().clone()),
+    )
+    .await
+    .unwrap();
+    let ticket =
+        db.a.begin_knowledge_member_read(
+            &lease,
+            &registration,
+            second,
+            &second_spec,
+            visible.uri(),
+            &embedding_fixture::runtime(second_spec.space().clone()),
+        )
         .await
         .unwrap();
     assert!(
@@ -734,13 +859,39 @@ async fn qualify() {
         .await
         .unwrap();
     assert!(
-        db.b.activate_knowledge_generation(&lease, tenant, second, None)
-            .await
-            .is_err()
-    );
-    db.b.activate_knowledge_generation(&lease, tenant, second, Some(first))
+        db.b.activate_knowledge_generation(
+            &lease,
+            tenant,
+            second,
+            None,
+            &embedding_fixture::runtime(
+                db.b.knowledge_generation(tenant, second)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .space()
+                    .clone()
+            )
+        )
         .await
-        .unwrap();
+        .is_err()
+    );
+    db.b.activate_knowledge_generation(
+        &lease,
+        tenant,
+        second,
+        Some(first),
+        &embedding_fixture::runtime(
+            db.b.knowledge_generation(tenant, second)
+                .await
+                .unwrap()
+                .unwrap()
+                .space()
+                .clone(),
+        ),
+    )
+    .await
+    .unwrap();
     assert!(
         db.a.knowledge_member_observed(&registration, visible.uri())
             .await
@@ -800,7 +951,8 @@ async fn qualify() {
             &registration,
             second,
             &second_spec,
-            &ResourceUri::new("fixture://records/visible").unwrap()
+            &ResourceUri::new("fixture://records/visible").unwrap(),
+            &embedding_fixture::runtime(second_spec.space().clone())
         )
         .await
         .is_err()
@@ -811,6 +963,26 @@ async fn qualify() {
             .is_err(),
         "active generations are fenced from cleanup"
     );
+    let first_record = veoveo_platform_store::RecordId::new(
+        "knowledge_generation",
+        surrealdb::types::Uuid::from(first.as_uuid()),
+    );
+    let mut registry_before =
+        db.b.client()
+            .query(include_str!("queries/knowledge/qualify_2.surql"))
+            .bind(("generation", first_record))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    let receipts_before: Vec<veoveo_platform_store::RecordId> = registry_before.take(1).unwrap();
+    assert!(
+        !receipts_before.is_empty(),
+        "retired generation has actual published batch receipts"
+    );
+    let profiles_before: Vec<surrealdb::types::Value> = registry_before.take(2).unwrap();
+    let qualifications_before: Vec<surrealdb::types::Value> = registry_before.take(3).unwrap();
+    assert!(!profiles_before.is_empty() && !qualifications_before.is_empty());
     db.a.remove_knowledge_generation(&lease, tenant, first)
         .await
         .unwrap();
@@ -838,6 +1010,21 @@ async fn qualify() {
     assert!(
         members.is_empty(),
         "native references cascade reclaimed generation members"
+    );
+    let receipts: Vec<veoveo_platform_store::RecordId> = response.take(1).unwrap();
+    assert!(
+        receipts.is_empty(),
+        "native references cascade reclaimed generation batch receipts"
+    );
+    assert_eq!(
+        response.take::<Vec<surrealdb::types::Value>>(2).unwrap(),
+        profiles_before,
+        "shared immutable producer registry survives reclamation"
+    );
+    assert_eq!(
+        response.take::<Vec<surrealdb::types::Value>>(3).unwrap(),
+        qualifications_before,
+        "shared immutable qualification reports survive reclamation"
     );
 }
 
@@ -869,9 +1056,15 @@ async fn lexical_resource_selection_matches_policy_before_pagination() {
             .await
             .unwrap();
         let generation = GenerationId::new();
-        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &spec)
-            .await
-            .unwrap();
+        db.a.create_knowledge_generation(
+            &lease,
+            &registration.tenant,
+            generation,
+            &spec,
+            &embedding_fixture::runtime(spec.space().clone()),
+        )
+        .await
+        .unwrap();
         let mut uris = Vec::new();
         for id in [
             "a",
@@ -894,9 +1087,22 @@ async fn lexical_resource_selection_matches_policy_before_pagination() {
         complete(&db.a, &lease, &registration, generation)
             .await
             .unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
-            .await
-            .unwrap();
+        db.a.activate_knowledge_generation(
+            &lease,
+            &registration.tenant,
+            generation,
+            None,
+            &embedding_fixture::runtime(
+                db.a.knowledge_generation(&registration.tenant, generation)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .space()
+                    .clone(),
+            ),
+        )
+        .await
+        .unwrap();
         uris.sort();
         let selectors = [
             vec![],
@@ -1083,7 +1289,11 @@ async fn controlled_observation_storage_rejects_unknown_and_missing_fields_atomi
         let specification = spec(&registration, "shape");
         let generation = GenerationId::new();
         db.a.register_knowledge_collection(&registration, None).await.unwrap();
-        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification).await.unwrap();
+        db.a.create_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+&specification,
+&embedding_fixture::runtime(specification.space().clone())).await.unwrap();
         let member = member_with_access(&registration, &specification, "visible", AccessDescriptor {
             tenant: registration.tenant.clone(), work_context: "operations".parse().unwrap(),
             read_policy: source::ReadPolicy::Tenant {}, owner: AccessSubject::Principal("author".parse().unwrap()),
@@ -1091,7 +1301,11 @@ async fn controlled_observation_storage_rejects_unknown_and_missing_fields_atomi
         });
         insert(&db.a, &lease, &registration, generation, &specification, &member).await;
         complete(&db.a, &lease, &registration, generation).await.unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&registration.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
         let original = serde_json::to_value(member.observation()).unwrap();
         for which in 0..8 {
             let mut invalid = original.clone();
@@ -1141,6 +1355,7 @@ async fn generation_requirements_admit_only_closed_native_collection_rows() {
             &registration.tenant,
             generation,
             &spec(&registration, "requirements"),
+            &embedding_fixture::runtime(spec(&registration, "requirements").space().clone()),
         )
         .await
         .unwrap();

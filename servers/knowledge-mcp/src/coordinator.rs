@@ -204,6 +204,11 @@ impl<S: ObservableSource, E: Embeddings> Coordinator<'_, S, E> {
                 .prepare(lease.tenant(), registrations, specification)
                 .await?
         };
+        if reusable {
+            self.store
+                .admit_knowledge_embeddings(lease.tenant(), generation, self.embeddings.runtime())
+                .await?;
+        }
         let mut activated = reusable;
         let mut served = false;
         let mut pending: BTreeSet<usize> = (0..registrations.len()).collect();
@@ -248,7 +253,13 @@ impl<S: ObservableSource, E: Embeddings> Coordinator<'_, S, E> {
             }
             if !activated {
                 self.store
-                    .activate_knowledge_generation(lease, lease.tenant(), generation, previous)
+                    .activate_knowledge_generation(
+                        lease,
+                        lease.tenant(),
+                        generation,
+                        previous,
+                        self.embeddings.runtime(),
+                    )
                     .await?;
                 activated = true;
                 // Process events that arrived during activation before readiness.

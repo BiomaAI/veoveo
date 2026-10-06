@@ -3,6 +3,7 @@ LET $leader = (SELECT * FROM ONLY $coordinator WHERE owner = $owner AND epoch = 
 IF $leader = NONE { THROW 'knowledge_coordinator_fenced'; };
 -- Write the row to serialize this transaction against takeover and expiry renewal.
 UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
+-- REGISTER_EMBEDDING_RUNTIME
 
     -- Bound requirements are nominal native {record, revision} rows.
     FOR $required IN $collections {
@@ -22,6 +23,9 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
         tenant: $tenant,
         document: $document,
         revision: $revision,
+        space_revision: $embedding_space_revision,
+        producer_profiles: [],
+        profile_epoch: 1,
         collections: $collections,
         state: 'building',
     };
@@ -58,6 +62,14 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
         AND string::len($value) <= 32768;
     DEFINE FIELD title ON $chunk_table TYPE string;
     DEFINE FIELD embedding ON $chunk_table TYPE array<float, __DIMENSION__>;
+    DEFINE FIELD producer_batch ON $chunk_table TYPE record<knowledge_embedding_batch>
+        ASSERT $value.generation = $this.member.generation
+            AND $value.member_uri = $this.uri
+            AND $value.collection = $this.collection
+        READONLY REFERENCE ON DELETE REJECT;
+    DEFINE FIELD producer_profile ON $chunk_table TYPE record<knowledge_embedding_profile>
+        ASSERT $value = $this.producer_batch.producer_profile
+        READONLY REFERENCE ON DELETE REJECT;
     DEFINE FIELD observation ON $chunk_table TYPE { collection: string, revision: string, contentSha256: string, observedAt: string, modifiedAt: option<string>, modifiedBy: option<{ kind: 'principal', id: string }>, access: option<{ tenant: string, workContext: string, readPolicy: { kind: 'tenant' | 'subjects' | 'work-context' | 'selected-work-context' | 'selected-work-context-members' } | { kind: 'subjects-in-context', profile: option<string> }, owner: { kind: 'principal' | 'group', id: string }, grants: option<array<{ subject: { kind: 'principal' | 'group', id: string }, expiresAt: option<string> }>>, dataLabels: array<string>, expiresAt: option<string> }>, external: option<{ system: string, nativeId: string, url: option<string>, mirroredAt: option<string> }>, notModified: option<bool> };
     DEFINE INDEX member_ordinal ON $chunk_table FIELDS member, ordinal UNIQUE;
     DEFINE INDEX content_search ON $chunk_table FIELDS text FULLTEXT ANALYZER knowledge_text BM25;

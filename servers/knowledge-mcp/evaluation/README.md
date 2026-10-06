@@ -42,8 +42,8 @@ The writer refuses existing files. The source corpus includes the current owning
 design documents, so document edits produce a new comparison fingerprint.
 
 `VEOVEO_RETRIEVAL_INPUT` names an absolute JSON path. Its closed configuration has
-`space`, `queryTask`, `chunking`, and `corpus` fields. `space` is the shared
-`EmbeddingSpace`; `chunking` uses `ChunkSettings`. Use the reference installation's
+`runtime`, `queryTask`, `chunking`, and `corpus` fields. `runtime` is the installation-admitted
+`QualifiedEmbeddingRuntime` bundle; `chunking` uses `ChunkSettings`. Use the reference installation's
 1,500-character chunks, 150-character overlap and `structure-v1` chunker for its
 baseline. Keep that setting and the query instruction identical across model sizes.
 
@@ -94,3 +94,21 @@ cleanup deletes that isolated generation; the report preserves its identity and 
 
 Use measured retrieval gains and GPU memory together when selecting 0.6B, 4B or 8B.
 Synthetic-vector unit tests establish evaluator behavior and do not measure model quality.
+
+
+## First Runtime Qualification
+
+The existing `gpu_retrieval` target also provides candidate configuration and vector
+capture cases. They reuse this workload's admitted corpus, judgments, query task and
+chunker without connecting to Store. Their output feeds the CUDA
+[initial qualification](../../../platform/runtimes/embedding/verification/README.md#initial-qualification)
+sequence. Candidate ranking reports runtime compatibility only. The production
+hybrid retrieval, rebuild and concurrent-search case still must pass with the
+resulting checked bundle before the installation selects it.
+
+
+The full GPU configuration requires an explicit minimum recall in (0,1]. Its writer
+and entrypoint check the corpus, task, chunker and threshold against the candidate
+report bytes bound into the bundle. The production report includes that minimum and
+the task/chunker fingerprints. The workload saves the measured report and rejects
+recall below the minimum, in addition to its rebuild and concurrent-search checks.

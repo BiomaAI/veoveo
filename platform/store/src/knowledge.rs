@@ -9,6 +9,7 @@ mod coordinator;
 mod evaluations;
 mod generations;
 mod members;
+mod profiles;
 mod reads;
 mod registration;
 mod resource_selection;
@@ -23,6 +24,7 @@ pub use completion::{CatalogCompletion, CatalogCompletionValue};
 use coordinator::sync_record;
 pub use coordinator::{CoordinatorId, CoordinatorLease};
 pub use members::MemberReadTicket;
+pub use profiles::EmbeddingAdmission;
 pub use reads::{CandidateCursor, CandidateScope, KnowledgeCandidate};
 pub use search::{HybridSearchPage, RankedCandidate, SearchWindow};
 use serde::{Serialize, de::DeserializeOwned};
@@ -84,8 +86,50 @@ trait KnowledgeResponse: Sized {
 impl KnowledgeResponse for surrealdb::IndexedResults {
     fn knowledge_check(mut self) -> Result<Self, StoreError> {
         if let Some(error) = crate::primary_transaction_error(self.take_errors()) {
-            return Err(error.into());
+            return Err(knowledge_database_error(error));
         }
         Ok(self)
+    }
+}
+
+// Pinned SurrealDB 3.3 exposes THROW as a typed kind with a formatted message.
+// Only this owner-defined ranking fence is a changed-admission diagnostic.
+fn knowledge_database_error(error: surrealdb::Error) -> StoreError {
+    if matches!(error.details(), surrealdb::types::ErrorDetails::Thrown)
+        && error.message() == "An error occurred: knowledge_embedding_publication_changed"
+    {
+        StoreError::KnowledgeEmbeddingAdmissionChanged
+    } else {
+        error.into()
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+    #[test]
+    fn only_the_owned_thrown_fence_changes_error_classification() {
+        assert!(matches!(
+            knowledge_database_error(surrealdb::Error::thrown(
+                "An error occurred: knowledge_embedding_publication_changed".into()
+            )),
+            StoreError::KnowledgeEmbeddingAdmissionChanged
+        ));
+        for error in [
+            surrealdb::Error::thrown("another_owned_error".into()),
+            surrealdb::Error::thrown("knowledge_embedding_publication_changed".into()),
+            surrealdb::Error::thrown(
+                "An error occurred: knowledge_embedding_publication_changed: extra".into(),
+            ),
+            surrealdb::Error::validation(
+                "An error occurred: knowledge_embedding_publication_changed".into(),
+                None,
+            ),
+        ] {
+            assert!(matches!(
+                knowledge_database_error(error),
+                StoreError::Database(_)
+            ));
+        }
     }
 }

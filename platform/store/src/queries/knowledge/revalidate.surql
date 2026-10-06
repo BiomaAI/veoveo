@@ -3,6 +3,8 @@ LET $leader = (SELECT * FROM ONLY $coordinator WHERE owner = $owner AND epoch = 
 IF $leader = NONE { THROW 'knowledge_coordinator_fenced'; };
 -- Write the row to serialize this transaction against takeover and expiry renewal.
 UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
+LET $gen = SELECT * FROM ONLY $generation;
+-- VALIDATE_EMBEDDING_RUNTIME
 
 IF $collection.approved != true OR $collection.revision != $approval
     OR $sync.owner_epoch != $owner_epoch OR $sync.epoch != $source_epoch

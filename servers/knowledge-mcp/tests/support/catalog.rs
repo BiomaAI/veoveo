@@ -57,7 +57,11 @@ async fn catalog_completion_and_live_statistics_preserve_caller_visibility() {
             registrations.iter().map(|r| (r.descriptor.collection().clone(), r.revision())).collect()).unwrap();
         let generation = Indexer {lease: &lease, store: &db.a, source: &source, embeddings: embeddings.as_ref()}
             .build(&content.tenant, &registrations, &spec).await.unwrap();
-        db.a.activate_knowledge_generation(&lease, &content.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&content.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&content.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
         // Neither completion nor statistics may decode an excluded document.
         db.a.client().query(include_str!("../queries/support/catalog/catalog_completion_and_live_statistics_preserve_caller_visibility.surql")).await.unwrap().check().unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());

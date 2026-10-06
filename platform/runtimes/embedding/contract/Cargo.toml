@@ -8,6 +8,9 @@ publish = false
 veoveo-types.workspace = true
 serde.workspace = true
 schemars.workspace = true
+sha2.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+jsonschema.workspace = true

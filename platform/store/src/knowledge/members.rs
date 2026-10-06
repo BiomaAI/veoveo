@@ -1,6 +1,8 @@
 use super::admission::Admission;
+use super::profiles::{RuntimeRows, registration_query};
 use super::*;
 use crate::PlatformStore;
+use veoveo_embedding_contract::QualifiedEmbeddingRuntime;
 use veoveo_knowledge_contract::{CollectionRegistration, GenerationSpec, IndexedMember};
 use veoveo_types::{ResourceUri, Sha256Digest};
 
@@ -23,6 +25,8 @@ struct IndexedChunkRecord {
     #[surreal(wrap)]
     title: veoveo_knowledge_contract::MemberTitle,
     embedding: Vec<f32>,
+    producer_batch: RecordId,
+    producer_profile: RecordId,
     observation: Document<veoveo_mcp_knowledge_extension::Observation>,
 }
 
@@ -40,6 +44,7 @@ pub struct MemberReadTicket {
     specification: Sha256Digest,
     uri: ResourceUri,
     epoch: i64,
+    runtime: RuntimeRows,
 }
 impl MemberReadTicket {
     pub fn previous(&self) -> Option<&veoveo_mcp_knowledge_extension::Observation> {
@@ -109,25 +114,28 @@ impl PlatformStore {
         let current = observation
             .revalidated(previous)
             .map_err(|error| StoreError::Knowledge(error.0))?;
+        let sql = registration_query(include_str!("../queries/knowledge/revalidate.surql"));
         ticket
-            .lease
+            .runtime
             .bind(
-                self.client()
-                    .query(include_str!("../queries/knowledge/revalidate.surql")),
+                ticket
+                    .lease
+                    .bind(self.client().query(sql))
+                    .bind(("chunk_table", chunk_table(ticket.generation)))
+                    .bind(("member", ticket.record()))
+                    .bind(("generation", generation_record(ticket.generation)))
+                    .bind(("epoch", ticket.epoch))
+                    .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
+                    .bind(("source_epoch", ticket.source_epoch))
+                    .bind((
+                        "collection",
+                        collection_record(&ticket.tenant, &ticket.collection),
+                    ))
+                    .bind(("approval", ticket.approval.to_string()))
+                    .bind(("previous", Document(previous.clone())))
+                    .bind(("observation", Document(current.clone())))
+                    .bind(("valid_until", valid_until(&current, ticket.freshness)?)),
             )
-            .bind(("chunk_table", chunk_table(ticket.generation)))
-            .bind(("member", ticket.record()))
-            .bind(("epoch", ticket.epoch))
-            .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
-            .bind(("source_epoch", ticket.source_epoch))
-            .bind((
-                "collection",
-                collection_record(&ticket.tenant, &ticket.collection),
-            ))
-            .bind(("approval", ticket.approval.to_string()))
-            .bind(("previous", Document(previous.clone())))
-            .bind(("observation", Document(current.clone())))
-            .bind(("valid_until", valid_until(&current, ticket.freshness)?))
             .await?
             .knowledge_check()?;
         Ok(())
@@ -142,27 +150,35 @@ impl PlatformStore {
         generation: GenerationId,
         specification: &GenerationSpec,
         uri: &ResourceUri,
+        runtime: &QualifiedEmbeddingRuntime,
     ) -> Result<MemberReadTicket, StoreError> {
         let _mutation = lease.mutation().await;
         lease.check_tenant(&registration.tenant)?;
+        if specification.space() != runtime.space() {
+            return Err(StoreError::Knowledge(
+                "read ticket uses another qualified embedding space",
+            ));
+        }
+        let runtime_rows = RuntimeRows::new(runtime);
+        let sql = registration_query(include_str!("../queries/knowledge/begin_read.surql"));
         let collection = registration.descriptor.collection();
-        let mut response = lease
+        let mut response = runtime_rows
             .bind(
-                self.client()
-                    .query(include_str!("../queries/knowledge/begin_read.surql")),
+                lease
+                    .bind(self.client().query(sql))
+                    .bind(("sync", sync_record(generation, collection)))
+                    .bind(("member", member_record(generation, collection, uri)))
+                    .bind(("tenant", registration.tenant.to_string()))
+                    .bind(("generation", generation_record(generation)))
+                    .bind((
+                        "collection",
+                        collection_record(&registration.tenant, collection),
+                    ))
+                    .bind(("coverage", coverage_record(generation, collection)))
+                    .bind(("approval", registration.revision().to_string()))
+                    .bind(("specification", specification.revision().to_string()))
+                    .bind(("uri", uri.to_string())),
             )
-            .bind(("sync", sync_record(generation, collection)))
-            .bind(("member", member_record(generation, collection, uri)))
-            .bind(("tenant", registration.tenant.to_string()))
-            .bind(("generation", generation_record(generation)))
-            .bind((
-                "collection",
-                collection_record(&registration.tenant, collection),
-            ))
-            .bind(("coverage", coverage_record(generation, collection)))
-            .bind(("approval", registration.revision().to_string()))
-            .bind(("specification", specification.revision().to_string()))
-            .bind(("uri", uri.to_string()))
             .await?
             .knowledge_check()?;
         let index = response
@@ -195,6 +211,7 @@ impl PlatformStore {
             specification: specification.revision(),
             uri: uri.clone(),
             epoch: prior.epoch,
+            runtime: runtime_rows,
         })
     }
 
@@ -207,12 +224,26 @@ impl PlatformStore {
         if member.uri() != &ticket.uri
             || member.observation().collection() != &ticket.collection
             || member.generation_revision() != &ticket.specification
+            || member.chunks().iter().any(|chunk| {
+                RecordId::new(
+                    "knowledge_embedding_profile",
+                    chunk.vector().profile_id().as_ref(),
+                ) != *ticket.runtime.producer()
+            })
         {
             return Err(StoreError::Knowledge(
                 "source read does not match its ticket",
             ));
         }
         let table = chunk_table(ticket.generation);
+        let batch = RecordId::new(
+            "knowledge_embedding_batch",
+            Array::from(vec![
+                generation_record(ticket.generation).into_value(),
+                ticket.record().into_value(),
+                ticket.epoch.into_value(),
+            ]),
+        );
         let chunks: Vec<_> = member
             .chunks()
             .iter()
@@ -229,36 +260,41 @@ impl PlatformStore {
                 text: chunk.text().to_owned(),
                 title: member.title().clone(),
                 embedding: chunk.vector().values().to_vec(),
+                producer_batch: batch.clone(),
+                producer_profile: ticket.runtime.producer().clone(),
                 observation: Document(member.observation().clone()),
             })
             .collect();
+        let sql = registration_query(include_str!("../queries/knowledge/replace.surql"));
         ticket
-            .lease
+            .runtime
             .bind(
-                self.client()
-                    .query(include_str!("../queries/knowledge/replace.surql")),
+                ticket
+                    .lease
+                    .bind(self.client().query(sql))
+                    .bind(("chunk_target", surrealdb::types::Table::new(table)))
+                    .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
+                    .bind(("source_epoch", ticket.source_epoch))
+                    .bind(("title", member.title().as_str().to_owned()))
+                    .bind((
+                        "valid_until",
+                        valid_until(member.observation(), ticket.freshness)?,
+                    ))
+                    .bind(("tenant", ticket.tenant.to_string()))
+                    .bind(("generation", generation_record(ticket.generation)))
+                    .bind(("specification", ticket.specification.to_string()))
+                    .bind((
+                        "collection",
+                        collection_record(&ticket.tenant, &ticket.collection),
+                    ))
+                    .bind(("approval", ticket.approval.to_string()))
+                    .bind(("chunk_table", chunk_table(ticket.generation)))
+                    .bind(("member", ticket.record()))
+                    .bind(("epoch", ticket.epoch))
+                    .bind(("embedding_batch", batch))
+                    .bind(("chunks", chunks))
+                    .bind(("observation", Document(member.observation().clone()))),
             )
-            .bind(("chunk_target", surrealdb::types::Table::new(table)))
-            .bind(("sync", sync_record(ticket.generation, &ticket.collection)))
-            .bind(("source_epoch", ticket.source_epoch))
-            .bind(("title", member.title().as_str().to_owned()))
-            .bind((
-                "valid_until",
-                valid_until(member.observation(), ticket.freshness)?,
-            ))
-            .bind(("tenant", ticket.tenant.to_string()))
-            .bind(("generation", generation_record(ticket.generation)))
-            .bind(("specification", ticket.specification.to_string()))
-            .bind((
-                "collection",
-                collection_record(&ticket.tenant, &ticket.collection),
-            ))
-            .bind(("approval", ticket.approval.to_string()))
-            .bind(("chunk_table", chunk_table(ticket.generation)))
-            .bind(("member", ticket.record()))
-            .bind(("epoch", ticket.epoch))
-            .bind(("chunks", chunks))
-            .bind(("observation", Document(member.observation().clone())))
             .await?
             .knowledge_check()?;
         Ok(())
@@ -302,6 +338,8 @@ mod tests {
         let uri = ResourceUri::new("knowledge://docs/design").unwrap();
         let member = member_record(GenerationId::new(), &collection, &uri);
         let value = IndexedChunkRecord {
+            producer_batch: RecordId::new("knowledge_embedding_batch", "fixture"),
+            producer_profile: RecordId::new("knowledge_embedding_profile", "fixture"),
             member: member.clone(),
             tenant: tenant.clone(),
             collection: collection_record(&tenant, &collection),

@@ -11,7 +11,11 @@ pub enum ServiceError {
     #[error("knowledge source contract is invalid")]
     SourceContract(#[from] veoveo_mcp_knowledge_extension::KnowledgeError),
     #[error("knowledge storage operation failed")]
-    Store(#[from] veoveo_platform_store::StoreError),
+    Store(#[source] veoveo_platform_store::StoreError),
+    #[error(
+        "knowledge embedding/generation admission changed; repeat this read or search against current admission"
+    )]
+    EmbeddingAdmissionChanged,
     #[error("knowledge embedding operation failed")]
     Embedding(#[from] veoveo_embedding_client::EmbeddingClientError),
     #[error("knowledge embedding input is invalid")]
@@ -28,4 +32,38 @@ pub enum ServiceError {
     AccessChanged,
     #[error("knowledge embedding runtime does not match the active generation")]
     EmbeddingSpace,
+}
+
+impl From<veoveo_platform_store::StoreError> for ServiceError {
+    fn from(error: veoveo_platform_store::StoreError) -> Self {
+        match error {
+            veoveo_platform_store::StoreError::KnowledgeEmbeddingAdmissionChanged => {
+                Self::EmbeddingAdmissionChanged
+            }
+            error => Self::Store(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn changed_embedding_admission_has_an_actionable_public_error() {
+        let changed = ServiceError::from(
+            veoveo_platform_store::StoreError::KnowledgeEmbeddingAdmissionChanged,
+        );
+        assert!(matches!(changed, ServiceError::EmbeddingAdmissionChanged));
+        assert_eq!(
+            changed.to_string(),
+            "knowledge embedding/generation admission changed; repeat this read or search against current admission"
+        );
+        let ordinary = ServiceError::from(veoveo_platform_store::StoreError::Knowledge(
+            "unrelated integrity error",
+        ));
+        assert!(matches!(ordinary, ServiceError::Store(_)));
+        assert_eq!(ordinary.to_string(), "knowledge storage operation failed");
+        assert!(std::error::Error::source(&ordinary).is_some());
+    }
 }

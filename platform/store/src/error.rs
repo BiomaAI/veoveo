@@ -37,6 +37,10 @@ pub enum StoreError {
     AuditTarget(#[from] veoveo_audit_contract::AuditTargetError),
     #[error("knowledge persistence rejected the operation: {0}")]
     Knowledge(&'static str),
+    #[error(
+        "knowledge embedding/generation admission changed; repeat this read or search against current admission"
+    )]
+    KnowledgeEmbeddingAdmissionChanged,
     #[error("native changefeed LIVE connection exceeded 15 seconds")]
     ChangefeedConnectionTimeout,
     #[error(transparent)]

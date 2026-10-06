@@ -3,12 +3,16 @@ use std::future::Future;
 use veoveo_embedding_client::{EmbeddingClient, EmbeddingPriority};
 use veoveo_embedding_contract::{
     EmbeddingBatch, EmbeddingSpace, EmbeddingTask, EmbeddingText, EmbeddingVector,
+    QualifiedEmbeddingRuntime,
 };
 
 /// Production uses the shared HTTP client. Native fixtures supply synthetic vectors
 /// to qualify lifecycle and policy without claiming inference acceptance.
 pub trait Embeddings: Send + Sync {
-    fn space(&self) -> &EmbeddingSpace;
+    fn runtime(&self) -> &QualifiedEmbeddingRuntime;
+    fn space(&self) -> &EmbeddingSpace {
+        self.runtime().space()
+    }
     fn documents(
         &self,
         texts: EmbeddingBatch,
@@ -25,8 +29,8 @@ pub trait Embeddings: Send + Sync {
     ) -> impl Future<Output = Result<EmbeddingVector, ServiceError>> + Send;
 }
 impl Embeddings for EmbeddingClient {
-    fn space(&self) -> &EmbeddingSpace {
-        self.space()
+    fn runtime(&self) -> &QualifiedEmbeddingRuntime {
+        self.runtime()
     }
     async fn documents(&self, texts: EmbeddingBatch) -> Result<Vec<EmbeddingVector>, ServiceError> {
         Ok(self

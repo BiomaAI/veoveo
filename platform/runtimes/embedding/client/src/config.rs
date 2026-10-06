@@ -2,7 +2,7 @@ use crate::EmbeddingClientError;
 use secrecy::SecretString;
 use std::time::Duration;
 use url::Url;
-use veoveo_embedding_contract::EmbeddingSpace;
+use veoveo_embedding_contract::QualifiedEmbeddingRuntime;
 
 /// Operator-configured runtime origin. Credentials never travel in the URL.
 #[derive(Debug, Clone)]
@@ -34,39 +34,37 @@ impl EmbeddingEndpoint {
 }
 
 #[derive(Debug)]
-pub struct EmbeddingClientConfig {
+pub(crate) struct HttpConfig {
     pub(crate) endpoint: EmbeddingEndpoint,
     pub(crate) key: SecretString,
-    pub(crate) space: EmbeddingSpace,
     pub(crate) deadline: Duration,
     pub(crate) max_in_flight: usize,
     pub(crate) max_bulk_in_flight: usize,
 }
-impl EmbeddingClientConfig {
-    pub fn new(endpoint: EmbeddingEndpoint, key: SecretString, space: EmbeddingSpace) -> Self {
+impl HttpConfig {
+    pub(crate) fn new(endpoint: EmbeddingEndpoint, key: SecretString) -> Self {
         Self {
             endpoint,
             key,
-            space,
             deadline: Duration::from_secs(60),
             max_in_flight: 4,
             max_bulk_in_flight: 1,
         }
     }
-    pub fn with_deadline(mut self, deadline: Duration) -> Result<Self, EmbeddingClientError> {
+    pub(crate) fn deadline(&mut self, deadline: Duration) -> Result<(), EmbeddingClientError> {
         if deadline.is_zero() || deadline > Duration::from_secs(120) {
             return Err(EmbeddingClientError::Configuration(
                 "embedding deadline must be positive and at most 120 seconds",
             ));
         }
         self.deadline = deadline;
-        Ok(self)
+        Ok(())
     }
-    pub fn with_concurrency(
-        mut self,
+    pub(crate) fn concurrency(
+        &mut self,
         total: usize,
         bulk: usize,
-    ) -> Result<Self, EmbeddingClientError> {
+    ) -> Result<(), EmbeddingClientError> {
         if bulk == 0 || bulk >= total || total > 64 {
             return Err(EmbeddingClientError::Configuration(
                 "embedding concurrency requires 1 <= bulk < total <= 64",
@@ -74,6 +72,35 @@ impl EmbeddingClientConfig {
         }
         self.max_in_flight = total;
         self.max_bulk_in_flight = bulk;
+        Ok(())
+    }
+}
+#[derive(Debug)]
+pub struct EmbeddingClientConfig {
+    pub(crate) http: HttpConfig,
+    pub(crate) runtime: QualifiedEmbeddingRuntime,
+}
+impl EmbeddingClientConfig {
+    pub fn new(
+        endpoint: EmbeddingEndpoint,
+        key: SecretString,
+        runtime: QualifiedEmbeddingRuntime,
+    ) -> Self {
+        Self {
+            http: HttpConfig::new(endpoint, key),
+            runtime,
+        }
+    }
+    pub fn with_deadline(mut self, deadline: Duration) -> Result<Self, EmbeddingClientError> {
+        self.http.deadline(deadline)?;
+        Ok(self)
+    }
+    pub fn with_concurrency(
+        mut self,
+        total: usize,
+        bulk: usize,
+    ) -> Result<Self, EmbeddingClientError> {
+        self.http.concurrency(total, bulk)?;
         Ok(self)
     }
 }

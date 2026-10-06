@@ -78,9 +78,22 @@ async fn measured_generation_persists_across_connections_and_rejects_corpus_drif
             )
             .await
             .unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None)
-            .await
-            .unwrap();
+        db.a.activate_knowledge_generation(
+            &lease,
+            &registration.tenant,
+            generation,
+            None,
+            &embedding_fixture::runtime(
+                db.a.knowledge_generation(&registration.tenant, generation)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .space()
+                    .clone(),
+            ),
+        )
+        .await
+        .unwrap();
         let dataset = RetrievalDataset::new(
             corpus.clone(),
             vec![
@@ -191,6 +204,14 @@ async fn measured_generation_persists_across_connections_and_rejects_corpus_drif
             &registration.tenant,
             replacement,
             Some(generation),
+            &embedding_fixture::runtime(
+                db.a.knowledge_generation(&registration.tenant, replacement)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .space()
+                    .clone(),
+            ),
         )
         .await
         .unwrap();

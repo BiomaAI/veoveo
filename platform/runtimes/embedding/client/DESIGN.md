@@ -12,18 +12,20 @@
 ## Configuration And Identity
 
 The library accepts an `EmbeddingEndpoint`, a secret API key and the expected
-`EmbeddingSpace`. The endpoint permits HTTP or HTTPS origins without userinfo,
+`QualifiedEmbeddingRuntime`. The endpoint permits HTTP or HTTPS origins without userinfo,
 paths, queries or fragments. URL parsing and fixed-route resolution use `url`.
 The hosting process installs its rustls crypto provider before connecting. A missing
 provider produces a configuration error. The client uses the workspace's HTTP and
 TLS dependencies and never changes the process's provider.
 
 Connection requires `/v1/models` to advertise the configured model exactly once.
-The response does not attest the checkpoint revision, dimensions or runtime image.
-Those fields come from installation configuration, whose checkpoint init check and
-image pin must agree with the serving Deployment. A runtime/model cut requires drained
-consumers and a newly constructed client with the new space. Knowledge's generation
-transition must complete before serving vectors from the new space.
+The response establishes only the advertised model name. It does not attest the
+checkpoint, effective precision, dimensions, image or hardware. Those facts and the
+passing report identities come from the trusted installation-selected runtime bundle.
+The selected endpoint must serve that measured deployment. A missing or failed bundle
+prevents client construction; discovering a model cannot supply a replacement bundle.
+Consumers reconstruct the client when the effective execution profile changes. Knowledge
+checks directional compatibility with every retained producer before reusing a generation.
 
 ## Requests And Scheduling
 
@@ -73,3 +75,27 @@ servers on drop. They check query formatting, model and vector admission, stream
 limits, secret-safe errors, redirect refusal, shared request limits and deadlines.
 These checks provide no GPU, pooling or retrieval-quality acceptance. Those requirements
 belong to the [runtime verification](../DESIGN.md#verification).
+
+
+### First Qualification
+
+The `verification` feature exposes a candidate measurement client with the same
+HTTP implementation, response admission and request budgets as the production
+client. Its vectors carry only a measured profile identity and values. It cannot
+implement Knowledge's `Embeddings` port or convert into production vectors.
+The operator supplies checked effective profile contents; model discovery does
+not supply or attest them.
+
+The existing GPU targets capture owner-admitted corpus chunks and queries, measure
+priority and capacity, and form an initial self-compatible bundle from four
+matching reports. The CUDA reference harness performs vector comparison and
+member ranking. Report admission checks profile, space, checkpoint and corpus
+identities, recomputes reported recall and requires explicit throughput and latency
+thresholds. Capacity identifies the scheduling report's bytes. Qualification
+identities include the digests of the original four report files.
+
+Candidate ranking establishes runtime vector compatibility. Installation selection
+also requires the existing production Knowledge hybrid retrieval, rebuild and
+concurrent-search workload to pass with the resulting bundle. The
+[operator sequence](../verification/README.md#initial-qualification) records those
+separate report scopes and required order.

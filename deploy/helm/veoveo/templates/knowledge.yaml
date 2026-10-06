@@ -4,17 +4,7 @@
 {{- if not (regexMatch "^[a-f0-9]{64}$" .Values.knowledge.configurationRevision) }}
 {{- fail "Knowledge requires knowledge.configurationRevision (SHA-256 of the public configuration bundle)" }}
 {{- end }}
-{{- $space := dict "model" "qwen3-embedding-0.6b" "revision" "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3" "dimension" 1024 "runtimeImage" .Values.embedding.image.digest | toJson }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: knowledge-embedding-space
-  labels:
-    {{- include "veoveo.labels" . | nindent 4 }}
-    app.kubernetes.io/component: knowledge-mcp
-data:
-  space.json: {{ $space | quote }}
----
+{{- $runtimeKey := required "Knowledge requires knowledge.embeddingRuntimeConfigKey naming a qualified installation runtime bundle" .Values.knowledge.embeddingRuntimeConfigKey }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -54,7 +44,6 @@ spec:
         {{- include "veoveo.databasePodAnnotations" . | nindent 8 }}
         checksum/module-plan: {{ .Values.moduleInstallation.planJson | sha256sum | quote }}
         checksum/knowledge-configuration: {{ .Values.knowledge.configurationRevision | quote }}
-        checksum/embedding-space: {{ $space | sha256sum | quote }}
     spec:
       serviceAccountName: {{ include "veoveo.serviceAccountName" . }}
       automountServiceAccountToken: false
@@ -88,8 +77,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.embedding.apiKeySecret.name | quote }}
                   key: {{ .Values.embedding.apiKeySecret.key | quote }}
-            - name: VEOVEO_EMBEDDING_SPACE_FILE
-              value: /etc/veoveo/knowledge/embedding/space.json
+            - name: VEOVEO_EMBEDDING_RUNTIME_FILE
+              value: {{ printf "/etc/veoveo/knowledge/config/%s" $runtimeKey | quote }}
             - name: OTEL_SERVICE_NAME
               value: veoveo-knowledge-mcp
           ports:
@@ -124,7 +113,6 @@ spec:
             - {name: module-plan, mountPath: /etc/veoveo/modules, readOnly: true}
             - {name: configuration, mountPath: /etc/veoveo/knowledge/config, readOnly: true}
             - {name: signing, mountPath: /etc/veoveo/knowledge/signing, readOnly: true}
-            - {name: embedding-space, mountPath: /etc/veoveo/knowledge/embedding, readOnly: true}
       volumes:
         - name: module-plan
           configMap:
@@ -136,7 +124,4 @@ spec:
           secret:
             secretName: {{ $signing | quote }}
             defaultMode: 288 # 0440, expressed as decimal for YAML 1.2 readers.
-        - name: embedding-space
-          configMap:
-            name: knowledge-embedding-space
 {{- end }}

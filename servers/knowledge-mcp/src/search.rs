@@ -54,6 +54,10 @@ impl<E: Embeddings> SearchService<'_, E> {
         if self.embeddings.space() != spec.space() {
             return Err(ServiceError::EmbeddingSpace);
         }
+        let admission = self
+            .store
+            .admit_knowledge_embeddings(&caller.tenant, generation, self.embeddings.runtime())
+            .await?;
         let vector = self
             .embeddings
             .query(
@@ -70,6 +74,7 @@ impl<E: Embeddings> SearchService<'_, E> {
                     generation,
                     request.query(),
                     &vector,
+                    &admission,
                     request.entity_kinds(),
                     request.limit(),
                     window,

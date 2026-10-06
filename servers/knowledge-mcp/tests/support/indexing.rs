@@ -1,3 +1,5 @@
+#[path = "../../../../testing/fixtures/embedding.rs"]
+pub(crate) mod embedding_fixture;
 use chrono::Utc;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -11,22 +13,31 @@ use veoveo_mcp_knowledge_extension::{self as extension, *};
 use veoveo_types::*;
 pub(crate) struct SyntheticEmbeddings {
     pub(crate) space: EmbeddingSpace,
+    pub(crate) runtime: QualifiedEmbeddingRuntime,
     pub(crate) inputs: Mutex<Vec<String>>,
 }
 impl SyntheticEmbeddings {
     pub(crate) fn new() -> Self {
+        let space = EmbeddingSpace {
+            model: EmbeddingModelId::parse("synthetic-fixture").unwrap(),
+            revision: EmbeddingModelRevision::parse("fixture-1").unwrap(),
+            dimension: EmbeddingDimension::new(3).unwrap(),
+            pooling: EmbeddingPooling::LastToken,
+            normalization: EmbeddingNormalization::L2,
+            precision: EmbeddingPrecision::Float32,
+            max_input_tokens: EmbeddingMaxInputTokens::new(8192).unwrap(),
+        };
         Self {
-            space: EmbeddingSpace {
-                model: EmbeddingModelId::parse("synthetic-fixture").unwrap(),
-                revision: EmbeddingModelRevision::parse("fixture-1").unwrap(),
-                dimension: EmbeddingDimension::new(3).unwrap(),
-                runtime_image: Sha256Digest::from_bytes([1; 32]),
-            },
+            runtime: embedding_fixture::runtime(space.clone()),
+            space,
             inputs: Mutex::new(vec![]),
         }
     }
 }
 impl Embeddings for SyntheticEmbeddings {
+    fn runtime(&self) -> &QualifiedEmbeddingRuntime {
+        &self.runtime
+    }
     fn space(&self) -> &EmbeddingSpace {
         &self.space
     }
@@ -37,7 +48,7 @@ impl Embeddings for SyntheticEmbeddings {
             .iter()
             .map(|t| {
                 inputs.push(t.as_str().to_owned());
-                EmbeddingVector::new(self.space.clone(), vec![1.0, 0.0, 0.0]).unwrap()
+                EmbeddingVector::new(&self.runtime, vec![1.0, 0.0, 0.0]).unwrap()
             })
             .collect())
     }
@@ -53,7 +64,7 @@ impl Embeddings for SyntheticEmbeddings {
         _: EmbeddingTask,
         _: EmbeddingText,
     ) -> Result<EmbeddingVector, ServiceError> {
-        Ok(EmbeddingVector::new(self.space.clone(), vec![1.0, 0.0, 0.0]).unwrap())
+        Ok(EmbeddingVector::new(&self.runtime, vec![1.0, 0.0, 0.0]).unwrap())
     }
 }
 #[derive(Clone)]

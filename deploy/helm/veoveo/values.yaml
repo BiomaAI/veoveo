@@ -448,6 +448,8 @@ knowledge:
     digest: ""
   # Public IndexingConfig documents. Credentials live in the separate Secret.
   existingConfigMap: ""
+  # Measured execution profile and directional qualification reports; no inferred defaults.
+  embeddingRuntimeConfigKey: ""
   configurationRevision: ""
   indexingConfigKeys: [indexing.json]
   existingSigningSecret: ""

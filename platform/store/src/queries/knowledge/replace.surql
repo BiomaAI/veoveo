@@ -36,8 +36,22 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
     OR $slot = NONE {
         THROW 'knowledge_read_fenced';
     };
+    -- VALIDATE_EMBEDDING_RUNTIME
     DELETE FROM type::table($chunk_table) WHERE member = $member;
+    CREATE ONLY $embedding_batch CONTENT {
+        generation: $generation,
+        member_uri: $member.uri,
+        collection: $collection,
+        source_epoch: $source_epoch,
+        member_epoch: $epoch,
+        producer_profile: $embedding_producer,
+        chunk_count: array::len($chunks),
+        recorded_at: time::now()
+    };
     INSERT INTO $chunk_target $chunks RETURN NONE;
+    UPDATE ONLY $generation SET
+        producer_profiles = array::distinct(array::append(producer_profiles, $embedding_producer)),
+        profile_epoch = $gen.profile_epoch + IF $embedding_producer IN $gen.producer_profiles { 0 } ELSE { 1 };
     UPDATE ONLY $member SET
         stale = false,
         deleted = false,

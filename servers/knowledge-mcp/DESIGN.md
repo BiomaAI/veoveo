@@ -135,7 +135,7 @@ have a 60-second deadline and catalog SQL statements stop after 10 seconds.
 
 The binary reads Store credentials and internal public trust from installation
 configuration. It connects to the shared embedding endpoint using its API key and a
-JSON `EmbeddingSpace` file. Database migrations belong to installation bootstrap.
+JSON `QualifiedEmbeddingRuntime` bundle through `VEOVEO_EMBEDDING_RUNTIME_FILE`. Database migrations belong to installation bootstrap.
 `readyz` requires every configured tenant worker to have an active index or a complete
 catalog-only selection, and checks Store's control pointer within two seconds.
 After initial synchronization, the worker keeps serving while reconciling collection
@@ -165,9 +165,10 @@ profile. Public read APIs can use the library's separately qualified replica sup
 public bytes and controls Pod rollout. Private keys and optional additional CA
 certificates come from `knowledge.existingSigningSecret`, mounted read-only with mode
 0440 under `/etc/veoveo/knowledge/signing`. Workers reread key files on connection
-rotation. The embedding key comes from `embedding.apiKeySecret`; the chart generates
-the embedding-space document from the qualified model, revision, dimension and runtime
-image. Helm rejects inline credentials and missing deployment dependencies.
+rotation. The embedding key comes from `embedding.apiKeySecret`. The public ConfigMap
+also supplies the installation-admitted immutable runtime bundle named by
+`knowledge.embeddingRuntimeConfigKey`. Its bytes belong to `configurationRevision`;
+Helm rejects a missing bundle key, inline credentials and missing deployment dependencies.
 
 Startup and liveness probes use `healthz`; readiness uses `readyz`. The 45-second
 termination allowance covers worker cleanup and HTTP draining. Configuration changes
@@ -356,12 +357,14 @@ that answer the query`, unless qualification selects another. Search queries run
 interactive priority and indexing at bulk priority, so a rebuild does not delay
 searches. `knowledge-mcp` itself needs no GPU.
 
-An index generation records the embedding space selected by deployment (model,
-revision, dimension, and vLLM image digest), the query task, and the chunker version.
-A change to any of them builds a new generation beside the active one. The active
-pointer moves when the new generation covers every approved collection, and vectors
-from different spaces never share an index. The knowledge evaluation set is the
-workload the runtime's model selection uses.
+An index generation records model/checkpoint, dimension, pooling, normalization,
+effective precision and token ceiling, together with the query task, chunker and
+approved collection fingerprints. Changing those semantics builds a generation
+beside the active one. An execution-image or same-space serving change requires
+qualified compatibility with every retained producer before reuse; it does not
+change generation identity. The active pointer moves after complete approved
+collection coverage. Different vector spaces never share an index. The Knowledge
+evaluation set supplies the runtime selection workload.
 
 The [knowledge domain contract](../../platform/knowledge/contract/DESIGN.md) owns generation
 identities and specifications below both Store and the service. Store creates a
@@ -575,3 +578,52 @@ adapter's compiled availability; lane selection chooses its use. An unavailable
 selected adapter or missing/drifting preparation fails configuration before source
 workers or embeddings start. Startup never infers an authority mode from table
 existence and never substitutes static authority for selected Agents.
+
+
+## Embedding Execution Provenance
+
+The installation supplies a measured runtime bundle through its existing public
+configuration ConfigMap. `knowledge.embeddingRuntimeConfigKey` names that file and
+`configurationRevision` covers it along with indexing configuration. The chart does
+not construct qualification from an image pin. The endpoint and bundle identify the
+installation-selected deployment; model discovery establishes only an advertised name.
+
+Generation identity covers vector-space semantics, query task, chunking and approved
+collections. Execution provenance has separate immutable profile and qualification
+identities. The Store publishes each indexed batch receipt atomically with its chunks
+and records its producer in the generation's retained set. Conditional revalidation
+preserves that original producer and receipt. Replacing data under a qualified new
+same-space runtime adds its producer without relabeling old batches.
+
+Search captures one tenant/generation admission before requesting the query vector.
+Every ranking depth checks that admission's retained set and publication epoch in the
+ranking transaction, together with whole immutable registry facts. The epoch advances
+when a new producer enters the set. Same-producer writes preserve it. Changed producer
+sets fail with `knowledge_embedding_publication_changed`; the caller can re-admit in a
+new request, whose existing 60-second deadline includes embedding and ranking. Source
+policy, approvals, leases and context checks still precede ranking limits.
+
+Activation and indexing reservations check qualification for every retained producer
+inside their existing coordinator-fenced transactions. Unknown, incompatible, changed
+or failed qualification blocks reuse. Registry publication is idempotent under the same
+content identity and rejects any different contents under that ID. Read admission may
+publish trusted installation facts but never changes a generation's producer set.
+
+## Provenance Installation Transition
+
+The current persistent format requires producer receipts for every indexed batch and
+explicit measured execution settings. An older generation cannot acquire attribution
+by inference from its vector shape, model name or image pin. Installations must drain
+Knowledge consumers and create fresh Knowledge state after the replacement NVIDIA
+profile passes reference, retrieval, scheduling and capacity acceptance. Historical
+measurements do not constitute receipts for a newly constructed profile. The existing
+qualified installation stays in service until those report artifacts exist; deploying
+this format without them is blocked. Synthetic test bundles qualify codecs, fencing
+and rollback only.
+
+The ranking transaction reports a changed captured admission when a producer set or
+active generation changes during query embedding. Store recognizes only SurrealDB
+3.3's typed `Thrown` kind with the exact owned
+`An error occurred: knowledge_embedding_publication_changed` message. Knowledge asks the caller to repeat
+that read or search against current admission. The service does not retry a mutation
+or classify other database failures as changed admission.

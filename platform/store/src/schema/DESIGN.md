@@ -179,3 +179,18 @@ An Audit block write derives its declared head hash from the frozen block in the
 transaction. Block hydration checks hash, partition and sequence agreement. Export
 settlement compares that lookup and the complete frozen block under the sealer lease;
 metadata does not change the block bytes or hashing profile.
+
+## Knowledge Producer Registry
+
+Knowledge owns immutable execution-profile and directional qualification records under
+its existing table prefix. Each closed document has a content-derived identity checked
+by the owner codec. Native record lookups agree with those whole documents. A generation
+records its space digest, retained producer set and producer-publication epoch.
+
+An indexed batch receipt belongs to its generation and snapshots collection/member URI,
+source/member epochs, producer profile, chunk count and native recording time. Chunk
+references must agree with its receipt. Receipt publication and chunk replacement use
+one coordinator-fenced transaction. Member deletion removes chunks while receipts keep
+original attribution through generation retention. Generation reclamation deletes chunk rows while their reference fields still exist,
+then removes the table before cascading batch receipts; shared immutable profiles and qualifications
+remain available to other generations. No receipt is inferred for historical chunks.

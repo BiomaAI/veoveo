@@ -1,4 +1,6 @@
 //! Native HTTP contract checks. Synthetic vectors provide no GPU/model qualification.
+#[path = "../../../../../testing/fixtures/embedding.rs"]
+mod embedding_fixture;
 use axum::{
     Json, Router,
     body::Body,
@@ -23,8 +25,10 @@ use tokio::{
     time::timeout,
 };
 use veoveo_embedding_client::*;
-use veoveo_embedding_contract::{EmbeddingDimension, EmbeddingModelId, EmbeddingModelRevision};
-use veoveo_types::Sha256Digest;
+use veoveo_embedding_contract::{
+    EmbeddingDimension, EmbeddingMaxInputTokens, EmbeddingModelId, EmbeddingModelRevision,
+    EmbeddingNormalization, EmbeddingPooling, EmbeddingPrecision,
+};
 
 #[derive(Clone)]
 struct Runtime {
@@ -87,7 +91,7 @@ impl Fixture {
         EmbeddingClientConfig::new(
             self.endpoint.clone(),
             SecretString::from("fixture-key"),
-            space(),
+            embedding_fixture::runtime(space()),
         )
         .with_deadline(Duration::from_secs(3))
         .unwrap()
@@ -104,7 +108,10 @@ fn space() -> EmbeddingSpace {
         model: EmbeddingModelId::parse("fixture").unwrap(),
         revision: EmbeddingModelRevision::parse("pinned-revision").unwrap(),
         dimension: EmbeddingDimension::new(3).unwrap(),
-        runtime_image: Sha256Digest::from_bytes([1; 32]),
+        pooling: EmbeddingPooling::LastToken,
+        normalization: EmbeddingNormalization::L2,
+        precision: EmbeddingPrecision::Float32,
+        max_input_tokens: EmbeddingMaxInputTokens::new(8192).unwrap(),
     }
 }
 fn batch(texts: &[&str]) -> EmbeddingBatch {
@@ -194,6 +201,11 @@ async fn preserves_order_space_plain_documents_and_model_card_query_formatting()
     assert_eq!(vectors[0].values(), &[1., 0., 0.]);
     assert_eq!(vectors[1].values(), &[0., 1., 0.]);
     assert_eq!(vectors[0].space(), &space());
+    assert!(
+        vectors
+            .iter()
+            .all(|vector| vector.profile_id() == client.runtime().profile().id())
+    );
     let task = EmbeddingTask::new("Find related passages").unwrap();
     client
         .embed_query(&task, &EmbeddingText::new("文 query").unwrap())
@@ -354,7 +366,7 @@ async fn rejects_invalid_configuration_and_formatted_oversize_before_dispatch() 
     let bad_key = EmbeddingClientConfig::new(
         fixture.endpoint.clone(),
         SecretString::from("bad\nkey"),
-        space(),
+        embedding_fixture::runtime(space()),
     );
     assert!(matches!(
         EmbeddingClient::connect(bad_key).await,
@@ -374,4 +386,43 @@ async fn rejects_invalid_configuration_and_formatted_oversize_before_dispatch() 
         Err(EmbeddingClientError::Input(_))
     ));
     assert_eq!(fixture.runtime.calls.load(Ordering::SeqCst), 0);
+}
+
+#[cfg(feature = "verification")]
+#[tokio::test]
+async fn candidate_measurements_share_protocol_validation_without_production_admission() {
+    use veoveo_embedding_client::verification::{CandidateClientConfig, CandidateEmbeddingClient};
+    let fixture = Fixture::new().await;
+    let profile = embedding_fixture::profile(space(), 2);
+    let config = CandidateClientConfig::new(
+        fixture.endpoint.clone(),
+        SecretString::from("fixture-key"),
+        profile.clone(),
+    )
+    .with_deadline(Duration::from_secs(3))
+    .unwrap();
+    let candidate = CandidateEmbeddingClient::connect(config).await.unwrap();
+    fixture.runtime.mode.store(1, Ordering::SeqCst);
+    let measured = candidate
+        .embed_documents(&batch(&["one", "two"]), EmbeddingPriority::Bulk)
+        .await
+        .unwrap();
+    assert_eq!(measured[0].values(), &[1., 0., 0.]);
+    assert_eq!(measured[1].values(), &[0., 1., 0.]);
+    assert!(
+        measured
+            .iter()
+            .all(|value| value.profile_id() == profile.id())
+    );
+    // Known protocol/normalization errors reject identically without a qualification bundle.
+    for mode in [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] {
+        fixture.runtime.mode.store(mode, Ordering::SeqCst);
+        assert!(
+            candidate
+                .embed_documents(&batch(&["one", "two"]), EmbeddingPriority::Bulk)
+                .await
+                .is_err(),
+            "mode {mode}"
+        );
+    }
 }

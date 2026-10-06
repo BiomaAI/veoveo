@@ -46,15 +46,16 @@ resource route or tool schema.
 
 `GenerationSpec` binds an embedding space, query task, chunker version and character
 settings, and 1–1,024 collection fingerprints. A new specification creates a new
-generation. Chunk limits allow at most 8,192 characters, and overlap must be smaller
+generation. Execution profiles and compatibility reports stay outside that digest;
+changing an image under unchanged space semantics preserves the specification. Chunk limits allow at most 8,192 characters, and overlap must be smaller
 than the cap. Runtime model qualification may select tighter settings.
 
 `IndexedChunk::from_range` selects a complete UTF-8 range within a source body and
-checks its size and vector space. Chunks have no deserialization shortcut around
+checks its size, vector space and the selected qualified runtime/producer relationship. Chunks have no deserialization shortcut around
 that constructor. `IndexedMember::new` admits a complete source
 observation, verifies its content digest and collection/tenant relationships, and
 checks every chunk against the source and generation. It accepts at most 256 chunks
-from a 64 KiB source item. Its retained generation fingerprint prevents attaching an
+from a 64 KiB source item, all from one producer profile. Its retained generation fingerprint prevents attaching an
 admitted member to a read ticket for another embedding space or chunker configuration.
 This constructor accepts `content` indexing. `IndexedMember::metadata` checks the same
 source digest and admits chunks only from `metadata_text`: title, collection, revision,

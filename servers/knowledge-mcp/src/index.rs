@@ -34,7 +34,13 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
         self.validate_inputs(tenant, registrations, specification)?;
         let generation = GenerationId::new();
         self.store
-            .create_knowledge_generation(self.lease, tenant, generation, specification)
+            .create_knowledge_generation(
+                self.lease,
+                tenant,
+                generation,
+                specification,
+                self.embeddings.runtime(),
+            )
             .await?;
         Ok(generation)
     }
@@ -169,6 +175,7 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
                 generation,
                 specification,
                 &link.uri,
+                self.embeddings.runtime(),
             )
             .await?;
         tokio::time::timeout(Duration::from_secs(120), async {
@@ -242,6 +249,7 @@ impl<S: KnowledgeSource, E: Embeddings> Indexer<'_, S, E> {
                         range.clone(),
                         vector,
                         specification,
+                        self.embeddings.runtime(),
                     )?);
                 }
                 offset = end;

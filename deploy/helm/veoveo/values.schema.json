@@ -2295,7 +2295,8 @@
         "configurationRevision",
         "indexingConfigKeys",
         "existingSigningSecret",
-        "resources"
+        "resources",
+        "embeddingRuntimeConfigKey"
       ],
       "properties": {
         "image": {
@@ -2376,6 +2377,11 @@
               }
             }
           }
+        },
+        "embeddingRuntimeConfigKey": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*\\.json$"
         }
       }
     },

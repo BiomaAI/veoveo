@@ -16689,6 +16689,7 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "thiserror 2.0.21",
  "tokio",
  "url",
@@ -16700,9 +16701,11 @@ dependencies = [
 name = "veoveo-embedding-contract"
 version = "0.1.0"
 dependencies = [
+ "jsonschema",
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "veoveo-types",
 ]
 

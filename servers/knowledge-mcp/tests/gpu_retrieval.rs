@@ -21,6 +21,9 @@ use veoveo_knowledge_mcp::{
 use veoveo_mcp_knowledge_extension::{CollectionDescriptor, CollectionId, Observation};
 use veoveo_types::*;
 
+#[path = "support/candidate_measurement.rs"]
+mod candidate_measurement;
+
 #[path = "support/retrieval_corpus.rs"]
 mod corpus;
 #[path = "../../../testing/fixtures/store.rs"]
@@ -29,15 +32,16 @@ mod fixture;
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Configuration {
-    space: EmbeddingSpace,
+    runtime: veoveo_embedding_contract::QualifiedEmbeddingRuntime,
     query_task: EmbeddingTask,
     chunking: ChunkSettings,
     corpus: corpus::Corpus,
+    minimum_recall_at_ten: corpus::RecallThreshold,
 }
 
 #[test]
-#[ignore = "writes three model configurations to VEOVEO_RETRIEVAL_FIXTURE_DIR"]
-fn write_domain_comparison_configurations() {
+#[ignore = "writes one measured model configuration to VEOVEO_RETRIEVAL_FIXTURE_DIR"]
+fn write_domain_comparison_configuration() {
     let directory = PathBuf::from(
         std::env::var("VEOVEO_RETRIEVAL_FIXTURE_DIR").expect("set VEOVEO_RETRIEVAL_FIXTURE_DIR"),
     );
@@ -47,40 +51,33 @@ fn write_domain_comparison_configurations() {
     );
     std::fs::create_dir_all(&directory).unwrap();
     let corpus = corpus::domain_corpus().unwrap();
-    for (name, revision, dimension) in [
-        (
-            "qwen3-embedding-0.6b",
-            "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
-            1024,
-        ),
-        (
-            "qwen3-embedding-4b",
-            "5cf2132abc99cad020ac570b19d031efec650f2b",
-            2560,
-        ),
-        (
-            "qwen3-embedding-8b",
-            "1d8ad4ca9b3dd8059ad90a75d4983776a23d44af",
-            4096,
-        ),
-    ] {
+    // Runtime facts and report identities must come from the operator's measured NVIDIA bundle.
+    let runtime: veoveo_embedding_contract::QualifiedEmbeddingRuntime = serde_json::from_slice(
+        &std::fs::read(
+            std::env::var("VEOVEO_EMBEDDING_RUNTIME_FILE").expect("set measured runtime bundle"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let name = runtime.space().model.as_ref();
+    {
         let config = Configuration {
-            space: EmbeddingSpace {
-                model: EmbeddingModelId::parse(name).unwrap(),
-                revision: EmbeddingModelRevision::parse(revision).unwrap(),
-                dimension: EmbeddingDimension::new(dimension).unwrap(),
-                runtime_image:
-                    "sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90"
-                        .parse()
-                        .unwrap(),
-            },
+            runtime: runtime.clone(),
             query_task: EmbeddingTask::new(
                 "Given a web search query, retrieve relevant passages that answer the query",
             )
             .unwrap(),
             chunking: ChunkSettings::new("structure-v1", 1500, 150).unwrap(),
             corpus: corpus.clone(),
+            minimum_recall_at_ten: corpus::RecallThreshold::try_from(
+                std::env::var("VEOVEO_EMBEDDING_MINIMUM_RECALL_AT_TEN")
+                    .expect("set explicit production acceptance threshold")
+                    .parse::<f64>()
+                    .unwrap(),
+            )
+            .unwrap(),
         };
+        validate_measured_context(&config).unwrap();
         let path = directory.join(format!("{name}.json"));
         let mut file = OpenOptions::new()
             .write(true)
@@ -98,11 +95,36 @@ fn write_domain_comparison_configurations() {
     );
 }
 
+fn validate_measured_context(config: &Configuration) -> Result<()> {
+    use veoveo_embedding_client::verification::candidate_context_from_reports;
+    let reference = std::fs::read(
+        std::env::var("VEOVEO_EMBEDDING_REFERENCE_REPORT")
+            .context("set actual candidate reference report")?,
+    )?;
+    let retrieval = std::fs::read(
+        std::env::var("VEOVEO_EMBEDDING_RETRIEVAL_REPORT")
+            .context("set actual candidate ranking report")?,
+    )?;
+    let measured = candidate_context_from_reports(&config.runtime, &reference, &retrieval)?;
+    ensure!(
+        measured.dataset_revision == config.corpus.dataset()?.revision()
+            && measured.source_corpus_revision == config.corpus.revision()
+            && measured.query_task_revision == corpus::fingerprint(&config.query_task)
+            && measured.chunking_revision == corpus::fingerprint(&config.chunking)
+            && measured.minimum_recall_at_ten == config.minimum_recall_at_ten.get(),
+        "production configuration differs from measured corpus, query, chunker or acceptance threshold"
+    );
+    Ok(())
+}
+
 struct CountedEmbeddings {
     client: EmbeddingClient,
     chunks: AtomicU64,
 }
 impl Embeddings for CountedEmbeddings {
+    fn runtime(&self) -> &veoveo_embedding_contract::QualifiedEmbeddingRuntime {
+        self.client.runtime()
+    }
     fn space(&self) -> &EmbeddingSpace {
         self.client.space()
     }
@@ -153,10 +175,15 @@ struct RebuildMeasurement {
 struct Report {
     format: &'static str,
     specification: GenerationSpec,
+    runtime: QualifiedEmbeddingRuntime,
+    configuration_digest: Sha256Digest,
     dataset_revision: Sha256Digest,
     source_corpus_revision: Sha256Digest,
     rebuild: RebuildMeasurement,
     recall_at_ten: f64,
+    minimum_recall_at_ten: corpus::RecallThreshold,
+    query_task_revision: Sha256Digest,
+    chunking_revision: Sha256Digest,
     case_recall: BTreeMap<EvaluationCaseId, RecallCounts>,
     evaluation_revision: Sha256Digest,
     evaluation: RetrievalEvaluation,
@@ -192,6 +219,7 @@ async fn run() -> Result<()> {
         "evaluation configuration exceeds 32 MiB"
     );
     let config: Configuration = serde_json::from_slice(&std::fs::read(input)?)?;
+    validate_measured_context(&config)?;
     let source = config.corpus.validate()?;
     let dataset = config.corpus.dataset()?;
     let caller = config.corpus.caller()?;
@@ -221,7 +249,7 @@ async fn run() -> Result<()> {
         client: EmbeddingClient::connect(EmbeddingClientConfig::new(
             endpoint,
             key,
-            config.space.clone(),
+            config.runtime.clone(),
         ))
         .await?,
         chunks: AtomicU64::new(0),
@@ -236,9 +264,9 @@ async fn run() -> Result<()> {
             .await?;
     }
     let spec = GenerationSpec::new(
-        config.space,
+        config.runtime.space().clone(),
         config.query_task.as_str(),
-        config.chunking,
+        config.chunking.clone(),
         config
             .corpus
             .registrations
@@ -257,8 +285,14 @@ async fn run() -> Result<()> {
         let initial = indexer
             .build(&caller.tenant, &config.corpus.registrations, &spec)
             .await?;
-        db.a.activate_knowledge_generation(&lease, &caller.tenant, initial, None)
-            .await?;
+        db.a.activate_knowledge_generation(
+            &lease,
+            &caller.tenant,
+            initial,
+            None,
+            embeddings.client.runtime(),
+        )
+        .await?;
         // Warm the actual search path before load measurement. It also proves
         // that the source fixture and judged corpus agree under caller policy.
         eprintln!("retrieval benchmark: warming all judged queries");
@@ -309,8 +343,14 @@ async fn run() -> Result<()> {
         );
         latencies.sort_unstable();
         let chunks: u64 = collections.iter().map(|c| c.chunks).sum();
-        db.a.activate_knowledge_generation(&lease, &caller.tenant, next, Some(initial))
-            .await?;
+        db.a.activate_knowledge_generation(
+            &lease,
+            &caller.tenant,
+            next,
+            Some(initial),
+            embeddings.client.runtime(),
+        )
+        .await?;
         let elapsed = began.elapsed();
         eprintln!("retrieval benchmark: evaluating rebuilt generation");
         let evaluation = RetrievalEvaluator {
@@ -333,6 +373,8 @@ async fn run() -> Result<()> {
         let report = Report {
             format: "veoveo.ai/knowledge-retrieval-evaluation/v1",
             specification: spec.clone(),
+            runtime: embeddings.client.runtime().clone(),
+            configuration_digest: corpus::fingerprint(&config),
             dataset_revision: dataset.revision(),
             source_corpus_revision: config.corpus.revision(),
             rebuild: RebuildMeasurement {
@@ -346,6 +388,9 @@ async fn run() -> Result<()> {
                 search_max_micros: *latencies.last().unwrap(),
             },
             recall_at_ten: evaluation.recall_at_ten(),
+            minimum_recall_at_ten: config.minimum_recall_at_ten,
+            query_task_revision: corpus::fingerprint(&config.query_task),
+            chunking_revision: corpus::fingerprint(&config.chunking),
             case_recall: evaluation.case_recall(),
             evaluation_revision,
             evaluation,
@@ -358,6 +403,10 @@ async fn run() -> Result<()> {
         file.write_all(&serde_json::to_vec_pretty(&report)?)?;
         file.write_all(b"\n")?;
         file.sync_all()?;
+        ensure!(
+            report.recall_at_ten >= report.minimum_recall_at_ten.get(),
+            "production SQL retrieval recall is below its explicit acceptance threshold; report retained"
+        );
         println!(
             "{}",
             serde_json::json!({"report":output,"recallAt10":report.recall_at_ten,"chunksPerSecond":report.rebuild.chunks_per_second,"concurrentSearches":report.rebuild.concurrent_searches})

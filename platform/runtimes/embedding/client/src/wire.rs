@@ -1,7 +1,7 @@
 //! The supported vLLM Embeddings API subset. Additional provider fields are ignored.
 use crate::EmbeddingClientError;
 use serde::{Deserialize, Serialize};
-use veoveo_embedding_contract::{EmbeddingModelId, EmbeddingSpace, EmbeddingVector};
+use veoveo_embedding_contract::{EmbeddingModelId, EmbeddingSpace, validate_embedding_values};
 
 #[derive(Serialize)]
 pub(crate) struct EmbeddingRequest<'a> {
@@ -54,7 +54,7 @@ impl EmbeddingResponse {
         self,
         space: &EmbeddingSpace,
         count: usize,
-    ) -> Result<Vec<EmbeddingVector>, EmbeddingClientError> {
+    ) -> Result<Vec<Vec<f32>>, EmbeddingClientError> {
         if self.object != "list" || self.model != space.model || self.data.len() != count {
             return Err(EmbeddingClientError::Response(
                 "embedding response model or vector count differs from the request",
@@ -67,7 +67,8 @@ impl EmbeddingResponse {
                     "embedding response has an invalid or duplicate input index",
                 ));
             }
-            ordered[item.index] = Some(EmbeddingVector::new(space.clone(), item.embedding)?);
+            validate_embedding_values(space, &item.embedding)?;
+            ordered[item.index] = Some(item.embedding);
         }
         ordered
             .into_iter()

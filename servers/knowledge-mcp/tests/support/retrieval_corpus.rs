@@ -38,6 +38,47 @@ pub(super) struct Audience {
 }
 pub(super) struct Source<'a>(BTreeMap<EvaluationMemberId, &'a Member>);
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(try_from = "f64", into = "f64")]
+pub(super) struct RecallThreshold(f64);
+impl TryFrom<f64> for RecallThreshold {
+    type Error = &'static str;
+    fn try_from(value: f64) -> std::result::Result<Self, Self::Error> {
+        if !value.is_finite() || value <= 0.0 || value > 1.0 {
+            return Err("recall threshold must be finite and in (0,1]");
+        }
+        Ok(Self(value))
+    }
+}
+impl From<RecallThreshold> for f64 {
+    fn from(value: RecallThreshold) -> f64 {
+        value.0
+    }
+}
+impl RecallThreshold {
+    pub fn get(self) -> f64 {
+        self.0
+    }
+}
+pub(super) fn fingerprint(value: &impl Serialize) -> Sha256Digest {
+    use sha2::Digest;
+    Sha256Digest::from_bytes(
+        sha2::Sha256::digest(serde_json::to_vec(value).expect("typed measurement context")).into(),
+    )
+}
+
+impl Member {
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    pub fn identity(&self) -> EvaluationMemberId {
+        EvaluationMemberId {
+            collection: self.observation.collection().clone(),
+            uri: self.link.uri.clone(),
+        }
+    }
+}
+
 impl Corpus {
     pub fn revision(&self) -> Sha256Digest {
         use sha2::Digest;
@@ -211,6 +252,15 @@ impl KnowledgeSource for Source<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn threshold_requires_explicit_finite_positive_fraction() {
+        for value in [0.0, -1.0, 1.01, f64::NAN, f64::INFINITY] {
+            assert!(RecallThreshold::try_from(value).is_err());
+        }
+        for value in [0.001, 1.0] {
+            assert_eq!(RecallThreshold::try_from(value).unwrap().get(), value);
+        }
+    }
     use veoveo_mcp_knowledge_extension::{
         AccessModel, ChangeSignal, Freshness, IndexingMode, Revision, content_digest,
     };

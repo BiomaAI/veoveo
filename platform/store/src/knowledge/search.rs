@@ -76,6 +76,7 @@ impl PlatformStore {
         generation: GenerationId,
         query: &EmbeddingText,
         vector: &EmbeddingVector,
+        admission: &EmbeddingAdmission,
         entity_kinds: &BTreeSet<EntityKind>,
         limit: u16,
         window: SearchWindow,
@@ -90,7 +91,7 @@ impl PlatformStore {
             .knowledge_generation(&scope.tenant, generation)
             .await?
             .ok_or(StoreError::Knowledge("search generation is missing"))?;
-        if vector.space() != spec.space() {
+        if vector.space() != spec.space() || !admission.matches(&scope.tenant, generation, vector) {
             return Err(StoreError::Knowledge(
                 "query vector belongs to another embedding space",
             ));
@@ -102,8 +103,9 @@ impl PlatformStore {
             SearchWindow::Deep => include_str!("../queries/knowledge/search_deep.surql"),
             SearchWindow::Maximum => include_str!("../queries/knowledge/search_maximum.surql"),
         };
-        let mut response = scope
-            .bind(self.client().query(sql), generation)
+        let sql = profiles::registration_query(sql);
+        let mut response = admission
+            .bind(scope.bind(self.client().query(sql), generation))
             .bind(("query", query.as_str().to_owned()))
             .bind(("vector", vector.values().to_vec()))
             .bind((

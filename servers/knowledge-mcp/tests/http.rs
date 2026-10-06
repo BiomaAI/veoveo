@@ -68,7 +68,11 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         let source=Source(Mutex::new(BTreeMap::from([(member.clone(),record(&content,"Flood inspection identifies safe access routes"))])));
         let spec=GenerationSpec::new(embedding.space().clone(),"Find passages",ChunkSettings::new("structure-v1",500,0).unwrap(),registrations.iter().map(|r|(r.descriptor.collection().clone(),r.revision())).collect()).unwrap();
         let generation=Indexer { lease: &lease,store:&db.a, source:&source,embeddings:embedding.as_ref()}.build(&content.tenant,&registrations,&spec).await.unwrap();
-        db.a.activate_knowledge_generation(&lease, &content.tenant,generation,None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&content.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&content.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
         // Approval and scope predicates must exclude an undecodable hidden row.
         db.a.client().query(include_str!("queries/http/hosted_search_links_catalog_and_embedding_follow_current_sql_authority.surql")).await.unwrap().check().unwrap();
         let server=Server::new(db.b.clone(),embedding,&signing).await;
@@ -133,6 +137,33 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
         let replay: SearchResponse = serde_json::from_value(replay.structured_content.unwrap()).unwrap();
         assert_eq!(replay.results[0].uri, member, "another replica reads the active persisted index");
         replica_client.close().await.unwrap();
+        // Capture admission before query embedding, then change the active generation.
+        let blocked = Arc::new(BlockingEmbeddings {
+            inner: SyntheticEmbeddings::new(),
+            entered: tokio::sync::Semaphore::new(0),
+            release: tokio::sync::Semaphore::new(0),
+            block_query: true,
+        });
+        let race_server = Server::new(db.b.clone(), blocked.clone(), &signing).await;
+        let mut race_client = race_server.sdk(signing.issue(identity.clone()).bearer_token).await;
+        let peer = race_client.peer().clone();
+        let pending = tokio::spawn(async move {
+            peer.call_tool(input("search", serde_json::json!({"query":"flood","limit":5}))).await
+        });
+        blocked.entered.acquire().await.unwrap().forget();
+        let replacement_embeddings = SyntheticEmbeddings::new();
+        let replacement = Indexer { lease: &lease, store: &db.a, source: &source, embeddings: &replacement_embeddings }
+            .build(&content.tenant, &registrations, &spec).await.unwrap();
+        db.a.activate_knowledge_generation(&lease, &content.tenant, replacement, Some(generation), replacement_embeddings.runtime()).await.unwrap();
+        blocked.release.add_permits(1);
+        let failure = pending.await.unwrap().unwrap_err().to_string();
+        assert!(failure.contains("embedding/generation admission changed"), "{failure}");
+        assert!(failure.contains("repeat this read or search against current admission"), "{failure}");
+        blocked.release.add_permits(1);
+        let current = race_client.call_tool(input("search", serde_json::json!({"query":"flood","limit":5}))).await.unwrap();
+        let current: SearchResponse = serde_json::from_value(current.structured_content.unwrap()).unwrap();
+        assert_eq!(current.results[0].uri, member);
+        race_client.close().await.unwrap();
         // A current control-plane scope reduction invalidates the still-signed token.
         let mut revoked=plane.clone();
         revoked.oauth_clients.iter_mut().find(|c| c.id.as_str()=="operator-service").unwrap().allowed_scopes.remove(KnowledgeScope::Search.name());
@@ -146,8 +177,12 @@ struct BlockingEmbeddings {
     inner: SyntheticEmbeddings,
     entered: tokio::sync::Semaphore,
     release: tokio::sync::Semaphore,
+    block_query: bool,
 }
 impl Embeddings for BlockingEmbeddings {
+    fn runtime(&self) -> &veoveo_embedding_contract::QualifiedEmbeddingRuntime {
+        self.inner.runtime()
+    }
     fn space(&self) -> &EmbeddingSpace {
         self.inner.space()
     }
@@ -168,6 +203,10 @@ impl Embeddings for BlockingEmbeddings {
         task: EmbeddingTask,
         text: EmbeddingText,
     ) -> Result<EmbeddingVector, ServiceError> {
+        if self.block_query {
+            self.entered.add_permits(1);
+            self.release.acquire().await.unwrap().forget();
+        }
         self.inner.query(task, text).await
     }
 }
@@ -184,6 +223,7 @@ async fn delivery_rechecks_revocation_and_disabled_directory_identity() {
             inner: SyntheticEmbeddings::new(),
             entered: tokio::sync::Semaphore::new(0),
             release: tokio::sync::Semaphore::new(0),
+            block_query: false,
         });
         let server = Server::new(db.b.clone(), embedding.clone(), &signing).await;
         let mut client = server

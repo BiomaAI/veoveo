@@ -15,6 +15,8 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
     OR $active.generation = $generation {
         THROW 'knowledge_generation_not_reclaimable';
     };
-    DELETE $generation;
+    -- Remove row references while the declared producer_batch field still exists.
+    DELETE type::table($chunk_table);
     REMOVE TABLE $chunk_table;
+    DELETE $generation;
 COMMIT TRANSACTION;

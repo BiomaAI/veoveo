@@ -3,6 +3,7 @@ LET $leader = (SELECT * FROM ONLY $coordinator WHERE owner = $owner AND epoch = 
 IF $leader = NONE { THROW 'knowledge_coordinator_fenced'; };
 -- Write the row to serialize this transaction against takeover and expiry renewal.
 UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
+-- REGISTER_EMBEDDING_RUNTIME
 
     LET $catalog = (
         SELECT *
@@ -26,6 +27,7 @@ UPDATE ONLY $coordinator SET expires_at = $leader.expires_at;
     ) {
         THROW 'knowledge_read_not_admitted';
     };
+    -- VALIDATE_EMBEDDING_RUNTIME
     LET $source = (SELECT * FROM ONLY $sync WHERE owner_epoch = $owner_epoch AND coordinator = $coordinator);
     IF $source = NONE { THROW 'knowledge_source_not_reconciled'; };
     LET $old = (

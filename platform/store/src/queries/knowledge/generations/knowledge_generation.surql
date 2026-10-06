@@ -1,1 +1,1 @@
-SELECT VALUE document FROM ONLY $generation WHERE tenant = $tenant;
+SELECT document, revision, space_revision FROM ONLY $generation WHERE tenant = $tenant;

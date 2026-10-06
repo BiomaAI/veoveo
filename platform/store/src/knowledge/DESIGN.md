@@ -101,9 +101,10 @@ the rows that both operations access. The service can recover the active generat
 after process restart without reconstructing it from local memory.
 
 Reclamation accepts only a building or retired generation that is absent from the
-active pointer. It deletes generation metadata while the chunk schema exists, allowing
-native references to cascade member, coverage and chunk records. It then drops the
-empty chunk table and indexes in the same transaction. Outstanding read tickets
+active pointer. It deletes chunk rows while their reference fields exist, then removes
+the empty chunk table and indexes. Deleting generation metadata cascades member,
+coverage and producer-batch receipts in the same transaction; shared profile and
+qualification records stay available to other generations. Outstanding read tickets
 fail because their generation no longer exists. Operators choose when to reclaim a
 retired generation; retaining it does not authorize rolling the active pointer backward.
 

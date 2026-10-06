@@ -22,7 +22,10 @@ struct Sample {
 
 async fn fixture() -> (EmbeddingClient, Reference) {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../verification/reference.json");
+    let path = PathBuf::from(
+        std::env::var("VEOVEO_EMBEDDING_REFERENCE_FILE")
+            .expect("set reference file with explicit current vector space"),
+    );
     let reference: Reference = serde_json::from_slice(
         &std::fs::read(path).expect("generate the GPU reference fixture first"),
     )
@@ -37,13 +40,17 @@ async fn fixture() -> (EmbeddingClient, Reference) {
     let key = secrecy::SecretString::from(
         std::fs::read_to_string(key_path).expect("read embedding key file"),
     );
-    let client = EmbeddingClient::connect(EmbeddingClientConfig::new(
-        endpoint,
-        key,
-        reference.space.clone(),
-    ))
-    .await
+    let runtime: QualifiedEmbeddingRuntime = serde_json::from_slice(
+        &std::fs::read(
+            std::env::var("VEOVEO_EMBEDDING_RUNTIME_FILE").expect("set measured runtime bundle"),
+        )
+        .unwrap(),
+    )
     .unwrap();
+    assert_eq!(runtime.space(), &reference.space);
+    let client = EmbeddingClient::connect(EmbeddingClientConfig::new(endpoint, key, runtime))
+        .await
+        .unwrap();
     (client, reference)
 }
 
@@ -105,3 +112,7 @@ async fn interactive_query_completes_ahead_of_queued_bulk_work_on_cuda() {
         println!("{}", serde_json::json!({"test":"embedding_priority", "result":"pass", "queryLatencyMs":query_ms,"queryCompletedMs":query_done,"bulkCompletedMs":completed,"bulkInputsPerSecond":192.0/elapsed}));
     }).await.expect("GPU scheduling check exceeded 120 seconds");
 }
+
+#[cfg(feature = "verification")]
+#[path = "gpu/candidate.rs"]
+mod candidate;

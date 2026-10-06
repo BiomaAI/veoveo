@@ -24,7 +24,11 @@ async fn takeover_and_source_epochs_fence_late_members_and_late_coverage() {
         db.a.register_knowledge_collection(&registration, None)
             .await
             .unwrap();
-        db.a.create_knowledge_generation(&lease, tenant, generation, &specification)
+        db.a.create_knowledge_generation(&lease,
+tenant,
+generation,
+&specification,
+&embedding_fixture::runtime(specification.space().clone()))
             .await
             .unwrap();
         let visible = member(&registration, &specification, "visible", "operations", &[]);
@@ -44,19 +48,22 @@ async fn takeover_and_source_epochs_fence_late_members_and_late_coverage() {
         db.a.complete_knowledge_collection(&late_coverage)
             .await
             .unwrap();
-        db.a.activate_knowledge_generation(&lease, tenant, generation, None)
+        db.a.activate_knowledge_generation(&lease,
+tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(tenant, generation).await.unwrap().unwrap().space().clone()))
             .await
             .unwrap();
         let caller = scope(&registration);
         assert_candidates(&db.b, &caller, generation, &["visible"]).await;
         let late_read =
-            db.a.begin_knowledge_member_read(
-                &lease,
-                &registration,
-                generation,
-                &specification,
-                visible.uri(),
-            )
+            db.a.begin_knowledge_member_read(&lease,
+&registration,
+generation,
+&specification,
+visible.uri(),
+&embedding_fixture::runtime(specification.space().clone()))
             .await
             .unwrap();
         let sync =
@@ -87,13 +94,12 @@ async fn takeover_and_source_epochs_fence_late_members_and_late_coverage() {
 
         // Expiry is exercised in the isolated database without a 30-second sleep.
         let late_read =
-            db.a.begin_knowledge_member_read(
-                &lease,
-                &registration,
-                generation,
-                &specification,
-                visible.uri(),
-            )
+            db.a.begin_knowledge_member_read(&lease,
+&registration,
+generation,
+&specification,
+visible.uri(),
+&embedding_fixture::runtime(specification.space().clone()))
             .await
             .unwrap();
         db.a.client()
@@ -158,11 +164,19 @@ async fn source_loss_and_freshness_exclude_malformed_cached_rows_before_decode()
         let specification = spec(&registration, "freshness");
         let generation = GenerationId::new();
         db.a.register_knowledge_collection(&registration, None).await.unwrap();
-        db.a.create_knowledge_generation(&lease, &registration.tenant, generation, &specification).await.unwrap();
+        db.a.create_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+&specification,
+&embedding_fixture::runtime(specification.space().clone())).await.unwrap();
         let visible = member(&registration, &specification, "visible", "operations", &[]);
         insert(&db.a, &lease, &registration, generation, &specification, &visible).await;
         complete(&db.a, &lease, &registration, generation).await.unwrap();
-        db.a.activate_knowledge_generation(&lease, &registration.tenant, generation, None).await.unwrap();
+        db.a.activate_knowledge_generation(&lease,
+&registration.tenant,
+generation,
+None,
+&embedding_fixture::runtime(db.a.knowledge_generation(&registration.tenant, generation).await.unwrap().unwrap().space().clone())).await.unwrap();
         let table = format!("knowledge_chunk_{}", generation.as_uuid().simple());
         db.a.client().query(include_str!("../queries/knowledge/coordinator/source_loss_and_freshness_exclude_malformed_cached_rows_before_decode.surql"))
             .bind(("table", table.clone()))
