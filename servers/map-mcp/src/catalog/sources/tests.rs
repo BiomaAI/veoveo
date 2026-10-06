@@ -33,7 +33,7 @@ fn license() -> DatasetLicense {
     }
 }
 fn source(n: usize, at: DateTime<Utc>) -> RegisteredSource {
-    RegisteredSource {
+    RegisteredSource::new(crate::contract::RegisteredSourceValue {
         source_id: key("source", n).parse().unwrap(),
         dataset_id: key("dataset", n).parse().unwrap(),
         name: format!("source-{n}"),
@@ -59,7 +59,8 @@ fn source(n: usize, at: DateTime<Utc>) -> RegisteredSource {
         record_version: 1,
         created_at: at,
         updated_at: at,
-    }
+    })
+    .expect("admitted Map fixture")
 }
 
 #[tokio::test]

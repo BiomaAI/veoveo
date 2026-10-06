@@ -696,9 +696,9 @@ async fn prepare_raster_request(
     Ok(DurableRasterDerivationRequest {
         input,
         identity: caller.identity.clone(),
-        source_release_id: raster.release_id,
-        source_digest_sha256: raster.checksum_sha256,
-        source_crs: raster.crs,
+        source_release_id: raster.release_id.clone(),
+        source_digest_sha256: raster.checksum_sha256.clone(),
+        source_crs: raster.crs.clone(),
         source_transform: raster.transform,
         derivation_id: RasterDerivationId::new(),
         created_at: Utc::now(),
@@ -784,7 +784,7 @@ async fn run_raster_derivation_task(
         )
         .await?;
     let scope = state.scope(&request.identity).await?;
-    let derivation = RasterDerivation {
+    let derivation = RasterDerivation::new(crate::contract::RasterDerivationValue {
         schema_version: RASTER_DERIVATION_SCHEMA_VERSION,
         derivation_id: request.derivation_id,
         source_raster_id: request.input.raster_id,
@@ -802,7 +802,7 @@ async fn run_raster_derivation_task(
         created_by: request.identity.actor.id,
         work_context: request.identity.authority.work_context,
         created_at: request.created_at,
-    };
+    })?;
     state
         .catalog
         .put_raster_derivation(&scope, &derivation)
@@ -974,7 +974,7 @@ async fn run_travel_model_task(
         )
         .await?
         .without_download_url();
-    let record = TravelModelRecord {
+    let record = TravelModelRecord::new(crate::contract::TravelModelRecordValue {
         travel_model_id: request.travel_model_id,
         travel_model_uri: travel_model_uri.clone(),
         manifest_uri: artifact.artifact_id().plane_uri(),
@@ -988,7 +988,7 @@ async fn run_travel_model_task(
         created_by: request.identity.actor.id.clone(),
         work_context: request.identity.authority.work_context.clone(),
         created_at: request.created_at,
-    };
+    })?;
     record.validate_identity()?;
     product_result("Travel model built", &record, "Travel model")
 }
@@ -1150,7 +1150,7 @@ async fn publish_generated_product(
             artifact,
         )
         .await?;
-    let product = LayerProduct {
+    let product = LayerProduct::new(crate::contract::LayerProductValue {
         product_id,
         publication_id: publication_id.clone(),
         layer_id: layer_id.clone(),
@@ -1164,7 +1164,7 @@ async fn publish_generated_product(
         created_by: identity.actor.id.clone(),
         work_context: identity.authority.work_context.clone(),
         created_at,
-    };
+    })?;
     let product = state
         .authoring
         .record_layer_product(identity, scope, &product)

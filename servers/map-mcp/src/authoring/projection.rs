@@ -130,7 +130,7 @@ impl AuthoringProjection {
             .list_map_feature_revisions_for_changeset(
                 &commit.tenant_key,
                 &commit.work_context_key,
-                &commit.changeset_key,
+                &crate::contract::FeatureChangeSetId::parse(&commit.changeset_key)?,
             )
             .await?;
         let expected = commit.feature_keys.iter().collect::<BTreeSet<_>>();

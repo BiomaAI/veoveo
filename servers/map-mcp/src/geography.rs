@@ -41,10 +41,7 @@ impl GeographyService {
         Ok(InspectLocationOutput {
             containing_boundary_ids: self
                 .analytics
-                .containing_boundary_ids(&tenant_key, &location.position)?
-                .into_iter()
-                .map(|id| id.to_string())
-                .collect(),
+                .containing_boundary_ids(&tenant_key, &location.position)?,
             location,
             nearby_facilities,
             data_gaps: Vec::new(),
@@ -72,10 +69,7 @@ impl GeographyService {
         )?;
         let containing_boundary_ids = self
             .analytics
-            .containing_boundary_ids(&tenant_key, &request.position)?
-            .into_iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>();
+            .containing_boundary_ids(&tenant_key, &request.position)?;
         let mut data_gaps = Vec::new();
         if active_release_ids.is_empty() {
             data_gaps.push("no active governed map release".to_owned());
@@ -145,10 +139,7 @@ impl GeographyService {
             facilities,
             crossed_boundary_ids: self
                 .analytics
-                .intersecting_boundary_ids(&scope.tenant_key(), &request.corridor)?
-                .into_iter()
-                .map(|id| id.to_string())
-                .collect(),
+                .intersecting_boundary_ids(&scope.tenant_key(), &request.corridor)?,
             data_gaps: Vec::new(),
         })
     }

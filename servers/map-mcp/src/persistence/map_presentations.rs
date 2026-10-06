@@ -18,26 +18,26 @@ const MAX_CANONICAL_BYTES: usize = 2 * 1024 * 1024;
 pub struct MapLayerProductDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub product_key: String,
-    pub publication_key: String,
-    pub layer_key: String,
+    pub product_key: crate::contract::LayerProductId,
+    pub publication_key: crate::contract::LayerPublicationId,
+    pub layer_key: crate::contract::FeatureLayerId,
     pub layer_revision: i64,
-    pub format: String,
+    pub format: crate::contract::LayerProductFormat,
     pub artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub mime_type: String,
     pub digest_sha256: String,
     pub size_bytes: i64,
     pub feature_count: i64,
     pub canonical_json: String,
-    pub created_by_key: String,
+    pub created_by_key: veoveo_types::PrincipalId,
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug)]
 pub struct MapCompositionRevisionDraft {
-    pub composition_revision_key: String,
+    pub composition_revision_key: crate::contract::MapCompositionRevisionId,
     pub revision: i64,
-    pub publication_keys: Vec<String>,
+    pub publication_keys: Vec<crate::contract::LayerPublicationId>,
     pub canonical_json: String,
 }
 
@@ -45,7 +45,7 @@ pub struct MapCompositionRevisionDraft {
 pub struct MapCompositionDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub composition_key: String,
+    pub composition_key: crate::contract::MapCompositionId,
     pub title: String,
     pub revision: MapCompositionRevisionDraft,
     pub canonical_json: String,
@@ -55,7 +55,7 @@ pub struct MapCompositionDraft {
 pub struct MapCompositionUpdateDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub composition_key: String,
+    pub composition_key: crate::contract::MapCompositionId,
     pub title: String,
     pub revision: MapCompositionRevisionDraft,
     pub canonical_json: String,
@@ -129,7 +129,7 @@ impl MapRepository {
         let product_record = record(
             "map_layer_product",
             &draft.identity.tenant_key,
-            &[&draft.product_key],
+            &[draft.product_key.as_str()],
         );
         if let Some(existing) = select_scoped::<MapLayerProductRecord>(
             self,
@@ -144,25 +144,25 @@ impl MapRepository {
         let publication_record = record(
             "map_layer_publication",
             &draft.identity.tenant_key,
-            &[&draft.layer_key, &draft.publication_key],
+            &[draft.layer_key.as_str(), draft.publication_key.as_str()],
         );
         let content = ProductContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
             work_context: context.clone(),
             authority: draft.authority.clone(),
-            product_key: draft.product_key.clone(),
-            publication_key: draft.publication_key.clone(),
-            layer_key: draft.layer_key.clone(),
+            product_key: draft.product_key.to_string(),
+            publication_key: draft.publication_key.to_string(),
+            layer_key: draft.layer_key.to_string(),
             layer_revision: draft.layer_revision,
-            format: draft.format.clone(),
+            format: product_format(draft.format).to_owned(),
             artifact_uri: draft.artifact_uri.to_string(),
             mime_type: draft.mime_type.clone(),
             digest_sha256: draft.digest_sha256.clone(),
             size_bytes: draft.size_bytes,
             feature_count: draft.feature_count,
             canonical_json: draft.canonical_json.clone(),
-            created_by_key: draft.created_by_key.clone(),
+            created_by_key: draft.created_by_key.to_string(),
             created_at: draft.created_at,
         };
 
@@ -219,7 +219,7 @@ impl MapRepository {
         let root_record = record(
             "map_composition",
             &draft.identity.tenant_key,
-            &[&draft.composition_key],
+            &[draft.composition_key.as_str()],
         );
         let revision_record = version_record(
             "map_composition_revision",
@@ -235,7 +235,7 @@ impl MapRepository {
             created_by_key: draft.identity.principal_key.clone(),
             owner_kind: draft.authority.owner_kind,
             owner_key: draft.authority.owner_key.clone(),
-            composition_key: draft.composition_key.clone(),
+            composition_key: draft.composition_key.to_string(),
             title: draft.title,
             current_revision: draft.revision.revision,
             canonical_json: draft.canonical_json,
@@ -285,7 +285,7 @@ impl MapRepository {
         let root_record = record(
             "map_composition",
             &draft.identity.tenant_key,
-            &[&draft.composition_key],
+            &[draft.composition_key.as_str()],
         );
         let revision_record = version_record(
             "map_composition_revision",
@@ -328,7 +328,7 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        composition_key: &str,
+        composition_key: &crate::contract::MapCompositionId,
         revision: i64,
     ) -> Result<Option<MapCompositionRevisionRecord>, MapStoreError> {
         select_scoped(
@@ -349,18 +349,23 @@ impl MapRepository {
 fn revision_content(
     identity: &PlatformIdentity,
     authority: &InvocationAuthorityRecord,
-    composition_key: &str,
+    composition_key: impl AsRef<str>,
     draft: MapCompositionRevisionDraft,
 ) -> Result<CompositionRevisionContent, MapStoreError> {
+    let composition_key = composition_key.as_ref();
     Ok(CompositionRevisionContent {
         tenant: identity.tenant_id.record_id(),
         work_context: deterministic_work_context_id(&identity.tenant_key, &authority.context_key)?
             .record_id(),
         authority: authority.clone(),
-        composition_key: composition_key.to_owned(),
-        composition_revision_key: draft.composition_revision_key,
+        composition_key: composition_key.to_string(),
+        composition_revision_key: draft.composition_revision_key.to_string(),
         revision: draft.revision,
-        publication_keys: draft.publication_keys,
+        publication_keys: draft
+            .publication_keys
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         canonical_json: draft.canonical_json,
         created_by: identity.principal_id.record_id(),
         created_at: Utc::now(),
@@ -376,15 +381,12 @@ fn matching_product(
     } else {
         Err(MapStoreError::MapRecordConflict {
             entity: "map layer product",
-            key: draft.product_key.clone(),
+            key: draft.product_key.to_string(),
         })
     }
 }
 
 fn validate_product(draft: &MapLayerProductDraft) -> Result<(), MapStoreError> {
-    if !supported_product_format(&draft.format) {
-        return Err(invalid("format", "unsupported layer product format"));
-    }
     if draft.layer_revision < 0 || draft.size_bytes < 0 || draft.feature_count < 0 {
         return Err(invalid("counts", "product counts cannot be negative"));
     }
@@ -402,11 +404,14 @@ fn validate_product(draft: &MapLayerProductDraft) -> Result<(), MapStoreError> {
     validate_json("canonical_json", &draft.canonical_json)
 }
 
-fn supported_product_format(value: &str) -> bool {
-    matches!(
-        value,
-        "geojson_seq" | "geoparquet" | "geo_package" | "mvt_bundle"
-    )
+pub(crate) fn product_format(value: crate::contract::LayerProductFormat) -> &'static str {
+    use crate::contract::LayerProductFormat::*;
+    match value {
+        GeoJsonSeq => "geojson_seq",
+        GeoParquet => "geoparquet",
+        GeoPackage => "geo_package",
+        MvtBundle => "mvt_bundle",
+    }
 }
 
 fn validate_composition_revision(draft: &MapCompositionRevisionDraft) -> Result<(), MapStoreError> {
@@ -472,12 +477,13 @@ async fn select_scoped<T: for<'de> Deserialize<'de> + SurrealValue>(
 
 fn record(table: &str, tenant_key: &str, parts: &[&str]) -> RecordId {
     let mut key = Vec::with_capacity(parts.len() + 1);
-    key.push(tenant_key.to_owned());
+    key.push(tenant_key.to_string());
     key.extend(parts.iter().map(|part| (*part).to_owned()));
     RecordId::new(table, Array::from(key))
 }
 
-fn version_record(table: &str, tenant_key: &str, key: &str, version: i64) -> RecordId {
+fn version_record(table: &str, tenant_key: &str, key: impl AsRef<str>, version: i64) -> RecordId {
+    let key = key.as_ref();
     record(table, tenant_key, &[key, &format!("{version:020}")])
 }
 
@@ -487,13 +493,25 @@ fn invalid(field: &'static str, reason: &'static str) -> MapStoreError {
 
 #[cfg(test)]
 mod tests {
-    use super::supported_product_format;
-
+    use super::product_format;
+    use crate::contract::LayerProductFormat;
     #[test]
-    fn map_layer_product_formats_match_the_public_contract() {
-        for format in ["geojson_seq", "geoparquet", "geo_package", "mvt_bundle"] {
-            assert!(supported_product_format(format), "rejected {format}");
+    fn layer_product_driver_preserves_wire_and_storage_spelling() {
+        for (value, wire, native) in [
+            (
+                LayerProductFormat::GeoJsonSeq,
+                "geo_json_seq",
+                "geojson_seq",
+            ),
+            (LayerProductFormat::GeoParquet, "geo_parquet", "geoparquet"),
+            (LayerProductFormat::GeoPackage, "geo_package", "geo_package"),
+            (LayerProductFormat::MvtBundle, "mvt_bundle", "mvt_bundle"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(value).unwrap(),
+                serde_json::json!(wire)
+            );
+            assert_eq!(product_format(value), native);
         }
-        assert!(!supported_product_format("shapefile"));
     }
 }

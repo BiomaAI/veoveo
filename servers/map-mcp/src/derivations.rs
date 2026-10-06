@@ -1,6 +1,8 @@
 //! Shared derivation persistence and lightweight cursor pages.
 use crate::persistence::MapRepository;
-use crate::persistence::{MapDerivationDraft, MapDerivationKind, MapDerivationScope};
+use crate::persistence::{
+    MapDerivationDraft, MapDerivationIdentity, MapDerivationKind, MapDerivationScope,
+};
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -52,9 +54,8 @@ impl MapCatalog {
         MapRepository::new(self.store().clone())
             .put_map_derivation(MapDerivationDraft {
                 scope: self::scope(scope, &derivation.work_context)?,
-                kind: MapDerivationKind::Raster,
-                derivation_key: derivation.derivation_id.to_string(),
-                created_by: derivation.created_by.to_string(),
+                identity: MapDerivationIdentity::Raster(derivation.derivation_id.clone()),
+                created_by: derivation.created_by.clone(),
                 created_at: derivation.created_at,
                 canonical_json: serde_json::to_string(derivation)?,
             })
@@ -70,9 +71,8 @@ impl MapCatalog {
         MapRepository::new(self.store().clone())
             .put_map_derivation(MapDerivationDraft {
                 scope: self::scope(scope, &derivation.work_context)?,
-                kind: MapDerivationKind::Spatial,
-                derivation_key: derivation.derivation_id.to_string(),
-                created_by: derivation.created_by.to_string(),
+                identity: MapDerivationIdentity::Spatial(derivation.derivation_id.clone()),
+                created_by: derivation.created_by.clone(),
                 created_at: derivation.created_at,
                 canonical_json: serde_json::to_string(derivation)?,
             })
@@ -88,15 +88,17 @@ impl MapCatalog {
         let row = MapRepository::new(self.store().clone())
             .map_derivation(
                 self::scope(scope, context)?,
-                MapDerivationKind::Raster,
-                id.as_str(),
+                &MapDerivationIdentity::Raster(id.clone()),
             )
             .await?;
         row.map(|row| {
             let value: RasterDerivation = serde_json::from_str(&row.canonical_json)?;
             value.validate()?;
             ensure!(
-                value.derivation_id == *id && value.work_context == *context,
+                value.derivation_id == *id
+                    && value.work_context == *context
+                    && value.created_by.as_str() == row.created_by
+                    && value.created_at == row.created_at,
                 "stored raster derivation identity mismatch"
             );
             Ok(value)
@@ -112,15 +114,17 @@ impl MapCatalog {
         let row = MapRepository::new(self.store().clone())
             .map_derivation(
                 self::scope(scope, context)?,
-                MapDerivationKind::Spatial,
-                id.as_str(),
+                &MapDerivationIdentity::Spatial(id.clone()),
             )
             .await?;
         row.map(|row| {
             let value: SpatialDerivation = serde_json::from_str(&row.canonical_json)?;
             value.validate()?;
             ensure!(
-                value.derivation_id == *id && value.work_context == *context,
+                value.derivation_id == *id
+                    && value.work_context == *context
+                    && value.created_by.as_str() == row.created_by
+                    && value.created_at == row.created_at,
                 "stored spatial derivation identity mismatch"
             );
             Ok(value)
@@ -136,16 +140,43 @@ impl MapCatalog {
         let (kind, after) = match selection {
             DerivationSelection::Raster(after) => (
                 MapDerivationKind::Raster,
-                after.map(RasterDerivationId::as_str),
+                after.cloned().map(MapDerivationIdentity::Raster),
             ),
             DerivationSelection::Spatial(after) => (
                 MapDerivationKind::Spatial,
-                after.map(SpatialDerivationId::as_str),
+                after.cloned().map(MapDerivationIdentity::Spatial),
             ),
         };
         let mut rows = MapRepository::new(self.store().clone())
-            .map_derivations_page(self::scope(scope, context)?, kind, after, PAGE_SIZE + 1)
+            .map_derivations_page(
+                self::scope(scope, context)?,
+                kind,
+                after.as_ref(),
+                PAGE_SIZE + 1,
+            )
             .await?;
+        for row in &rows {
+            let agrees = match kind {
+                MapDerivationKind::Raster => {
+                    let value: RasterDerivation = serde_json::from_str(&row.canonical_json)?;
+                    value.derivation_id.as_str() == row.derivation_key
+                        && value.work_context == *context
+                        && value.created_by.as_str() == row.created_by
+                        && value.created_at == row.created_at
+                }
+                MapDerivationKind::Spatial => {
+                    let value: SpatialDerivation = serde_json::from_str(&row.canonical_json)?;
+                    value.derivation_id.as_str() == row.derivation_key
+                        && value.work_context == *context
+                        && value.created_by.as_str() == row.created_by
+                        && value.created_at == row.created_at
+                }
+            };
+            ensure!(
+                agrees,
+                "derivation document disagrees with selected metadata"
+            );
+        }
         let more = rows.len() > PAGE_SIZE;
         rows.truncate(PAGE_SIZE);
         let next_cursor = if more {

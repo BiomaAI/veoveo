@@ -66,7 +66,7 @@ impl KnowledgeCreateDriver for Publications {
             );
             Ok(MapKnowledgeMember::Publication {
                 layer: id.clone(),
-                publication: publication.publication_id,
+                publication: publication.into_value().publication_id,
             }
             .to_uri())
         })

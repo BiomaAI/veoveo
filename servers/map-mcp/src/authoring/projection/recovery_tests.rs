@@ -88,12 +88,12 @@ async fn recovery() {
         .create_map_feature_layer(MapFeatureLayerDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            layer_key: layer_id.to_string(),
+            layer_key: crate::contract::FeatureLayerId::parse(layer_id.clone()).unwrap(),
             title: "Recovery".into(),
             description: None,
             content_class: "boundaries".into(),
             schema: MapFeatureSchemaDraft {
-                schema_revision_key: FeatureSchemaRevisionId::new().to_string(),
+                schema_revision_key: FeatureSchemaRevisionId::new(),
                 schema_version: 1,
                 digest_sha256: "a".repeat(64),
                 schema_json: "{}".into(),
@@ -105,7 +105,7 @@ async fn recovery() {
         })
         .await
         .unwrap();
-    let feature = MapFeature {
+    let feature = MapFeature::new(crate::contract::MapFeatureValue {
         feature_type: GeoJsonFeatureType::Feature,
         conforms_to: vec![],
         id: feature_id.clone(),
@@ -130,19 +130,20 @@ async fn recovery() {
             delegation_id: None,
         },
         created_at: Utc::now(),
-    };
+    })
+    .expect("admitted Map fixture");
     let mut draft = MapFeatureCommitDraft {
         identity,
         authority,
-        layer_key: layer_id.to_string(),
+        layer_key: crate::contract::FeatureLayerId::parse(layer_id.clone()).unwrap(),
         layer_canonical_json: "{}".into(),
         expected_layer_revision: 0,
-        changeset_key: FeatureChangeSetId::new().to_string(),
+        changeset_key: FeatureChangeSetId::new().clone(),
         idempotency_key: "first".into(),
         request_digest_sha256: "b".repeat(64),
         changeset_canonical_json: "{}".into(),
         revisions: vec![MapFeatureRevisionDraft {
-            feature_key: feature_id.to_string(),
+            feature_key: crate::contract::MapFeatureId::parse(feature_id.clone()).unwrap(),
             feature_revision: 1,
             layer_revision: 1,
             schema_version: 1,
@@ -176,17 +177,18 @@ async fn recovery() {
 
     // Commit after the snapshot, then prove keyset paging honors both bounds.
     draft.expected_layer_revision = 1;
-    draft.changeset_key = FeatureChangeSetId::new().to_string();
+    draft.changeset_key = FeatureChangeSetId::new();
     draft.idempotency_key = "second".into();
     draft.request_digest_sha256 = "c".repeat(64);
     draft.revisions[0].expected_feature_revision = Some(1);
     draft.revisions[0].feature_revision = 2;
     draft.revisions[0].layer_revision = 2;
-    let second_feature = MapFeature {
+    let second_feature = MapFeature::new(crate::contract::MapFeatureValue {
         feature_revision: 2,
         layer_revision: 2,
-        ..feature
-    };
+        ..feature.clone().into_value()
+    })
+    .expect("admitted Map fixture");
     draft.revisions[0].canonical_json = serde_json::to_string(&second_feature).unwrap();
     let second = MapRepository::new(store.clone())
         .commit_map_feature_changes(draft.clone())
@@ -374,17 +376,18 @@ async fn recovery() {
 
     // Missing canonical data must fail closed without advancing the checkpoint.
     draft.expected_layer_revision = 2;
-    draft.changeset_key = FeatureChangeSetId::new().to_string();
+    draft.changeset_key = FeatureChangeSetId::new();
     draft.idempotency_key = "third".into();
     draft.request_digest_sha256 = "d".repeat(64);
     draft.revisions[0].expected_feature_revision = Some(2);
     draft.revisions[0].feature_revision = 3;
     draft.revisions[0].layer_revision = 3;
-    let third_feature = MapFeature {
+    let third_feature = MapFeature::new(crate::contract::MapFeatureValue {
         feature_revision: 3,
         layer_revision: 3,
-        ..second_feature
-    };
+        ..second_feature.clone().into_value()
+    })
+    .expect("admitted Map fixture");
     draft.revisions[0].canonical_json = serde_json::to_string(&third_feature).unwrap();
     let third = MapRepository::new(store.clone())
         .commit_map_feature_changes(draft)

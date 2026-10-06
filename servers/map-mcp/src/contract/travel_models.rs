@@ -181,7 +181,8 @@ pub struct TravelModelProfileProvenance {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TravelModelRecord {
+#[schemars(rename = "TravelModelRecord")]
+pub struct TravelModelRecordValue {
     pub travel_model_id: TravelModelId,
     pub travel_model_uri: MapTravelModelUri,
     pub manifest_uri: veoveo_artifact_contract::ArtifactUri,
@@ -197,7 +198,7 @@ pub struct TravelModelRecord {
     pub created_at: DateTime<Utc>,
 }
 
-impl TravelModelRecord {
+impl TravelModelRecordValue {
     pub fn validate_identity(&self) -> Result<(), TravelModelContractError> {
         if self.travel_model_uri.id() != &self.travel_model_id
             || !matches!(
@@ -249,6 +250,41 @@ impl veoveo_types::IdProfile for TravelKeys {
         veoveo_types::IdProfileSpec::text(|value, metadata| {
             validate_travel_key(value, metadata.error_context)
         });
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TravelModelRecord(veoveo_types::Checked<TravelModelRecordValue>);
+impl TravelModelRecord {
+    pub fn new(value: TravelModelRecordValue) -> Result<Self, TravelModelContractError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> TravelModelRecordValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for TravelModelRecord {
+    type Target = TravelModelRecordValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for TravelModelRecordValue {
+    type Error = TravelModelContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate_identity()
+    }
+}
+impl JsonSchema for TravelModelRecord {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        TravelModelRecordValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        TravelModelRecordValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        TravelModelRecordValue::json_schema(generator)
+    }
 }
 
 #[cfg(test)]

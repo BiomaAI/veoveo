@@ -104,10 +104,23 @@ impl MapCatalog {
         release: &DatasetReleaseId,
     ) -> Result<Option<DatasetRelease>> {
         MapRepository::new(self.store().clone())
-            .map_release_in_dataset(scope.identity.tenant_id, dataset.as_str(), release.as_str())
+            .map_release_in_dataset(scope.identity.tenant_id, dataset, release)
             .await?
             .map(checked_release)
             .transpose()
+    }
+
+    pub async fn release_set(
+        &self,
+        scope: &MapAccessContext,
+        releases: &std::collections::BTreeSet<DatasetReleaseId>,
+    ) -> Result<Vec<DatasetRelease>> {
+        MapRepository::new(self.store().clone())
+            .map_release_set(scope.identity.tenant_id, releases)
+            .await?
+            .into_iter()
+            .map(checked_release)
+            .collect()
     }
 
     pub async fn releases_page(
@@ -117,12 +130,7 @@ impl MapCatalog {
         after: Option<&DatasetReleaseId>,
     ) -> Result<ReleasePage> {
         let mut rows = MapRepository::new(self.store().clone())
-            .map_releases_page(
-                scope.identity.tenant_id,
-                dataset.map(MapDatasetId::as_str),
-                after.map(DatasetReleaseId::as_str),
-                PAGE_SIZE + 1,
-            )
+            .map_releases_page(scope.identity.tenant_id, dataset, after, PAGE_SIZE + 1)
             .await?;
         let more = rows.len() > PAGE_SIZE;
         rows.truncate(PAGE_SIZE);
@@ -151,11 +159,14 @@ impl MapCatalog {
     }
 }
 
-fn checked_release(row: crate::persistence::MapDatasetReleaseRecord) -> Result<DatasetRelease> {
+pub(super) fn checked_release(
+    row: crate::persistence::MapDatasetReleaseRecord,
+) -> Result<DatasetRelease> {
     let release: DatasetRelease = decode(&row.canonical_json, "dataset release")?;
     release.validate()?;
     ensure!(
-        release.release_id.as_str() == row.release_key
+        row.id == surrealdb::types::RecordId::new("map_dataset_release", row.release_key.clone())
+            && release.release_id.as_str() == row.release_key
             && release.dataset_id.as_str() == row.dataset_key
             && release.source_id.as_str() == row.source_key
             && release.source_digest_sha256 == row.source_digest_sha256
@@ -196,7 +207,7 @@ mod tests {
 
     fn release(n: usize, dataset: &MapDatasetId) -> DatasetRelease {
         let now = chrono::Utc::now();
-        DatasetRelease {
+        DatasetRelease::new(crate::contract::DatasetReleaseValue {
             release_id: key("release", n).parse().unwrap(),
             dataset_id: dataset.clone(),
             source_id: key("source", 1).parse().unwrap(),
@@ -241,7 +252,37 @@ mod tests {
             state: DatasetReleaseState::Staged,
             record_version: 1,
             updated_at: now,
-        }
+        })
+        .expect("admitted Map fixture")
+    }
+
+    #[tokio::test]
+    async fn exact_release_set_preserves_lifecycle_and_excludes_unrelated_corruption() {
+        tokio::time::timeout(std::time::Duration::from_secs(90), async {
+            let db = crate::test_store::TestDb::with_modules(vec![crate::schema::module_setup(crate::test_store::module_lanes::execution("map").unwrap()).unwrap()]).await;
+            let catalog = MapCatalog::new(db.a.clone());
+            let owner = active_scope(&db.a, "exact-set").await;
+            let foreign = active_scope(&db.a, "foreign-set").await;
+            let mut expected = Vec::new();
+            for (n, state) in [DatasetReleaseState::Staged, DatasetReleaseState::Retired, DatasetReleaseState::Quarantined, DatasetReleaseState::Active].into_iter().enumerate() {
+                let mut value = release(n + 100, &key("dataset", n + 100).parse().unwrap());
+                value.state = state;
+                expected.push(catalog.create_release(&owner, value).await.unwrap());
+            }
+            let unrelated = catalog.create_release(&owner, release(200, &MapDatasetId::new())).await.unwrap();
+            let excluded = catalog.create_release(&foreign, release(201, &MapDatasetId::new())).await.unwrap();
+            for value in [&unrelated, &excluded] {
+                db.a.client().query(include_str!("../queries/catalog/releases/active_release_limits_pointer_changes_and_document_agreement/statement_1.surql"))
+                    .bind(("record", veoveo_platform_store::RecordId::new("map_dataset_release", value.release_id.as_str())))
+                    .bind(("body", "{}".to_owned())).await.unwrap().check().unwrap();
+            }
+            let mut ids = expected.iter().map(|value| value.release_id.clone()).collect::<std::collections::BTreeSet<_>>();
+            ids.insert(excluded.release_id.clone());
+            assert_eq!(catalog.release_set(&owner, &ids).await.unwrap(), expected);
+            assert!(catalog.release_set(&owner, &std::collections::BTreeSet::new()).await.unwrap().is_empty());
+            ids.insert(unrelated.release_id.clone());
+            assert!(catalog.release_set(&owner, &ids).await.is_err());
+        }).await.expect("exact release set exceeded 90 seconds");
     }
 
     async fn active_scope(
@@ -588,27 +629,12 @@ mod tests {
         for limit in [0, 102, usize::MAX] {
             assert!(
                 MapRepository::new(db.b.clone())
-                    .map_releases_page(
-                        scope.identity.tenant_id,
-                        Some(dataset.as_str()),
-                        None,
-                        limit
-                    )
+                    .map_releases_page(scope.identity.tenant_id, Some(&dataset), None, limit)
                     .await
                     .is_err()
             );
         }
-        assert!(
-            MapRepository::new(db.b.clone())
-                .map_releases_page(scope.identity.tenant_id, Some("dataset-invalid"), None, 1)
-                .await
-                .is_err()
-        );
-        assert!(
-            MapRepository::new(db.b.clone())
-                .map_releases_page(scope.identity.tenant_id, None, Some("release-invalid"), 1)
-                .await
-                .is_err()
-        );
+        assert!(MapDatasetId::parse("dataset-invalid").is_err());
+        assert!(crate::contract::DatasetReleaseId::parse("release-invalid").is_err());
     }
 }

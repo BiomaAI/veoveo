@@ -47,7 +47,8 @@ pub enum SourceFeatureRepresentation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct SourceFeature {
+#[schemars(rename = "SourceFeature")]
+pub struct SourceFeatureValue {
     pub schema_version: u64,
     pub feature_id: SourceFeatureId,
     pub source_id: MapSourceId,
@@ -77,7 +78,7 @@ pub struct SourceFeature {
     pub acquired_at: DateTime<Utc>,
 }
 
-impl SourceFeature {
+impl SourceFeatureValue {
     pub fn validate(&self) -> Result<(), SourceProductError> {
         if self.schema_version != SOURCE_FEATURE_SCHEMA_VERSION {
             return Err(SourceProductError::UnsupportedSchema);
@@ -301,7 +302,8 @@ pub struct RasterBand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct RasterProduct {
+#[schemars(rename = "RasterProduct")]
+pub struct RasterProductValue {
     pub schema_version: u64,
     pub raster_id: RasterProductId,
     pub source_id: MapSourceId,
@@ -321,7 +323,7 @@ pub struct RasterProduct {
     pub attribution: String,
 }
 
-impl RasterProduct {
+impl RasterProductValue {
     pub fn validate(&self) -> Result<(), SourceProductError> {
         if self.schema_version != RASTER_PRODUCT_SCHEMA_VERSION
             || self.width == 0
@@ -516,7 +518,8 @@ impl DeriveRasterRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct RasterDerivation {
+#[schemars(rename = "RasterDerivation")]
+pub struct RasterDerivationValue {
     pub schema_version: u64,
     pub derivation_id: RasterDerivationId,
     pub source_raster_id: RasterProductId,
@@ -537,7 +540,7 @@ pub struct RasterDerivation {
     pub created_at: DateTime<Utc>,
 }
 
-impl RasterDerivation {
+impl RasterDerivationValue {
     pub fn validate(&self) -> Result<(), SourceProductError> {
         if self.schema_version != RASTER_DERIVATION_SCHEMA_VERSION {
             return Err(SourceProductError::UnsupportedSchema);
@@ -684,6 +687,111 @@ fn validate_text(value: &str, maximum_length: usize) -> Result<(), SourceProduct
         return Err(SourceProductError::InvalidControlledValue);
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SourceFeature(veoveo_types::Checked<SourceFeatureValue>);
+impl SourceFeature {
+    pub fn new(value: SourceFeatureValue) -> Result<Self, SourceProductError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> SourceFeatureValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for SourceFeature {
+    type Target = SourceFeatureValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for SourceFeatureValue {
+    type Error = SourceProductError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()
+    }
+}
+impl JsonSchema for SourceFeature {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        SourceFeatureValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        SourceFeatureValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        SourceFeatureValue::json_schema(generator)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RasterProduct(veoveo_types::Checked<RasterProductValue>);
+impl RasterProduct {
+    pub fn new(value: RasterProductValue) -> Result<Self, SourceProductError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> RasterProductValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for RasterProduct {
+    type Target = RasterProductValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for RasterProductValue {
+    type Error = SourceProductError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()
+    }
+}
+impl JsonSchema for RasterProduct {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        RasterProductValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        RasterProductValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RasterProductValue::json_schema(generator)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RasterDerivation(veoveo_types::Checked<RasterDerivationValue>);
+impl RasterDerivation {
+    pub fn new(value: RasterDerivationValue) -> Result<Self, SourceProductError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> RasterDerivationValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for RasterDerivation {
+    type Target = RasterDerivationValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for RasterDerivationValue {
+    type Error = SourceProductError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()
+    }
+}
+impl JsonSchema for RasterDerivation {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        RasterDerivationValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        RasterDerivationValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RasterDerivationValue::json_schema(generator)
+    }
 }
 
 #[cfg(test)]

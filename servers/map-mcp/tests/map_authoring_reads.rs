@@ -15,6 +15,8 @@ use veoveo_platform_store::*;
 
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "support/work_context.rs"]
+mod work_context;
 
 fn authority(context: &str, labels: &[&str]) -> InvocationAuthorityRecord {
     InvocationAuthorityRecord {
@@ -48,18 +50,29 @@ async fn create_records(
         .create_map_feature_layer(MapFeatureLayerDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            layer_key: format!("feature-layer-{}", Uuid::now_v7()),
+            layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(format!(
+                "feature-layer-{}",
+                Uuid::now_v7()
+            ))
+            .unwrap(),
             title: "Fixture".into(),
             description: None,
             content_class: "boundaries".into(),
             schema: MapFeatureSchemaDraft {
-                schema_revision_key: format!("feature-schema-{}", Uuid::now_v7()),
+                schema_revision_key: veoveo_map_mcp::contract::FeatureSchemaRevisionId::parse(
+                    format!("feature-schema-{}", Uuid::now_v7()),
+                )
+                .unwrap(),
                 schema_version: 1,
                 digest_sha256: "a".repeat(64),
                 schema_json: "{}".into(),
             },
             style: Some(MapStyleRevisionDraft {
-                style_revision_key: format!("style-{}", Uuid::now_v7()),
+                style_revision_key: veoveo_map_mcp::contract::StyleRevisionId::parse(format!(
+                    "style-{}",
+                    Uuid::now_v7()
+                ))
+                .unwrap(),
                 style_version: 1,
                 style_json: "{}".into(),
             }),
@@ -73,8 +86,13 @@ async fn create_records(
         .create_map_layer_publication(MapLayerPublicationDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            publication_key: format!("publication-{}", Uuid::now_v7()),
-            layer_key: layer.layer_key.clone(),
+            publication_key: veoveo_map_mcp::contract::LayerPublicationId::parse(format!(
+                "publication-{}",
+                Uuid::now_v7()
+            ))
+            .unwrap(),
+            layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer.layer_key.clone())
+                .unwrap(),
             layer_revision: 0,
             schema_version: 1,
             style_revision_key: None,
@@ -88,18 +106,27 @@ async fn create_records(
         .create_map_layer_product(MapLayerProductDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            product_key: format!("layer-product-{}", Uuid::now_v7()),
-            publication_key: publication.publication_key.clone(),
-            layer_key: layer.layer_key.clone(),
+            product_key: veoveo_map_mcp::contract::LayerProductId::parse(format!(
+                "layer-product-{}",
+                Uuid::now_v7()
+            ))
+            .unwrap(),
+            publication_key: veoveo_map_mcp::contract::LayerPublicationId::parse(
+                publication.publication_key.clone(),
+            )
+            .unwrap(),
+            layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer.layer_key.clone())
+                .unwrap(),
             layer_revision: 0,
-            format: "geojson_seq".into(),
+            format: veoveo_map_mcp::contract::LayerProductFormat::GeoJsonSeq,
             artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
             mime_type: "application/geo+json-seq".into(),
             digest_sha256: "b".repeat(64),
             size_bytes: 128,
             feature_count: 1,
             canonical_json: "{}".into(),
-            created_by_key: identity.principal_key.clone(),
+            created_by_key: veoveo_types::PrincipalId::parse(identity.principal_key.clone())
+                .unwrap(),
             created_at: Utc::now(),
         })
         .await
@@ -108,12 +135,26 @@ async fn create_records(
         .create_map_composition(MapCompositionDraft {
             identity: identity.clone(),
             authority,
-            composition_key: format!("composition-{}", Uuid::now_v7()),
+            composition_key: veoveo_map_mcp::contract::MapCompositionId::parse(format!(
+                "composition-{}",
+                Uuid::now_v7()
+            ))
+            .unwrap(),
             title: "Fixture".into(),
             revision: MapCompositionRevisionDraft {
-                composition_revision_key: format!("composition-revision-{}", Uuid::now_v7()),
+                composition_revision_key:
+                    veoveo_map_mcp::contract::MapCompositionRevisionId::parse(format!(
+                        "composition-revision-{}",
+                        Uuid::now_v7()
+                    ))
+                    .unwrap(),
                 revision: 1,
-                publication_keys: vec![publication.publication_key.clone()],
+                publication_keys: vec![
+                    veoveo_map_mcp::contract::LayerPublicationId::parse(
+                        &publication.publication_key,
+                    )
+                    .unwrap(),
+                ],
                 canonical_json: "{}".into(),
             },
             canonical_json: "{}".into(),
@@ -197,14 +238,24 @@ async fn qualify() {
     for hidden in [&denied, &private, &foreign] {
         assert!(
             MapRepository::new(db.b.clone())
-                .map_feature_layer(&scope, &hidden.layer.layer_key)
+                .map_feature_layer(
+                    &scope,
+                    &veoveo_map_mcp::contract::FeatureLayerId::parse(&hidden.layer.layer_key)
+                        .unwrap()
+                )
                 .await
                 .unwrap()
                 .is_none()
         );
         assert!(
             MapRepository::new(db.b.clone())
-                .map_composition(&scope, &hidden.composition.composition_key)
+                .map_composition(
+                    &scope,
+                    &veoveo_map_mcp::contract::MapCompositionId::parse(
+                        &hidden.composition.composition_key
+                    )
+                    .unwrap()
+                )
                 .await
                 .unwrap()
                 .is_none()
@@ -213,9 +264,14 @@ async fn qualify() {
             MapRepository::new(db.b.clone())
                 .map_layer_product(
                     &scope,
-                    &hidden.layer.layer_key,
-                    &hidden.publication.publication_key,
-                    &hidden.product.product_key
+                    &veoveo_map_mcp::contract::FeatureLayerId::parse(&hidden.layer.layer_key)
+                        .unwrap(),
+                    &veoveo_map_mcp::contract::LayerPublicationId::parse(
+                        &hidden.publication.publication_key
+                    )
+                    .unwrap(),
+                    &veoveo_map_mcp::contract::LayerProductId::parse(&hidden.product.product_key)
+                        .unwrap()
                 )
                 .await
                 .unwrap()
@@ -223,7 +279,14 @@ async fn qualify() {
         );
         assert!(
             MapRepository::new(db.b.clone())
-                .map_layer_publications_page(&scope, Some(&hidden.layer.layer_key), None, 100)
+                .map_layer_publications_page(
+                    &scope,
+                    Some(&hidden.layer.layer_key)
+                        .map(|id| veoveo_map_mcp::contract::FeatureLayerId::parse(id).unwrap())
+                        .as_ref(),
+                    None,
+                    100
+                )
                 .await
                 .unwrap()
                 .is_empty()
@@ -232,7 +295,9 @@ async fn qualify() {
             MapRepository::new(db.b.clone())
                 .map_layer_products_page(
                     &scope,
-                    Some(&hidden.publication.publication_key),
+                    Some(&hidden.publication.publication_key)
+                        .map(|id| veoveo_map_mcp::contract::LayerPublicationId::parse(id).unwrap())
+                        .as_ref(),
                     None,
                     100
                 )
@@ -254,7 +319,13 @@ async fn qualify() {
     ] {
         assert!(
             MapRepository::new(db.b.clone())
-                .map_layer_product(&scope, layer, publication, &visible.product.product_key)
+                .map_layer_product(
+                    &scope,
+                    &veoveo_map_mcp::contract::FeatureLayerId::parse(layer).unwrap(),
+                    &veoveo_map_mcp::contract::LayerPublicationId::parse(publication).unwrap(),
+                    &veoveo_map_mcp::contract::LayerProductId::parse(&visible.product.product_key)
+                        .unwrap()
+                )
                 .await
                 .unwrap()
                 .is_none()
@@ -264,9 +335,13 @@ async fn qualify() {
         MapRepository::new(db.b.clone())
             .map_layer_product(
                 &scope,
-                &visible.layer.layer_key,
-                &visible.publication.publication_key,
-                &visible.product.product_key
+                &veoveo_map_mcp::contract::FeatureLayerId::parse(&visible.layer.layer_key).unwrap(),
+                &veoveo_map_mcp::contract::LayerPublicationId::parse(
+                    &visible.publication.publication_key
+                )
+                .unwrap(),
+                &veoveo_map_mcp::contract::LayerProductId::parse(&visible.product.product_key)
+                    .unwrap()
             )
             .await
             .unwrap(),
@@ -290,9 +365,13 @@ async fn qualify() {
         MapRepository::new(db.b.clone())
             .map_layer_product(
                 &clearance,
-                &denied.layer.layer_key,
-                &denied.publication.publication_key,
-                &denied.product.product_key
+                &veoveo_map_mcp::contract::FeatureLayerId::parse(&denied.layer.layer_key).unwrap(),
+                &veoveo_map_mcp::contract::LayerPublicationId::parse(
+                    &denied.publication.publication_key
+                )
+                .unwrap(),
+                &veoveo_map_mcp::contract::LayerProductId::parse(&denied.product.product_key)
+                    .unwrap()
             )
             .await
             .unwrap(),
@@ -300,21 +379,41 @@ async fn qualify() {
     );
     assert_eq!(
         MapRepository::new(db.b.clone())
-            .map_composition(&clearance, &denied.composition.composition_key)
+            .map_composition(
+                &clearance,
+                &veoveo_map_mcp::contract::MapCompositionId::parse(
+                    &denied.composition.composition_key
+                )
+                .unwrap()
+            )
             .await
             .unwrap(),
         Some(denied.composition.clone())
     );
     assert_eq!(
         MapRepository::new(db.b.clone())
-            .map_layer_publications_page(&clearance, Some(&denied.layer.layer_key), None, 100)
+            .map_layer_publications_page(
+                &clearance,
+                Some(&denied.layer.layer_key)
+                    .map(|id| veoveo_map_mcp::contract::FeatureLayerId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                100
+            )
             .await
             .unwrap(),
         vec![denied.publication]
     );
     assert_eq!(
         MapRepository::new(db.b.clone())
-            .map_layer_products_page(&clearance, Some(&denied.product.publication_key), None, 100)
+            .map_layer_products_page(
+                &clearance,
+                Some(&denied.product.publication_key)
+                    .map(|id| veoveo_map_mcp::contract::LayerPublicationId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                100
+            )
             .await
             .unwrap(),
         vec![denied.product]
@@ -453,9 +552,13 @@ async fn qualify() {
         MapRepository::new(db.b.clone())
             .map_layer_product(
                 &scope,
-                &visible.layer.layer_key,
-                &visible.publication.publication_key,
-                &visible.product.product_key
+                &veoveo_map_mcp::contract::FeatureLayerId::parse(&visible.layer.layer_key).unwrap(),
+                &veoveo_map_mcp::contract::LayerPublicationId::parse(
+                    &visible.publication.publication_key
+                )
+                .unwrap(),
+                &veoveo_map_mcp::contract::LayerProductId::parse(&visible.product.product_key)
+                    .unwrap()
             )
             .await
             .unwrap()
@@ -504,28 +607,56 @@ async fn page_keys(
 ) -> Vec<String> {
     match index {
         Index::Layers => MapRepository::new(store.clone())
-            .map_feature_layers_page(scope, false, after, 100)
+            .map_feature_layers_page(
+                scope,
+                false,
+                after
+                    .map(|id| veoveo_map_mcp::contract::FeatureLayerId::parse(id).unwrap())
+                    .as_ref(),
+                100,
+            )
             .await
             .unwrap()
             .into_iter()
             .map(|row| row.layer_key)
             .collect(),
         Index::Publications => MapRepository::new(store.clone())
-            .map_layer_publications_page(scope, None, after, 100)
+            .map_layer_publications_page(
+                scope,
+                None,
+                after
+                    .map(|id| veoveo_map_mcp::contract::LayerPublicationId::parse(id).unwrap())
+                    .as_ref(),
+                100,
+            )
             .await
             .unwrap()
             .into_iter()
             .map(|row| row.publication_key)
             .collect(),
         Index::Products => MapRepository::new(store.clone())
-            .map_layer_products_page(scope, None, after, 100)
+            .map_layer_products_page(
+                scope,
+                None,
+                after
+                    .map(|id| veoveo_map_mcp::contract::LayerProductId::parse(id).unwrap())
+                    .as_ref(),
+                100,
+            )
             .await
             .unwrap()
             .into_iter()
             .map(|row| row.product_key)
             .collect(),
         Index::Compositions => MapRepository::new(store.clone())
-            .map_compositions_page(scope, false, after, 100)
+            .map_compositions_page(
+                scope,
+                false,
+                after
+                    .map(|id| veoveo_map_mcp::contract::MapCompositionId::parse(id).unwrap())
+                    .as_ref(),
+                100,
+            )
             .await
             .unwrap()
             .into_iter()
@@ -634,28 +765,56 @@ async fn qualify_pages() {
     let last = rows.last().unwrap();
     assert_eq!(
         MapRepository::new(db.b.clone())
-            .map_layer_publications_page(&scope, Some(&last.layer.layer_key), None, 101)
+            .map_layer_publications_page(
+                &scope,
+                Some(&last.layer.layer_key)
+                    .map(|id| veoveo_map_mcp::contract::FeatureLayerId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                101
+            )
             .await
             .unwrap(),
         vec![last.publication.clone()]
     );
     assert_eq!(
         MapRepository::new(db.b.clone())
-            .map_layer_products_page(&scope, Some(&last.publication.publication_key), None, 101)
+            .map_layer_products_page(
+                &scope,
+                Some(&last.publication.publication_key)
+                    .map(|id| veoveo_map_mcp::contract::LayerPublicationId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                101
+            )
             .await
             .unwrap(),
         vec![last.product.clone()]
     );
     assert!(
         MapRepository::new(db.b.clone())
-            .map_layer_publications_page(&revoked, Some(&last.layer.layer_key), None, 101)
+            .map_layer_publications_page(
+                &revoked,
+                Some(&last.layer.layer_key)
+                    .map(|id| veoveo_map_mcp::contract::FeatureLayerId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                101
+            )
             .await
             .unwrap()
             .is_empty()
     );
     assert!(
         MapRepository::new(db.b.clone())
-            .map_layer_products_page(&revoked, Some(&last.publication.publication_key), None, 101)
+            .map_layer_products_page(
+                &revoked,
+                Some(&last.publication.publication_key)
+                    .map(|id| veoveo_map_mcp::contract::LayerPublicationId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                101
+            )
             .await
             .unwrap()
             .is_empty()
@@ -686,12 +845,7 @@ async fn qualify_pages() {
                 .is_err()
         );
     }
-    assert!(
-        MapRepository::new(db.b.clone())
-            .map_feature_layers_page(&scope, false, Some("invalid"), 100)
-            .await
-            .is_err()
-    );
+    assert!(veoveo_map_mcp::contract::FeatureLayerId::parse("invalid").is_err());
     // Parent deletion also changes a resumed publication/product selection.
     db.a.client()
         .query(include_str!(
@@ -704,14 +858,28 @@ async fn qualify_pages() {
         .unwrap();
     assert!(
         MapRepository::new(db.b.clone())
-            .map_layer_publications_page(&scope, Some(&last.layer.layer_key), None, 101)
+            .map_layer_publications_page(
+                &scope,
+                Some(&last.layer.layer_key)
+                    .map(|id| veoveo_map_mcp::contract::FeatureLayerId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                101
+            )
             .await
             .unwrap()
             .is_empty()
     );
     assert!(
         MapRepository::new(db.b.clone())
-            .map_layer_products_page(&scope, Some(&last.publication.publication_key), None, 101)
+            .map_layer_products_page(
+                &scope,
+                Some(&last.publication.publication_key)
+                    .map(|id| veoveo_map_mcp::contract::LayerPublicationId::parse(id).unwrap())
+                    .as_ref(),
+                None,
+                101
+            )
             .await
             .unwrap()
             .is_empty()
@@ -736,20 +904,30 @@ async fn native_map_commit_order_is_transactional_and_independent_of_other_domai
             )
             .await
             .unwrap();
+        work_context::install(&db.a, &identity, &authority("operations", &[])).await;
         let first = create_records(&db.a, &identity, "operations", &[]).await;
         let second = create_records(&db.b, &identity, "operations", &[]).await;
         let draft = |layer: &MapFeatureLayerRecord| MapFeatureCommitDraft {
             identity: identity.clone(),
             authority: authority("operations", &[]),
-            layer_key: layer.layer_key.clone(),
+            layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer.layer_key.clone())
+                .unwrap(),
             layer_canonical_json: r#"{"revision":1}"#.into(),
             expected_layer_revision: 0,
-            changeset_key: format!("changeset-{}", Uuid::now_v7()),
+            changeset_key: veoveo_map_mcp::contract::FeatureChangeSetId::parse(format!(
+                "changeset-{}",
+                Uuid::now_v7()
+            ))
+            .unwrap(),
             idempotency_key: Uuid::now_v7().to_string(),
             request_digest_sha256: "b".repeat(64),
             changeset_canonical_json: r#"{"resulting_layer_revision":1}"#.into(),
             revisions: vec![MapFeatureRevisionDraft {
-                feature_key: format!("feature-{}", Uuid::now_v7()),
+                feature_key: veoveo_map_mcp::contract::MapFeatureId::parse(format!(
+                    "feature-{}",
+                    Uuid::now_v7()
+                ))
+                .unwrap(),
                 feature_revision: 1,
                 layer_revision: 1,
                 schema_version: 1,
@@ -828,7 +1006,7 @@ async fn native_map_commit_order_is_transactional_and_independent_of_other_domai
             "idempotent replay"
         );
         let mut conflict = one;
-        conflict.changeset_key = format!("changeset-{}", Uuid::now_v7());
+        conflict.changeset_key = veoveo_map_mcp::contract::FeatureChangeSetId::new();
         conflict.idempotency_key = Uuid::now_v7().to_string();
         assert!(
             MapRepository::new(db.a.clone())

@@ -945,6 +945,9 @@
       ],
       "type": "object"
     },
+    "FeatureResourceReference": {
+      "type": "string"
+    },
     "FeatureSchemaRevision": {
       "properties": {
         "created_at": {
@@ -1638,7 +1641,7 @@
         },
         "evidence_resources": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/FeatureResourceReference"
           },
           "type": "array"
         },
@@ -1674,7 +1677,7 @@
         },
         "related_resources": {
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/FeatureResourceReference"
           },
           "type": "array"
         },

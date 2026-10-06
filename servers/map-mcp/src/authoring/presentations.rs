@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
     AuthoringService,
-    service::{authority_record, decode, integer, read_scope, require_access, wire},
+    service::{authority_record, integer, read_scope, require_access},
 };
 
 impl AuthoringService {
@@ -38,7 +38,7 @@ impl AuthoringService {
         request.view.validate().map_err(anyhow::Error::msg)?;
         let now = Utc::now();
         let composition_id = MapCompositionId::new();
-        let revision = MapCompositionRevision {
+        let revision = MapCompositionRevision::new(crate::contract::MapCompositionRevisionValue {
             composition_revision_id: MapCompositionRevisionId::new(),
             composition_id: composition_id.clone(),
             revision: 1,
@@ -46,8 +46,8 @@ impl AuthoringService {
             view: request.view,
             created_by: identity.actor.id.clone(),
             created_at: now,
-        };
-        let composition = MapComposition {
+        })?;
+        let composition = MapComposition::new(crate::contract::MapCompositionValue {
             composition_id: composition_id.clone(),
             title: request.title,
             current: revision.clone(),
@@ -59,12 +59,12 @@ impl AuthoringService {
             archived_at: None,
             created_at: now,
             updated_at: now,
-        };
+        })?;
         MapRepository::new(self.store().clone())
             .create_map_composition(MapCompositionDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
-                composition_key: composition_id.to_string(),
+                composition_key: composition_id.clone(),
                 title: composition.title.clone(),
                 revision: revision_draft(&revision)?,
                 canonical_json: serde_json::to_string(&composition)?,
@@ -83,7 +83,8 @@ impl AuthoringService {
         let mut composition = self
             .composition(identity, scope, &request.composition_id)
             .await?
-            .context("unknown map composition")?;
+            .context("unknown map composition")?
+            .into_value();
         if composition.archived_at.is_some() {
             bail!("map composition is archived");
         }
@@ -101,7 +102,7 @@ impl AuthoringService {
         self.validate_composition_layers(identity, scope, &request.layers)
             .await?;
         request.view.validate().map_err(anyhow::Error::msg)?;
-        let revision = MapCompositionRevision {
+        let revision = MapCompositionRevision::new(crate::contract::MapCompositionRevisionValue {
             composition_revision_id: MapCompositionRevisionId::new(),
             composition_id: composition.composition_id.clone(),
             revision: request.expected_revision + 1,
@@ -109,15 +110,16 @@ impl AuthoringService {
             view: request.view,
             created_by: identity.actor.id.clone(),
             created_at: Utc::now(),
-        };
+        })?;
         composition.current = revision.clone();
         composition.updated_at = revision.created_at;
+        let composition = MapComposition::new(composition)?;
         MapRepository::new(self.store().clone())
             .update_map_composition(
                 MapCompositionUpdateDraft {
                     identity: scope.identity.clone(),
                     authority: authority_record(identity),
-                    composition_key: composition.composition_id.to_string(),
+                    composition_key: composition.composition_id.clone(),
                     title: composition.title.clone(),
                     revision: revision_draft(&revision)?,
                     canonical_json: serde_json::to_string(&composition)?,
@@ -139,7 +141,8 @@ impl AuthoringService {
         let mut composition = self
             .composition(identity, scope, &request.composition_id)
             .await?
-            .context("unknown map composition")?;
+            .context("unknown map composition")?
+            .into_value();
         if composition.archived_at.is_some() {
             bail!("map composition is already archived");
         }
@@ -147,7 +150,7 @@ impl AuthoringService {
             bail!("map composition revision conflict");
         }
         let now = Utc::now();
-        let revision = MapCompositionRevision {
+        let revision = MapCompositionRevision::new(crate::contract::MapCompositionRevisionValue {
             composition_revision_id: MapCompositionRevisionId::new(),
             composition_id: composition.composition_id.clone(),
             revision: request.expected_revision + 1,
@@ -155,16 +158,17 @@ impl AuthoringService {
             view: composition.current.view.clone(),
             created_by: identity.actor.id.clone(),
             created_at: now,
-        };
+        })?;
         composition.current = revision.clone();
         composition.archived_at = Some(now);
         composition.updated_at = now;
+        let composition = MapComposition::new(composition)?;
         MapRepository::new(self.store().clone())
             .update_map_composition(
                 MapCompositionUpdateDraft {
                     identity: scope.identity.clone(),
                     authority: authority_record(identity),
-                    composition_key: composition.composition_id.to_string(),
+                    composition_key: composition.composition_id.clone(),
                     title: composition.title.clone(),
                     revision: revision_draft(&revision)?,
                     canonical_json: serde_json::to_string(&composition)?,
@@ -184,9 +188,9 @@ impl AuthoringService {
     ) -> Result<Option<MapComposition>> {
         require_access(identity, AccessLevel::Read)?;
         MapRepository::new(self.store().clone())
-            .map_composition(&read_scope(identity, scope)?, composition_id.as_str())
+            .map_composition(&read_scope(identity, scope)?, composition_id)
             .await?
-            .map(|record| decode::<MapComposition>(&record.canonical_json, "map composition"))
+            .map(|row| super::hydration::composition(row, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -209,11 +213,11 @@ impl AuthoringService {
             .map_composition_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                composition_id.as_str(),
+                composition_id,
                 integer(revision)?,
             )
             .await?
-            .map(|record| decode(&record.canonical_json, "map composition revision"))
+            .map(|row| super::hydration::composition_revision(row, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -237,22 +241,22 @@ impl AuthoringService {
             .create_map_layer_product(MapLayerProductDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
-                product_key: product.product_id.to_string(),
-                publication_key: product.publication_id.to_string(),
-                layer_key: product.layer_id.to_string(),
+                product_key: product.product_id.clone(),
+                publication_key: product.publication_id.clone(),
+                layer_key: product.layer_id.clone(),
                 layer_revision: integer(product.layer_revision)?,
-                format: wire(&product.format)?,
+                format: product.format,
                 artifact_uri: product.artifact_uri.clone(),
                 mime_type: product.mime_type.clone(),
                 digest_sha256: product.digest_sha256.clone(),
                 size_bytes: integer(product.size_bytes)?,
                 feature_count: integer(product.feature_count)?,
                 canonical_json: serde_json::to_string(product)?,
-                created_by_key: product.created_by.to_string(),
+                created_by_key: product.created_by.clone(),
                 created_at: product.created_at,
             })
             .await?;
-        decode(&record.canonical_json, "map layer product")
+        super::hydration::product(record, &scope.identity.tenant_key)
     }
 
     pub async fn product_publication(
@@ -280,12 +284,12 @@ impl AuthoringService {
         MapRepository::new(self.store().clone())
             .map_layer_product(
                 &read_scope(identity, scope)?,
-                layer_id.as_str(),
-                publication_id.as_str(),
-                product_id.as_str(),
+                layer_id,
+                publication_id,
+                product_id,
             )
             .await?
-            .map(|record| decode(&record.canonical_json, "map layer product"))
+            .map(|record| super::hydration::product(record, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -322,12 +326,12 @@ impl AuthoringService {
 
 fn revision_draft(revision: &MapCompositionRevision) -> Result<MapCompositionRevisionDraft> {
     Ok(MapCompositionRevisionDraft {
-        composition_revision_key: revision.composition_revision_id.to_string(),
+        composition_revision_key: revision.composition_revision_id.clone(),
         revision: integer(revision.revision)?,
         publication_keys: revision
             .layers
             .iter()
-            .map(|layer| layer.publication_id.to_string())
+            .map(|layer| layer.publication_id.clone())
             .collect(),
         canonical_json: serde_json::to_string(revision)?,
     })

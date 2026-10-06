@@ -80,7 +80,7 @@ impl<'a> TravelModelReads<'a> {
             .select(owner, Selection::Completion(needle))
             .await?
             .into_iter()
-            .map(|row| row.record.travel_model_id)
+            .map(|row| row.record.into_value().travel_model_id)
             .collect())
     }
 

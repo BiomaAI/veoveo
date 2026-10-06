@@ -84,6 +84,7 @@ impl Authoring {
             &before.id == feature && &before.layer_id == layer && !before.deleted,
             "feature does not belong to the selected live fixture layer"
         );
+        let before = before.into_value();
         let title = format!("Source conformance feature step {step}");
         let result: CommitFeatureChangesOutput = tools::call(
             &self.peer,

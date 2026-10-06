@@ -6,6 +6,8 @@ use veoveo_platform_store::*;
 mod fixture;
 #[path = "map_persistence/projection.rs"]
 mod map_projection;
+#[path = "support/work_context.rs"]
+mod work_context;
 fn artifact_authority(identity: &PlatformIdentity) -> InvocationAuthorityRecord {
     InvocationAuthorityRecord {
         context_key: "operations".into(),
@@ -47,17 +49,22 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
             .await
             .unwrap();
         let authority = artifact_authority(&identity);
+        work_context::install(&platform, &identity, &authority).await;
         let layer_key = format!("feature-layer-{}", Uuid::now_v7());
         store
             .create_map_feature_layer(MapFeatureLayerDraft {
                 identity: identity.clone(),
                 authority: authority.clone(),
-                layer_key: layer_key.clone(),
+                layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer_key.clone())
+                    .unwrap(),
                 title: "Inspection areas".to_owned(),
                 description: None,
                 content_class: "boundaries".to_owned(),
                 schema: MapFeatureSchemaDraft {
-                    schema_revision_key: format!("feature-schema-{}", Uuid::now_v7()),
+                    schema_revision_key: veoveo_map_mcp::contract::FeatureSchemaRevisionId::parse(
+                        format!("feature-schema-{}", Uuid::now_v7()),
+                    )
+                    .unwrap(),
                     schema_version: 1,
                     digest_sha256: "a".repeat(64),
                     schema_json: r#"{"type":"object"}"#.to_owned(),
@@ -75,15 +82,19 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
         let draft = MapFeatureCommitDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            layer_key: layer_key.clone(),
+            layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer_key.clone()).unwrap(),
             layer_canonical_json: r#"{"revision":1}"#.to_owned(),
             expected_layer_revision: 0,
-            changeset_key: changeset_key.clone(),
+            changeset_key: veoveo_map_mcp::contract::FeatureChangeSetId::parse(
+                changeset_key.clone(),
+            )
+            .unwrap(),
             idempotency_key: "first-inspection-area".to_owned(),
             request_digest_sha256: "b".repeat(64),
             changeset_canonical_json: r#"{"resulting_layer_revision":1}"#.to_owned(),
             revisions: vec![MapFeatureRevisionDraft {
-                feature_key: feature_key.clone(),
+                feature_key: veoveo_map_mcp::contract::MapFeatureId::parse(feature_key.clone())
+                    .unwrap(),
                 feature_revision: 1,
                 layer_revision: 1,
                 schema_version: 1,
@@ -115,7 +126,11 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
         .await;
         assert_eq!(
             store
-                .count_map_feature_heads("tenant-map-authoring", "operations", &layer_key)
+                .count_map_feature_heads(
+                    "tenant-map-authoring",
+                    "operations",
+                    &veoveo_map_mcp::contract::FeatureLayerId::parse(&layer_key).unwrap()
+                )
                 .await
                 .unwrap(),
             1
@@ -132,8 +147,12 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
             .create_map_layer_publication(MapLayerPublicationDraft {
                 identity: identity.clone(),
                 authority: authority.clone(),
-                publication_key: publication_key.clone(),
-                layer_key: layer_key.clone(),
+                publication_key: veoveo_map_mcp::contract::LayerPublicationId::parse(
+                    publication_key.clone(),
+                )
+                .unwrap(),
+                layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer_key.clone())
+                    .unwrap(),
                 layer_revision: 1,
                 schema_version: 1,
                 style_revision_key: None,
@@ -148,15 +167,19 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
             })
             .await
             .unwrap();
-        let product_key = format!("product-{}", Uuid::now_v7());
+        let product_key = veoveo_map_mcp::contract::LayerProductId::new().to_string();
         let product = MapLayerProductDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            product_key: product_key.clone(),
-            publication_key: publication_key.clone(),
-            layer_key: layer_key.clone(),
+            product_key: veoveo_map_mcp::contract::LayerProductId::parse(product_key.clone())
+                .unwrap(),
+            publication_key: veoveo_map_mcp::contract::LayerPublicationId::parse(
+                publication_key.clone(),
+            )
+            .unwrap(),
+            layer_key: veoveo_map_mcp::contract::FeatureLayerId::parse(layer_key.clone()).unwrap(),
             layer_revision: 1,
-            format: "geojson_seq".to_owned(),
+            format: veoveo_map_mcp::contract::LayerProductFormat::GeoJsonSeq,
             artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
             mime_type: "application/geo+json-seq".to_owned(),
             digest_sha256: "d".repeat(64),
@@ -167,7 +190,8 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
                 "publication_id": publication_key
             })
             .to_string(),
-            created_by_key: identity.principal_key.clone(),
+            created_by_key: veoveo_types::PrincipalId::parse(identity.principal_key.clone())
+                .unwrap(),
             created_at: Utc::now(),
         };
         let created_product = store
@@ -182,12 +206,23 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
             .create_map_composition(MapCompositionDraft {
                 identity: identity.clone(),
                 authority: authority.clone(),
-                composition_key: composition_key.clone(),
+                composition_key: veoveo_map_mcp::contract::MapCompositionId::parse(
+                    composition_key.clone(),
+                )
+                .unwrap(),
                 title: "Inspection map".to_owned(),
                 revision: MapCompositionRevisionDraft {
-                    composition_revision_key: format!("composition-revision-{}", Uuid::now_v7()),
+                    composition_revision_key:
+                        veoveo_map_mcp::contract::MapCompositionRevisionId::parse(format!(
+                            "composition-revision-{}",
+                            Uuid::now_v7()
+                        ))
+                        .unwrap(),
                     revision: 1,
-                    publication_keys: vec![publication_key.clone()],
+                    publication_keys: vec![
+                        veoveo_map_mcp::contract::LayerPublicationId::parse(&publication_key)
+                            .unwrap(),
+                    ],
                     canonical_json: serde_json::json!({"revision": 1}).to_string(),
                 },
                 canonical_json: serde_json::json!({"current_revision": 1}).to_string(),
@@ -200,15 +235,23 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
                 MapCompositionUpdateDraft {
                     identity: identity.clone(),
                     authority: authority.clone(),
-                    composition_key: composition_key.clone(),
+                    composition_key: veoveo_map_mcp::contract::MapCompositionId::parse(
+                        composition_key.clone(),
+                    )
+                    .unwrap(),
                     title: "Inspection map".to_owned(),
                     revision: MapCompositionRevisionDraft {
-                        composition_revision_key: format!(
-                            "composition-revision-{}",
-                            Uuid::now_v7()
-                        ),
+                        composition_revision_key:
+                            veoveo_map_mcp::contract::MapCompositionRevisionId::parse(format!(
+                                "composition-revision-{}",
+                                Uuid::now_v7()
+                            ))
+                            .unwrap(),
                         revision: 2,
-                        publication_keys: vec![publication_key],
+                        publication_keys: vec![
+                            veoveo_map_mcp::contract::LayerPublicationId::parse(publication_key)
+                                .unwrap(),
+                        ],
                         canonical_json: serde_json::json!({"revision": 2}).to_string(),
                     },
                     canonical_json: serde_json::json!({"current_revision": 2}).to_string(),
@@ -221,7 +264,12 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
         assert_eq!(updated.current_revision, 2);
         assert!(
             store
-                .map_composition_revision("tenant-map-authoring", "operations", &composition_key, 1)
+                .map_composition_revision(
+                    "tenant-map-authoring",
+                    "operations",
+                    &veoveo_map_mcp::contract::MapCompositionId::parse(&composition_key).unwrap(),
+                    1
+                )
                 .await
                 .unwrap()
                 .is_some()
@@ -262,9 +310,10 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
         let source_key = format!("source-{}", Uuid::now_v7());
         let create_release = |release_key: String| MapReleaseDraft {
             identity: identity.clone(),
-            release_key,
-            dataset_key: dataset_key.clone(),
-            source_key: source_key.clone(),
+            release_key: veoveo_map_mcp::contract::DatasetReleaseId::parse(release_key).unwrap(),
+            dataset_key: veoveo_map_mcp::contract::MapDatasetId::parse(dataset_key.clone())
+                .unwrap(),
+            source_key: veoveo_map_mcp::contract::MapSourceId::parse(source_key.clone()).unwrap(),
             state: MapReleaseState::Staged,
             version_label: format!("sha256:{}", "a".repeat(64)),
             source_digest_sha256: "a".repeat(64),
@@ -281,8 +330,8 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
         let first = store
             .activate_map_release(
                 &identity,
-                &dataset_key,
-                &first_key,
+                &veoveo_map_mcp::contract::MapDatasetId::parse(&dataset_key).unwrap(),
+                &veoveo_map_mcp::contract::DatasetReleaseId::parse(&first_key).unwrap(),
                 None,
                 1,
                 serde_json::json!({ "state": "active" }).to_string(),
@@ -293,7 +342,10 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
         assert_eq!(first.record_version, 2);
         assert_eq!(
             store
-                .active_map_release(identity.tenant_id, &dataset_key)
+                .active_map_release(
+                    identity.tenant_id,
+                    &veoveo_map_mcp::contract::MapDatasetId::parse(&dataset_key).unwrap()
+                )
                 .await
                 .unwrap()
                 .unwrap()
@@ -309,8 +361,8 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
         let conflict = store
             .activate_map_release(
                 &identity,
-                &dataset_key,
-                &second_key,
+                &veoveo_map_mcp::contract::MapDatasetId::parse(&dataset_key).unwrap(),
+                &veoveo_map_mcp::contract::DatasetReleaseId::parse(&second_key).unwrap(),
                 Some(1),
                 2,
                 serde_json::json!({ "state": "active" }).to_string(),
@@ -322,14 +374,20 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
             "unexpected activation error: {conflict:?}"
         );
         let second = store
-            .map_release(identity.tenant_id, &second_key)
+            .map_release(
+                identity.tenant_id,
+                &veoveo_map_mcp::contract::DatasetReleaseId::parse(&second_key).unwrap(),
+            )
             .await
             .unwrap()
             .unwrap();
         assert_eq!(second.state, MapReleaseState::Staged);
         assert_eq!(second.record_version, 1);
         let pointer = store
-            .active_map_release(identity.tenant_id, &dataset_key)
+            .active_map_release(
+                identity.tenant_id,
+                &veoveo_map_mcp::contract::MapDatasetId::parse(&dataset_key).unwrap(),
+            )
             .await
             .unwrap()
             .unwrap();

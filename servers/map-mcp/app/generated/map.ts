@@ -90,6 +90,11 @@ export type FeatureLayerId = string;
 export type WorkContextId = string;
 /**
  * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "FeatureResourceReference".
+ */
+export type FeatureResourceReference = string;
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
  * via the `definition` "FeatureGeometry".
  */
 export type FeatureGeometry =
@@ -698,7 +703,7 @@ export interface MapFeature {
   conformsTo: string[];
   created_at: string;
   deleted: boolean;
-  evidence_resources?: string[];
+  evidence_resources?: FeatureResourceReference[];
   featureType: string;
   feature_revision: number;
   geometry: FeatureGeometry;
@@ -709,7 +714,7 @@ export interface MapFeature {
     [k: string]: unknown;
   };
   provenance: FeatureProvenance;
-  related_resources?: string[];
+  related_resources?: FeatureResourceReference[];
   schema_version: number;
   time?: FeatureTime | null;
   title?: string | null;

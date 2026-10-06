@@ -25,7 +25,7 @@ fn context() -> WorkContextId {
     WorkContextId::parse("operations").unwrap()
 }
 fn raster(n: usize) -> RasterDerivation {
-    RasterDerivation {
+    RasterDerivation::new(crate::contract::RasterDerivationValue {
         schema_version: RASTER_DERIVATION_SCHEMA_VERSION,
         derivation_id: RasterDerivationId::parse(format!(
             "raster-derivation-{n:08x}-0000-7000-8000-000000000000"
@@ -49,13 +49,14 @@ fn raster(n: usize) -> RasterDerivation {
         created_by: PrincipalId::parse("author").unwrap(),
         work_context: context(),
         created_at: Utc::now(),
-    }
+    })
+    .expect("admitted Map fixture")
 }
 fn spatial() -> SpatialDerivation {
     let id = SpatialDerivationId::new();
-    SpatialDerivation {
+    SpatialDerivation::new(crate::contract::SpatialDerivationValue {
         schema_version: SPATIAL_DERIVATION_SCHEMA_VERSION,
-        resource_uri: crate::contract::MapSpatialDerivationUri::new(id.clone()).to_string(),
+        resource_uri: crate::contract::MapSpatialDerivationUri::new(id.clone()),
         derivation_id: id,
         operation: SpatialDerivationOperation::ValidateRoute {
             route: Wgs84LineString {
@@ -94,7 +95,34 @@ fn spatial() -> SpatialDerivation {
         created_by: PrincipalId::parse("author").unwrap(),
         work_context: context(),
         created_at: Utc::now(),
-    }
+    })
+    .expect("admitted Map fixture")
+}
+
+#[test]
+fn derivation_builders_and_decoders_share_value_and_uri_admission() {
+    let value = raster(1);
+    assert_eq!(
+        serde_json::from_value::<RasterDerivation>(serde_json::to_value(&value).unwrap()).unwrap(),
+        value
+    );
+    let mut bad = value.into_value();
+    bad.source_checksum_sha256 = "bad".into();
+    assert!(RasterDerivation::new(bad.clone()).is_err());
+    assert!(
+        serde_json::from_value::<RasterDerivation>(serde_json::to_value(bad).unwrap()).is_err()
+    );
+    let value = spatial();
+    assert_eq!(
+        serde_json::from_value::<SpatialDerivation>(serde_json::to_value(&value).unwrap()).unwrap(),
+        value
+    );
+    let mut bad = value.into_value();
+    bad.resource_uri = MapSpatialDerivationUri::new(SpatialDerivationId::new());
+    assert!(SpatialDerivation::new(bad.clone()).is_err());
+    assert!(
+        serde_json::from_value::<SpatialDerivation>(serde_json::to_value(bad).unwrap()).is_err()
+    );
 }
 
 #[tokio::test]
@@ -117,13 +145,17 @@ async fn qualify_sql_pages() {
     // Earlier foreign rows and same-tenant rows in another context must never
     // consume the caller's SQL limit or completion budget.
     for n in 0..110 {
-        let mut value = raster(n);
+        let value = raster(n);
         writer
             .put_raster_derivation(&foreign, &value)
             .await
             .unwrap();
+        let mut value = value.into_value();
         value.work_context = WorkContextId::parse("private").unwrap();
-        writer.put_raster_derivation(&scope, &value).await.unwrap();
+        writer
+            .put_raster_derivation(&scope, &RasterDerivation::new(value).unwrap())
+            .await
+            .unwrap();
     }
     let mut expected = Vec::new();
     for n in 256..381 {
@@ -141,8 +173,9 @@ async fn qualify_sql_pages() {
         .await
         .unwrap();
     expected.push(original.derivation_id.to_string());
-    let mut conflict = original.clone();
+    let mut conflict = original.clone().into_value();
     conflict.output_checksum_sha256 = "e".repeat(64);
+    let conflict = RasterDerivation::new(conflict).unwrap();
     assert!(
         writer
             .put_raster_derivation(&scope, &conflict)
@@ -278,6 +311,72 @@ async fn qualify_sql_pages() {
     let plan: Vec<serde_json::Value> = plan.take(0).unwrap();
     let plan = serde_json::to_string(&plan).unwrap();
     assert!(plan.contains("map_derivation_scope_key"), "{plan}");
+    let repo = MapRepository::new(db.a.clone());
+    let selected_scope = crate::persistence::MapDerivationScope::from_keys(
+        &scope.identity.tenant_key,
+        context().as_str(),
+    )
+    .unwrap();
+    let selected_id =
+        crate::persistence::MapDerivationIdentity::Raster(original.derivation_id.clone());
+    let selected = repo
+        .map_derivation(selected_scope, &selected_id)
+        .await
+        .unwrap()
+        .unwrap();
+    for field in ["created_by", "created_at", "derivation_id"] {
+        let mut body = serde_json::to_value(&original).unwrap();
+        body[field] = match field {
+            "created_by" => serde_json::json!(PrincipalId::parse("other").unwrap()),
+            "created_at" => serde_json::json!(original.created_at + chrono::TimeDelta::seconds(1)),
+            "derivation_id" => serde_json::json!(RasterDerivationId::new()),
+            _ => unreachable!(),
+        };
+        let corrupt = serde_json::to_string(&body).unwrap();
+        db.a.client()
+            .query(include_str!(
+                "../queries/derivations/tests/corrupt_document.surql"
+            ))
+            .bind(("record", selected.id.clone()))
+            .bind(("canonical_json", corrupt.clone()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            reader
+                .raster_derivation(&scope, &context(), &original.derivation_id)
+                .await
+                .is_err(),
+            "{field}"
+        );
+        assert!(
+            reader
+                .raster_derivation(&foreign, &context(), &original.derivation_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            repo.map_derivation(selected_scope, &selected_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .canonical_json,
+            corrupt,
+            "reader must not repair retained bytes"
+        );
+    }
+    db.a.client()
+        .query(include_str!(
+            "../queries/derivations/tests/corrupt_document.surql"
+        ))
+        .bind(("record", selected.id))
+        .bind(("canonical_json", selected.canonical_json))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 }
 
 #[tokio::test]

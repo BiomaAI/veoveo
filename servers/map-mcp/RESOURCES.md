@@ -14,6 +14,142 @@ features. The MCP adapter exposes these contracts through checked declarations.
 | JSON Schema Draft 2020-12 | Public Rust types supply the schemas used by the MCP adapter. |
 | Veoveo Map cursor version 1 | Hex-encoded typed JSON binds metadata and operational continuations to their collection and selected parent. |
 
+## Resource Surface
+
+Root resources are:
+
+```text
+map://sources
+map://datasets
+map://locations
+map://facilities
+map://mobility-profiles
+map://restrictions
+map://routes
+map://matrices
+map://travel-models
+map://feature-layers
+map://publications
+map://layer-products
+map://compositions
+map://rasters
+map://raster-derivations
+map://spatial-derivations
+```
+
+Resource templates are:
+
+```text
+map://source/{source_id}
+map://sources{?cursor}
+map://datasets{?cursor}
+map://dataset/{dataset_id}{?cursor}
+map://dataset/{dataset_id}/release/{release_id}
+map://source-feature/{release_id}/{source_feature_id}
+map://raster/{raster_id}
+map://raster-derivation/{derivation_id}
+map://spatial-derivation/{derivation_id}
+map://location/{location_id}
+map://facility/{facility_id}
+map://mobility-profile/{profile_id}/{profile_version}
+map://mobility-profiles{?cursor}
+map://restriction/{restriction_id}
+map://restrictions{?cursor}
+map://routes{?cursor}
+map://matrices{?cursor}
+map://acquisitions{?cursor}
+map://acquisition/{acquisition_id}
+map://route/{route_id}
+map://matrix/{matrix_id}
+map://travel-model/{travel_model_id}
+map://travel-models{?cursor}
+map://artifact/{artifact_id}
+map://feature-layers{?cursor}
+map://publications{?layer_id,cursor}
+map://layer-products{?publication_id,cursor}
+map://compositions{?cursor}
+map://feature-layer/{layer_id}
+map://feature-layer/{layer_id}/schema/{schema_version}
+map://feature-layer/{layer_id}/style/{style_version}
+map://feature-layer/{layer_id}/features{?publication_id,bbox,datetime,geometry_type,filter,limit,cursor,minimum_commit_sequence}
+map://feature-layer/{layer_id}/feature/{feature_id}
+map://feature-layer/{layer_id}/feature/{feature_id}/revision/{feature_revision}
+map://feature-layer/{layer_id}/changeset/{changeset_id}
+map://feature-layer/{layer_id}/publication/{publication_id}
+map://feature-layer/{layer_id}/publication/{publication_id}/product/{product_id}
+map://composition/{composition_id}
+map://composition/{composition_id}/revision/{composition_revision}
+```
+
+Source resources present public source fields. Routes and matrices are owner
+scoped. Travel models are filtered by principal, gateway profile, tenant,
+labels, and Work Context from their durable task owner. Dataset, geography,
+profile, and restriction resources are tenant scoped. Authored layers,
+publications, products, and compositions are Work Context scoped and filtered
+by the caller's data labels. Map repository queries apply those predicates in SQL before returning
+layer and composition records. Publication and product queries select visible parent
+layers in SQL, including direct product reads. Raster derivation resources are confined to their
+creating Work Context, while the immutable source raster remains tenant
+scoped. Spatial derivations are also confined to their creating Work Context.
+
+`map://datasets` and `map://dataset/{dataset_id}` return release pages with
+`items`, `limit: 100`, and `next_cursor`. Items are release documents in ascending
+release-ID order. The root includes all tenant-visible datasets. A dataset URI
+selects its parent in SQL before the keyset predicate and limit. A version-1
+hex-encoded cursor binds the release collection and optional dataset ID; it does
+not confer access. Each page applies the current tenant again. These reads observe
+current committed rows, without a snapshot across page requests. An empty first
+page for a dataset returns not-found; an exhausted continuation returns an empty
+page. Exact release and geographic product addresses declare their routes beside their
+owner IDs in `contract/product_uri.rs`. The shared `ResourceAddress` derive uses
+those declarations for parsing and typed constructors, while the owner keeps its
+cached wire, accessors, string schemas and invalid-address errors. Source and source
+collection addresses use the same mechanics with the existing opaque source cursor
+codec. Discovery templates are checked against these route declarations. An exact
+release URI binds both dataset and release IDs in the database.
+A layer-product URI likewise binds its layer, publication, and product IDs in SQL
+alongside current layer visibility.
+
+Authoring metadata collections use the same 100-item envelope, ordered by immutable
+domain ID. Layer and composition pages exclude archived rows. Publication and product
+pages select current parent-layer visibility and may read immutable products of an
+archived layer. Their optional `layer_id` and `publication_id` filters apply in SQL
+before keyset selection and limits. Cursors bind those filters and reapply current
+tenant, Work Context, and label access on every request. These pages observe current
+committed rows rather than a snapshot across requests. The App follows all pages
+before publishing a refreshed collection, preserving its previous view on failure.
+
+Route, matrix, and acquisition indexes return the same page envelope with up to
+100 items ordered by immutable domain ID. Their cursors bind the collection and
+are valid only at version 1. Map repository queries apply tenant and owner predicates before
+keyset selection and limits, including for direct reads. Route and matrix items
+contain status or profile metadata and a `resource_uri` for the complete document;
+index queries omit route geometry and matrix cells. Matrix reads and completion
+select only rows containing a matrix document. Acquisition pages contain job
+records, and acquisition updates enforce ownership in the same SQL write as their
+revision check.
+
+Map owns the coordinated collection-page transition. Installations drain Map and
+replace its binary and packaged Map Explorer together. Clients must consume the
+page envelope and follow `next_cursor`; grouped dataset objects and bare arrays
+for releases, routes, matrices, acquisition jobs, or authoring metadata are unsupported. Route and
+matrix consumers read each summary's `resource_uri` when they need the payload.
+Rollback restores the previous binary and App together; this response change does
+not convert persisted records. Qualification covers multiple pages, foreign
+tenants and owners, mismatched parents, and rejected cursors. No mixed-version
+response adapter is supported during this installation upgrade.
+
+Raster and spatial derivation indexes return up to 100 summaries with resource
+links, a `limit`, and an optional `next_cursor`. Page templates accept the version-1
+hex-encoded cursor; its kind must match the requested collection. A page request
+always applies the current tenant and Work Context in SQL before the cursor and
+limit. Direct resources return the complete immutable document. Completion applies
+the search term in SQL and selects at most 101 IDs to determine `hasMore`.
+
+Both indexes accept resource subscriptions. Raster index admission requires
+`map:dataset:read`; spatial index admission additionally requires
+`map:spatial:derive`, matching their resource reads.
+
 ## Public Types And Authorization
 
 `contract/resources.rs` owns fixed discovery addresses, the closed document vocabulary,

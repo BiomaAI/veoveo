@@ -174,7 +174,7 @@ impl AuthoringService {
                 .map_style_revision_by_key(
                     &scope.identity.tenant_key,
                     identity.authority.work_context.as_str(),
-                    style_id.as_str(),
+                    style_id,
                 )
                 .await?
                 .map(|record| decode::<LayerStyle>(&record.style_json, "publication style"))
@@ -326,9 +326,9 @@ struct ImportGeoJsonFeature {
     #[serde(default)]
     title: Option<String>,
     #[serde(default)]
-    related_resources: Vec<String>,
+    related_resources: Vec<crate::contract::FeatureResourceReference>,
     #[serde(default)]
-    evidence_resources: Vec<String>,
+    evidence_resources: Vec<crate::contract::FeatureResourceReference>,
 }
 
 fn parse_import(

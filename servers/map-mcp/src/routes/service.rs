@@ -145,7 +145,7 @@ impl RouteService {
             .collect::<BTreeSet<_>>();
         let summary = sum_cost(&planned.legs)?;
         let route_id = RouteId::new();
-        let plan = RoutePlan {
+        let plan = RoutePlan::new(crate::contract::RoutePlanValue {
             route_uri: crate::contract::MapRouteUri::new(route_id.clone()),
             route_id,
             status: planned.status,
@@ -167,7 +167,7 @@ impl RouteService {
                 cost_model_version: COST_MODEL_VERSION.to_owned(),
             },
             created_at: Utc::now(),
-        };
+        })?;
         let digest = cache_digest(&request, &plan.provenance)?;
         self.catalog.persist_route(scope, &plan, digest).await?;
         Ok(plan)
@@ -210,7 +210,7 @@ impl RouteService {
                             origin_index: origin_index as u32,
                             destination_index: destination_index as u32,
                             status: route.status,
-                            cost: Some(route.summary),
+                            cost: Some(route.summary.clone()),
                         });
                     }
                     Err(error) => {
@@ -510,7 +510,10 @@ impl RouteService {
                 findings.push(format!("leg {index} geometry is invalid: {error}"));
             }
         }
-        let releases = self.catalog.list_releases(scope).await?;
+        let releases = self
+            .catalog
+            .release_set(scope, &request.route.provenance.base_release_ids)
+            .await?;
         for release_id in &request.route.provenance.base_release_ids {
             match releases
                 .iter()
@@ -619,9 +622,9 @@ impl RouteService {
             path,
             validation_id: validation.validation_id,
             validated_at: validation.validated_at,
-            operational_snapshot_id: route.provenance.operational_snapshot_id,
-            base_release_ids: route.provenance.base_release_ids.into_iter().collect(),
-            restriction_ids: route.restriction_ids.into_iter().collect(),
+            operational_snapshot_id: route.provenance.operational_snapshot_id.clone(),
+            base_release_ids: route.provenance.base_release_ids.iter().cloned().collect(),
+            restriction_ids: route.restriction_ids.iter().cloned().collect(),
             prepared_at: Utc::now(),
         }
         .build()?)
@@ -842,7 +845,7 @@ mod tests {
 
     fn restriction(kind: RestrictionEffectKind) -> Restriction {
         let now = Utc::now();
-        Restriction {
+        Restriction::new(crate::contract::RestrictionValue {
             restriction_id: RestrictionId::new(),
             kind: RestrictionKind::NavigationalWarning,
             geometry: Wgs84Polygon {
@@ -869,7 +872,8 @@ mod tests {
             issued_at: now,
             cancelled_by: None,
             record_version: 1,
-        }
+        })
+        .expect("admitted Map fixture")
     }
 
     #[test]

@@ -28,6 +28,26 @@ impl MapDerivationKind {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MapDerivationIdentity {
+    Raster(crate::contract::RasterDerivationId),
+    Spatial(crate::contract::SpatialDerivationId),
+}
+impl MapDerivationIdentity {
+    pub fn kind(&self) -> MapDerivationKind {
+        match self {
+            Self::Raster(_) => MapDerivationKind::Raster,
+            Self::Spatial(_) => MapDerivationKind::Spatial,
+        }
+    }
+    fn key(&self) -> &str {
+        match self {
+            Self::Raster(id) => id.as_str(),
+            Self::Spatial(id) => id.as_str(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MapDerivationScope {
     pub tenant: TenantId,
@@ -56,9 +76,8 @@ impl MapDerivationScope {
 #[derive(Clone, Debug)]
 pub struct MapDerivationDraft {
     pub scope: MapDerivationScope,
-    pub kind: MapDerivationKind,
-    pub derivation_key: String,
-    pub created_by: String,
+    pub identity: MapDerivationIdentity,
+    pub created_by: veoveo_types::PrincipalId,
     pub created_at: DateTime<Utc>,
     /// The owning Map contract serializes and validates this versioned document.
     pub canonical_json: String,
@@ -76,19 +95,8 @@ pub struct MapDerivationRecord {
     pub canonical_json: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct MapDerivationSummary {
-    pub derivation_key: String,
-    pub created_by: String,
-    pub created_at: DateTime<Utc>,
-}
-
 impl MapRepository {
     pub async fn put_map_derivation(&self, draft: MapDerivationDraft) -> Result<(), MapStoreError> {
-        validate_key(draft.kind, &draft.derivation_key)?;
-        if draft.created_by.is_empty() || draft.created_by.len() > 1024 {
-            return Err(invalid("created_by", "must contain 1..=1024 bytes"));
-        }
         if draft.canonical_json.is_empty() || draft.canonical_json.len() > 16 * 1024 * 1024 {
             return Err(invalid(
                 "canonical_json",
@@ -98,12 +106,14 @@ impl MapRepository {
         serde_json::from_str::<serde_json::Value>(&draft.canonical_json)
             .map_err(|_| invalid("canonical_json", "must be a JSON document"))?;
         let row = MapDerivationRecord {
-            id: draft.scope.record(draft.kind, &draft.derivation_key),
+            id: draft
+                .scope
+                .record(draft.identity.kind(), draft.identity.key()),
             tenant: draft.scope.tenant.record_id(),
             work_context: draft.scope.work_context.record_id(),
-            kind: draft.kind,
-            derivation_key: draft.derivation_key,
-            created_by: draft.created_by,
+            kind: draft.identity.kind(),
+            derivation_key: draft.identity.key().to_owned(),
+            created_by: draft.created_by.to_string(),
             created_at: draft.created_at,
             canonical_json: draft.canonical_json,
         };
@@ -121,10 +131,10 @@ impl MapRepository {
     pub async fn map_derivation(
         &self,
         scope: MapDerivationScope,
-        kind: MapDerivationKind,
-        key: &str,
+        identity: &MapDerivationIdentity,
     ) -> Result<Option<MapDerivationRecord>, MapStoreError> {
-        validate_key(kind, key)?;
+        let kind = identity.kind();
+        let key = identity.key();
         let mut response = self
             .client()
             .query(include_str!("queries/map_derivations/map_derivation.surql"))
@@ -134,21 +144,36 @@ impl MapRepository {
             .bind(("kind", kind))
             .await?
             .check()?;
-        Ok(response.take(0)?)
+        let row: Option<MapDerivationRecord> = response.take(0)?;
+        if row.as_ref().is_some_and(|row| {
+            row.id != scope.record(kind, key)
+                || row.tenant != scope.tenant.record_id()
+                || row.work_context != scope.work_context.record_id()
+                || row.kind != kind
+                || row.derivation_key != key
+        }) {
+            return Err(invalid(
+                "derivation",
+                "stored identity and scope must agree",
+            ));
+        }
+        Ok(row)
     }
 
     pub async fn map_derivations_page(
         &self,
         scope: MapDerivationScope,
         kind: MapDerivationKind,
-        after: Option<&str>,
+        after: Option<&MapDerivationIdentity>,
         limit: usize,
-    ) -> Result<Vec<MapDerivationSummary>, MapStoreError> {
+    ) -> Result<Vec<MapDerivationRecord>, MapStoreError> {
         if !(1..=101).contains(&limit) {
             return Err(invalid("limit", "must be within 1..=101"));
         }
-        if let Some(after) = after {
-            validate_key(kind, after)?;
+        if let Some(after) = after
+            && after.kind() != kind
+        {
+            return Err(invalid("after", "must belong to selected derivation kind"));
         }
         let sql = if after.is_some() {
             include_str!("queries/map_derivations/map_derivations_page.surql")
@@ -161,11 +186,33 @@ impl MapRepository {
             .bind(("tenant", scope.tenant.record_id()))
             .bind(("context", scope.work_context.record_id()))
             .bind(("kind", kind))
-            .bind(("after", after.map(ToOwned::to_owned)))
+            .bind(("after", after.map(|id| id.key().to_owned())))
             .bind(("limit", limit))
             .await?
             .check()?;
-        Ok(response.take(0)?)
+        let rows: Vec<MapDerivationRecord> = response.take(0)?;
+        for row in &rows {
+            let admitted = match kind {
+                MapDerivationKind::Raster => {
+                    crate::contract::RasterDerivationId::parse(&row.derivation_key).is_ok()
+                }
+                MapDerivationKind::Spatial => {
+                    crate::contract::SpatialDerivationId::parse(&row.derivation_key).is_ok()
+                }
+            };
+            if !admitted
+                || row.id != scope.record(kind, &row.derivation_key)
+                || row.kind != kind
+                || row.tenant != scope.tenant.record_id()
+                || row.work_context != scope.work_context.record_id()
+            {
+                return Err(invalid(
+                    "derivation",
+                    "stored identity and scope must agree",
+                ));
+            }
+        }
+        Ok(rows)
     }
 
     pub async fn complete_map_derivations(
@@ -195,24 +242,6 @@ impl MapRepository {
     }
 }
 
-fn validate_key(kind: MapDerivationKind, key: &str) -> Result<(), MapStoreError> {
-    let prefix = match kind {
-        MapDerivationKind::Raster => "raster-derivation-",
-        MapDerivationKind::Spatial => "spatial-derivation-",
-    };
-    if key
-        .strip_prefix(prefix)
-        .and_then(|id| uuid::Uuid::parse_str(id).ok())
-        .filter(|id| matches!(id.get_version_num(), 5 | 7))
-        .is_none()
-    {
-        return Err(invalid(
-            "derivation_key",
-            "must use its kind's prefix and a UUID",
-        ));
-    }
-    Ok(())
-}
 fn invalid(field: &'static str, reason: &'static str) -> MapStoreError {
     MapStoreError::InvalidMapField { field, reason }
 }

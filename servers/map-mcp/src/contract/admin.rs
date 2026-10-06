@@ -86,7 +86,8 @@ pub struct AcquisitionProgress {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct AcquisitionJob {
+#[schemars(rename = "AcquisitionJob")]
+pub struct AcquisitionJobValue {
     pub acquisition_id: AcquisitionId,
     pub source_id: MapSourceId,
     pub requested_coverage: Wgs84BoundingBox,
@@ -150,4 +151,56 @@ pub struct ReleaseMutationRequest {
 pub struct ReleaseMutationResponse {
     pub release: DatasetRelease,
     pub invalidated_route_count: u64,
+}
+
+/// Mutable lifecycle state is rechecked on decoding, construction and every serialization.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AcquisitionJob(AcquisitionJobValue);
+impl AcquisitionJob {
+    pub fn new(value: AcquisitionJobValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Check::check(&value)?;
+        Ok(Self(value))
+    }
+    pub fn into_value(self) -> AcquisitionJobValue {
+        self.0
+    }
+}
+impl std::ops::Deref for AcquisitionJob {
+    type Target = AcquisitionJobValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for AcquisitionJob {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl veoveo_types::Check for AcquisitionJobValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_acquisition(self)
+    }
+}
+impl Serialize for AcquisitionJob {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        veoveo_types::Check::check(&self.0).map_err(serde::ser::Error::custom)?;
+        self.0.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for AcquisitionJob {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(AcquisitionJobValue::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+impl JsonSchema for AcquisitionJob {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        AcquisitionJobValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        AcquisitionJobValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        AcquisitionJobValue::json_schema(generator)
+    }
 }

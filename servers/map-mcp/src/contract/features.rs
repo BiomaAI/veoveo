@@ -13,8 +13,8 @@ use veoveo_types::{
 };
 
 use super::{
-    FeatureChangeSetId, FeatureLayerId, FeatureSchemaRevisionId, LayerPublicationId, MapFeatureId,
-    StyleRevisionId, Wgs84BoundingBox,
+    FeatureChangeSetId, FeatureLayerId, FeatureResourceReference, FeatureSchemaRevisionId,
+    LayerPublicationId, MapFeatureId, StyleRevisionId, Wgs84BoundingBox,
 };
 
 pub const MAX_DIRECT_FEATURE_MUTATIONS: usize = 100;
@@ -351,7 +351,8 @@ pub struct FeatureProvenance {
 /// A map feature in a feature layer. Its core fields are valid GeoJSON, and
 /// its time and feature-type members use JSON-FG vocabulary.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapFeature {
+#[schemars(rename = "MapFeature")]
+pub struct MapFeatureValue {
     #[serde(rename = "type")]
     pub feature_type: GeoJsonFeatureType,
     #[serde(rename = "conformsTo")]
@@ -372,9 +373,9 @@ pub struct MapFeature {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub related_resources: Vec<String>,
+    pub related_resources: Vec<FeatureResourceReference>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub evidence_resources: Vec<String>,
+    pub evidence_resources: Vec<FeatureResourceReference>,
     pub provenance: FeatureProvenance,
     pub created_at: DateTime<Utc>,
 }
@@ -431,7 +432,8 @@ pub struct MapStyleRevision {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct FeatureLayer {
+#[schemars(rename = "FeatureLayer")]
+pub struct FeatureLayerValue {
     pub layer_id: FeatureLayerId,
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -501,9 +503,9 @@ pub struct FeatureInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub related_resources: Vec<String>,
+    pub related_resources: Vec<FeatureResourceReference>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub evidence_resources: Vec<String>,
+    pub evidence_resources: Vec<FeatureResourceReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -698,7 +700,8 @@ pub struct PublishFeatureLayerRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct LayerPublication {
+#[schemars(rename = "LayerPublication")]
+pub struct LayerPublicationValue {
     pub publication_id: LayerPublicationId,
     pub layer_id: FeatureLayerId,
     pub layer_revision: u64,
@@ -802,6 +805,128 @@ fn minimal_longitude_arc(longitudes: &[f64]) -> (f64, f64) {
     let west = longitudes[(largest_gap_index + 1) % longitudes.len()];
     let east = longitudes[largest_gap_index];
     (west, east)
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct MapFeature(veoveo_types::Checked<MapFeatureValue>);
+impl MapFeature {
+    pub fn new(value: MapFeatureValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> MapFeatureValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for MapFeature {
+    type Target = MapFeatureValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for MapFeatureValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_feature(self)
+    }
+}
+impl JsonSchema for MapFeature {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        MapFeatureValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        MapFeatureValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        MapFeatureValue::json_schema(generator)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct LayerPublication(veoveo_types::Checked<LayerPublicationValue>);
+impl LayerPublication {
+    pub fn new(value: LayerPublicationValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> LayerPublicationValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for LayerPublication {
+    type Target = LayerPublicationValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for LayerPublicationValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_publication(self)
+    }
+}
+impl JsonSchema for LayerPublication {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        LayerPublicationValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        LayerPublicationValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        LayerPublicationValue::json_schema(generator)
+    }
+}
+
+/// Mutable lifecycle state is rechecked on decoding, construction and every serialization.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeatureLayer(FeatureLayerValue);
+impl FeatureLayer {
+    pub fn new(value: FeatureLayerValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Check::check(&value)?;
+        Ok(Self(value))
+    }
+    pub fn into_value(self) -> FeatureLayerValue {
+        self.0
+    }
+}
+impl std::ops::Deref for FeatureLayer {
+    type Target = FeatureLayerValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for FeatureLayer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl veoveo_types::Check for FeatureLayerValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_layer(self)
+    }
+}
+impl Serialize for FeatureLayer {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        veoveo_types::Check::check(&self.0).map_err(serde::ser::Error::custom)?;
+        self.0.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for FeatureLayer {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(FeatureLayerValue::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+impl JsonSchema for FeatureLayer {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        FeatureLayerValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        FeatureLayerValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        FeatureLayerValue::json_schema(generator)
+    }
 }
 
 #[cfg(test)]

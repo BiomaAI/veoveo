@@ -571,7 +571,7 @@ mod tests {
             ),
         };
         let now = Utc::now();
-        let restriction = Restriction {
+        let restriction = Restriction::new(crate::contract::RestrictionValue {
             restriction_id: RestrictionId::new(),
             kind: RestrictionKind::Closure,
             geometry: Wgs84Polygon {
@@ -598,7 +598,8 @@ mod tests {
             issued_at: now,
             cancelled_by: None,
             record_version: 1,
-        };
+        })
+        .expect("admitted Map fixture");
         let output = validate(
             &profile(),
             &BTreeSet::from(["paved".to_owned()]),

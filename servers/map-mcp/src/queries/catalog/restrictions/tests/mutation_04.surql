@@ -1,1 +1,1 @@
-UPDATE ONLY $id SET kind = 'unknown' RETURN NONE;
+UPDATE ONLY $id SET kind = 'closure' RETURN NONE;

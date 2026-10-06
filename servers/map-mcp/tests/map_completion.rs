@@ -22,8 +22,8 @@ async fn source(store: &PlatformStore, identity: &PlatformIdentity, key: String,
     MapRepository::new(store.clone())
         .create_map_source(MapSourceDraft {
             identity: identity.clone(),
-            source_key: key,
-            dataset_key: dataset.into(),
+            source_key: veoveo_map_mcp::contract::MapSourceId::parse(key).unwrap(),
+            dataset_key: veoveo_map_mcp::contract::MapDatasetId::parse(dataset).unwrap(),
             name: "Fixture".into(),
             adapter_kind: "authority_vector".into(),
             authority_class: "synthetic_test".into(),
@@ -44,9 +44,10 @@ async fn release(
     MapRepository::new(store.clone())
         .create_map_release(MapReleaseDraft {
             identity: identity.clone(),
-            release_key: release.clone(),
-            dataset_key: dataset.into(),
-            source_key: source.into(),
+            release_key: veoveo_map_mcp::contract::DatasetReleaseId::parse(release.clone())
+                .unwrap(),
+            dataset_key: veoveo_map_mcp::contract::MapDatasetId::parse(dataset).unwrap(),
+            source_key: veoveo_map_mcp::contract::MapSourceId::parse(source).unwrap(),
             state: MapReleaseState::Staged,
             version_label: "fixture".into(),
             source_digest_sha256: "a".repeat(64),
@@ -65,7 +66,7 @@ async fn route_and_matrix(store: &PlatformStore, identity: &PlatformIdentity) ->
     let snapshot = key("snapshot");
     let now = Utc::now();
     let route_id: veoveo_map_mcp::contract::RouteId = route.parse().unwrap();
-    let plan = RoutePlan {
+    let plan = RoutePlan::new(veoveo_map_mcp::contract::RoutePlanValue {
         route_uri: MapRouteUri::new(route_id.clone()),
         route_id,
         status: RouteStatus::Validated,
@@ -94,15 +95,22 @@ async fn route_and_matrix(store: &PlatformStore, identity: &PlatformIdentity) ->
             cost_model_version: "fixture".into(),
         },
         created_at: now,
-    };
+    })
+    .expect("admitted Map fixture");
     MapRepository::new(store.clone())
         .create_map_route(MapRouteDraft {
             identity: identity.clone(),
-            route_key: route.clone(),
+            route_key: veoveo_map_mcp::contract::RouteId::parse(route.clone()).unwrap(),
             status: MapRouteState::Validated,
-            mobility_profile_key: profile.clone(),
+            mobility_profile_key: veoveo_map_mcp::contract::MobilityProfileId::parse(
+                profile.clone(),
+            )
+            .unwrap(),
             mobility_profile_version: 1,
-            operational_snapshot_key: snapshot.clone(),
+            operational_snapshot_key: veoveo_map_mcp::contract::OperationalSnapshotId::parse(
+                snapshot.clone(),
+            )
+            .unwrap(),
             departure_time: plan.departure_time,
             arrival_time: plan.arrival_time,
             cache_digest_sha256: "b".repeat(64),
@@ -116,10 +124,14 @@ async fn route_and_matrix(store: &PlatformStore, identity: &PlatformIdentity) ->
     MapRepository::new(store.clone())
         .create_map_route_matrix(MapRouteMatrixDraft {
             identity: identity.clone(),
-            matrix_key: matrix.clone(),
-            mobility_profile_key: profile,
+            matrix_key: veoveo_map_mcp::contract::RouteMatrixId::parse(matrix.clone()).unwrap(),
+            mobility_profile_key: veoveo_map_mcp::contract::MobilityProfileId::parse(profile)
+                .unwrap(),
             mobility_profile_version: 1,
-            operational_snapshot_key: snapshot,
+            operational_snapshot_key: veoveo_map_mcp::contract::OperationalSnapshotId::parse(
+                snapshot,
+            )
+            .unwrap(),
             artifact_uri: None,
             canonical_json: Some("{}".into()),
         })

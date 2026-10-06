@@ -261,7 +261,8 @@ impl AcquisitionService {
             .acquisition(scope, acquisition_id)
             .await?
             .context("acquisition disappeared")?
-            .expected_source_digest_sha256;
+            .expected_source_digest_sha256
+            .clone();
         let normalized = self
             .helper
             .normalize(
@@ -346,7 +347,7 @@ impl AcquisitionService {
             )
             .await?;
         let now = Utc::now();
-        let release = DatasetRelease {
+        let release = DatasetRelease::new(crate::contract::DatasetReleaseValue {
             release_id: DatasetReleaseId::new(),
             dataset_id: source.dataset_id.clone(),
             source_id: source.source_id.clone(),
@@ -357,7 +358,8 @@ impl AcquisitionService {
                 .acquisition(scope, acquisition_id)
                 .await?
                 .context("acquisition disappeared")?
-                .requested_coverage,
+                .requested_coverage
+                .clone(),
             acquired_at: now,
             valid_from: now,
             valid_until: None,
@@ -373,19 +375,12 @@ impl AcquisitionService {
             quality_report_uri: quality.artifact_id().plane_uri(),
             supersedes_release_id: self
                 .catalog
-                .list_releases(scope)
-                .await?
-                .into_iter()
-                .filter(|release| {
-                    release.dataset_id == source.dataset_id
-                        && release.state == DatasetReleaseState::Active
-                })
-                .max_by_key(|release| release.updated_at)
-                .map(|release| release.release_id),
+                .active_release_id(scope, &source.dataset_id)
+                .await?,
             state: DatasetReleaseState::Staged,
             record_version: 1,
             updated_at: now,
-        };
+        })?;
         self.products
             .stage(
                 &release,
@@ -411,7 +406,7 @@ impl AcquisitionService {
         job.progress.total_units = Some(1);
         job.progress.message = "staged release created".to_owned();
         job.raw_artifact_uri = Some(raw.artifact_id().plane_uri());
-        job.staged_release_id = Some(release.release_id);
+        job.staged_release_id = Some(release.release_id.clone());
         self.catalog.update_acquisition(scope, job).await?;
         Ok(())
     }

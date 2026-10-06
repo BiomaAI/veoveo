@@ -186,10 +186,8 @@ pub async fn activate_release(
     }
     let active_pointer = state
         .catalog
-        .list_active_releases(scope)
-        .await?
-        .into_iter()
-        .find(|pointer| pointer.dataset_id == release.dataset_id);
+        .active_release_pointer(scope, &release.dataset_id)
+        .await?;
     let already_active = release.state == DatasetReleaseState::Active
         && active_pointer
             .as_ref()
@@ -216,6 +214,11 @@ pub async fn activate_release(
         .source(scope, &release.source_id)
         .await?
         .context("unknown map source for release")?;
+    if source.dataset_id != release.dataset_id {
+        return Err(AdminOpError::bad_request(
+            "release and source dataset must agree",
+        ));
+    }
     let tenant_key = scope.tenant_key();
     state
         .products
@@ -282,6 +285,16 @@ pub async fn quarantine_release(
         .release(scope, &request.release_id)
         .await?
         .context("unknown dataset release")?;
+    let source = state
+        .catalog
+        .source(scope, &release.source_id)
+        .await?
+        .context("unknown map source for release")?;
+    if source.dataset_id != release.dataset_id {
+        return Err(AdminOpError::bad_request(
+            "release and source dataset must agree",
+        ));
+    }
     if state
         .catalog
         .active_release_id(scope, &release.dataset_id)

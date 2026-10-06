@@ -23,7 +23,7 @@ async fn scope(store: &PlatformStore, tenant: &str, principal: &str) -> MapAcces
     }
 }
 fn restriction(n: usize, at: DateTime<Utc>) -> Restriction {
-    Restriction {
+    Restriction::new(crate::contract::RestrictionValue {
         restriction_id: id(n),
         kind: RestrictionKind::NavigationalWarning,
         geometry: Wgs84Polygon {
@@ -50,7 +50,8 @@ fn restriction(n: usize, at: DateTime<Utc>) -> Restriction {
         issued_at: at,
         cancelled_by: None,
         record_version: 1,
-    }
+    })
+    .expect("admitted Map fixture")
 }
 async fn change(store: &PlatformStore, id: &RestrictionId, sql: &str) {
     store

@@ -22,7 +22,8 @@ pub enum LayerProductFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct LayerProduct {
+#[schemars(rename = "LayerProduct")]
+pub struct LayerProductValue {
     pub product_id: LayerProductId,
     pub publication_id: LayerPublicationId,
     pub layer_id: FeatureLayerId,
@@ -87,7 +88,8 @@ fn default_opacity() -> f64 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapCompositionRevision {
+#[schemars(rename = "MapCompositionRevision")]
+pub struct MapCompositionRevisionValue {
     pub composition_revision_id: MapCompositionRevisionId,
     pub composition_id: MapCompositionId,
     pub revision: u64,
@@ -98,7 +100,8 @@ pub struct MapCompositionRevision {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct MapComposition {
+#[schemars(rename = "MapComposition")]
+pub struct MapCompositionValue {
     pub composition_id: MapCompositionId,
     pub title: String,
     pub current: MapCompositionRevision,
@@ -139,4 +142,109 @@ pub struct UpdateMapCompositionRequest {
 pub struct ArchiveMapCompositionRequest {
     pub composition_id: MapCompositionId,
     pub expected_revision: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct LayerProduct(veoveo_types::Checked<LayerProductValue>);
+impl LayerProduct {
+    pub fn new(value: LayerProductValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> LayerProductValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for LayerProduct {
+    type Target = LayerProductValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for LayerProductValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_product(self)
+    }
+}
+impl JsonSchema for LayerProduct {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        LayerProductValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        LayerProductValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        LayerProductValue::json_schema(generator)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct MapCompositionRevision(veoveo_types::Checked<MapCompositionRevisionValue>);
+impl MapCompositionRevision {
+    pub fn new(value: MapCompositionRevisionValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> MapCompositionRevisionValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for MapCompositionRevision {
+    type Target = MapCompositionRevisionValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for MapCompositionRevisionValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_composition_revision(self)
+    }
+}
+impl JsonSchema for MapCompositionRevision {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        MapCompositionRevisionValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        MapCompositionRevisionValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        MapCompositionRevisionValue::json_schema(generator)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct MapComposition(veoveo_types::Checked<MapCompositionValue>);
+impl MapComposition {
+    pub fn new(value: MapCompositionValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> MapCompositionValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for MapComposition {
+    type Target = MapCompositionValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for MapCompositionValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_composition(self)
+    }
+}
+impl JsonSchema for MapComposition {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        MapCompositionValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        MapCompositionValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        MapCompositionValue::json_schema(generator)
+    }
 }

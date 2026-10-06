@@ -231,23 +231,9 @@ fn validate_property_name(value: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_resource_uris(values: &[String]) -> Result<()> {
+fn validate_resource_uris(values: &[crate::contract::FeatureResourceReference]) -> Result<()> {
     if values.len() > 64 {
         bail!("a feature supports at most 64 related or evidence resources");
-    }
-    for value in values {
-        if value.len() > 1024 {
-            bail!("feature resource URI exceeds 1024 bytes");
-        }
-        let uri = url::Url::parse(value).context("feature resource identity must be a URI")?;
-        if !matches!(
-            uri.scheme(),
-            "map" | "artifact" | "recording" | "stream" | "reason" | "time" | "frames" | "view"
-        ) {
-            bail!(
-                "feature resource URIs must use one of these schemes: map, artifact, recording, stream, reason, time, frames, view"
-            );
-        }
     }
     Ok(())
 }

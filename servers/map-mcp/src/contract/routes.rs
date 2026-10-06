@@ -34,7 +34,7 @@ pub enum FacilityKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SourceLineage {
     pub release_id: DatasetReleaseId,
-    pub source_feature_id: String,
+    pub source_feature_id: super::SourceFeatureId,
     pub authority: super::AuthorityClass,
     pub valid_from: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -158,7 +158,8 @@ pub enum VerticalReference {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct Restriction {
+#[schemars(rename = "Restriction")]
+pub struct RestrictionValue {
     pub restriction_id: RestrictionId,
     pub kind: RestrictionKind,
     pub geometry: Wgs84Polygon,
@@ -327,7 +328,8 @@ pub struct RouteAlternative {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RoutePlan {
+#[schemars(rename = "RoutePlan")]
+pub struct RoutePlanValue {
     pub route_id: RouteId,
     pub route_uri: super::MapRouteUri,
     pub status: RouteStatus,
@@ -432,4 +434,91 @@ pub struct Geofence {
     pub area: Wgs84Polygon,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vertical_band: Option<VerticalBand>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RoutePlan(veoveo_types::Checked<RoutePlanValue>);
+impl RoutePlan {
+    pub fn new(value: RoutePlanValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> RoutePlanValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for RoutePlan {
+    type Target = RoutePlanValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for RoutePlanValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_route(self)
+    }
+}
+impl JsonSchema for RoutePlan {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        RoutePlanValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        RoutePlanValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RoutePlanValue::json_schema(generator)
+    }
+}
+
+/// Mutable lifecycle state is rechecked on decoding, construction and every serialization.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Restriction(RestrictionValue);
+impl Restriction {
+    pub fn new(value: RestrictionValue) -> Result<Self, super::MapRelationshipError> {
+        veoveo_types::Check::check(&value)?;
+        Ok(Self(value))
+    }
+    pub fn into_value(self) -> RestrictionValue {
+        self.0
+    }
+}
+impl std::ops::Deref for Restriction {
+    type Target = RestrictionValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for Restriction {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl veoveo_types::Check for RestrictionValue {
+    type Error = super::MapRelationshipError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::relationships::check_restriction(self)
+    }
+}
+impl Serialize for Restriction {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        veoveo_types::Check::check(&self.0).map_err(serde::ser::Error::custom)?;
+        self.0.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for Restriction {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(RestrictionValue::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+impl JsonSchema for Restriction {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        RestrictionValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        RestrictionValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RestrictionValue::json_schema(generator)
+    }
 }

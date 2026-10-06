@@ -24,8 +24,8 @@ const MAX_ROUTE_JSON_BYTES: usize = 16 * 1024 * 1024;
 #[derive(Clone, Debug)]
 pub struct MapSourceDraft {
     pub identity: PlatformIdentity,
-    pub source_key: String,
-    pub dataset_key: String,
+    pub source_key: crate::contract::MapSourceId,
+    pub dataset_key: crate::contract::MapDatasetId,
     pub name: String,
     pub adapter_kind: String,
     pub authority_class: String,
@@ -37,9 +37,9 @@ pub struct MapSourceDraft {
 #[derive(Clone, Debug)]
 pub struct MapReleaseDraft {
     pub identity: PlatformIdentity,
-    pub release_key: String,
-    pub dataset_key: String,
-    pub source_key: String,
+    pub release_key: crate::contract::DatasetReleaseId,
+    pub dataset_key: crate::contract::MapDatasetId,
+    pub source_key: crate::contract::MapSourceId,
     pub state: MapReleaseState,
     pub version_label: String,
     pub source_digest_sha256: String,
@@ -51,7 +51,7 @@ pub struct MapReleaseDraft {
 #[derive(Clone, Debug)]
 pub struct MapMobilityProfileDraft {
     pub identity: PlatformIdentity,
-    pub profile_key: String,
+    pub profile_key: crate::contract::MobilityProfileId,
     pub family: String,
     pub name: String,
     pub profile_version: i64,
@@ -63,20 +63,20 @@ pub struct MapMobilityProfileDraft {
 #[derive(Clone, Debug)]
 pub struct MapRestrictionDraft {
     pub identity: PlatformIdentity,
-    pub restriction_key: String,
+    pub restriction_key: crate::contract::RestrictionId,
     pub kind: String,
     pub effect_kind: String,
     pub affected_mobility_families: Vec<String>,
     pub valid_from: DateTime<Utc>,
     pub valid_until: Option<DateTime<Utc>>,
-    pub cancelled_by: Option<String>,
+    pub cancelled_by: Option<crate::contract::RestrictionId>,
     pub canonical_json: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct MapOperationalSnapshotDraft {
     pub tenant_id: TenantId,
-    pub snapshot_key: String,
+    pub snapshot_key: crate::contract::OperationalSnapshotId,
     pub departure_time: DateTime<Utc>,
     pub canonical_json: String,
 }
@@ -84,11 +84,11 @@ pub struct MapOperationalSnapshotDraft {
 #[derive(Clone, Debug)]
 pub struct MapRouteDraft {
     pub identity: PlatformIdentity,
-    pub route_key: String,
+    pub route_key: crate::contract::RouteId,
     pub status: MapRouteState,
-    pub mobility_profile_key: String,
+    pub mobility_profile_key: crate::contract::MobilityProfileId,
     pub mobility_profile_version: i64,
-    pub operational_snapshot_key: String,
+    pub operational_snapshot_key: crate::contract::OperationalSnapshotId,
     pub departure_time: DateTime<Utc>,
     pub arrival_time: Option<DateTime<Utc>>,
     pub cache_digest_sha256: String,
@@ -106,19 +106,22 @@ pub(super) struct RouteLookups {
     pub(super) facility_ids: Vec<crate::contract::FacilityId>,
 }
 impl RouteLookups {
-    pub(super) fn from_document(key: &str, document: &str) -> Result<Self, MapStoreError> {
+    pub(super) fn from_document(
+        key: &crate::contract::RouteId,
+        document: &str,
+    ) -> Result<Self, MapStoreError> {
         let route: crate::contract::RoutePlan = serde_json::from_str(document)
             .map_err(|_| invalid_map("canonical_json", "invalid route plan"))?;
-        if route.route_id.as_str() != key || route.route_uri.id() != &route.route_id {
+        if route.route_id != *key || route.route_uri.id() != &route.route_id {
             return Err(invalid_map(
                 "route projection",
                 "route identity differs from document",
             ));
         }
         Ok(Self {
-            base_release_ids: route.provenance.base_release_ids.into_iter().collect(),
-            restriction_ids: route.restriction_ids.into_iter().collect(),
-            facility_ids: route.facility_ids.into_iter().collect(),
+            base_release_ids: route.provenance.base_release_ids.iter().cloned().collect(),
+            restriction_ids: route.restriction_ids.iter().cloned().collect(),
+            facility_ids: route.facility_ids.iter().cloned().collect(),
         })
     }
     pub(super) fn verify_record(&self, row: &MapRouteRecord) -> Result<(), MapStoreError> {
@@ -150,21 +153,44 @@ impl RouteLookups {
     }
 }
 
+/// A route dependency keeps its owner's identity until driver binding.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MapDependencyIdentity {
+    Release(crate::contract::DatasetReleaseId),
+    Restriction(crate::contract::RestrictionId),
+    Facility(crate::contract::FacilityId),
+}
+impl MapDependencyIdentity {
+    pub fn kind(&self) -> crate::persistence::MapDependencyKind {
+        match self {
+            Self::Release(_) => crate::persistence::MapDependencyKind::Release,
+            Self::Restriction(_) => crate::persistence::MapDependencyKind::Restriction,
+            Self::Facility(_) => crate::persistence::MapDependencyKind::Facility,
+        }
+    }
+    fn key(&self) -> &str {
+        match self {
+            Self::Release(id) => id.as_str(),
+            Self::Restriction(id) => id.as_str(),
+            Self::Facility(id) => id.as_str(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct MapRouteDependencyDraft {
     pub tenant_id: TenantId,
-    pub route_key: String,
-    pub dependency_kind: crate::persistence::MapDependencyKind,
-    pub dependency_key: String,
+    pub route_key: crate::contract::RouteId,
+    pub dependency: MapDependencyIdentity,
 }
 
 #[derive(Clone, Debug)]
 pub struct MapRouteMatrixDraft {
     pub identity: PlatformIdentity,
-    pub matrix_key: String,
-    pub mobility_profile_key: String,
+    pub matrix_key: crate::contract::RouteMatrixId,
+    pub mobility_profile_key: crate::contract::MobilityProfileId,
     pub mobility_profile_version: i64,
-    pub operational_snapshot_key: String,
+    pub operational_snapshot_key: crate::contract::OperationalSnapshotId,
     pub artifact_uri: Option<String>,
     pub canonical_json: Option<String>,
 }
@@ -172,23 +198,23 @@ pub struct MapRouteMatrixDraft {
 #[derive(Clone, Debug)]
 pub struct MapAcquisitionDraft {
     pub identity: PlatformIdentity,
-    pub acquisition_key: String,
-    pub source_key: String,
+    pub acquisition_key: crate::contract::AcquisitionId,
+    pub source_key: crate::contract::MapSourceId,
     pub idempotency_key: String,
     pub status: MapAcquisitionState,
     pub phase: String,
-    pub staged_release_key: Option<String>,
+    pub staged_release_key: Option<crate::contract::DatasetReleaseId>,
     pub canonical_json: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct MapAcquisitionUpdate {
     pub identity: PlatformIdentity,
-    pub acquisition_key: String,
+    pub acquisition_key: crate::contract::AcquisitionId,
     pub expected_record_version: i64,
     pub status: MapAcquisitionState,
     pub phase: String,
-    pub staged_release_key: Option<String>,
+    pub staged_release_key: Option<crate::contract::DatasetReleaseId>,
     pub canonical_json: String,
 }
 
@@ -335,8 +361,8 @@ impl MapRepository {
         let content = MapSourceContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            source_key: draft.source_key.clone(),
-            dataset_key: draft.dataset_key,
+            source_key: draft.source_key.to_string(),
+            dataset_key: draft.dataset_key.to_string(),
             name: draft.name,
             adapter_kind: draft.adapter_kind,
             authority_class: draft.authority_class,
@@ -370,7 +396,7 @@ impl MapRepository {
             .query(include_str!("queries/map/replace_map_source.surql"))
             .bind(("record", record))
             .bind(("tenant", draft.identity.tenant_id.record_id()))
-            .bind(("dataset_key", draft.dataset_key))
+            .bind(("dataset_key", draft.dataset_key.to_string()))
             .bind(("name", draft.name))
             .bind(("adapter_kind", draft.adapter_kind))
             .bind(("authority_class", draft.authority_class))
@@ -385,16 +411,15 @@ impl MapRepository {
             .take::<Option<MapSourceRecord>>(0)?
             .ok_or(MapStoreError::MapRecordConflict {
                 entity: "source",
-                key: draft.source_key,
+                key: draft.source_key.to_string(),
             })
     }
 
     async fn map_source(
         &self,
         tenant_id: TenantId,
-        source_key: &str,
+        source_key: &crate::contract::MapSourceId,
     ) -> Result<Option<MapSourceRecord>, MapStoreError> {
-        validate_public_key("source_key", source_key, "source-")?;
         select_one(self, map_record("map_source", source_key), tenant_id).await
     }
 
@@ -406,9 +431,9 @@ impl MapRepository {
         let now = Utc::now();
         let content = MapReleaseContent {
             tenant: draft.identity.tenant_id.record_id(),
-            release_key: draft.release_key.clone(),
-            dataset_key: draft.dataset_key,
-            source_key: draft.source_key,
+            release_key: draft.release_key.to_string(),
+            dataset_key: draft.dataset_key.to_string(),
+            source_key: draft.source_key.to_string(),
             state: draft.state,
             version_label: draft.version_label,
             source_digest_sha256: draft.source_digest_sha256,
@@ -435,9 +460,8 @@ impl MapRepository {
     pub async fn map_release(
         &self,
         tenant_id: TenantId,
-        release_key: &str,
+        release_key: &crate::contract::DatasetReleaseId,
     ) -> Result<Option<MapDatasetReleaseRecord>, MapStoreError> {
-        validate_public_key("release_key", release_key, "release-")?;
         select_one(
             self,
             map_record("map_dataset_release", release_key),
@@ -461,12 +485,11 @@ impl MapRepository {
     pub async fn transition_map_release(
         &self,
         tenant_id: TenantId,
-        release_key: &str,
+        release_key: &crate::contract::DatasetReleaseId,
         expected_record_version: i64,
         state: MapReleaseState,
         canonical_json: String,
     ) -> Result<MapDatasetReleaseRecord, MapStoreError> {
-        validate_public_key("release_key", release_key, "release-")?;
         validate_json("canonical_json", &canonical_json, MAX_CATALOG_JSON_BYTES)?;
         let mut response = self
             .client()
@@ -483,21 +506,19 @@ impl MapRepository {
             .take::<Option<MapDatasetReleaseRecord>>(0)?
             .ok_or_else(|| MapStoreError::MapRecordConflict {
                 entity: "release",
-                key: release_key.to_owned(),
+                key: release_key.to_string(),
             })
     }
 
     pub async fn activate_map_release(
         &self,
         identity: &PlatformIdentity,
-        dataset_key: &str,
-        release_key: &str,
+        dataset_key: &crate::contract::MapDatasetId,
+        release_key: &crate::contract::DatasetReleaseId,
         expected_pointer_version: Option<i64>,
         expected_release_version: i64,
         canonical_json: String,
     ) -> Result<MapDatasetReleaseRecord, MapStoreError> {
-        validate_public_key("dataset_key", dataset_key, "dataset-")?;
-        validate_public_key("release_key", release_key, "release-")?;
         validate_positive("expected_release_version", expected_release_version)?;
         validate_json("canonical_json", &canonical_json, MAX_CATALOG_JSON_BYTES)?;
         let active_id = format!("{}:{}", identity.tenant_id, dataset_key);
@@ -508,13 +529,14 @@ impl MapRepository {
             .await?
             .ok_or_else(|| MapStoreError::MapRecordConflict {
                 entity: "release",
-                key: release_key.to_owned(),
+                key: release_key.to_string(),
             })?;
-        if release.dataset_key != dataset_key || release.record_version != expected_release_version
+        if release.dataset_key != dataset_key.as_str()
+            || release.record_version != expected_release_version
         {
             return Err(MapStoreError::MapRecordConflict {
                 entity: "release",
-                key: release_key.to_owned(),
+                key: release_key.to_string(),
             });
         }
         let existing = self
@@ -524,7 +546,7 @@ impl MapRepository {
         if existing.as_ref().map_or(0, |record| record.record_version) != expected {
             return Err(MapStoreError::MapRecordConflict {
                 entity: "active release",
-                key: dataset_key.to_owned(),
+                key: dataset_key.to_string(),
             });
         }
         let previous = existing.map(|record| record.release_key);
@@ -542,8 +564,8 @@ impl MapRepository {
             .bind(("active", active_record))
             .bind(("release", release_record))
             .bind(("tenant", identity.tenant_id.record_id()))
-            .bind(("dataset_key", dataset_key.to_owned()))
-            .bind(("release_key", release_key.to_owned()))
+            .bind(("dataset_key", dataset_key.to_string()))
+            .bind(("release_key", release_key.to_string()))
             .bind(("previous", previous))
             .bind(("owner", identity.principal_id.record_id()))
             .bind(("expected", expected))
@@ -557,17 +579,17 @@ impl MapRepository {
                 if error.to_string().contains("map_active_release_conflict") {
                     MapStoreError::MapRecordConflict {
                         entity: "active release",
-                        key: dataset_key.to_owned(),
+                        key: dataset_key.to_string(),
                     }
                 } else if error.to_string().contains("map_dataset_release_conflict") {
                     MapStoreError::MapRecordConflict {
                         entity: "release",
-                        key: release_key.to_owned(),
+                        key: release_key.to_string(),
                     }
                 } else if error.to_string().contains("failed transaction") {
                     MapStoreError::MapRecordConflict {
                         entity: "active release",
-                        key: dataset_key.to_owned(),
+                        key: dataset_key.to_string(),
                     }
                 } else {
                     MapStoreError::Database(error)
@@ -583,9 +605,8 @@ impl MapRepository {
     pub async fn active_map_release(
         &self,
         tenant_id: TenantId,
-        dataset_key: &str,
+        dataset_key: &crate::contract::MapDatasetId,
     ) -> Result<Option<MapActiveReleaseRecord>, MapStoreError> {
-        validate_public_key("dataset_key", dataset_key, "dataset-")?;
         let id = format!("{}:{}", tenant_id, dataset_key);
         select_one(self, map_record("map_active_release", &id), tenant_id).await
     }
@@ -606,7 +627,6 @@ impl MapRepository {
         &self,
         draft: MapMobilityProfileDraft,
     ) -> Result<MapMobilityProfileRecord, MapStoreError> {
-        validate_public_key("profile_key", &draft.profile_key, "mobility-")?;
         validate_text("family", &draft.family, 64)?;
         validate_text("name", &draft.name, 256)?;
         validate_positive("profile_version", draft.profile_version)?;
@@ -621,7 +641,7 @@ impl MapRepository {
         let content = MapMobilityProfileContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            profile_key: draft.profile_key.clone(),
+            profile_key: draft.profile_key.to_string(),
             family: draft.family,
             name: draft.name,
             profile_version: draft.profile_version,
@@ -651,10 +671,9 @@ impl MapRepository {
     async fn map_mobility_profile(
         &self,
         tenant_id: TenantId,
-        profile_key: &str,
+        profile_key: &crate::contract::MobilityProfileId,
         version: i64,
     ) -> Result<Option<MapMobilityProfileRecord>, MapStoreError> {
-        validate_public_key("profile_key", profile_key, "mobility-")?;
         validate_positive("profile_version", version)?;
         let key = format!("{profile_key}:{version}");
         select_one(self, map_record("map_mobility_profile", &key), tenant_id).await
@@ -664,7 +683,6 @@ impl MapRepository {
         &self,
         mut draft: MapRestrictionDraft,
     ) -> Result<MapRestrictionRecord, MapStoreError> {
-        validate_public_key("restriction_key", &draft.restriction_key, "restriction-")?;
         validate_text("kind", &draft.kind, 128)?;
         validate_text("effect_kind", &draft.effect_kind, 64)?;
         normalize_values(
@@ -684,20 +702,17 @@ impl MapRepository {
             &draft.canonical_json,
             MAX_CATALOG_JSON_BYTES,
         )?;
-        if let Some(cancelled_by) = &draft.cancelled_by {
-            validate_public_key("cancelled_by", cancelled_by, "restriction-")?;
-        }
         let now = Utc::now();
         let content = MapRestrictionContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            restriction_key: draft.restriction_key.clone(),
+            restriction_key: draft.restriction_key.to_string(),
             kind: draft.kind,
             effect_kind: draft.effect_kind,
             affected_mobility_families: draft.affected_mobility_families,
             valid_from: draft.valid_from,
             valid_until: draft.valid_until,
-            cancelled_by: draft.cancelled_by,
+            cancelled_by: draft.cancelled_by.as_ref().map(ToString::to_string),
             canonical_json: draft.canonical_json,
             record_version: 1,
             created_at: now,
@@ -719,9 +734,8 @@ impl MapRepository {
     async fn map_restriction(
         &self,
         tenant_id: TenantId,
-        restriction_key: &str,
+        restriction_key: &crate::contract::RestrictionId,
     ) -> Result<Option<MapRestrictionRecord>, MapStoreError> {
-        validate_public_key("restriction_key", restriction_key, "restriction-")?;
         select_one(
             self,
             map_record("map_restriction", restriction_key),
@@ -733,24 +747,23 @@ impl MapRepository {
     pub async fn replace_map_restriction(
         &self,
         tenant_id: TenantId,
-        restriction_key: &str,
+        restriction_key: &crate::contract::RestrictionId,
         expected_record_version: i64,
         valid_until: Option<DateTime<Utc>>,
-        cancelled_by: Option<String>,
+        cancelled_by: Option<crate::contract::RestrictionId>,
         canonical_json: String,
     ) -> Result<MapRestrictionRecord, MapStoreError> {
-        validate_public_key("restriction_key", restriction_key, "restriction-")?;
         validate_json("canonical_json", &canonical_json, MAX_CATALOG_JSON_BYTES)?;
-        if let Some(cancelled_by) = &cancelled_by {
-            validate_public_key("cancelled_by", cancelled_by, "restriction-")?;
-        }
         let mut response = self
             .client()
             .query(include_str!("queries/map/replace_map_restriction.surql"))
             .bind(("record", map_record("map_restriction", restriction_key)))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("valid_until", valid_until))
-            .bind(("cancelled_by", cancelled_by))
+            .bind((
+                "cancelled_by",
+                cancelled_by.as_ref().map(ToString::to_string),
+            ))
             .bind(("canonical_json", canonical_json))
             .bind(("expected", expected_record_version))
             .bind(("next_version", expected_record_version + 1))
@@ -760,7 +773,7 @@ impl MapRepository {
             .take::<Option<MapRestrictionRecord>>(0)?
             .ok_or_else(|| MapStoreError::MapRecordConflict {
                 entity: "restriction",
-                key: restriction_key.to_owned(),
+                key: restriction_key.to_string(),
             })
     }
 
@@ -768,7 +781,6 @@ impl MapRepository {
         &self,
         draft: MapOperationalSnapshotDraft,
     ) -> Result<MapOperationalSnapshotRecord, MapStoreError> {
-        validate_public_key("snapshot_key", &draft.snapshot_key, "snapshot-")?;
         validate_json(
             "canonical_json",
             &draft.canonical_json,
@@ -776,7 +788,7 @@ impl MapRepository {
         )?;
         let content = MapOperationalSnapshotContent {
             tenant: draft.tenant_id.record_id(),
-            snapshot_key: draft.snapshot_key.clone(),
+            snapshot_key: draft.snapshot_key.to_string(),
             departure_time: draft.departure_time,
             canonical_json: draft.canonical_json,
             created_at: Utc::now(),
@@ -802,18 +814,8 @@ impl MapRepository {
         &self,
         draft: MapRouteDraft,
     ) -> Result<MapRouteRecord, MapStoreError> {
-        validate_public_key("route_key", &draft.route_key, "route-")?;
-        validate_public_key(
-            "mobility_profile_key",
-            &draft.mobility_profile_key,
-            "mobility-",
-        )?;
         validate_positive("mobility_profile_version", draft.mobility_profile_version)?;
-        validate_public_key(
-            "operational_snapshot_key",
-            &draft.operational_snapshot_key,
-            "snapshot-",
-        )?;
+
         validate_sha256("cache_digest_sha256", &draft.cache_digest_sha256)?;
         validate_json(
             "canonical_json",
@@ -834,11 +836,11 @@ impl MapRepository {
         let content = MapRouteContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            route_key: draft.route_key.clone(),
+            route_key: draft.route_key.to_string(),
             status: draft.status,
-            mobility_profile_key: draft.mobility_profile_key,
+            mobility_profile_key: draft.mobility_profile_key.to_string(),
             mobility_profile_version: draft.mobility_profile_version,
-            operational_snapshot_key: draft.operational_snapshot_key,
+            operational_snapshot_key: draft.operational_snapshot_key.to_string(),
             departure_time: draft.departure_time,
             arrival_time: draft.arrival_time,
             cache_digest_sha256: draft.cache_digest_sha256,
@@ -869,22 +871,23 @@ impl MapRepository {
         &self,
         draft: MapRouteDependencyDraft,
     ) -> Result<MapRouteDependencyRecord, MapStoreError> {
-        validate_public_key("route_key", &draft.route_key, "route-")?;
-        validate_text("dependency_key", &draft.dependency_key, 256)?;
         let key = Uuid::new_v5(
             &Uuid::NAMESPACE_OID,
             format!(
                 "{}:{:?}:{}:{}",
-                draft.tenant_id, draft.dependency_kind, draft.route_key, draft.dependency_key
+                draft.tenant_id,
+                draft.dependency.kind(),
+                draft.route_key,
+                draft.dependency.key()
             )
             .as_bytes(),
         )
         .to_string();
         let content = MapRouteDependencyContent {
             tenant: draft.tenant_id.record_id(),
-            route_key: draft.route_key,
-            dependency_kind: draft.dependency_kind,
-            dependency_key: draft.dependency_key,
+            route_key: draft.route_key.to_string(),
+            dependency_kind: draft.dependency.kind(),
+            dependency_key: draft.dependency.key().to_owned(),
             created_at: Utc::now(),
         };
         create_only(self, map_record("map_route_dependency", &key), content).await?;
@@ -903,18 +906,8 @@ impl MapRepository {
         &self,
         draft: MapRouteMatrixDraft,
     ) -> Result<MapRouteMatrixRecord, MapStoreError> {
-        validate_public_key("matrix_key", &draft.matrix_key, "matrix-")?;
-        validate_public_key(
-            "mobility_profile_key",
-            &draft.mobility_profile_key,
-            "mobility-",
-        )?;
         validate_positive("mobility_profile_version", draft.mobility_profile_version)?;
-        validate_public_key(
-            "operational_snapshot_key",
-            &draft.operational_snapshot_key,
-            "snapshot-",
-        )?;
+
         if let Some(value) = &draft.canonical_json {
             validate_json("canonical_json", value, MAX_ROUTE_JSON_BYTES)?;
         }
@@ -924,10 +917,10 @@ impl MapRepository {
         let content = MapRouteMatrixContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            matrix_key: draft.matrix_key.clone(),
-            mobility_profile_key: draft.mobility_profile_key,
+            matrix_key: draft.matrix_key.to_string(),
+            mobility_profile_key: draft.mobility_profile_key.to_string(),
             mobility_profile_version: draft.mobility_profile_version,
-            operational_snapshot_key: draft.operational_snapshot_key,
+            operational_snapshot_key: draft.operational_snapshot_key.to_string(),
             artifact_uri: draft.artifact_uri,
             canonical_json: draft.canonical_json,
             created_at: Utc::now(),
@@ -962,7 +955,7 @@ impl MapRepository {
             )
             .await?
         {
-            if existing.source_key == draft.source_key
+            if existing.source_key == draft.source_key.as_str()
                 && existing.canonical_json == draft.canonical_json
             {
                 return Ok(existing);
@@ -976,12 +969,12 @@ impl MapRepository {
         let content = MapAcquisitionContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            acquisition_key: draft.acquisition_key.clone(),
-            source_key: draft.source_key,
+            acquisition_key: draft.acquisition_key.to_string(),
+            source_key: draft.source_key.to_string(),
             idempotency_key: draft.idempotency_key,
             status: draft.status,
             phase: draft.phase,
-            staged_release_key: draft.staged_release_key,
+            staged_release_key: draft.staged_release_key.as_ref().map(ToString::to_string),
             canonical_json: draft.canonical_json,
             record_version: 1,
             created_at: now,
@@ -1004,16 +997,12 @@ impl MapRepository {
         &self,
         update: MapAcquisitionUpdate,
     ) -> Result<MapAcquisitionRecord, MapStoreError> {
-        validate_public_key("acquisition_key", &update.acquisition_key, "acquisition-")?;
         validate_text("phase", &update.phase, 128)?;
         validate_json(
             "canonical_json",
             &update.canonical_json,
             MAX_CATALOG_JSON_BYTES,
         )?;
-        if let Some(key) = &update.staged_release_key {
-            validate_public_key("staged_release_key", key, "release-")?;
-        }
         let mut response = self
             .client()
             .query(include_str!("queries/map/update_map_acquisition.surql"))
@@ -1025,7 +1014,10 @@ impl MapRepository {
             .bind(("owner", update.identity.principal_id.record_id()))
             .bind(("status", update.status))
             .bind(("phase", update.phase))
-            .bind(("staged_release_key", update.staged_release_key))
+            .bind((
+                "staged_release_key",
+                update.staged_release_key.as_ref().map(ToString::to_string),
+            ))
             .bind(("canonical_json", update.canonical_json))
             .bind(("expected", update.expected_record_version))
             .bind(("next_version", update.expected_record_version + 1))
@@ -1035,7 +1027,7 @@ impl MapRepository {
             .take::<Option<MapAcquisitionRecord>>(0)?
             .ok_or(MapStoreError::MapRecordConflict {
                 entity: "acquisition",
-                key: update.acquisition_key,
+                key: update.acquisition_key.to_string(),
             })
     }
 
@@ -1112,8 +1104,6 @@ where
 }
 
 fn validate_source_draft(draft: &mut MapSourceDraft) -> Result<(), MapStoreError> {
-    validate_public_key("source_key", &draft.source_key, "source-")?;
-    validate_public_key("dataset_key", &draft.dataset_key, "dataset-")?;
     validate_text("name", &draft.name, 256)?;
     validate_text("adapter_kind", &draft.adapter_kind, 128)?;
     validate_text("authority_class", &draft.authority_class, 128)?;
@@ -1129,9 +1119,6 @@ fn validate_source_draft(draft: &mut MapSourceDraft) -> Result<(), MapStoreError
 }
 
 fn validate_release_draft(draft: &MapReleaseDraft) -> Result<(), MapStoreError> {
-    validate_public_key("release_key", &draft.release_key, "release-")?;
-    validate_public_key("dataset_key", &draft.dataset_key, "dataset-")?;
-    validate_public_key("source_key", &draft.source_key, "source-")?;
     validate_text("version_label", &draft.version_label, 256)?;
     validate_sha256("source_digest_sha256", &draft.source_digest_sha256)?;
     validate_validity(draft.valid_from, draft.valid_until)?;
@@ -1143,35 +1130,13 @@ fn validate_release_draft(draft: &MapReleaseDraft) -> Result<(), MapStoreError> 
 }
 
 fn validate_acquisition_draft(draft: &MapAcquisitionDraft) -> Result<(), MapStoreError> {
-    validate_public_key("acquisition_key", &draft.acquisition_key, "acquisition-")?;
-    validate_public_key("source_key", &draft.source_key, "source-")?;
     validate_text("idempotency_key", &draft.idempotency_key, 256)?;
     validate_text("phase", &draft.phase, 128)?;
-    if let Some(key) = &draft.staged_release_key {
-        validate_public_key("staged_release_key", key, "release-")?;
-    }
     validate_json(
         "canonical_json",
         &draft.canonical_json,
         MAX_CATALOG_JSON_BYTES,
     )
-}
-
-fn validate_public_key(
-    field: &'static str,
-    value: &str,
-    prefix: &'static str,
-) -> Result<(), MapStoreError> {
-    const REASON: &str =
-        "must use the canonical prefix followed by a generated UUIDv7 or stable UUIDv5";
-    let raw = value
-        .strip_prefix(prefix)
-        .ok_or_else(|| invalid_map(field, REASON))?;
-    let uuid = Uuid::parse_str(raw).map_err(|_| invalid_map(field, REASON))?;
-    if !matches!(uuid.get_version_num(), 5 | 7) {
-        return Err(invalid_map(field, REASON));
-    }
-    Ok(())
 }
 
 fn validate_text(field: &'static str, value: &str, max: usize) -> Result<(), MapStoreError> {
@@ -1231,8 +1196,8 @@ fn normalize_values(
     Ok(())
 }
 
-fn map_record(table: &'static str, key: &str) -> RecordId {
-    RecordId::new(table, key.to_owned())
+fn map_record(table: &'static str, key: impl AsRef<str>) -> RecordId {
+    RecordId::new(table, key.as_ref().to_owned())
 }
 
 fn invalid_map(field: &'static str, reason: &'static str) -> MapStoreError {
@@ -1244,34 +1209,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn canonical_map_keys_accept_generated_and_stable_contract_ids() {
+    fn canonical_map_keys_use_the_owner_admission_profile() {
+        use crate::contract::RouteId;
+        assert!(RouteId::parse(format!("route-{}", Uuid::now_v7())).is_ok());
         assert!(
-            validate_public_key("route_key", &format!("route-{}", Uuid::now_v7()), "route-")
-                .is_ok()
-        );
-        assert!(
-            validate_public_key(
-                "route_key",
-                &format!(
-                    "route-{}",
-                    Uuid::new_v5(&Uuid::NAMESPACE_URL, b"map-contract/stable-route")
-                ),
-                "route-"
-            )
+            RouteId::parse(format!(
+                "route-{}",
+                Uuid::new_v5(&Uuid::NAMESPACE_URL, b"map-contract/stable-route")
+            ))
             .is_ok()
         );
-        assert!(
-            validate_public_key("route_key", &format!("route-{}", Uuid::new_v4()), "route-")
-                .is_err()
-        );
-        assert!(
-            validate_public_key(
-                "route_key",
-                &format!("location-{}", Uuid::now_v7()),
-                "route-"
-            )
-            .is_err()
-        );
+        assert!(RouteId::parse(format!("route-{}", Uuid::new_v4())).is_err());
+        assert!(RouteId::parse(format!("location-{}", Uuid::now_v7())).is_err());
     }
 
     #[test]

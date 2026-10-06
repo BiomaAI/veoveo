@@ -1063,7 +1063,11 @@ subscription projection; `src/server/tasks/test_support.rs` owns their isolated 
 
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
 types and bounds, while `src/contract/compositions.rs` owns publication products and
-composition contracts. `src/contract/transfers.rs` owns durable import, export, and
+composition contracts. `src/contract/relationships.rs` supplies portable product
+identity, parent and revision checks for immutable admitted models.
+`src/contract/feature_references.rs` admits generic related-resource references
+with the shared URI parser and Map's allowed schemes and size limits.
+`src/contract/transfers.rs` owns durable import, export, and
 vector-product task contracts. `src/contract/metadata.rs` owns typed metadata addresses,
 page envelopes, and parent-bound cursors through the shared URI builder.
 `src/contract/knowledge.rs` and `knowledge_summary.rs` own six collection addresses,
@@ -1082,6 +1086,10 @@ and document identities. `src/mcp/setup.rs` binds these types to checked startup
 discovery; `src/uris.rs` exposes typed construction and parsing helpers.
 [Map resource contracts](../servers/map-mcp/RESOURCES.md) define these public types,
 scope and startup requirements, library features and metadata cursor profiles.
+Its [resource surface](../servers/map-mcp/RESOURCES.md#resource-surface) owns the root
+addresses, templates, visibility, paging, client upgrade and subscription contract.
+Map's DESIGN links to that served document; every embedded document fits the
+Knowledge item budget.
 `src/contract/restriction_uri.rs`, `restriction_summary.rs` and `restriction_pages.rs`
 own restriction addresses, compact metadata, collection cursors and page admission.
 `src/catalog/restrictions.rs` owns tenant-scoped
@@ -1102,7 +1110,9 @@ retained document agreement before returning typed release and family sets.
 `src/authoring/service.rs` applies Work Context policy
 and optimistic concurrency. `servers/map-mcp/src/persistence/map_authoring/reads.rs` applies
 tenant, context, and label predicates in SQL to layer and composition reads;
-publication and product queries select their visible parent layers in SQL. `src/authoring/projection.rs` replays the
+publication and product queries select their visible parent layers in SQL.
+`src/authoring/hydration.rs` checks selected authored bodies against their native
+identity, indexes and parents after that selection. `src/authoring/projection.rs` replays the
 SurrealDB Map changeset log through a fixed committed Map head;
 `src/authoring/projection/recovery_tests.rs` verifies indexed paging, persisted
 checkpoint recovery, unrelated traffic, and incomplete-revision rejection,

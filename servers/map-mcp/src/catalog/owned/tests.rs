@@ -27,7 +27,7 @@ async fn scope(store: &PlatformStore, tenant: &str, principal: &str) -> MapAcces
 
 fn plan(n: usize, release: usize) -> RoutePlan {
     let now = Utc::now();
-    RoutePlan {
+    RoutePlan::new(crate::contract::RoutePlanValue {
         route_id: key("route", n).parse().unwrap(),
         route_uri: crate::contract::MapRouteUri::new(key("route", n).parse().unwrap()),
         status: RouteStatus::Unavailable,
@@ -56,7 +56,8 @@ fn plan(n: usize, release: usize) -> RoutePlan {
             cost_model_version: "fixture".into(),
         },
         created_at: now,
-    }
+    })
+    .expect("admitted Map fixture")
 }
 
 async fn acquisition(catalog: &MapCatalog, scope: &MapAccessContext, n: usize) -> AcquisitionJob {
@@ -97,7 +98,7 @@ async fn records(catalog: &MapCatalog, scope: &MapAccessContext, n: usize) {
                     status: RouteStatus::Unavailable,
                     cost: None,
                 }],
-                provenance: plan.provenance,
+                provenance: plan.provenance.clone(),
                 created_at: plan.created_at,
             },
             &key("mobility", 1).parse().unwrap(),
@@ -141,10 +142,10 @@ async fn qualify() {
         MapRepository::new(db.a.clone())
             .create_map_route_matrix(MapRouteMatrixDraft {
                 identity: owner.identity.clone(),
-                matrix_key: key("matrix", n),
-                mobility_profile_key: key("mobility", 1),
+                matrix_key: key("matrix", n).parse().unwrap(),
+                mobility_profile_key: key("mobility", 1).parse().unwrap(),
                 mobility_profile_version: 1,
-                operational_snapshot_key: key("snapshot", 1),
+                operational_snapshot_key: key("snapshot", 1).parse().unwrap(),
                 artifact_uri: Some("artifact://fixture".into()),
                 canonical_json: None,
             })
@@ -260,6 +261,56 @@ async fn qualify() {
 
     assert!(reader.matrix(&owner, &matrix).await.unwrap().is_some());
     assert!(reader.acquisition(&owner, &job).await.unwrap().is_some());
+    let original_matrix = reader.matrix(&owner, &matrix).await.unwrap().unwrap();
+    let original_job = reader.acquisition(&owner, &job).await.unwrap().unwrap();
+    for (table, row_key, original, field, foreign_value) in [
+        (
+            "map_route_matrix",
+            matrix.to_string(),
+            serde_json::to_value(&original_matrix).unwrap(),
+            "matrix_id",
+            key("matrix", 8000),
+        ),
+        (
+            "map_acquisition",
+            job.to_string(),
+            serde_json::to_value(&original_job).unwrap(),
+            "source_id",
+            key("source", 8000),
+        ),
+    ] {
+        let mut body = original.clone();
+        body[field] = serde_json::json!(foreign_value);
+        let retained = surrealdb::types::RecordId::new(table, row_key);
+        db.a.client()
+            .query(include_str!(
+                "../../queries/catalog/owned/tests/corrupt_route_document.surql"
+            ))
+            .bind(("route", retained.clone()))
+            .bind(("canonical_json", serde_json::to_string(&body).unwrap()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        if table == "map_route_matrix" {
+            assert!(reader.matrix(&owner, &matrix).await.is_err());
+            assert!(reader.matrix(&peer, &matrix).await.unwrap().is_none());
+        } else {
+            assert!(reader.acquisition(&owner, &job).await.is_err());
+            assert!(reader.acquisition(&peer, &job).await.unwrap().is_none());
+        }
+        db.a.client()
+            .query(include_str!(
+                "../../queries/catalog/owned/tests/corrupt_route_document.surql"
+            ))
+            .bind(("route", retained))
+            .bind(("canonical_json", serde_json::to_string(&original).unwrap()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+    }
+
     for denied in [&peer, &foreign] {
         assert!(reader.route(denied, &route).await.unwrap().is_none());
         assert!(reader.matrix(denied, &matrix).await.unwrap().is_none());
@@ -311,22 +362,15 @@ async fn qualify() {
                 .is_err()
         );
     }
-    assert!(
-        MapRepository::new(db.b.clone())
-            .map_routes_page(&owner.identity, Some("route-invalid"), 1)
-            .await
-            .is_err()
-    );
+    assert!(RouteId::parse("route-invalid").is_err());
     qualify_recovery(&writer, &reader, &owner, &peer).await;
     qualify_invalidation(&writer, &reader, &owner, &peer, &foreign).await;
     // The query selects the owner's row; the decoded product must name that row.
-    let mut mismatched = plan(9000, 1);
+    let mut mismatched = plan(9000, 1).into_value();
     mismatched.route_uri = MapRouteUri::new(key("route", 9001).parse().unwrap());
+    assert!(RoutePlan::new(mismatched.clone()).is_err());
     assert!(
-        writer
-            .persist_route(&owner, &mismatched, "a".repeat(64))
-            .await
-            .is_err()
+        serde_json::from_value::<RoutePlan>(serde_json::to_value(&mismatched).unwrap()).is_err()
     );
     assert!(
         reader
@@ -361,7 +405,7 @@ async fn qualify() {
             .await
             .unwrap_err()
             .to_string()
-            .contains("route identity")
+            .contains("route")
     );
     assert!(
         reader
@@ -499,17 +543,19 @@ async fn qualify_invalidation(
     MapRepository::new(writer.store().clone())
         .create_map_route_dependency(crate::persistence::MapRouteDependencyDraft {
             tenant_id: owner.identity.tenant_id,
-            route_key: unaffected.route_id.to_string(),
-            dependency_kind: MapDependencyKind::Release,
-            dependency_key: key("release", 1),
+            route_key: crate::contract::RouteId::parse(unaffected.route_id.clone()).unwrap(),
+            dependency: crate::persistence::MapDependencyIdentity::Release(
+                key("release", 1).parse().unwrap(),
+            ),
         })
         .await
         .unwrap();
     let restriction = key("restriction", 1).parse().unwrap();
     let facility = key("facility", 1).parse().unwrap();
-    let mut restricted = plan(4001, 2);
+    let mut restricted = plan(4001, 2).into_value();
     restricted.restriction_ids.insert(restriction);
     restricted.facility_ids.insert(facility);
+    let restricted = RoutePlan::new(restricted).unwrap();
     writer
         .persist_route(owner, &restricted, "c".repeat(64))
         .await
@@ -517,8 +563,9 @@ async fn qualify_invalidation(
     let facility_rows = MapRepository::new(writer.store().clone())
         .map_routes_for_dependency_page(
             owner.identity.tenant_id,
-            MapDependencyKind::Facility,
-            &key("facility", 1),
+            &crate::persistence::MapDependencyIdentity::Facility(
+                key("facility", 1).parse().unwrap(),
+            ),
             None,
             100,
         )
@@ -550,7 +597,7 @@ async fn qualify_invalidation(
         );
         assert_eq!(
             MapRepository::new(reader.store().clone())
-                .map_route(&scope.identity, id.as_str())
+                .map_route(&scope.identity, &id)
                 .await
                 .unwrap()
                 .unwrap()
@@ -596,7 +643,7 @@ async fn qualify_invalidation(
         !MapRepository::new(writer.store().clone())
             .invalidate_map_route(
                 owner.identity.tenant_id,
-                &key("route", 1124),
+                &key("route", 1124).parse().unwrap(),
                 serde_json::to_string(&plan(1124, 1)).unwrap()
             )
             .await
@@ -606,7 +653,7 @@ async fn qualify_invalidation(
         !MapRepository::new(writer.store().clone())
             .invalidate_map_route(
                 foreign.identity.tenant_id,
-                &key("route", 4000),
+                &key("route", 4000).parse().unwrap(),
                 serde_json::to_string(&plan(4000, 1)).unwrap()
             )
             .await

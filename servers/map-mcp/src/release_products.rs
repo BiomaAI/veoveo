@@ -254,7 +254,7 @@ fn ingest_raster_products(
             .get(product_index)
             .context("raster product has no corresponding immutable artifact")?
             .clone();
-        let raster = RasterProduct {
+        let raster = RasterProduct::new(crate::contract::RasterProductValue {
             schema_version: metadata.schema_version,
             raster_id: RasterProductId::from_stable_key(
                 format!("{}:{}", release.release_id, metadata.checksum_sha256).as_bytes(),
@@ -272,7 +272,7 @@ fn ingest_raster_products(
             bands: metadata.bands,
             license: release.license.clone(),
             attribution: release.license.attribution.clone(),
-        };
+        })?;
         analytics.put_raster_product(tenant_key, &raster)?;
     }
     Ok(())
@@ -417,7 +417,7 @@ fn ingest_feature_part(
     )?;
     let lineage = SourceLineage {
         release_id: release.release_id.clone(),
-        source_feature_id: source_feature_id.to_string(),
+        source_feature_id: source_feature_id.clone(),
         authority: source.authority,
         valid_from: release.valid_from,
         valid_until: release.valid_until,
@@ -619,7 +619,7 @@ fn ingest_complete_source_feature(
     let feature_id = SourceFeatureId::from_stable_key(&stable_key);
     analytics.put_source_feature(
         tenant_key,
-        &SourceFeature {
+        &SourceFeature::new(crate::contract::SourceFeatureValue {
             schema_version: SOURCE_FEATURE_SCHEMA_VERSION,
             feature_id: feature_id.clone(),
             source_id: source.source_id.clone(),
@@ -638,7 +638,7 @@ fn ingest_complete_source_feature(
             source_digest_sha256: release.source_digest_sha256.clone(),
             license: release.license.clone(),
             acquired_at: release.acquired_at,
-        },
+        })?,
     )?;
     Ok(feature_id)
 }

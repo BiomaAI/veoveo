@@ -111,7 +111,7 @@ pub struct InspectLocationOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub nearby_facilities: Vec<Facility>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub containing_boundary_ids: Vec<String>,
+    pub containing_boundary_ids: Vec<super::MapBoundaryId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_gaps: Vec<String>,
 }
@@ -158,7 +158,7 @@ pub struct InspectPositionOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub nearby_facilities: Vec<NearbyFacility>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub containing_boundary_ids: Vec<String>,
+    pub containing_boundary_ids: Vec<super::MapBoundaryId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_gaps: Vec<String>,
 }
@@ -176,7 +176,7 @@ pub struct CorridorInspectionOutput {
     pub restrictions: Vec<Restriction>,
     pub facilities: Vec<Facility>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub crossed_boundary_ids: Vec<String>,
+    pub crossed_boundary_ids: Vec<super::MapBoundaryId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub data_gaps: Vec<String>,
 }

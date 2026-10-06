@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use duckdb::{Connection, params};
 use serde::{Deserialize, Serialize};
@@ -295,7 +295,7 @@ impl MapAnalytics {
     ) -> Result<Option<SourceFeature>> {
         let connection = self.read_connection()?;
         let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_visible_source_feature WHERE tenant_key = ? AND release_key = ? AND feature_key = ? LIMIT 1",
+            "SELECT canonical_json, feature_key, source_key, release_key FROM map_visible_source_feature WHERE tenant_key = ? AND release_key = ? AND feature_key = ? LIMIT 1",
         )?;
         let mut rows = statement.query(params![
             tenant_key,
@@ -305,7 +305,7 @@ impl MapAnalytics {
         let Some(row) = rows.next()? else {
             return Ok(None);
         };
-        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
+        Ok(Some(checked_source_feature(row, 1)?))
     }
 
     pub fn raster_product(
@@ -315,13 +315,13 @@ impl MapAnalytics {
     ) -> Result<Option<RasterProduct>> {
         let connection = self.read_connection()?;
         let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_visible_raster_product WHERE tenant_key = ? AND raster_key = ? ORDER BY release_key ASC LIMIT 1",
+            "SELECT canonical_json, raster_key, source_key, release_key FROM map_visible_raster_product WHERE tenant_key = ? AND raster_key = ? ORDER BY release_key ASC LIMIT 1",
         )?;
         let mut rows = statement.query(params![tenant_key, raster_id.as_str()])?;
         let Some(row) = rows.next()? else {
             return Ok(None);
         };
-        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
+        Ok(Some(checked_raster_product(row)?))
     }
 
     pub fn list_raster_products(
@@ -335,9 +335,9 @@ impl MapAnalytics {
         }
         let connection = self.read_connection()?;
         let sql = if release_id.is_some() {
-            "SELECT canonical_json FROM map_visible_raster_product WHERE tenant_key = ? AND release_key = ? ORDER BY raster_key LIMIT ?"
+            "SELECT canonical_json, raster_key, source_key, release_key FROM map_visible_raster_product WHERE tenant_key = ? AND release_key = ? ORDER BY raster_key LIMIT ?"
         } else {
-            "SELECT canonical_json FROM map_visible_raster_product WHERE tenant_key = ? ORDER BY release_key, raster_key LIMIT ?"
+            "SELECT canonical_json, raster_key, source_key, release_key FROM map_visible_raster_product WHERE tenant_key = ? ORDER BY release_key, raster_key LIMIT ?"
         };
         let mut statement = connection.prepare(sql)?;
         let mut rows = if let Some(release_id) = release_id {
@@ -347,7 +347,7 @@ impl MapAnalytics {
         };
         let mut rasters = Vec::new();
         while let Some(row) = rows.next()? {
-            rasters.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
+            rasters.push(checked_raster_product(row)?);
         }
         Ok(rasters)
     }
@@ -376,7 +376,7 @@ impl MapAnalytics {
         let mut rows = statement.query([])?;
         let mut features = Vec::new();
         while let Some(row) = rows.next()? {
-            let feature: SourceFeature = serde_json::from_str(&row.get::<_, String>(0)?)?;
+            let feature = checked_source_feature(row, 2)?;
             let distance = row.get::<_, Option<f64>>(1)?.map(Meters::new).transpose()?;
             features.push(SourceFeatureMatch { feature, distance });
         }
@@ -819,6 +819,27 @@ fn line_geojson(line: &Wgs84LineString) -> Result<String> {
     ))?)
 }
 
+fn checked_source_feature(row: &duckdb::Row<'_>, offset: usize) -> Result<SourceFeature> {
+    let value: SourceFeature = serde_json::from_str(&row.get::<_, String>(0)?)?;
+    ensure!(
+        value.feature_id.as_str() == row.get::<_, String>(offset)?
+            && value.source_id.as_str() == row.get::<_, String>(offset + 1)?
+            && value.release_id.as_str() == row.get::<_, String>(offset + 2)?,
+        "source feature document disagrees with selected metadata"
+    );
+    Ok(value)
+}
+fn checked_raster_product(row: &duckdb::Row<'_>) -> Result<RasterProduct> {
+    let value: RasterProduct = serde_json::from_str(&row.get::<_, String>(0)?)?;
+    ensure!(
+        value.raster_id.as_str() == row.get::<_, String>(1)?
+            && value.source_id.as_str() == row.get::<_, String>(2)?
+            && value.release_id.as_str() == row.get::<_, String>(3)?,
+        "raster product document disagrees with selected metadata"
+    );
+    Ok(value)
+}
+
 const SOURCE_FEATURE_QUERY_DOMAIN: &str = "veoveo.ai/map/source-feature-query/v2";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1001,11 +1022,11 @@ fn source_feature_query_sql(
     };
     Ok(format!(
         "WITH scored AS MATERIALIZED (\
-           SELECT feature.canonical_json, feature.feature_key, {distance_projection} AS distance_m \
+           SELECT feature.canonical_json, feature.feature_key, feature.source_key, feature.release_key, {distance_projection} AS distance_m \
            FROM map_visible_source_feature AS feature \
            WHERE {}\
          ) \
-         SELECT scored.canonical_json, scored.distance_m \
+         SELECT scored.canonical_json, scored.distance_m, scored.feature_key, scored.source_key, scored.release_key \
          FROM scored WHERE {scored_filter} ORDER BY {ordering} LIMIT {}",
         source_predicates.join(" AND "),
         u64::from(request.limit) + 1
@@ -1230,7 +1251,7 @@ mod tests {
             alternate_names: Default::default(),
             lineage: SourceLineage {
                 release_id: release_id.clone(),
-                source_feature_id: "source-feature".to_owned(),
+                source_feature_id: crate::contract::SourceFeatureId::new(),
                 authority: AuthorityClass::SyntheticTest,
                 valid_from: Utc::now(),
                 valid_until: None,
@@ -1252,7 +1273,7 @@ mod tests {
             FeatureGeometry::Point(GeoJsonPosition::new(longitude_deg, latitude_deg, None));
         let geometry_digest_sha256 =
             hex::encode(Sha256::digest(geometry.to_geojson_string().unwrap()));
-        SourceFeature {
+        SourceFeature::new(crate::contract::SourceFeatureValue {
             schema_version: SOURCE_FEATURE_SCHEMA_VERSION,
             feature_id: SourceFeatureId::from_stable_key(format!("feature-{index}").as_bytes()),
             source_id: MapSourceId::from_stable_key(b"synthetic-source"),
@@ -1288,7 +1309,8 @@ mod tests {
                 expires_at: None,
             },
             acquired_at: Utc::now(),
-        }
+        })
+        .expect("admitted Map fixture")
     }
 
     #[test]
@@ -1595,6 +1617,73 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("incomplete")
+        );
+    }
+
+    #[test]
+    fn source_feature_builder_and_decoder_share_existing_value_admission() {
+        let value = test_source_feature(&DatasetReleaseId::new(), 1);
+        assert_eq!(
+            serde_json::from_value::<SourceFeature>(serde_json::to_value(&value).unwrap()).unwrap(),
+            value
+        );
+        for invalid in ["schema_version", "geometry_digest_sha256"] {
+            let mut bad = value.clone().into_value();
+            if invalid == "schema_version" {
+                bad.schema_version += 1;
+            } else {
+                bad.geometry_digest_sha256 = "bad".into();
+            }
+            assert!(SourceFeature::new(bad.clone()).is_err());
+            assert!(
+                serde_json::from_value::<SourceFeature>(serde_json::to_value(bad).unwrap())
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn selected_source_feature_body_must_match_indexes_without_decoding_foreign_rows() {
+        let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
+            return;
+        };
+        let root = TempDir::new().unwrap();
+        let analytics = configured_analytics(&root, &extension);
+        let release = DatasetReleaseId::new();
+        let feature = test_source_feature(&release, 1);
+        analytics
+            .replace_release_products("tenant", &release, |writer| {
+                writer.put_source_feature("tenant", &feature)
+            })
+            .unwrap();
+        let original = serde_json::to_value(&feature).unwrap();
+        for (field, other) in [
+            ("feature_id", serde_json::json!(SourceFeatureId::new())),
+            ("source_id", serde_json::json!(MapSourceId::new())),
+            ("release_id", serde_json::json!(DatasetReleaseId::new())),
+        ] {
+            let mut corrupt = original.clone();
+            corrupt[field] = other;
+            analytics.connection().unwrap().execute("UPDATE map_source_feature SET canonical_json = ? WHERE tenant_key = ? AND feature_key = ?", params![serde_json::to_string(&corrupt).unwrap(), "tenant", feature.feature_id.as_str()]).unwrap();
+            assert!(
+                analytics
+                    .source_feature("tenant", &release, &feature.feature_id)
+                    .is_err(),
+                "{field}"
+            );
+            assert!(
+                analytics
+                    .source_feature("foreign", &release, &feature.feature_id)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        analytics.connection().unwrap().execute("UPDATE map_source_feature SET canonical_json = ? WHERE tenant_key = ? AND feature_key = ?", params![serde_json::to_string(&original).unwrap(), "tenant", feature.feature_id.as_str()]).unwrap();
+        assert_eq!(
+            analytics
+                .source_feature("tenant", &release, &feature.feature_id)
+                .unwrap(),
+            Some(feature)
         );
     }
 

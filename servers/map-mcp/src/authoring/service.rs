@@ -133,7 +133,7 @@ impl AuthoringService {
             style,
             created_at: now,
         });
-        let layer = FeatureLayer {
+        let layer = FeatureLayer::new(crate::contract::FeatureLayerValue {
             layer_id: layer_id.clone(),
             title: request.title,
             description: request.description,
@@ -149,12 +149,12 @@ impl AuthoringService {
             archived_at: None,
             created_at: now,
             updated_at: now,
-        };
+        })?;
         MapRepository::new(self.store.clone())
             .create_map_feature_layer(MapFeatureLayerDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
-                layer_key: layer_id.to_string(),
+                layer_key: layer_id.clone(),
                 title: layer.title.clone(),
                 description: layer.description.clone(),
                 content_class: wire(&layer.content_class)?,
@@ -193,7 +193,7 @@ impl AuthoringService {
                 .count_map_feature_heads(
                     &scope.identity.tenant_key,
                     identity.authority.work_context.as_str(),
-                    layer.layer_id.as_str(),
+                    &layer.layer_id,
                 )
                 .await?
                 > 0
@@ -240,11 +240,11 @@ impl AuthoringService {
                 MapFeatureLayerUpdateDraft {
                     identity: scope.identity.clone(),
                     authority: authority_record(identity),
-                    layer_key: layer.layer_id.to_string(),
+                    layer_key: layer.layer_id.clone(),
                     title: layer.title.clone(),
                     description: layer.description.clone(),
                     schema_version: integer(layer.schema.version)?,
-                    schema_revision_key: layer.schema.schema_revision_id.to_string(),
+                    schema_revision_key: layer.schema.schema_revision_id.clone(),
                     new_schema,
                     style_version: layer
                         .style
@@ -254,7 +254,7 @@ impl AuthoringService {
                     style_revision_key: layer
                         .style
                         .as_ref()
-                        .map(|style| style.style_revision_id.to_string()),
+                        .map(|style| style.style_revision_id.clone()),
                     new_style,
                     revision: integer(layer.revision)?,
                     archived_at: None,
@@ -287,11 +287,11 @@ impl AuthoringService {
                 MapFeatureLayerUpdateDraft {
                     identity: scope.identity.clone(),
                     authority: authority_record(identity),
-                    layer_key: layer.layer_id.to_string(),
+                    layer_key: layer.layer_id.clone(),
                     title: layer.title.clone(),
                     description: layer.description.clone(),
                     schema_version: integer(layer.schema.version)?,
-                    schema_revision_key: layer.schema.schema_revision_id.to_string(),
+                    schema_revision_key: layer.schema.schema_revision_id.clone(),
                     new_schema: None,
                     style_version: layer
                         .style
@@ -301,7 +301,7 @@ impl AuthoringService {
                     style_revision_key: layer
                         .style
                         .as_ref()
-                        .map(|style| style.style_revision_id.to_string()),
+                        .map(|style| style.style_revision_id.clone()),
                     new_style: None,
                     revision: integer(layer.revision)?,
                     archived_at: Some(archived_at),
@@ -412,7 +412,7 @@ impl AuthoringService {
         let scoped_key = map_authoring_idempotency_key(
             &scope.identity.tenant_key,
             identity.authority.work_context.as_str(),
-            request.layer_id.as_str(),
+            &request.layer_id,
             &request.idempotency_key,
         );
         let changeset_id = FeatureChangeSetId::from_stable_key(scoped_key.as_bytes());
@@ -426,10 +426,10 @@ impl AuthoringService {
             .commit_map_feature_changes(MapFeatureCommitDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
-                layer_key: request.layer_id.to_string(),
+                layer_key: request.layer_id.clone(),
                 layer_canonical_json: serde_json::to_string(&resulting_layer)?,
                 expected_layer_revision: integer(request.expected_layer_revision)?,
-                changeset_key: changeset_id.to_string(),
+                changeset_key: changeset_id.clone(),
                 idempotency_key: request.idempotency_key.clone(),
                 request_digest_sha256: request_digest_sha256.clone(),
                 changeset_canonical_json: serde_json::to_string(&serde_json::json!({
@@ -443,7 +443,9 @@ impl AuthoringService {
         let features = result
             .revisions
             .iter()
-            .map(|revision| decode(&revision.canonical_json, "map feature revision"))
+            .map(|revision| {
+                super::hydration::feature_revision(revision, &scope.identity.tenant_key)
+            })
             .collect::<Result<Vec<_>>>()?;
         let changeset = changeset_from_record(result.changeset)?;
         let projection_state = match self
@@ -537,7 +539,7 @@ impl AuthoringService {
             .await?
             .context("unknown feature layer")?;
         ensure_current_layer(&layer, request.expected_layer_revision)?;
-        let publication = LayerPublication {
+        let publication = LayerPublication::new(crate::contract::LayerPublicationValue {
             publication_id: LayerPublicationId::new(),
             layer_id: layer.layer_id.clone(),
             layer_revision: layer.revision,
@@ -551,19 +553,16 @@ impl AuthoringService {
             published_by: identity.actor.id.clone(),
             work_context: identity.authority.work_context.clone(),
             published_at: Utc::now(),
-        };
+        })?;
         MapRepository::new(self.store.clone())
             .create_map_layer_publication(MapLayerPublicationDraft {
                 identity: scope.identity.clone(),
                 authority: authority_record(identity),
-                publication_key: publication.publication_id.to_string(),
-                layer_key: publication.layer_id.to_string(),
+                publication_key: publication.publication_id.clone(),
+                layer_key: publication.layer_id.clone(),
                 layer_revision: integer(publication.layer_revision)?,
                 schema_version: integer(publication.schema_version)?,
-                style_revision_key: publication
-                    .style_revision_id
-                    .as_ref()
-                    .map(ToString::to_string),
+                style_revision_key: publication.style_revision_id.as_ref().cloned(),
                 artifact_uris: publication.artifact_uris.clone(),
                 canonical_json: serde_json::to_string(&publication)?,
                 published_at: publication.published_at,
@@ -580,9 +579,9 @@ impl AuthoringService {
     ) -> Result<Option<FeatureLayer>> {
         require_access(identity, AccessLevel::Read)?;
         MapRepository::new(self.store.clone())
-            .map_feature_layer(&read_scope(identity, scope)?, layer_id.as_str())
+            .map_feature_layer(&read_scope(identity, scope)?, layer_id)
             .await?
-            .map(|record| decode(&record.canonical_json, "feature layer"))
+            .map(|row| super::hydration::layer(row, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -601,11 +600,11 @@ impl AuthoringService {
             .map_feature_head(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                layer_id.as_str(),
-                feature_id.as_str(),
+                layer_id,
+                feature_id,
             )
             .await?
-            .map(|record| decode(&record.canonical_json, "map feature"))
+            .map(|record| super::hydration::feature_head(record, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -624,7 +623,7 @@ impl AuthoringService {
             .map_feature_schema_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                layer_id.as_str(),
+                layer_id,
                 integer(version)?,
             )
             .await?
@@ -656,7 +655,7 @@ impl AuthoringService {
             .map_style_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                layer_id.as_str(),
+                layer_id,
                 integer(version)?,
             )
             .await?
@@ -683,7 +682,7 @@ impl AuthoringService {
             .map_style_revision_by_key(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                style_revision_id.as_str(),
+                style_revision_id,
             )
             .await?
         else {
@@ -718,12 +717,12 @@ impl AuthoringService {
             .map_feature_revision(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                layer_id.as_str(),
-                feature_id.as_str(),
+                layer_id,
+                feature_id,
                 integer(revision)?,
             )
             .await?
-            .map(|record| decode(&record.canonical_json, "map feature revision"))
+            .map(|record| super::hydration::feature_revision(&record, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -742,8 +741,8 @@ impl AuthoringService {
             .map_feature_changeset(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                layer_id.as_str(),
-                changeset_id.as_str(),
+                layer_id,
+                changeset_id,
             )
             .await?
             .map(changeset_from_record)
@@ -765,11 +764,11 @@ impl AuthoringService {
             .map_layer_publication(
                 &scope.identity.tenant_key,
                 identity.authority.work_context.as_str(),
-                layer_id.as_str(),
-                publication_id.as_str(),
+                layer_id,
+                publication_id,
             )
             .await?
-            .map(|record| decode::<LayerPublication>(&record.canonical_json, "layer publication"))
+            .map(|row| super::hydration::publication(row, &scope.identity.tenant_key))
             .transpose()
     }
 
@@ -866,7 +865,7 @@ impl AuthoringService {
                         format!(
                             "{}\0{}\0{}\0{stable_seed}\0{index}",
                             scope.identity.tenant_key,
-                            identity.authority.work_context,
+                            identity.authority.work_context.as_str(),
                             layer.layer_id
                         )
                         .as_bytes(),
@@ -888,7 +887,7 @@ impl AuthoringService {
                     feature,
                     provenance,
                     now,
-                )
+                )?
             }
             FeatureMutation::Replace {
                 feature_id,
@@ -919,13 +918,13 @@ impl AuthoringService {
                     feature,
                     provenance,
                     now,
-                )
+                )?
             }
             FeatureMutation::Tombstone {
                 feature_id,
                 expected_feature_revision,
             } => {
-                let mut current = self
+                let current = self
                     .feature(identity, scope, &layer.layer_id, feature_id)
                     .await?
                     .context("tombstone target does not exist")?;
@@ -933,18 +932,19 @@ impl AuthoringService {
                     bail!("feature is already tombstoned");
                 }
                 ensure_feature_revision(&current, *expected_feature_revision)?;
+                let mut current = current.into_value();
                 current.feature_revision += 1;
                 current.layer_revision = resulting_layer_revision;
                 current.deleted = true;
                 current.provenance = provenance;
                 current.created_at = now;
-                current
+                MapFeature::new(current)?
             }
             FeatureMutation::Restore {
                 feature_id,
                 expected_feature_revision,
             } => {
-                let mut current = self
+                let current = self
                     .feature(identity, scope, &layer.layer_id, feature_id)
                     .await?
                     .context("restore target does not exist")?;
@@ -952,12 +952,13 @@ impl AuthoringService {
                     bail!("feature is not tombstoned");
                 }
                 ensure_feature_revision(&current, *expected_feature_revision)?;
+                let mut current = current.into_value();
                 current.feature_revision += 1;
                 current.layer_revision = resulting_layer_revision;
                 current.deleted = false;
                 current.provenance = provenance;
                 current.created_at = now;
-                current
+                MapFeature::new(current)?
             }
         };
         validate_feature(&feature, &layer.schema.schema)?;
@@ -973,8 +974,8 @@ fn map_feature(
     input: &FeatureInput,
     provenance: FeatureProvenance,
     created_at: chrono::DateTime<Utc>,
-) -> MapFeature {
-    MapFeature {
+) -> Result<MapFeature> {
+    Ok(MapFeature::new(crate::contract::MapFeatureValue {
         feature_type: GeoJsonFeatureType::Feature,
         conforms_to: vec![
             JSON_FG_CORE_CONFORMANCE.to_owned(),
@@ -995,7 +996,7 @@ fn map_feature(
         evidence_resources: input.evidence_resources.clone(),
         provenance,
         created_at,
-    }
+    })?)
 }
 
 fn feature_revision_draft(
@@ -1020,7 +1021,7 @@ fn feature_revision_draft(
         } => Some(integer(*expected_feature_revision)?),
     };
     Ok(MapFeatureRevisionDraft {
-        feature_key: feature.id.to_string(),
+        feature_key: feature.id.clone(),
         feature_revision: integer(feature.feature_revision)?,
         layer_revision: integer(feature.layer_revision)?,
         schema_version: integer(feature.schema_version)?,
@@ -1051,7 +1052,7 @@ fn schema_draft(
     validated: &ValidatedSchema,
 ) -> MapFeatureSchemaDraft {
     MapFeatureSchemaDraft {
-        schema_revision_key: revision.schema_revision_id.to_string(),
+        schema_revision_key: revision.schema_revision_id.clone(),
         schema_version: i64::try_from(revision.version).expect("schema version is bounded"),
         digest_sha256: validated.digest_sha256.clone(),
         schema_json: validated.canonical_json.clone(),
@@ -1060,7 +1061,7 @@ fn schema_draft(
 
 fn style_draft(revision: &MapStyleRevision) -> Result<MapStyleRevisionDraft> {
     Ok(MapStyleRevisionDraft {
-        style_revision_key: revision.style_revision_id.to_string(),
+        style_revision_key: revision.style_revision_id.clone(),
         style_version: integer(revision.version)?,
         style_json: serde_json::to_string(&revision.style)?,
     })
@@ -1255,7 +1256,7 @@ pub(super) fn authority_record(identity: &GatewayInternalIdentity) -> Invocation
     }
 }
 
-fn subject_record(subject: &AccessSubject) -> (ArtifactGrantSubjectKind, String) {
+pub(super) fn subject_record(subject: &AccessSubject) -> (ArtifactGrantSubjectKind, String) {
     match subject {
         AccessSubject::Principal(principal) => {
             (ArtifactGrantSubjectKind::Principal, principal.to_string())

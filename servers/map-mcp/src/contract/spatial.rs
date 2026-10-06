@@ -390,10 +390,11 @@ pub struct SpatialProjection {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct SpatialDerivation {
+#[schemars(rename = "SpatialDerivation")]
+pub struct SpatialDerivationValue {
     pub schema_version: u64,
     pub derivation_id: SpatialDerivationId,
-    pub resource_uri: String,
+    pub resource_uri: super::MapSpatialDerivationUri,
     pub operation: SpatialDerivationOperation,
     pub geometries: Vec<SpatialGeometry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -419,11 +420,10 @@ pub struct SpatialDerivation {
     pub created_at: DateTime<Utc>,
 }
 
-impl SpatialDerivation {
+impl SpatialDerivationValue {
     pub fn validate(&self) -> Result<(), SpatialContractError> {
         if self.schema_version != SPATIAL_DERIVATION_SCHEMA_VERSION
-            || self.resource_uri
-                != super::MapSpatialDerivationUri::new(self.derivation_id.clone()).as_str()
+            || self.resource_uri.id() != &self.derivation_id
             || self.algorithm_revision != SPATIAL_DERIVATION_ALGORITHM_REVISION
             || self.geometries.is_empty()
             || self
@@ -553,6 +553,41 @@ fn validate_sha256(value: &str) -> Result<(), SpatialContractError> {
         return Err(SpatialContractError::InvalidDigest);
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SpatialDerivation(veoveo_types::Checked<SpatialDerivationValue>);
+impl SpatialDerivation {
+    pub fn new(value: SpatialDerivationValue) -> Result<Self, SpatialContractError> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+    pub fn into_value(self) -> SpatialDerivationValue {
+        self.0.into_inner()
+    }
+}
+impl std::ops::Deref for SpatialDerivation {
+    type Target = SpatialDerivationValue;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl veoveo_types::Check for SpatialDerivationValue {
+    type Error = SpatialContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()
+    }
+}
+impl JsonSchema for SpatialDerivation {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        SpatialDerivationValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        SpatialDerivationValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        SpatialDerivationValue::json_schema(generator)
+    }
 }
 
 #[cfg(test)]

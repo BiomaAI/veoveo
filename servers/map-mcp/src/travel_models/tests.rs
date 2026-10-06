@@ -388,7 +388,7 @@ fn travel_record(
 ) -> TravelModelRecord {
     let artifact_id = veoveo_artifact_contract::ArtifactId::new();
     let uri = artifact_id.plane_uri();
-    crate::contract::TravelModelRecord {
+    crate::contract::TravelModelRecord::new(crate::contract::TravelModelRecordValue {
         travel_model_id: model.clone(),
         travel_model_uri: crate::contract::MapTravelModelUri::new(model),
         manifest_uri: uri.clone(),
@@ -412,7 +412,8 @@ fn travel_record(
         created_by: principal,
         work_context: context,
         created_at: now,
-    }
+    })
+    .expect("admitted Map fixture")
 }
 async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> TaskId {
     let id = TaskId::new();
@@ -828,4 +829,31 @@ async fn terminal_contributions_distinguish_tool_error_failure_and_cancellation(
     })
     .await
     .unwrap();
+}
+
+#[test]
+fn travel_record_builder_and_decoder_reject_uri_and_manifest_disagreement() {
+    let good = travel_record(
+        TravelModelId::new(),
+        PrincipalId::parse("author").unwrap(),
+        WorkContextId::parse("work").unwrap(),
+        chrono::Utc::now(),
+    );
+    assert_eq!(
+        serde_json::from_value::<TravelModelRecord>(serde_json::to_value(&good).unwrap()).unwrap(),
+        good
+    );
+    for field in ["travel_model_uri", "manifest_uri"] {
+        let mut value = good.clone().into_value();
+        if field == "travel_model_uri" {
+            value.travel_model_uri = crate::contract::MapTravelModelUri::new(TravelModelId::new());
+        } else {
+            value.manifest_uri = veoveo_artifact_contract::ArtifactId::new().plane_uri();
+        }
+        assert!(TravelModelRecord::new(value.clone()).is_err());
+        assert!(
+            serde_json::from_value::<TravelModelRecord>(serde_json::to_value(value).unwrap())
+                .is_err()
+        );
+    }
 }

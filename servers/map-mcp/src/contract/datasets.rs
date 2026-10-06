@@ -389,7 +389,8 @@ impl DatasetLicense {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RegisteredSource {
+#[schemars(rename = "RegisteredSource")]
+pub struct RegisteredSourceValue {
     pub source_id: MapSourceId,
     pub dataset_id: MapDatasetId,
     pub name: String,
@@ -412,7 +413,7 @@ pub struct RegisteredSource {
     pub updated_at: DateTime<Utc>,
 }
 
-impl RegisteredSource {
+impl RegisteredSourceValue {
     pub fn validate(&self) -> Result<(), SourceContractError> {
         validate_controlled(&self.name, 256)?;
         if self.map_families.is_empty()
@@ -442,7 +443,8 @@ pub enum DatasetReleaseState {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DatasetRelease {
+#[schemars(rename = "DatasetRelease")]
+pub struct DatasetReleaseValue {
     pub release_id: DatasetReleaseId,
     pub dataset_id: MapDatasetId,
     pub source_id: MapSourceId,
@@ -468,7 +470,7 @@ pub struct DatasetRelease {
     pub updated_at: DateTime<Utc>,
 }
 
-impl DatasetRelease {
+impl DatasetReleaseValue {
     pub fn validate(&self) -> Result<(), SourceContractError> {
         validate_controlled(&self.version_label, 256)?;
         validate_sha256(&self.source_digest_sha256)?;
@@ -603,6 +605,110 @@ impl fmt::Display for SourceContractError {
 }
 
 impl std::error::Error for SourceContractError {}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DatasetRelease(DatasetReleaseValue);
+impl DatasetRelease {
+    pub fn new(value: DatasetReleaseValue) -> Result<Self, SourceContractError> {
+        veoveo_types::Check::check(&value)?;
+        Ok(Self(value))
+    }
+    pub fn into_value(self) -> DatasetReleaseValue {
+        self.0
+    }
+}
+impl std::ops::Deref for DatasetRelease {
+    type Target = DatasetReleaseValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for DatasetRelease {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl veoveo_types::Check for DatasetReleaseValue {
+    type Error = SourceContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()
+    }
+}
+impl Serialize for DatasetRelease {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        veoveo_types::Check::check(&self.0).map_err(serde::ser::Error::custom)?;
+        self.0.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for DatasetRelease {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(DatasetReleaseValue::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+impl JsonSchema for DatasetRelease {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        DatasetReleaseValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        DatasetReleaseValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        DatasetReleaseValue::json_schema(generator)
+    }
+}
+
+/// Mutable lifecycle state is rechecked on decoding, construction and every serialization.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegisteredSource(RegisteredSourceValue);
+impl RegisteredSource {
+    pub fn new(value: RegisteredSourceValue) -> Result<Self, SourceContractError> {
+        veoveo_types::Check::check(&value)?;
+        Ok(Self(value))
+    }
+    pub fn into_value(self) -> RegisteredSourceValue {
+        self.0
+    }
+}
+impl std::ops::Deref for RegisteredSource {
+    type Target = RegisteredSourceValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for RegisteredSource {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl veoveo_types::Check for RegisteredSourceValue {
+    type Error = SourceContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()
+    }
+}
+impl Serialize for RegisteredSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        veoveo_types::Check::check(&self.0).map_err(serde::ser::Error::custom)?;
+        self.0.serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for RegisteredSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Self::new(RegisteredSourceValue::deserialize(deserializer)?)
+            .map_err(serde::de::Error::custom)
+    }
+}
+impl JsonSchema for RegisteredSource {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        RegisteredSourceValue::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        RegisteredSourceValue::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RegisteredSourceValue::json_schema(generator)
+    }
+}
 
 #[cfg(test)]
 mod tests {

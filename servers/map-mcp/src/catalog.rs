@@ -7,7 +7,7 @@ pub mod restrictions;
 pub mod routing_authority;
 pub mod sources;
 use crate::persistence::{
-    MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,
+    MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyIdentity,
     MapMobilityProfileDraft, MapOperationalSnapshotDraft, MapReleaseDraft, MapReleaseState,
     MapRestrictionDraft, MapRouteDependencyDraft, MapRouteDraft, MapRouteMatrixDraft,
     MapRouteState, MapSourceDraft,
@@ -85,9 +85,9 @@ impl MapCatalog {
         self.repository
             .create_map_release(MapReleaseDraft {
                 identity: scope.identity.clone(),
-                release_key: release.release_id.to_string(),
-                dataset_key: release.dataset_id.to_string(),
-                source_key: release.source_id.to_string(),
+                release_key: release.release_id.clone(),
+                dataset_key: release.dataset_id.clone(),
+                source_key: release.source_id.clone(),
                 state: release_state_to_store(release.state),
                 version_label: release.version_label.clone(),
                 source_digest_sha256: release.source_digest_sha256.clone(),
@@ -105,9 +105,9 @@ impl MapCatalog {
         release_id: &crate::contract::DatasetReleaseId,
     ) -> Result<Option<DatasetRelease>> {
         self.repository
-            .map_release(scope.identity.tenant_id, release_id.as_str())
+            .map_release(scope.identity.tenant_id, release_id)
             .await?
-            .map(|record| decode(&record.canonical_json, "dataset release"))
+            .map(releases::checked_release)
             .transpose()
     }
 
@@ -116,7 +116,7 @@ impl MapCatalog {
             .list_map_releases(scope.identity.tenant_id)
             .await?
             .into_iter()
-            .map(|record| decode(&record.canonical_json, "dataset release"))
+            .map(releases::checked_release)
             .collect()
     }
 
@@ -137,7 +137,7 @@ impl MapCatalog {
         self.repository
             .transition_map_release(
                 scope.identity.tenant_id,
-                release.release_id.as_str(),
+                &release.release_id,
                 integer_version(expected_record_version)?,
                 release_state_to_store(state),
                 canonical_json,
@@ -160,8 +160,8 @@ impl MapCatalog {
         self.repository
             .activate_map_release(
                 &scope.identity,
-                release.dataset_id.as_str(),
-                release.release_id.as_str(),
+                &release.dataset_id,
+                &release.release_id,
                 expected,
                 integer_version(expected_release_version)?,
                 encode(&release)?,
@@ -175,35 +175,66 @@ impl MapCatalog {
         scope: &MapAccessContext,
         dataset_id: &crate::contract::MapDatasetId,
     ) -> Result<Option<crate::contract::DatasetReleaseId>> {
-        self.repository
-            .active_map_release(scope.identity.tenant_id, dataset_id.as_str())
+        Ok(self
+            .active_release_pointer(scope, dataset_id)
             .await?
-            .map(|record| record.release_key.parse())
-            .transpose()
-            .map_err(Into::into)
+            .map(|pointer| pointer.release_id))
+    }
+
+    pub async fn active_release_pointer(
+        &self,
+        scope: &MapAccessContext,
+        dataset_id: &crate::contract::MapDatasetId,
+    ) -> Result<Option<ActiveReleasePointer>> {
+        let Some(row) = self
+            .repository
+            .active_map_release(scope.identity.tenant_id, dataset_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let pointer = checked_pointer(row, scope.identity.tenant_id)?;
+        anyhow::ensure!(
+            &pointer.dataset_id == dataset_id,
+            "stored active release dataset mismatch"
+        );
+        let release = self
+            .release(scope, &pointer.release_id)
+            .await?
+            .context("active pointer release is missing")?;
+        anyhow::ensure!(
+            release.dataset_id == pointer.dataset_id,
+            "active pointer release parent mismatch"
+        );
+        Ok(Some(pointer))
     }
 
     pub async fn list_active_releases(
         &self,
         scope: &MapAccessContext,
     ) -> Result<Vec<ActiveReleasePointer>> {
-        self.repository
+        let pointers = self
+            .repository
             .list_active_map_releases(scope.identity.tenant_id)
             .await?
             .into_iter()
-            .map(|record| {
-                Ok(ActiveReleasePointer {
-                    dataset_id: record.dataset_key.parse()?,
-                    release_id: record.release_key.parse()?,
-                    previous_release_id: record
-                        .previous_release_key
-                        .map(|value| value.parse())
-                        .transpose()?,
-                    record_version: u64::try_from(record.record_version)?,
-                    activated_at: record.activated_at,
-                })
-            })
-            .collect()
+            .map(|row| checked_pointer(row, scope.identity.tenant_id))
+            .collect::<Result<Vec<_>>>()?;
+        let ids = pointers
+            .iter()
+            .map(|pointer| pointer.release_id.clone())
+            .collect();
+        let releases = self.release_set(scope, &ids).await?;
+        for pointer in &pointers {
+            anyhow::ensure!(
+                releases
+                    .iter()
+                    .any(|release| release.release_id == pointer.release_id
+                        && release.dataset_id == pointer.dataset_id),
+                "active pointer release parent mismatch"
+            );
+        }
+        Ok(pointers)
     }
 
     pub async fn create_mobility_profile(
@@ -216,7 +247,7 @@ impl MapCatalog {
         self.repository
             .create_map_mobility_profile(MapMobilityProfileDraft {
                 identity: scope.identity.clone(),
-                profile_key: metadata.profile_id.to_string(),
+                profile_key: metadata.profile_id.clone(),
                 family: wire(&profile.family())?,
                 name: metadata.name.clone(),
                 profile_version: integer_version(metadata.version.get())?,
@@ -237,7 +268,7 @@ impl MapCatalog {
         self.repository
             .create_map_restriction(MapRestrictionDraft {
                 identity: scope.identity.clone(),
-                restriction_key: restriction.restriction_id.to_string(),
+                restriction_key: restriction.restriction_id.clone(),
                 kind: wire(&restriction.kind)?,
                 effect_kind: wire(&restriction.effect.kind)?,
                 affected_mobility_families: restriction
@@ -247,7 +278,7 @@ impl MapCatalog {
                     .collect::<Result<Vec<_>>>()?,
                 valid_from: restriction.valid_from,
                 valid_until: restriction.valid_until,
-                cancelled_by: restriction.cancelled_by.as_ref().map(ToString::to_string),
+                cancelled_by: restriction.cancelled_by.as_ref().cloned(),
                 canonical_json: encode(&restriction)?,
             })
             .await?;
@@ -279,10 +310,10 @@ impl MapCatalog {
         self.repository
             .replace_map_restriction(
                 scope.identity.tenant_id,
-                restriction.restriction_id.as_str(),
+                &restriction.restriction_id,
                 integer_version(expected_record_version)?,
                 restriction.valid_until,
-                restriction.cancelled_by.as_ref().map(ToString::to_string),
+                restriction.cancelled_by.as_ref().cloned(),
                 encode(&restriction)?,
             )
             .await?;
@@ -298,7 +329,7 @@ impl MapCatalog {
         self.repository
             .create_map_operational_snapshot(MapOperationalSnapshotDraft {
                 tenant_id: scope.identity.tenant_id,
-                snapshot_key: snapshot.snapshot_id.to_string(),
+                snapshot_key: snapshot.snapshot_id.clone(),
                 departure_time: snapshot.departure_time,
                 canonical_json: encode(snapshot)?,
             })
@@ -315,11 +346,11 @@ impl MapCatalog {
         self.repository
             .create_map_route(MapRouteDraft {
                 identity: scope.identity.clone(),
-                route_key: route.route_id.to_string(),
+                route_key: route.route_id.clone(),
                 status: route_state_to_store(route.status),
-                mobility_profile_key: route.mobility_profile_id.to_string(),
+                mobility_profile_key: route.mobility_profile_id.clone(),
                 mobility_profile_version: integer_version(route.mobility_profile_version.get())?,
-                operational_snapshot_key: route.provenance.operational_snapshot_id.to_string(),
+                operational_snapshot_key: route.provenance.operational_snapshot_id.clone(),
                 departure_time: route.departure_time,
                 arrival_time: route.arrival_time,
                 cache_digest_sha256,
@@ -333,8 +364,7 @@ impl MapCatalog {
             self.persist_route_dependency(
                 scope,
                 &route.route_id,
-                MapDependencyKind::Release,
-                release_id.as_str(),
+                MapDependencyIdentity::Release(release_id.clone()),
             )
             .await?;
         }
@@ -342,8 +372,7 @@ impl MapCatalog {
             self.persist_route_dependency(
                 scope,
                 &route.route_id,
-                MapDependencyKind::Restriction,
-                restriction_id.as_str(),
+                MapDependencyIdentity::Restriction(restriction_id.clone()),
             )
             .await?;
         }
@@ -351,8 +380,7 @@ impl MapCatalog {
             self.persist_route_dependency(
                 scope,
                 &route.route_id,
-                MapDependencyKind::Facility,
-                facility_id.as_str(),
+                MapDependencyIdentity::Facility(facility_id.clone()),
             )
             .await?;
         }
@@ -363,15 +391,13 @@ impl MapCatalog {
         &self,
         scope: &MapAccessContext,
         route_id: &crate::contract::RouteId,
-        dependency_kind: MapDependencyKind,
-        dependency_key: &str,
+        dependency: MapDependencyIdentity,
     ) -> Result<()> {
         self.repository
             .create_map_route_dependency(MapRouteDependencyDraft {
                 tenant_id: scope.identity.tenant_id,
-                route_key: route_id.to_string(),
-                dependency_kind,
-                dependency_key: dependency_key.to_owned(),
+                route_key: route_id.clone(),
+                dependency,
             })
             .await?;
         Ok(())
@@ -387,10 +413,10 @@ impl MapCatalog {
         self.repository
             .create_map_route_matrix(MapRouteMatrixDraft {
                 identity: scope.identity.clone(),
-                matrix_key: matrix.matrix_id.to_string(),
-                mobility_profile_key: mobility_profile_id.to_string(),
+                matrix_key: matrix.matrix_id.clone(),
+                mobility_profile_key: mobility_profile_id.clone(),
                 mobility_profile_version: integer_version(mobility_profile_version.get())?,
-                operational_snapshot_key: matrix.provenance.operational_snapshot_id.to_string(),
+                operational_snapshot_key: matrix.provenance.operational_snapshot_id.clone(),
                 artifact_uri: None,
                 canonical_json: Some(encode(matrix)?),
             })
@@ -429,7 +455,7 @@ impl MapCatalog {
             bail!("acquisition idempotency key conflicts with a different request");
         }
         let now = Utc::now();
-        let job = AcquisitionJob {
+        let job = AcquisitionJob::new(crate::contract::AcquisitionJobValue {
             acquisition_id,
             source_id: request.source_id,
             requested_coverage: request.requested_coverage,
@@ -448,12 +474,12 @@ impl MapCatalog {
             created_at: now,
             updated_at: now,
             record_version: 1,
-        };
+        })?;
         self.repository
             .create_map_acquisition(MapAcquisitionDraft {
                 identity: scope.identity.clone(),
-                acquisition_key: job.acquisition_id.to_string(),
-                source_key: job.source_id.to_string(),
+                acquisition_key: job.acquisition_id.clone(),
+                source_key: job.source_id.clone(),
                 idempotency_key: request.idempotency_key,
                 status: MapAcquisitionState::Queued,
                 phase: "queued".to_owned(),
@@ -475,11 +501,11 @@ impl MapCatalog {
         self.repository
             .update_map_acquisition(MapAcquisitionUpdate {
                 identity: scope.identity.clone(),
-                acquisition_key: job.acquisition_id.to_string(),
+                acquisition_key: job.acquisition_id.clone(),
                 expected_record_version: integer_version(expected)?,
                 status: acquisition_state_to_store(job.status),
                 phase: wire(&job.progress.phase)?,
-                staged_release_key: job.staged_release_id.as_ref().map(ToString::to_string),
+                staged_release_key: job.staged_release_id.as_ref().cloned(),
                 canonical_json: encode(&job)?,
             })
             .await?;
@@ -490,8 +516,8 @@ impl MapCatalog {
 fn source_draft(scope: &MapAccessContext, source: &RegisteredSource) -> Result<MapSourceDraft> {
     Ok(MapSourceDraft {
         identity: scope.identity.clone(),
-        source_key: source.source_id.to_string(),
-        dataset_key: source.dataset_id.to_string(),
+        source_key: source.source_id.clone(),
+        dataset_key: source.dataset_id.clone(),
         name: source.name.clone(),
         adapter_kind: wire(&source.adapter_kind)?,
         authority_class: wire(&source.authority)?,
@@ -506,15 +532,7 @@ fn source_draft(scope: &MapAccessContext, source: &RegisteredSource) -> Result<M
 }
 
 fn validate_restriction(restriction: &Restriction) -> Result<()> {
-    restriction.geometry.validate()?;
-    if restriction.affected_mobility_families.is_empty()
-        || restriction.record_version == 0
-        || restriction
-            .valid_until
-            .is_some_and(|until| until <= restriction.valid_from)
-    {
-        bail!("restriction invariants are invalid");
-    }
+    veoveo_types::Check::check(&**restriction)?;
     Ok(())
 }
 
@@ -565,4 +583,31 @@ fn acquisition_state_to_store(state: AcquisitionStatus) -> MapAcquisitionState {
         AcquisitionStatus::CancelRequested => MapAcquisitionState::CancelRequested,
         AcquisitionStatus::Cancelled => MapAcquisitionState::Cancelled,
     }
+}
+
+fn checked_pointer(
+    row: crate::persistence::MapActiveReleaseRecord,
+    tenant: veoveo_platform_store::TenantId,
+) -> Result<ActiveReleasePointer> {
+    let dataset_id: crate::contract::MapDatasetId = row.dataset_key.parse()?;
+    anyhow::ensure!(
+        row.tenant == tenant.record_id()
+            && row.id
+                == surrealdb::types::RecordId::new(
+                    "map_active_release",
+                    format!("{tenant}:{dataset_id}")
+                )
+            && row.record_version > 0,
+        "stored active release pointer metadata mismatch"
+    );
+    Ok(ActiveReleasePointer {
+        dataset_id,
+        release_id: row.release_key.parse()?,
+        previous_release_id: row
+            .previous_release_key
+            .map(|key| key.parse())
+            .transpose()?,
+        record_version: u64::try_from(row.record_version)?,
+        activated_at: row.activated_at,
+    })
 }

@@ -214,7 +214,10 @@ impl SpatialService {
         {
             bail!("mobility profile is not valid at effective_at");
         }
-        let releases = self.catalog.list_releases(scope).await?;
+        let releases = self
+            .catalog
+            .release_set(scope, &request.source_release_ids)
+            .await?;
         for release_id in &request.source_release_ids {
             let release = releases
                 .iter()
@@ -258,10 +261,9 @@ impl SpatialService {
         let geometry_digest_sha256 =
             hex::encode(Sha256::digest(serde_json::to_vec(&derived.geometries)?));
         let derivation_id = SpatialDerivationId::new();
-        let derivation = SpatialDerivation {
+        let derivation = SpatialDerivation::new(crate::contract::SpatialDerivationValue {
             schema_version: SPATIAL_DERIVATION_SCHEMA_VERSION,
-            resource_uri: crate::contract::MapSpatialDerivationUri::new(derivation_id.clone())
-                .to_string(),
+            resource_uri: crate::contract::MapSpatialDerivationUri::new(derivation_id.clone()),
             derivation_id,
             operation: request.operation,
             geometries: derived.geometries,
@@ -285,7 +287,7 @@ impl SpatialService {
             created_by: identity.actor.id.clone(),
             work_context: identity.authority.work_context.clone(),
             created_at: Utc::now(),
-        };
+        })?;
         derivation.validate()?;
         self.catalog
             .put_spatial_derivation(scope, &derivation)

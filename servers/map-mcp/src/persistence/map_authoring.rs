@@ -22,7 +22,7 @@ const MAX_FEATURES_PER_CHANGESET: usize = 10_000;
 
 #[derive(Clone, Debug)]
 pub struct MapFeatureSchemaDraft {
-    pub schema_revision_key: String,
+    pub schema_revision_key: crate::contract::FeatureSchemaRevisionId,
     pub schema_version: i64,
     pub digest_sha256: String,
     pub schema_json: String,
@@ -30,7 +30,7 @@ pub struct MapFeatureSchemaDraft {
 
 #[derive(Clone, Debug)]
 pub struct MapStyleRevisionDraft {
-    pub style_revision_key: String,
+    pub style_revision_key: crate::contract::StyleRevisionId,
     pub style_version: i64,
     pub style_json: String,
 }
@@ -39,7 +39,7 @@ pub struct MapStyleRevisionDraft {
 pub struct MapFeatureLayerDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub layer_key: String,
+    pub layer_key: crate::contract::FeatureLayerId,
     pub title: String,
     pub description: Option<String>,
     pub content_class: String,
@@ -54,14 +54,14 @@ pub struct MapFeatureLayerDraft {
 pub struct MapFeatureLayerUpdateDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub layer_key: String,
+    pub layer_key: crate::contract::FeatureLayerId,
     pub title: String,
     pub description: Option<String>,
     pub schema_version: i64,
-    pub schema_revision_key: String,
+    pub schema_revision_key: crate::contract::FeatureSchemaRevisionId,
     pub new_schema: Option<MapFeatureSchemaDraft>,
     pub style_version: Option<i64>,
-    pub style_revision_key: Option<String>,
+    pub style_revision_key: Option<crate::contract::StyleRevisionId>,
     pub new_style: Option<MapStyleRevisionDraft>,
     pub revision: i64,
     pub archived_at: Option<DateTime<Utc>>,
@@ -70,7 +70,7 @@ pub struct MapFeatureLayerUpdateDraft {
 
 #[derive(Clone, Debug)]
 pub struct MapFeatureRevisionDraft {
-    pub feature_key: String,
+    pub feature_key: crate::contract::MapFeatureId,
     pub feature_revision: i64,
     pub layer_revision: i64,
     pub schema_version: i64,
@@ -93,10 +93,10 @@ pub struct MapFeatureRevisionDraft {
 pub struct MapFeatureCommitDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub layer_key: String,
+    pub layer_key: crate::contract::FeatureLayerId,
     pub layer_canonical_json: String,
     pub expected_layer_revision: i64,
-    pub changeset_key: String,
+    pub changeset_key: crate::contract::FeatureChangeSetId,
     pub idempotency_key: String,
     pub request_digest_sha256: String,
     pub changeset_canonical_json: String,
@@ -113,11 +113,11 @@ pub struct MapFeatureCommitResult {
 pub struct MapLayerPublicationDraft {
     pub identity: PlatformIdentity,
     pub authority: InvocationAuthorityRecord,
-    pub publication_key: String,
-    pub layer_key: String,
+    pub publication_key: crate::contract::LayerPublicationId,
+    pub layer_key: crate::contract::FeatureLayerId,
     pub layer_revision: i64,
     pub schema_version: i64,
-    pub style_revision_key: Option<String>,
+    pub style_revision_key: Option<crate::contract::StyleRevisionId>,
     pub artifact_uris: Vec<veoveo_artifact_contract::ArtifactUri>,
     pub canonical_json: String,
     pub published_at: DateTime<Utc>,
@@ -287,7 +287,7 @@ impl MapRepository {
         let layer_record = authored_record(
             "map_feature_layer",
             &draft.identity.tenant_key,
-            &[&draft.layer_key],
+            &[draft.layer_key.as_str()],
         );
         let schema_record = authored_version_record(
             "map_feature_schema_revision",
@@ -303,17 +303,17 @@ impl MapRepository {
             created_by_key: draft.identity.principal_key.clone(),
             owner_kind: draft.authority.owner_kind,
             owner_key: draft.authority.owner_key.clone(),
-            layer_key: draft.layer_key.clone(),
+            layer_key: draft.layer_key.to_string(),
             title: draft.title,
             description: draft.description,
             content_class: draft.content_class,
             schema_version: draft.schema.schema_version,
-            schema_revision_key: draft.schema.schema_revision_key.clone(),
+            schema_revision_key: draft.schema.schema_revision_key.to_string(),
             style_version: draft.style.as_ref().map(|style| style.style_version),
             style_revision_key: draft
                 .style
                 .as_ref()
-                .map(|style| style.style_revision_key.clone()),
+                .map(|style| style.style_revision_key.to_string()),
             revision: draft.revision,
             classification: draft.authority.classification.clone(),
             data_labels: draft.authority.data_labels.clone(),
@@ -325,8 +325,8 @@ impl MapRepository {
         let schema = SchemaContent {
             tenant: draft.identity.tenant_id.record_id(),
             work_context: work_context.clone(),
-            layer_key: draft.layer_key.clone(),
-            schema_revision_key: draft.schema.schema_revision_key,
+            layer_key: draft.layer_key.to_string(),
+            schema_revision_key: draft.schema.schema_revision_key.to_string(),
             schema_version: draft.schema.schema_version,
             digest_sha256: draft.schema.digest_sha256,
             schema_json: draft.schema.schema_json,
@@ -344,7 +344,7 @@ impl MapRepository {
                 tenant: draft.identity.tenant_id.record_id(),
                 work_context,
                 layer_key: content.layer_key.clone(),
-                style_revision_key: style.style_revision_key,
+                style_revision_key: style.style_revision_key.to_string(),
                 style_version: style.style_version,
                 style_json: style.style_json,
                 created_by: draft.identity.principal_id.record_id(),
@@ -395,7 +395,7 @@ impl MapRepository {
         let layer_record = authored_record(
             "map_feature_layer",
             &draft.identity.tenant_key,
-            &[&draft.layer_key],
+            &[draft.layer_key.as_str()],
         );
         let schema = draft.new_schema.as_ref().map(|schema| {
             let record = authored_version_record(
@@ -407,8 +407,8 @@ impl MapRepository {
             let content = SchemaContent {
                 tenant: draft.identity.tenant_id.record_id(),
                 work_context: work_context.clone(),
-                layer_key: draft.layer_key.clone(),
-                schema_revision_key: schema.schema_revision_key.clone(),
+                layer_key: draft.layer_key.to_string(),
+                schema_revision_key: schema.schema_revision_key.to_string(),
                 schema_version: schema.schema_version,
                 digest_sha256: schema.digest_sha256.clone(),
                 schema_json: schema.schema_json.clone(),
@@ -427,8 +427,8 @@ impl MapRepository {
             let content = StyleContent {
                 tenant: draft.identity.tenant_id.record_id(),
                 work_context: work_context.clone(),
-                layer_key: draft.layer_key.clone(),
-                style_revision_key: style.style_revision_key.clone(),
+                layer_key: draft.layer_key.to_string(),
+                style_revision_key: style.style_revision_key.to_string(),
                 style_version: style.style_version,
                 style_json: style.style_json.clone(),
                 created_by: draft.identity.principal_id.record_id(),
@@ -468,9 +468,12 @@ impl MapRepository {
             .bind(("title", draft.title))
             .bind(("description", draft.description))
             .bind(("schema_version", draft.schema_version))
-            .bind(("schema_revision_key", draft.schema_revision_key))
+            .bind(("schema_revision_key", draft.schema_revision_key.to_string()))
             .bind(("style_version", draft.style_version))
-            .bind(("style_revision_key", draft.style_revision_key))
+            .bind((
+                "style_revision_key",
+                draft.style_revision_key.as_ref().map(ToString::to_string),
+            ))
             .bind(("revision", draft.revision))
             .bind(("archived_at", draft.archived_at))
             .bind(("canonical_json", draft.canonical_json))
@@ -491,7 +494,7 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
         version: i64,
     ) -> Result<Option<MapFeatureSchemaRevisionRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
@@ -514,7 +517,7 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
         version: i64,
     ) -> Result<Option<MapStyleRevisionRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
@@ -532,7 +535,7 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        style_revision_key: &str,
+        style_revision_key: &crate::contract::StyleRevisionId,
     ) -> Result<Option<MapStyleRevisionRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
         let context_id = deterministic_work_context_id(tenant_key, context_key)?;
@@ -543,7 +546,7 @@ impl MapRepository {
             ))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("context", context_id.record_id()))
-            .bind(("style_key", style_revision_key.to_owned()))
+            .bind(("style_key", style_revision_key.to_string()))
             .await?
             .check()?;
         Ok(response.take(0)?)
@@ -575,12 +578,12 @@ impl MapRepository {
         let layer_record = authored_record(
             "map_feature_layer",
             &draft.identity.tenant_key,
-            &[&draft.layer_key],
+            &[draft.layer_key.as_str()],
         );
         let changeset_record = authored_record(
             "map_feature_changeset",
             &draft.identity.tenant_key,
-            &[&draft.layer_key, &draft.changeset_key],
+            &[draft.layer_key.as_str(), draft.changeset_key.as_str()],
         );
         let resulting_layer_revision = draft.expected_layer_revision + 1;
         let feature_keys = draft
@@ -595,11 +598,11 @@ impl MapRepository {
             actor_key: draft.identity.principal_key.clone(),
             work_context_key: draft.authority.context_key.clone(),
             authority: draft.authority.clone(),
-            layer_key: draft.layer_key.clone(),
-            changeset_key: draft.changeset_key.clone(),
+            layer_key: draft.layer_key.to_string(),
+            changeset_key: draft.changeset_key.to_string(),
             base_layer_revision: draft.expected_layer_revision,
             resulting_layer_revision,
-            feature_keys: feature_keys.clone(),
+            feature_keys: feature_keys.iter().map(ToString::to_string).collect(),
             idempotency_key: draft.idempotency_key.clone(),
             request_digest_sha256: draft.request_digest_sha256.clone(),
             commit_sequence: 0,
@@ -619,17 +622,17 @@ impl MapRepository {
                 let head_record = authored_record(
                     "map_feature_head",
                     &draft.identity.tenant_key,
-                    &[&draft.layer_key, &revision.feature_key],
+                    &[draft.layer_key.as_str(), revision.feature_key.as_str()],
                 );
                 let content = RevisionContent {
                     tenant: draft.identity.tenant_id.record_id(),
                     work_context: work_context.clone(),
-                    layer_key: draft.layer_key.clone(),
-                    feature_key: revision.feature_key.clone(),
+                    layer_key: draft.layer_key.to_string(),
+                    feature_key: revision.feature_key.to_string(),
                     feature_revision: revision.feature_revision,
                     layer_revision: revision.layer_revision,
                     schema_version: revision.schema_version,
-                    changeset_key: draft.changeset_key.clone(),
+                    changeset_key: draft.changeset_key.to_string(),
                     deleted: revision.deleted,
                     geometry_type: revision.geometry_type.clone(),
                     geometry_json: revision.geometry_json.clone(),
@@ -736,8 +739,8 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
-        changeset_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
+        changeset_key: &crate::contract::FeatureChangeSetId,
     ) -> Result<Option<MapFeatureChangeSetRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
         let context_id = deterministic_work_context_id(tenant_key, context_key)?;
@@ -746,7 +749,7 @@ impl MapRepository {
             authored_record(
                 "map_feature_changeset",
                 tenant_key,
-                &[layer_key, changeset_key],
+                &[layer_key.as_str(), changeset_key.as_str()],
             ),
             tenant_id,
             context_id.record_id(),
@@ -758,14 +761,18 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
-        feature_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
+        feature_key: &crate::contract::MapFeatureId,
     ) -> Result<Option<MapFeatureHeadRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
         let context_id = deterministic_work_context_id(tenant_key, context_key)?;
         select_scoped(
             self,
-            authored_record("map_feature_head", tenant_key, &[layer_key, feature_key]),
+            authored_record(
+                "map_feature_head",
+                tenant_key,
+                &[layer_key.as_str(), feature_key.as_str()],
+            ),
             tenant_id,
             context_id.record_id(),
         )
@@ -776,7 +783,7 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
     ) -> Result<u64, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
         let context_id = deterministic_work_context_id(tenant_key, context_key)?;
@@ -787,7 +794,7 @@ impl MapRepository {
             ))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("context", context_id.record_id()))
-            .bind(("layer", layer_key.to_owned()))
+            .bind(("layer", layer_key.to_string()))
             .await?
             .check()?;
         let count = response
@@ -802,7 +809,7 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        changeset_key: &str,
+        changeset_key: &crate::contract::FeatureChangeSetId,
     ) -> Result<Vec<MapFeatureRevisionRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
         let context_id = deterministic_work_context_id(tenant_key, context_key)?;
@@ -813,7 +820,7 @@ impl MapRepository {
             ))
             .bind(("tenant", tenant_id.record_id()))
             .bind(("context", context_id.record_id()))
-            .bind(("changeset", changeset_key.to_owned()))
+            .bind(("changeset", changeset_key.to_string()))
             .await?
             .check()?;
         Ok(response.take(0)?)
@@ -823,8 +830,8 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
-        feature_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
+        feature_key: &crate::contract::MapFeatureId,
         feature_revision: i64,
     ) -> Result<Option<MapFeatureRevisionRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
@@ -851,12 +858,12 @@ impl MapRepository {
         let layer_record = authored_record(
             "map_feature_layer",
             &draft.identity.tenant_key,
-            &[&draft.layer_key],
+            &[draft.layer_key.as_str()],
         );
         let publication_record = authored_record(
             "map_layer_publication",
             &draft.identity.tenant_key,
-            &[&draft.layer_key, &draft.publication_key],
+            &[draft.layer_key.as_str(), draft.publication_key.as_str()],
         );
         let content = PublicationContent {
             tenant: draft.identity.tenant_id.record_id(),
@@ -865,11 +872,11 @@ impl MapRepository {
             published_by_key: draft.identity.principal_key.clone(),
             work_context_key: draft.authority.context_key.clone(),
             authority: draft.authority.clone(),
-            publication_key: draft.publication_key.clone(),
-            layer_key: draft.layer_key.clone(),
+            publication_key: draft.publication_key.to_string(),
+            layer_key: draft.layer_key.to_string(),
             layer_revision: draft.layer_revision,
             schema_version: draft.schema_version,
-            style_revision_key: draft.style_revision_key,
+            style_revision_key: draft.style_revision_key.as_ref().map(ToString::to_string),
             artifact_uris: draft.artifact_uris.into_iter().map(String::from).collect(),
             canonical_json: draft.canonical_json,
             published_at: draft.published_at,
@@ -897,8 +904,8 @@ impl MapRepository {
         &self,
         tenant_key: &str,
         context_key: &str,
-        layer_key: &str,
-        publication_key: &str,
+        layer_key: &crate::contract::FeatureLayerId,
+        publication_key: &crate::contract::LayerPublicationId,
     ) -> Result<Option<MapLayerPublicationRecord>, MapStoreError> {
         let tenant_id = veoveo_platform_store::deterministic_tenant_id(tenant_key)?;
         let context_id = deterministic_work_context_id(tenant_key, context_key)?;
@@ -907,7 +914,7 @@ impl MapRepository {
             authored_record(
                 "map_layer_publication",
                 tenant_key,
-                &[layer_key, publication_key],
+                &[layer_key.as_str(), publication_key.as_str()],
             ),
             tenant_id,
             context_id.record_id(),
@@ -931,7 +938,14 @@ async fn idempotent_commit_result(
         .list_map_feature_revisions_for_changeset(
             &draft.identity.tenant_key,
             &draft.authority.context_key,
-            &changeset.changeset_key,
+            &crate::contract::FeatureChangeSetId::parse(&changeset.changeset_key).map_err(
+                |_| {
+                    invalid(
+                        "changeset_key",
+                        "stored identity must satisfy its owning profile",
+                    )
+                },
+            )?,
         )
         .await?;
     Ok(MapFeatureCommitResult {
@@ -972,7 +986,7 @@ async fn select_scoped<T: for<'de> Deserialize<'de> + SurrealValue>(
 
 fn authored_record(table: &str, tenant_key: &str, parts: &[&str]) -> RecordId {
     let mut key = Vec::with_capacity(parts.len() + 1);
-    key.push(tenant_key.to_owned());
+    key.push(tenant_key.to_string());
     key.extend(parts.iter().map(|part| (*part).to_owned()));
     RecordId::new(table, Array::from(key))
 }
@@ -980,18 +994,21 @@ fn authored_record(table: &str, tenant_key: &str, parts: &[&str]) -> RecordId {
 fn authored_version_record(
     table: &str,
     tenant_key: &str,
-    entity_key: &str,
+    entity_key: impl AsRef<str>,
     version: i64,
 ) -> RecordId {
+    let entity_key = entity_key.as_ref();
     authored_record(table, tenant_key, &[entity_key, &format!("{version:020}")])
 }
 
 fn authored_feature_revision_record(
     tenant_key: &str,
-    layer_key: &str,
-    feature_key: &str,
+    layer_key: impl AsRef<str>,
+    feature_key: impl AsRef<str>,
     version: i64,
 ) -> RecordId {
+    let feature_key = feature_key.as_ref();
+    let layer_key = layer_key.as_ref();
     authored_record(
         "map_feature_revision",
         tenant_key,
@@ -1000,7 +1017,6 @@ fn authored_feature_revision_record(
 }
 
 fn validate_layer_draft(draft: &MapFeatureLayerDraft) -> Result<(), MapStoreError> {
-    validate_key("layer_key", &draft.layer_key, "feature-layer-")?;
     validate_text("title", &draft.title, 256)?;
     if let Some(description) = &draft.description {
         validate_text("description", description, 4096)?;
@@ -1026,7 +1042,6 @@ fn validate_layer_update_draft(
     draft: &MapFeatureLayerUpdateDraft,
     expected_revision: i64,
 ) -> Result<(), MapStoreError> {
-    validate_key("layer_key", &draft.layer_key, "feature-layer-")?;
     validate_text("title", &draft.title, 256)?;
     if let Some(description) = &draft.description {
         validate_text("description", description, 4096)?;
@@ -1063,17 +1078,11 @@ fn validate_layer_update_draft(
 }
 
 fn validate_schema_draft(draft: &MapFeatureSchemaDraft) -> Result<(), MapStoreError> {
-    validate_key(
-        "schema_revision_key",
-        &draft.schema_revision_key,
-        "feature-schema-",
-    )?;
     validate_sha256(&draft.digest_sha256)?;
     validate_json("schema_json", &draft.schema_json)
 }
 
 fn validate_style_draft(draft: &MapStyleRevisionDraft) -> Result<(), MapStoreError> {
-    validate_key("style_revision_key", &draft.style_revision_key, "style-")?;
     if draft.style_version < 1 {
         return Err(invalid("style_version", "must be positive"));
     }
@@ -1081,8 +1090,6 @@ fn validate_style_draft(draft: &MapStyleRevisionDraft) -> Result<(), MapStoreErr
 }
 
 fn validate_commit_draft(draft: &MapFeatureCommitDraft) -> Result<(), MapStoreError> {
-    validate_key("layer_key", &draft.layer_key, "feature-layer-")?;
-    validate_key("changeset_key", &draft.changeset_key, "changeset-")?;
     validate_text("idempotency_key", &draft.idempotency_key, 256)?;
     validate_sha256(&draft.request_digest_sha256)?;
     validate_json("layer_canonical_json", &draft.layer_canonical_json)?;
@@ -1098,7 +1105,6 @@ fn validate_commit_draft(draft: &MapFeatureCommitDraft) -> Result<(), MapStoreEr
     }
     let mut keys = std::collections::BTreeSet::new();
     for revision in &draft.revisions {
-        validate_key("feature_key", &revision.feature_key, "feature-")?;
         if !keys.insert(&revision.feature_key) {
             return Err(invalid("revisions", "contains duplicate feature keys"));
         }
@@ -1141,19 +1147,10 @@ fn validate_commit_draft(draft: &MapFeatureCommitDraft) -> Result<(), MapStoreEr
 }
 
 fn validate_publication_draft(draft: &MapLayerPublicationDraft) -> Result<(), MapStoreError> {
-    validate_key("publication_key", &draft.publication_key, "publication-")?;
-    validate_key("layer_key", &draft.layer_key, "feature-layer-")?;
     if draft.layer_revision < 0 || draft.schema_version < 1 {
         return Err(invalid("layer_revision", "contains an invalid version"));
     }
     validate_json("canonical_json", &draft.canonical_json)
-}
-
-fn validate_key(field: &'static str, value: &str, prefix: &str) -> Result<(), MapStoreError> {
-    if !value.starts_with(prefix) || value.len() > 128 || value.contains('/') {
-        return Err(invalid(field, "is not a canonical public id"));
-    }
-    Ok(())
 }
 
 fn validate_text(field: &'static str, value: &str, maximum: usize) -> Result<(), MapStoreError> {
@@ -1189,11 +1186,11 @@ fn invalid(field: &'static str, reason: &'static str) -> MapStoreError {
 pub fn map_authoring_idempotency_key(
     tenant_key: &str,
     context_key: &str,
-    layer_key: &str,
+    layer_key: &crate::contract::FeatureLayerId,
     idempotency_key: &str,
 ) -> String {
     let digest = Sha256::digest(
-        [tenant_key, context_key, layer_key, idempotency_key]
+        [tenant_key, context_key, layer_key.as_str(), idempotency_key]
             .join("\0")
             .as_bytes(),
     );
@@ -1225,8 +1222,9 @@ mod tests {
 
     #[test]
     fn idempotency_scope_changes_the_digest() {
-        let first = map_authoring_idempotency_key("tenant", "mission-a", "layer", "request");
-        let second = map_authoring_idempotency_key("tenant", "mission-b", "layer", "request");
+        let layer = crate::contract::FeatureLayerId::new();
+        let first = map_authoring_idempotency_key("tenant", "mission-a", &layer, "request");
+        let second = map_authoring_idempotency_key("tenant", "mission-b", &layer, "request");
         assert_ne!(first, second);
     }
 }

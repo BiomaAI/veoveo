@@ -1,6 +1,6 @@
 //! Owner-scoped catalog pages and database-selected maintenance batches.
 use crate::persistence::MapRepository;
-use crate::persistence::{MapDependencyKind, MapRouteState};
+use crate::persistence::{MapDependencyIdentity, MapRouteState};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -93,7 +93,7 @@ pub struct MatrixSummary {
 impl MapCatalog {
     pub async fn route(&self, scope: &MapAccessContext, id: &RouteId) -> Result<Option<RoutePlan>> {
         MapRepository::new(self.store().clone())
-            .map_route(&scope.identity, id.as_str())
+            .map_route(&scope.identity, id)
             .await?
             .map(|row| {
                 let route: RoutePlan = decode(&row.canonical_json, "route")?;
@@ -112,15 +112,28 @@ impl MapCatalog {
         id: &RouteMatrixId,
     ) -> Result<Option<RouteMatrix>> {
         MapRepository::new(self.store().clone())
-            .map_route_matrix(&scope.identity, id.as_str())
+            .map_route_matrix(&scope.identity, id)
             .await?
             .map(|row| {
-                decode(
+                let value: RouteMatrix = decode(
                     row.canonical_json
                         .as_deref()
                         .context("matrix document missing")?,
                     "route matrix",
-                )
+                )?;
+                anyhow::ensure!(
+                    row.id
+                        == surrealdb::types::RecordId::new(
+                            "map_route_matrix",
+                            row.matrix_key.clone()
+                        )
+                        && value.matrix_id == *id
+                        && value.matrix_id.as_str() == row.matrix_key
+                        && value.provenance.operational_snapshot_id.as_str()
+                            == row.operational_snapshot_key,
+                    "matrix document disagrees with selected identity or metadata"
+                );
+                Ok(value)
             })
             .transpose()
     }
@@ -131,9 +144,9 @@ impl MapCatalog {
         id: &AcquisitionId,
     ) -> Result<Option<AcquisitionJob>> {
         MapRepository::new(self.store().clone())
-            .map_acquisition(&scope.identity, id.as_str())
+            .map_acquisition(&scope.identity, id)
             .await?
-            .map(|row| decode(&row.canonical_json, "acquisition job"))
+            .map(checked_acquisition)
             .transpose()
     }
 
@@ -143,7 +156,7 @@ impl MapCatalog {
         after: Option<&RouteId>,
     ) -> Result<OwnedPage<RouteSummary>> {
         let rows = MapRepository::new(self.store().clone())
-            .map_routes_page(&scope.identity, after.map(RouteId::as_str), PAGE_SIZE + 1)
+            .map_routes_page(&scope.identity, after, PAGE_SIZE + 1)
             .await?;
         Collection::Routes.page(
             rows,
@@ -176,11 +189,7 @@ impl MapCatalog {
         after: Option<&RouteMatrixId>,
     ) -> Result<OwnedPage<MatrixSummary>> {
         let rows = MapRepository::new(self.store().clone())
-            .map_matrices_page(
-                &scope.identity,
-                after.map(RouteMatrixId::as_str),
-                PAGE_SIZE + 1,
-            )
+            .map_matrices_page(&scope.identity, after, PAGE_SIZE + 1)
             .await?;
         Collection::Matrices.page(
             rows,
@@ -203,17 +212,9 @@ impl MapCatalog {
         after: Option<&AcquisitionId>,
     ) -> Result<OwnedPage<AcquisitionJob>> {
         let rows = MapRepository::new(self.store().clone())
-            .map_acquisitions_page(
-                &scope.identity,
-                after.map(AcquisitionId::as_str),
-                PAGE_SIZE + 1,
-            )
+            .map_acquisitions_page(&scope.identity, after, PAGE_SIZE + 1)
             .await?;
-        Collection::Acquisitions.page(
-            rows,
-            |row| &row.acquisition_key,
-            |row| decode(&row.canonical_json, "acquisition job"),
-        )
+        Collection::Acquisitions.page(rows, |row| &row.acquisition_key, checked_acquisition)
     }
 
     async fn interrupted_acquisitions_batch(
@@ -223,15 +224,10 @@ impl MapCatalog {
         after: Option<&AcquisitionId>,
     ) -> Result<Vec<AcquisitionJob>> {
         MapRepository::new(self.store().clone())
-            .map_interrupted_acquisitions_page(
-                &scope.identity,
-                &active.iter().map(ToString::to_string).collect::<Vec<_>>(),
-                after.map(AcquisitionId::as_str),
-                PAGE_SIZE,
-            )
+            .map_interrupted_acquisitions_page(&scope.identity, active, after, PAGE_SIZE)
             .await?
             .into_iter()
-            .map(|row| decode(&row.canonical_json, "acquisition job"))
+            .map(checked_acquisition)
             .collect()
     }
 
@@ -264,7 +260,7 @@ impl MapCatalog {
         scope: &MapAccessContext,
         id: &DatasetReleaseId,
     ) -> Result<u64> {
-        self.invalidate_routes(scope, MapDependencyKind::Release, id.as_str())
+        self.invalidate_routes(scope, MapDependencyIdentity::Release(id.clone()))
             .await
     }
 
@@ -273,15 +269,14 @@ impl MapCatalog {
         scope: &MapAccessContext,
         id: &RestrictionId,
     ) -> Result<u64> {
-        self.invalidate_routes(scope, MapDependencyKind::Restriction, id.as_str())
+        self.invalidate_routes(scope, MapDependencyIdentity::Restriction(id.clone()))
             .await
     }
 
     async fn invalidate_routes(
         &self,
         scope: &MapAccessContext,
-        kind: MapDependencyKind,
-        dependency: &str,
+        dependency: MapDependencyIdentity,
     ) -> Result<u64> {
         let mut after = None;
         let mut count = 0;
@@ -289,24 +284,28 @@ impl MapCatalog {
             let rows = MapRepository::new(self.store().clone())
                 .map_routes_for_dependency_page(
                     scope.identity.tenant_id,
-                    kind,
-                    dependency,
-                    after.as_deref(),
+                    &dependency,
+                    after.as_ref(),
                     PAGE_SIZE,
                 )
                 .await?;
             if rows.is_empty() {
                 break;
             }
-            after = rows.last().map(|row| row.route_key.clone());
+            after = rows
+                .last()
+                .map(|row| row.route_key.parse::<RouteId>())
+                .transpose()?;
             for row in rows {
-                let mut route: RoutePlan = decode(&row.canonical_json, "route")?;
+                let route: RoutePlan = decode(&row.canonical_json, "route")?;
+                let mut route = route.into_value();
                 route.status = RouteStatus::Invalidated;
+                let route = RoutePlan::new(route)?;
                 count += u64::from(
                     MapRepository::new(self.store().clone())
                         .invalidate_map_route(
                             scope.identity.tenant_id,
-                            route.route_id.as_str(),
+                            &route.route_id,
                             encode(&route)?,
                         )
                         .await?,
@@ -315,6 +314,21 @@ impl MapCatalog {
         }
         Ok(count)
     }
+}
+
+fn checked_acquisition(row: crate::persistence::MapAcquisitionRecord) -> Result<AcquisitionJob> {
+    let value: AcquisitionJob = decode(&row.canonical_json, "acquisition job")?;
+    anyhow::ensure!(
+        row.id == surrealdb::types::RecordId::new("map_acquisition", row.acquisition_key.clone())
+            && value.acquisition_id.as_str() == row.acquisition_key
+            && value.source_id.as_str() == row.source_key
+            && super::acquisition_state_to_store(value.status) == row.status
+            && super::wire(&value.progress.phase)? == row.phase
+            && value.staged_release_id.as_ref().map(ToString::to_string) == row.staged_release_key
+            && i64::try_from(value.record_version)? == row.record_version,
+        "acquisition document disagrees with selected identity or metadata"
+    );
+    Ok(value)
 }
 
 #[cfg(test)]

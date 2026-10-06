@@ -198,7 +198,7 @@ async fn authoring_knowledge_uses_current_parent_access_before_decoding_and_page
         assert_eq!(observation.modified_by(), Some(&ModifiedBy::Principal(identity.actor.id.clone())));
         assert_ne!(read(&catalog, &analytics, &identity, &scope, &layer_address).await.unwrap().unwrap().document().unwrap().1.revision(), first_revision.revision());
         let publication = authoring.publish_layer(&identity, &scope, PublishFeatureLayerRequest { layer_id: layer.layer_id.clone(), expected_layer_revision: 2, title: Some("Published inspections".into()) }).await.unwrap();
-        let publication_address = MapKnowledgeMember::Publication { layer: layer.layer_id.clone(), publication: publication.publication_id };
+        let publication_address = MapKnowledgeMember::Publication { layer: layer.layer_id.clone(), publication: publication.publication_id.clone() };
         let published = read(&catalog, &analytics, &identity, &scope, &publication_address).await.unwrap().unwrap().document().unwrap().1;
         assert_eq!(published.modified_by(), observation.modified_by());
         let mut wrong_context = identity.clone();
@@ -231,7 +231,7 @@ fn escaped_titles_fit_page_and_search_budgets() {
             alternate_names: Default::default(),
             lineage: SourceLineage {
                 release_id: DatasetReleaseId::new(),
-                source_feature_id: "fixture".into(),
+                source_feature_id: crate::contract::SourceFeatureId::new(),
                 authority: AuthorityClass::SyntheticTest,
                 valid_from: now,
                 valid_until: None,
@@ -284,7 +284,7 @@ fn geographic_pages_and_search_share_exact_member_release_selection() {
                             alternate_names: Default::default(),
                             lineage: SourceLineage {
                                 release_id: release.clone(),
-                                source_feature_id: "source".into(),
+                                source_feature_id: crate::contract::SourceFeatureId::new(),
                                 authority: AuthorityClass::SyntheticTest,
                                 valid_from: Utc::now(),
                                 valid_until: None,
@@ -305,7 +305,7 @@ fn geographic_pages_and_search_share_exact_member_release_selection() {
                         capabilities: Default::default(),
                         lineage: SourceLineage {
                             release_id: release.clone(),
-                            source_feature_id: "facility".into(),
+                            source_feature_id: crate::contract::SourceFeatureId::new(),
                             authority: AuthorityClass::SyntheticTest,
                             valid_from: Utc::now(),
                             valid_until: None,

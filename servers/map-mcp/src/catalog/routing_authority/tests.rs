@@ -32,7 +32,7 @@ fn license() -> DatasetLicense {
     }
 }
 fn source(n: usize, at: DateTime<Utc>) -> RegisteredSource {
-    RegisteredSource {
+    RegisteredSource::new(crate::contract::RegisteredSourceValue {
         source_id: key("source", n).parse().unwrap(),
         dataset_id: key("dataset", n).parse().unwrap(),
         name: format!("source-{n}"),
@@ -54,10 +54,11 @@ fn source(n: usize, at: DateTime<Utc>) -> RegisteredSource {
         record_version: 1,
         created_at: at,
         updated_at: at,
-    }
+    })
+    .expect("admitted Map fixture")
 }
 fn release(n: usize, source: &RegisteredSource, at: DateTime<Utc>) -> DatasetRelease {
-    DatasetRelease {
+    DatasetRelease::new(crate::contract::DatasetReleaseValue {
         release_id: key("release", n).parse().unwrap(),
         dataset_id: source.dataset_id.clone(),
         source_id: source.source_id.clone(),
@@ -91,7 +92,8 @@ fn release(n: usize, source: &RegisteredSource, at: DateTime<Utc>) -> DatasetRel
         state: DatasetReleaseState::Staged,
         record_version: 1,
         updated_at: at,
-    }
+    })
+    .expect("admitted Map fixture")
 }
 async fn fixture(
     catalog: &MapCatalog,

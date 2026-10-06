@@ -7,13 +7,13 @@ use veoveo_types::AccessLevel;
 
 use super::{
     AuthoringService,
-    service::{decode, read_scope, require_access},
+    service::{read_scope, require_access},
 };
 use crate::{
     catalog::MapAccessContext,
     contract::{
-        FeatureLayer, FeatureLayerId, LayerProduct, LayerProductId, LayerPublication,
-        LayerPublicationId, MapComposition, MapCompositionId, MapMetadataPage, MapMetadataRequest,
+        FeatureLayer, LayerProduct, LayerPublication, MapComposition, MapMetadataPage,
+        MapMetadataRequest,
     },
 };
 
@@ -64,12 +64,7 @@ impl AuthoringService {
         Ok(match &request {
             MapMetadataRequest::Layers { after } => {
                 let rows = MapRepository::new(self.store().clone())
-                    .map_feature_layers_page(
-                        &scope,
-                        false,
-                        after.as_ref().map(FeatureLayerId::as_str),
-                        limit,
-                    )
+                    .map_feature_layers_page(&scope, false, after.as_ref(), limit)
                     .await?;
                 AuthoringPage::Layers(page(
                     rows,
@@ -78,17 +73,12 @@ impl AuthoringService {
                             after: Some(row.layer_key.parse()?),
                         })
                     },
-                    |row| decode(&row.canonical_json, "feature layer"),
+                    |row| super::hydration::layer(row, scope.tenant_key()),
                 )?)
             }
             MapMetadataRequest::Publications { layer, after } => {
                 let rows = MapRepository::new(self.store().clone())
-                    .map_layer_publications_page(
-                        &scope,
-                        layer.as_ref().map(FeatureLayerId::as_str),
-                        after.as_ref().map(LayerPublicationId::as_str),
-                        limit,
-                    )
+                    .map_layer_publications_page(&scope, layer.as_ref(), after.as_ref(), limit)
                     .await?;
                 AuthoringPage::Publications(page(
                     rows,
@@ -98,17 +88,12 @@ impl AuthoringService {
                             after: Some(row.publication_key.parse()?),
                         })
                     },
-                    |row| decode(&row.canonical_json, "layer publication"),
+                    |row| super::hydration::publication(row, scope.tenant_key()),
                 )?)
             }
             MapMetadataRequest::Products { publication, after } => {
                 let rows = MapRepository::new(self.store().clone())
-                    .map_layer_products_page(
-                        &scope,
-                        publication.as_ref().map(LayerPublicationId::as_str),
-                        after.as_ref().map(LayerProductId::as_str),
-                        limit,
-                    )
+                    .map_layer_products_page(&scope, publication.as_ref(), after.as_ref(), limit)
                     .await?;
                 AuthoringPage::Products(page(
                     rows,
@@ -118,17 +103,12 @@ impl AuthoringService {
                             after: Some(row.product_key.parse()?),
                         })
                     },
-                    |row| decode(&row.canonical_json, "layer product"),
+                    |row| super::hydration::product(row, scope.tenant_key()),
                 )?)
             }
             MapMetadataRequest::Compositions { after } => {
                 let rows = MapRepository::new(self.store().clone())
-                    .map_compositions_page(
-                        &scope,
-                        false,
-                        after.as_ref().map(MapCompositionId::as_str),
-                        limit,
-                    )
+                    .map_compositions_page(&scope, false, after.as_ref(), limit)
                     .await?;
                 AuthoringPage::Compositions(page(
                     rows,
@@ -137,7 +117,7 @@ impl AuthoringService {
                             after: Some(row.composition_key.parse()?),
                         })
                     },
-                    |row| decode(&row.canonical_json, "map composition"),
+                    |row| super::hydration::composition(row, scope.tenant_key()),
                 )?)
             }
         })
