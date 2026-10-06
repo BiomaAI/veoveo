@@ -1,0 +1,17 @@
+[package]
+name = "veoveo-task-contract"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+surreal = ["dep:surrealdb"]
+
+[dependencies]
+veoveo-types.workspace = true
+serde.workspace = true
+schemars.workspace = true
+surrealdb = { version = "=3.3.0", default-features = false, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true

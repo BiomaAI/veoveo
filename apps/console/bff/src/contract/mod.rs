@@ -6,3 +6,8 @@ pub use cluster::{
     ClusterIngress, ClusterOrchestrator, ClusterPod, ClusterService, ClusterSnapshot,
     ClusterStorage, ClusterWorkload, ClusterWorkloadKind,
 };
+
+pub mod events;
+pub mod installation;
+pub use events::*;
+pub use installation::*;

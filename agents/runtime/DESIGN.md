@@ -194,3 +194,9 @@ checks enabled state, tenant and Work Context, instance generation and dispatch
 epoch, profile/issuer/resource/authorization server, session-family exclusion,
 scopes, roles and revision tools. The adapter declares ManagedAgent and
 AgentDefinition observation tables to trigger current-authority revalidation.
+
+## Lifecycle Contract
+
+The public Agent contract owns `AgentState`. Persistence enables its native SDK
+adapter and uses the same declaration for retained rows. Contract-only consumers
+receive the lifecycle vocabulary without the database SDK or runtime services.

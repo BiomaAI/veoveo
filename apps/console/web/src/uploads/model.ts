@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { compileGeneratedSchema } from "../jsonSchema.ts";
 import schema from "../generated/artifact-transfer.schema.json" with { type: "json" };
-import type { CreateArtifactUpload, ArtifactUploadReceipt, ArtifactUploadSession, UploadPartReceipt, EffectiveArtifactUploadPolicy } from "../generated/artifact-transfer";
+import type { ArtifactUploadNotification, CreateArtifactUpload, ArtifactUploadReceipt, ArtifactUploadSession, UploadPartReceipt, EffectiveArtifactUploadPolicy } from "../generated/artifact-transfer";
 import type { ArtifactUploadReceipt as Receipt, EffectiveArtifactUploadPolicy as Policy } from "../generated/artifact-transfer";
 import { formatBytes } from "../format.ts";
 
@@ -32,7 +32,7 @@ export const sessionSchema = ownerSchema<ArtifactUploadSession>("ArtifactUploadS
 export const policySchema = ownerSchema<EffectiveArtifactUploadPolicy>("EffectiveArtifactUploadPolicy").refine((effective) =>
   !effective.policy || (effective.policy.max_parts <= 10000 && effective.policy.part_timeout_seconds <= 3600));
 // The Console stream excludes open uploads; a notification wakes an authoritative status read.
-export const uploadNotificationSchema = z.object({ op: z.literal("changed"), upload_id: id, state: z.enum(["finalizing", "verifying", "completed", "cancelled", "expired", "failed"]) });
+export const uploadNotificationSchema = ownerSchema<ArtifactUploadNotification>("ArtifactUploadNotification");
 export type Phase = "Selected" | "Queued" | "Preparing" | "Uploading" | "Paused" | "Waiting for connection" | "Sign in to continue" | "Select file" | "Checking file" | "Finishing upload" | "Ready" | "Needs attention" | "Cancelling" | "Cancelled";
 
 export interface Entry {

@@ -1,5 +1,6 @@
 import type { AgentWakeReceipt as AgentWakeReceiptWire, AgentInputRequestView as AgentInputRequestWire, AgentConversationView as AgentConversationWire } from "./generated/agent-control";
 import type { ArtifactAccessRequest as ArtifactAccessRequestWire, ArtifactAccessRequestPage as ArtifactAccessRequestPageWire } from "./generated/artifact-transfer";
+import { parseConsole } from "./generatedContracts";
 import { demoSnapshot } from "./demo";
 import { agentInputRequestDecisionPath, agentInputRequestsApiPath } from "./agentControl";
 import type {
@@ -40,7 +41,7 @@ export async function loadArtifact(artifactId: string): Promise<ArtifactSummary>
   browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? browserSession.csrfToken;
   if (response.status === 401) authenticationRequired();
   if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "open this artifact", thing: "This artifact" }));
-  const artifact = await response.json() as ArtifactSummary;
+  const artifact = parseConsole("artifact", await response.json());
   if (artifact.id !== artifactId || (artifact.byteLength !== null && (!Number.isSafeInteger(artifact.byteLength) || artifact.byteLength < 0))) throw new Error(unexpectedResponseMessage);
   return artifact;
 }
@@ -65,7 +66,7 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
   if (!response.ok) {
     throw new Error(httpErrorMessage(response.status, { action: "load the Console" }));
   }
-  return response.json() as Promise<InstallationSnapshot>;
+  return parseConsole("snapshot", await response.json());
 }
 
 export async function loadCluster(signal?: AbortSignal): Promise<ClusterSnapshot> {

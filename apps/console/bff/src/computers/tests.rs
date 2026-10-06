@@ -191,7 +191,7 @@ async fn session_bootstrap_uses_cookie_authority_and_preserves_rotation_without_
             .contains("upstream=")
     );
     assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
-    let value: veoveo_mcp_contract::ConsoleBootstrap =
+    let value: veoveo_gateway_contract::ConsoleBootstrap =
         serde_json::from_slice(&to_bytes(response.into_body(), 256 * 1024).await.unwrap()).unwrap();
     assert!(!value.can_read_installation);
     let observed = fixture.observed.lock().unwrap();

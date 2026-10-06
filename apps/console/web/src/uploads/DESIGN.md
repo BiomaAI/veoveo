@@ -85,3 +85,14 @@ its gateway action is `ArtifactUpload` and it requires Contributor membership. A
 metadata drawers remain gated by inventory permission, while completed upload rows
 provide the ordinary governed download route. Core Computers can select these verified
 receipts for a separate retained-home import.
+
+## Notification Admission
+
+The Artifact transfer owner generates the `artifact_upload` notification schema.
+Notifications preserve `op`, `upload_id` and `state` snake_case keys and admit
+finalizing, verifying, completed, cancelled, expired and failed states. The emitted
+upload identity uses canonical RFC UUIDv7 spelling in this notification profile. Receipt,
+authority and provider data do not enter this profile. The queue validates the
+notification and performs a fresh authorized session read before changing file
+state; notification/read races use the existing terminal-state reconciliation.
+Queue phases, local files and progress counters belong to browser persistence.

@@ -166,3 +166,12 @@ mod tests {
         );
     }
 }
+
+/// Flat subject kind used by Artifact grant projections.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+pub enum ArtifactGrantSubjectKind {
+    #[vocabulary(rename = "principal")]
+    Principal,
+    #[vocabulary(rename = "group")]
+    Group,
+}

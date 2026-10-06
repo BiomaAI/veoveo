@@ -77,10 +77,7 @@ impl TaskRuntime {
                 "_admission_profile",
                 RecordId::new("profile", owner.profile.clone()),
             ))
-            .bind((
-                "_admission_class",
-                veoveo_platform_store::RecoveryClass::from(snapshot.recovery_class),
-            ))
+            .bind(("_admission_class", snapshot.recovery_class))
             .bind(("_admission_updated", snapshot.updated_at))
             .bind(("_admission_kind", snapshot.task_type.to_string()))
             .bind(("_admission_request", envelope.into_value()))

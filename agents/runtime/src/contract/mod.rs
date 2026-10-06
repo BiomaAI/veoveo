@@ -81,3 +81,6 @@ mod tests {
 pub mod authoring;
 
 pub mod control;
+
+mod lifecycle;
+pub use lifecycle::AgentState;

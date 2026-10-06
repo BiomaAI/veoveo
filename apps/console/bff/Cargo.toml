@@ -10,7 +10,7 @@ required-features = ["runtime"]
 
 [features]
 default = ["runtime"]
-contract = []
+contract = ["dep:veoveo-agent-runtime", "dep:veoveo-artifact-contract", "dep:veoveo-recording-contract", "dep:veoveo-task-contract"]
 runtime = [
     "contract",
     "dep:veoveo-http",
@@ -44,8 +44,11 @@ runtime = [
 ]
 
 [dependencies]
+thiserror.workspace = true
+veoveo-recording-contract = { workspace = true, optional = true }
+veoveo-task-contract = { workspace = true, optional = true }
 veoveo-http = { workspace = true, optional = true }
-veoveo-agent-runtime = { workspace = true, features = ["contract"], optional = true }
+veoveo-agent-runtime = { workspace = true, default-features = false, features = ["contract"], optional = true }
 veoveo-workspace = { workspace = true, features = ["app-contract"], optional = true }
 veoveo-gateway-contract.workspace = true
 veoveo-artifact-contract = { workspace = true, optional = true }
@@ -80,6 +83,7 @@ veoveo-computers-transport = { path = "../../../platform/computers/transport", o
 schemars = { workspace = true, features = ["chrono04"] }
 
 [dev-dependencies]
+jsonschema.workspace = true
 axum-server.workspace = true
 rcgen.workspace = true
 tower.workspace = true

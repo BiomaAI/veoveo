@@ -55,11 +55,13 @@ on the UAV library or enumerate its camera and resource vocabulary.
 
 ## Scope And Discovery
 
-The shared crate also owns the closed Console bootstrap DTOs in
-`src/gateway/console.rs`. This repository-owned HTTP projection carries authenticated
-session presentation and branding. It is separate from the MCP protocol and from
-administrator inventory. The [gateway projection design](../../platform/gateway/composition/src/bin/gateway/console/DESIGN.md)
-defines its authority boundary. Browser models are generated with
+The [Gateway contract](../../platform/gateway/contract/DESIGN.md#console-bootstrap-and-health)
+owns the closed Console bootstrap DTOs in `src/console.rs`. This HTTP projection
+carries authenticated session presentation and branding. The
+[Console BFF contract](../../apps/console/bff/DESIGN.md#installation-snapshot-and-events)
+owns administrator inventory and its entity events. These browser contracts are
+independent of MCP transports. The [gateway projection design](../../platform/gateway/composition/src/bin/gateway/console/DESIGN.md)
+defines their authority boundary. Browser models are generated with
 `cargo xtask release client-types`; Rust remains the wire source of truth.
 
 The contract governs the servers in `servers/*-mcp/` and any independently
@@ -782,3 +784,15 @@ Normalized `Principal`, group membership and outer `PolicyDecision` objects reje
 unknown fields during decoding. Raw external JWT claims keep their own admission
 profile. Policy target decoding still admits owner registrations and preserves
 unadmitted target payloads until their owner registry checks them.
+
+## Artifact Upload Notifications
+
+The Artifact transfer schema owns contentless `artifact_upload` notifications.
+The JSON fields are `op`, `upload_id` and `state`; `op` is `changed`, and emitted
+states are finalizing, verifying, completed, cancelled, expired and failed.
+The notification schema describes the canonical RFC UUIDv7 identity spelling
+emitted by the typed producer. Private ledger ID admission continues to accept
+its declared parser aliases and serializes them into that canonical spelling.
+Notifications prompt a currently authorized session read rather than conveying
+a receipt, provider result or upload authority. Browser queue phases and local
+file state have their separate persistence owner.

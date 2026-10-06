@@ -1,5 +1,712 @@
 {
   "$defs": {
+    "AccessLevel": {
+      "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+      "enum": [
+        "read",
+        "write",
+        "admin"
+      ],
+      "type": "string"
+    },
+    "AccessRequestEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/ArtifactAccessRequestId"
+            },
+            "op": {
+              "const": "changed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AccessSubject": {
+      "description": "A principal or group that can own governed data or receive access.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "kind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AgentEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "upsert",
+              "type": "string"
+            },
+            "row": {
+              "$ref": "#/$defs/AgentSummary"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AgentState": {
+      "enum": [
+        "idle",
+        "running",
+        "waiting",
+        "disabled",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "AgentSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lastEpisodeAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "pendingWakes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "profile": {
+          "$ref": "#/$defs/GatewayProfileId"
+        },
+        "runnerLeaseExpiresAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/AgentState"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "profile",
+        "state",
+        "pendingWakes",
+        "detail"
+      ],
+      "type": "object"
+    },
+    "ArtifactAccessDenialReason": {
+      "enum": [
+        "tenant_boundary",
+        "clearance",
+        "need_to_know"
+      ],
+      "type": "string"
+    },
+    "ArtifactAccessRequestId": {
+      "type": "string"
+    },
+    "ArtifactAccessSource": {
+      "description": "Access origin determines the domain of the subject identifier.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "principal_grant",
+              "type": "string"
+            },
+            "level": {
+              "$ref": "#/$defs/AccessLevel"
+            },
+            "subject": {
+              "$ref": "#/$defs/PrincipalId"
+            }
+          },
+          "required": [
+            "kind",
+            "subject",
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "group_grant",
+              "type": "string"
+            },
+            "level": {
+              "$ref": "#/$defs/AccessLevel"
+            },
+            "subject": {
+              "$ref": "#/$defs/GroupId"
+            }
+          },
+          "required": [
+            "kind",
+            "subject",
+            "level"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "work_context",
+              "type": "string"
+            },
+            "level": {
+              "$ref": "#/$defs/AccessLevel"
+            },
+            "subject": {
+              "$ref": "#/$defs/WorkContextId"
+            }
+          },
+          "required": [
+            "kind",
+            "subject",
+            "level"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactEffectiveAccessSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "admin": {
+          "type": "boolean"
+        },
+        "clearanceSatisfied": {
+          "type": "boolean"
+        },
+        "denialReason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactAccessDenialReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "level": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AccessLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "requestable": {
+          "type": "boolean"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/ArtifactAccessSource"
+          },
+          "type": "array"
+        },
+        "write": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "read",
+        "write",
+        "admin",
+        "clearanceSatisfied",
+        "requestable",
+        "sources"
+      ],
+      "type": "object"
+    },
+    "ArtifactEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "upsert",
+              "type": "string"
+            },
+            "row": {
+              "$ref": "#/$defs/ArtifactSummary"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/ArtifactId"
+            },
+            "op": {
+              "const": "delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactGovernanceSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "delegationId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DelegationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initiator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invocationMode": {
+          "$ref": "#/$defs/InvocationMode"
+        },
+        "policyRevision": {
+          "$ref": "#/$defs/PolicyVersion"
+        },
+        "producer": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "workContext": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "workContext",
+        "producer",
+        "invocationMode",
+        "policyRevision"
+      ],
+      "type": "object"
+    },
+    "ArtifactGrantSummaryValue": {
+      "description": "Grant kind and subject cannot disagree inside a usable wire value.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "createdAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "labels": {
+              "items": {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              "type": "array"
+            },
+            "permission": {
+              "$ref": "#/$defs/AccessLevel"
+            },
+            "subject": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "subjectKind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subjectKind",
+            "subject",
+            "permission",
+            "labels",
+            "createdAt"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "createdAt": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "expiresAt": {
+              "format": "date-time",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "labels": {
+              "items": {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              "type": "array"
+            },
+            "permission": {
+              "$ref": "#/$defs/AccessLevel"
+            },
+            "subject": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "subjectKind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "subjectKind",
+            "subject",
+            "permission",
+            "labels",
+            "createdAt"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
+    "ArtifactRecordingSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "layerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordinal": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "recordingId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "recordingId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ArtifactReleaseState": {
+      "enum": [
+        "private",
+        "releasable",
+        "released"
+      ],
+      "type": "string"
+    },
+    "ArtifactShareLinkId": {
+      "description": "Identity of an expiring Artifact share, distinct from an occurrence.\n```compile_fail\nuse veoveo_artifact_contract::{ArtifactId, ArtifactShareLinkId};\nfn revoke(_: ArtifactShareLinkId) {}\nrevoke(ArtifactId::new());\n```",
+      "type": "string"
+    },
+    "ArtifactShareLinkSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "downloadCount": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ArtifactShareLinkId"
+        },
+        "maxDownloads": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "permission": {
+          "$ref": "#/$defs/AccessLevel"
+        },
+        "revokedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "permission",
+        "expiresAt",
+        "downloadCount",
+        "createdAt",
+        "active"
+      ],
+      "type": "object"
+    },
+    "ArtifactSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "activeLinks": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "authorizedGrants": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "byteLength": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "classification": {
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "effectiveAccess": {
+          "$ref": "#/$defs/ArtifactEffectiveAccessSummary"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "$ref": "#/$defs/ArtifactGrantSummaryValue"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "#/$defs/ArtifactId"
+        },
+        "labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "outputOwner": {
+          "$ref": "#/$defs/AccessSubject"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ArtifactGovernanceSummary"
+        },
+        "recording": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRecordingSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "releaseState": {
+          "$ref": "#/$defs/ArtifactReleaseState"
+        },
+        "retentionExpiresAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shareLinks": {
+          "items": {
+            "$ref": "#/$defs/ArtifactShareLinkSummary"
+          },
+          "type": "array"
+        },
+        "taskId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mediaType",
+        "byteLength",
+        "owner",
+        "outputOwner",
+        "provenance",
+        "effectiveAccess",
+        "classification",
+        "labels",
+        "releaseState",
+        "authorizedGrants",
+        "activeLinks",
+        "grants",
+        "shareLinks",
+        "createdAt"
+      ],
+      "type": "object"
+    },
+    "ConsoleBootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "canReadAudit": {
+          "type": "boolean"
+        },
+        "canReadInstallation": {
+          "type": "boolean"
+        },
+        "installation": {
+          "$ref": "#/$defs/ConsoleInstallation"
+        },
+        "profile": {
+          "$ref": "#/$defs/GatewayProfileId"
+        },
+        "session": {
+          "$ref": "#/$defs/ConsoleSession"
+        }
+      },
+      "required": [
+        "profile",
+        "installation",
+        "session",
+        "canReadInstallation",
+        "canReadAudit"
+      ],
+      "type": "object"
+    },
     "ConsoleInstallation": {
       "additionalProperties": false,
       "properties": {
@@ -92,6 +799,82 @@
       ],
       "type": "object"
     },
+    "ConsoleSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/$defs/AgentSummary"
+          },
+          "type": "array"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/ArtifactSummary"
+          },
+          "type": "array"
+        },
+        "installation": {
+          "$ref": "#/$defs/ConsoleInstallation"
+        },
+        "policies": {
+          "items": {
+            "$ref": "#/$defs/PolicySummary"
+          },
+          "type": "array"
+        },
+        "principals": {
+          "items": {
+            "$ref": "#/$defs/PrincipalSummary"
+          },
+          "type": "array"
+        },
+        "recordings": {
+          "items": {
+            "$ref": "#/$defs/RecordingSummary"
+          },
+          "type": "array"
+        },
+        "servers": {
+          "items": {
+            "$ref": "#/$defs/ServerSummary"
+          },
+          "type": "array"
+        },
+        "services": {
+          "items": {
+            "$ref": "#/$defs/ServiceSummary"
+          },
+          "type": "array"
+        },
+        "session": {
+          "$ref": "#/$defs/ConsoleSession"
+        },
+        "stream": {
+          "$ref": "#/$defs/StreamInfo"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TaskSummary"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "installation",
+        "session",
+        "principals",
+        "stream",
+        "services",
+        "tasks",
+        "artifacts",
+        "agents",
+        "recordings",
+        "servers",
+        "policies"
+      ],
+      "type": "object"
+    },
     "ConsoleTenant": {
       "additionalProperties": false,
       "properties": {
@@ -108,8 +891,28 @@
       ],
       "type": "object"
     },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
+    "DelegationId": {
+      "description": "Auditable identity of authority delegated by an initiator to another actor.",
+      "type": "string"
+    },
     "GatewayProfileId": {
       "description": "Veoveo profile id exposed under `/mcp/{profile}`.",
+      "type": "string"
+    },
+    "GatewayServerHealthState": {
+      "enum": [
+        "healthy",
+        "degraded",
+        "offline"
+      ],
+      "type": "string"
+    },
+    "GroupId": {
+      "description": "Identity-provider group identifier used by gateway policy.",
       "type": "string"
     },
     "InvocationMode": {
@@ -121,12 +924,665 @@
       ],
       "type": "string"
     },
+    "LocalToolName": {
+      "description": "Tool name as exposed by one direct MCP server.",
+      "type": "string"
+    },
+    "OwnedRoutePurpose": {
+      "enum": [
+        "webhook",
+        "artifact_bytes",
+        "provider_fetchable_files",
+        "health"
+      ],
+      "type": "string"
+    },
+    "PolicyState": {
+      "enum": [
+        "draft",
+        "active",
+        "retired"
+      ],
+      "type": "string"
+    },
+    "PolicySummary": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/PolicyVersion"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rules": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/PolicyState"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "revision",
+        "state",
+        "rules",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "PolicyVersion": {
+      "description": "Immutable policy version identifier emitted with decisions and audit records.",
+      "type": "string"
+    },
+    "PrincipalEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "upsert",
+              "type": "string"
+            },
+            "row": {
+              "$ref": "#/$defs/PrincipalSummary"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "PrincipalId": {
       "description": "Stable authenticated user or service-principal identity.",
       "type": "string"
     },
+    "PrincipalSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "displayName"
+      ],
+      "type": "object"
+    },
+    "PromptName": {
+      "description": "Prompt name as exposed by one direct MCP server or gateway profile.",
+      "type": "string"
+    },
+    "RecordingEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "upsert",
+              "type": "string"
+            },
+            "row": {
+              "$ref": "#/$defs/RecordingSummary"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "op": {
+              "const": "delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "RecordingState": {
+      "enum": [
+        "live",
+        "ready",
+        "sealing",
+        "sealed",
+        "interrupted",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "RecordingSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "application": {
+          "type": "string"
+        },
+        "committedByteLength": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "committedLayerCount": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "endedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "lastDataAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "layerCount": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recordingKey": {
+          "type": "string"
+        },
+        "sealedAt": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/RecordingState"
+        }
+      },
+      "required": [
+        "id",
+        "application",
+        "recordingKey",
+        "state",
+        "layerCount",
+        "committedLayerCount",
+        "committedByteLength",
+        "startedAt",
+        "lastDataAt"
+      ],
+      "type": "object"
+    },
+    "RecoveryClass": {
+      "enum": [
+        "resume",
+        "webhook_wait",
+        "provider_wait",
+        "interrupted_indeterminate"
+      ],
+      "type": "string"
+    },
+    "ResetEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/ResetReason"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "type": "object"
+    },
+    "ResetReason": {
+      "enum": [
+        "cursor-out-of-range",
+        "seed-failed",
+        "replay-failed"
+      ],
+      "type": "string"
+    },
+    "ResourceScheme": {
+      "description": "Server-owned resource URI scheme, for example `media`.",
+      "type": "string"
+    },
+    "ScopeName": {
+      "description": "OAuth/OIDC scope value. It must not contain whitespace or control characters.",
+      "type": "string"
+    },
+    "ServerCapabilitiesSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "completions": {
+          "type": "boolean"
+        },
+        "prompts": {
+          "type": "boolean"
+        },
+        "promptsListChanged": {
+          "type": "boolean"
+        },
+        "resourceSubscriptions": {
+          "type": "boolean"
+        },
+        "resourceTemplates": {
+          "type": "boolean"
+        },
+        "resources": {
+          "type": "boolean"
+        },
+        "resourcesListChanged": {
+          "type": "boolean"
+        },
+        "tasks": {
+          "type": "boolean"
+        },
+        "tools": {
+          "type": "boolean"
+        },
+        "toolsListChanged": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "tools",
+        "resources",
+        "resourceTemplates",
+        "resourceSubscriptions",
+        "prompts",
+        "completions",
+        "tasks",
+        "toolsListChanged",
+        "promptsListChanged",
+        "resourcesListChanged"
+      ],
+      "type": "object"
+    },
+    "ServerEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "upsert",
+              "type": "string"
+            },
+            "row": {
+              "$ref": "#/$defs/ServerSummary"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/ServerSlug"
+            },
+            "op": {
+              "const": "delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ServerRouteSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "purpose": {
+          "$ref": "#/$defs/OwnedRoutePurpose"
+        }
+      },
+      "required": [
+        "path",
+        "purpose"
+      ],
+      "type": "object"
+    },
+    "ServerSlug": {
+      "description": "Canonical hosted MCP server id used in manifests, profiles, and gateway routes.",
+      "type": "string"
+    },
+    "ServerSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/ServerCapabilitiesSummary"
+        },
+        "checkedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "compatibilityHelpers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "endpoint": {
+          "$ref": "#/$defs/UpstreamUrl"
+        },
+        "id": {
+          "$ref": "#/$defs/ServerSlug"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownedRoutes": {
+          "items": {
+            "$ref": "#/$defs/ServerRouteSummary"
+          },
+          "type": "array"
+        },
+        "profiles": {
+          "items": {
+            "$ref": "#/$defs/GatewayProfileId"
+          },
+          "type": "array"
+        },
+        "prompts": {
+          "items": {
+            "$ref": "#/$defs/PromptName"
+          },
+          "type": "array"
+        },
+        "requiredScopes": {
+          "items": {
+            "$ref": "#/$defs/ScopeName"
+          },
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/GatewayServerHealthState"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/LocalToolName"
+          },
+          "type": "array"
+        },
+        "transport": {
+          "$ref": "#/$defs/UpstreamTransport"
+        },
+        "uriScheme": {
+          "$ref": "#/$defs/ResourceScheme"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "uriScheme",
+        "transport",
+        "endpoint",
+        "state",
+        "checkedAt",
+        "capabilities",
+        "tools",
+        "compatibilityHelpers",
+        "resources",
+        "prompts",
+        "requiredScopes",
+        "ownedRoutes",
+        "profiles"
+      ],
+      "type": "object"
+    },
+    "ServiceKind": {
+      "enum": [
+        "database",
+        "gateway",
+        "mcp",
+        "object_store",
+        "observability"
+      ],
+      "type": "string"
+    },
+    "ServiceSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "checkedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ServiceKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GatewayServerHealthState"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "state",
+        "detail",
+        "checkedAt"
+      ],
+      "type": "object"
+    },
+    "StreamInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cursor"
+      ],
+      "type": "object"
+    },
+    "TaskEvent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "upsert",
+              "type": "string"
+            },
+            "row": {
+              "$ref": "#/$defs/TaskSummary"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/TaskId"
+            },
+            "op": {
+              "const": "delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TaskId": {
+      "maxLength": 45,
+      "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+      "type": "string"
+    },
+    "TaskStatus": {
+      "enum": [
+        "queued",
+        "running",
+        "waiting",
+        "succeeded",
+        "failed",
+        "cancel_requested",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "TaskSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/TaskId"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "owner": {
+          "type": "string"
+        },
+        "progress": {
+          "format": "double",
+          "type": "number"
+        },
+        "recoveryClass": {
+          "$ref": "#/$defs/RecoveryClass"
+        },
+        "resultArtifactId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "server": {
+          "$ref": "#/$defs/ServerSlug"
+        },
+        "state": {
+          "$ref": "#/$defs/TaskStatus"
+        },
+        "type": {
+          "$ref": "#/$defs/TaskTypeName"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "server",
+        "owner",
+        "state",
+        "recoveryClass",
+        "progress",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
+    "TaskTypeName": {
+      "description": "A Task operation name: 1–128 ASCII bytes, starting with a lowercase letter,\nfollowed by lowercase letters, digits, dots, underscores or hyphens.",
+      "type": "string"
+    },
     "TenantId": {
       "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "UpstreamTransport": {
+      "enum": [
+        "streamable_http"
+      ],
+      "type": "string"
+    },
+    "UpstreamUrl": {
       "type": "string"
     },
     "WorkContextId": {
@@ -146,30 +1602,55 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "Named schema roots used by generated clients and runtime validators.",
   "properties": {
-    "canReadAudit": {
-      "type": "boolean"
+    "accessRequestEvent": {
+      "$ref": "#/$defs/AccessRequestEvent"
     },
-    "canReadInstallation": {
-      "type": "boolean"
+    "agentEvent": {
+      "$ref": "#/$defs/AgentEvent"
     },
-    "installation": {
-      "$ref": "#/$defs/ConsoleInstallation"
+    "artifact": {
+      "$ref": "#/$defs/ArtifactSummary"
     },
-    "profile": {
-      "$ref": "#/$defs/GatewayProfileId"
+    "artifactEvent": {
+      "$ref": "#/$defs/ArtifactEvent"
     },
-    "session": {
-      "$ref": "#/$defs/ConsoleSession"
+    "bootstrap": {
+      "$ref": "#/$defs/ConsoleBootstrap"
+    },
+    "principalEvent": {
+      "$ref": "#/$defs/PrincipalEvent"
+    },
+    "recordingEvent": {
+      "$ref": "#/$defs/RecordingEvent"
+    },
+    "resetEvent": {
+      "$ref": "#/$defs/ResetEvent"
+    },
+    "serverEvent": {
+      "$ref": "#/$defs/ServerEvent"
+    },
+    "snapshot": {
+      "$ref": "#/$defs/ConsoleSnapshot"
+    },
+    "taskEvent": {
+      "$ref": "#/$defs/TaskEvent"
     }
   },
   "required": [
-    "profile",
-    "installation",
-    "session",
-    "canReadInstallation",
-    "canReadAudit"
+    "bootstrap",
+    "snapshot",
+    "artifact",
+    "principalEvent",
+    "taskEvent",
+    "artifactEvent",
+    "agentEvent",
+    "recordingEvent",
+    "serverEvent",
+    "resetEvent",
+    "accessRequestEvent"
   ],
-  "title": "ConsoleBootstrap",
+  "title": "ConsoleApi",
   "type": "object"
 }

@@ -32,7 +32,7 @@ fn record() -> TaskRecord {
         server: RecordId::new("mcp_server", "native"),
         task_type: "native".parse().unwrap(),
         status: StoreTaskStatus::Queued,
-        recovery_class: StoreRecoveryClass::Resume,
+        recovery_class: RecoveryClass::Resume,
         request: TaskRequestRecord {
             input: serde_json::json!(null),
             status_message: None,

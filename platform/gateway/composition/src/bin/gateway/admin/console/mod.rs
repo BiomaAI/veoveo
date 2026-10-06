@@ -1,3 +1,6 @@
+use veoveo_console_bff::contract::{
+    ConsoleSnapshot, PolicyState, ServiceKind, ServiceSummary, StreamInfo,
+};
 use veoveo_gateway_contract::GatewayAction;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 mod artifact;
@@ -15,8 +18,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
-use serde::Serialize;
-use veoveo_mcp_contract::{ConsoleInstallation, ConsoleSession, GatewayControlPlane, ServerSlug};
+use veoveo_mcp_contract::{GatewayControlPlane, ServerSlug};
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth};
 use veoveo_platform_store::{ChangefeedCursor, deterministic_tenant_id};
 use veoveo_recording_store::RecordingLayerState;
@@ -24,8 +26,7 @@ use veoveo_recording_store::RecordingLayerState;
 pub(crate) use artifact::read_console_artifact;
 pub(crate) use health::{ServerHealthMonitor, spawn_server_health_prober};
 use projection::{
-    AgentSummary, ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary,
-    ArtifactSummary, PolicySummary, PrincipalSummary, RecordingSummary, ServerSummary, TaskSummary,
+    ArtifactAccessContext, ArtifactGrantSummary, ArtifactShareLinkSummary, PolicySummary,
 };
 use projection::{
     Projection, agent_summary, artifact_grant_summary, artifact_summary, load_projection,
@@ -137,42 +138,6 @@ pub(crate) async fn read_console_snapshot(
     Json(snapshot).into_response()
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ConsoleSnapshot {
-    installation: ConsoleInstallation,
-    session: ConsoleSession,
-    principals: Vec<PrincipalSummary>,
-    stream: StreamInfo,
-    services: Vec<ServiceSummary>,
-    tasks: Vec<TaskSummary>,
-    artifacts: Vec<ArtifactSummary>,
-    agents: Vec<AgentSummary>,
-    recordings: Vec<RecordingSummary>,
-    servers: Vec<ServerSummary>,
-    policies: Vec<PolicySummary>,
-}
-
-/// Console live-stream bootstrap: the changefeed cursor the browser passes
-/// to `GET /admin/{profile}/console/stream` so replay begins where this
-/// snapshot's view of the world ends.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StreamInfo {
-    cursor: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ServiceSummary {
-    id: &'static str,
-    name: &'static str,
-    kind: &'static str,
-    state: &'static str,
-    detail: String,
-    checked_at: DateTime<Utc>,
-}
-
 #[expect(
     clippy::too_many_arguments,
     reason = "snapshot assembly aggregates the full console surface"
@@ -238,10 +203,10 @@ fn build_snapshot(
         grants
             .entry(record_key(&grant.r#in)?)
             .or_default()
-            .push(artifact_grant_summary(grant));
+            .push(artifact_grant_summary(grant)?);
     }
     for artifact_grants in grants.values_mut() {
-        artifact_grants.sort_by_key(|grant| std::cmp::Reverse(grant.created_at));
+        artifact_grants.sort_by_key(|grant| std::cmp::Reverse(grant.created_at()));
     }
     let mut links = BTreeMap::<String, Vec<ArtifactShareLinkSummary>>::new();
     for link in &projection.share_links {
@@ -276,18 +241,18 @@ fn build_snapshot(
 
     let services = vec![
         ServiceSummary {
-            id: "surrealdb",
-            name: "SurrealDB",
-            kind: "database",
-            state: "healthy",
+            id: "surrealdb".to_owned(),
+            name: "SurrealDB".to_owned(),
+            kind: ServiceKind::Database,
+            state: veoveo_gateway_contract::GatewayServerHealthState::Healthy,
             detail: "Control store · RocksDB".to_owned(),
             checked_at: now,
         },
         ServiceSummary {
-            id: "gateway",
-            name: "MCP Gateway",
-            kind: "gateway",
-            state: "healthy",
+            id: "gateway".to_owned(),
+            name: "MCP Gateway".to_owned(),
+            kind: ServiceKind::Gateway,
+            state: veoveo_gateway_contract::GatewayServerHealthState::Healthy,
             detail: format!("{} profiles active", control.profiles.len()),
             checked_at: now,
         },
@@ -342,10 +307,10 @@ fn build_snapshot(
         .iter()
         .enumerate()
         .map(|(index, policy)| PolicySummary {
-            id: policy.version.to_string(),
+            id: policy.version.clone(),
             name: policy.version.to_string(),
             revision: index + 1,
-            state: "active",
+            state: PolicyState::Active,
             rules: policy.rules.len(),
             updated_at,
         })

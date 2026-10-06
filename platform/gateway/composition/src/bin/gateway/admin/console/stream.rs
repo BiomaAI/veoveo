@@ -4,6 +4,10 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use veoveo_console_bff::contract::events::*;
+use veoveo_mcp_contract::artifact_service::upload::{
+    ArtifactUploadNotification, ArtifactUploadNotificationState,
+};
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 
 use axum::{
@@ -325,7 +329,7 @@ async fn resolve_cursor(
             let implied_ms = cursor.versionstamp() >> 16;
             let horizon = Utc::now() - REPLAY_HORIZON;
             if cursor.versionstamp() > 0 && implied_ms < horizon.timestamp_millis() {
-                return Err(reset_response("cursor-out-of-range").into());
+                return Err(reset_response(ResetReason::CursorOutOfRange).into());
             }
             Ok(cursor)
         }
@@ -336,9 +340,9 @@ async fn resolve_cursor(
     }
 }
 
-fn reset_response(reason: &str) -> Response {
-    let body =
-        format!("retry: {RETRY_HINT_MS}\nevent: reset\ndata: {{\"reason\":\"{reason}\"}}\n\n");
+fn reset_response(reason: ResetReason) -> Response {
+    let payload = serde_json::to_string(&ResetEvent { reason }).expect("reset profile serializes");
+    let body = format!("retry: {RETRY_HINT_MS}\nevent: reset\ndata: {payload}\n\n");
     (
         StatusCode::OK,
         [
@@ -360,8 +364,7 @@ fn stream_deadline(token_expires_at: DateTime<Utc>) -> tokio::time::Instant {
 struct OutEvent {
     versionstamp: i64,
     rank: usize,
-    name: &'static str,
-    payload: serde_json::Value,
+    payload: ConsoleStreamEvent,
 }
 
 fn console_event_stream(
@@ -392,7 +395,7 @@ fn console_event_stream(
             Ok(seeded) => seeded,
             Err(error) => {
                 tracing::error!("console stream seed failed: {error}");
-                yield Ok(reset_event("seed-failed"));
+                yield Ok(reset_event(ResetReason::SeedFailed));
                 return;
             }
         };
@@ -425,15 +428,15 @@ fn console_event_stream(
                     // Debounce so a burst of writes coalesces into one replay.
                     tokio::time::sleep(WAKE_DEBOUNCE).await;
                     wake.mark_unchanged();
-                    match projection_state.drain(&store).await {
+                    match projection_state.drain(&store).await.and_then(group_events) {
                         Ok(events) => {
-                            for event in group_events(events) {
+                            for event in events {
                                 yield Ok(event);
                             }
                         }
                         Err(error) => {
                             tracing::warn!("console stream replay failed: {error}");
-                            yield Ok(reset_event("replay-failed"));
+                            yield Ok(reset_event(ResetReason::ReplayFailed));
                             return;
                         }
                     }
@@ -444,10 +447,11 @@ fn console_event_stream(
     }
 }
 
-fn reset_event(reason: &str) -> Event {
+fn reset_event(reason: ResetReason) -> Event {
     Event::default()
         .event("reset")
-        .data(serde_json::json!({ "reason": reason }).to_string())
+        .json_data(ResetEvent { reason })
+        .expect("reset profile serializes")
 }
 
 fn server_health_events(state: &AdminState) -> Vec<Event> {
@@ -462,7 +466,10 @@ fn server_health_events(state: &AdminState) -> Vec<Event> {
             let summary = server_summary(server, control, health.get(&server.slug), now);
             Event::default()
                 .event("server")
-                .data(serde_json::json!({ "op": "upsert", "row": summary }).to_string())
+                .json_data(ServerEvent::Upsert {
+                    row: Box::new(summary),
+                })
+                .expect("server summary serializes")
         })
         .collect()
 }
@@ -470,7 +477,7 @@ fn server_health_events(state: &AdminState) -> Vec<Event> {
 /// Sorts a replay round by (versionstamp, dependency rank) and attaches the
 /// SSE `id:` to the last event of each versionstamp group, so an interrupted
 /// group is replayed whole on reconnect.
-fn group_events(mut events: Vec<OutEvent>) -> Vec<Event> {
+fn group_events(mut events: Vec<OutEvent>) -> anyhow::Result<Vec<Event>> {
     events.sort_by_key(|event| (event.versionstamp, event.rank));
     let mut rendered = Vec::with_capacity(events.len());
     let mut iter = events.into_iter().peekable();
@@ -479,14 +486,14 @@ fn group_events(mut events: Vec<OutEvent>) -> Vec<Event> {
             .peek()
             .is_none_or(|next| next.versionstamp != event.versionstamp);
         let mut sse = Event::default()
-            .event(event.name)
-            .data(event.payload.to_string());
+            .event(event.payload.event_name())
+            .json_data(event.payload)?;
         if is_group_boundary {
             sse = sse.id(event.versionstamp.to_string());
         }
         rendered.push(sse);
     }
-    rendered
+    Ok(rendered)
 }
 
 struct ConsoleStreamState {
@@ -506,10 +513,34 @@ struct ConsoleStreamState {
 }
 
 #[derive(Serialize)]
-struct UploadChanged {
-    op: &'static str,
-    upload_id: veoveo_mcp_contract::ArtifactUploadId,
+#[serde(untagged)]
+enum ConsoleStreamEvent {
+    Row(ConsoleRowEvent),
+    AccessRequest(AccessRequestEvent),
+    Upload(ArtifactUploadNotification),
+}
+impl ConsoleStreamEvent {
+    fn event_name(&self) -> &'static str {
+        match self {
+            Self::Row(event) => event.event_name(),
+            Self::AccessRequest(_) => "access_request",
+            Self::Upload(_) => "artifact_upload",
+        }
+    }
+}
+
+const fn upload_notification_state(
     state: ArtifactUploadState,
+) -> Option<ArtifactUploadNotificationState> {
+    match state {
+        ArtifactUploadState::Open => None,
+        ArtifactUploadState::Finalizing => Some(ArtifactUploadNotificationState::Finalizing),
+        ArtifactUploadState::Verifying => Some(ArtifactUploadNotificationState::Verifying),
+        ArtifactUploadState::Completed => Some(ArtifactUploadNotificationState::Completed),
+        ArtifactUploadState::Cancelled => Some(ArtifactUploadNotificationState::Cancelled),
+        ArtifactUploadState::Expired => Some(ArtifactUploadNotificationState::Expired),
+        ArtifactUploadState::Failed => Some(ArtifactUploadNotificationState::Failed),
+    }
 }
 
 impl ConsoleStreamState {
@@ -544,7 +575,7 @@ impl ConsoleStreamState {
             if artifacts.contains_key(&artifact) {
                 grants.insert(
                     record_key(&grant.id)?,
-                    (artifact, artifact_grant_summary(grant)),
+                    (artifact, artifact_grant_summary(grant)?),
                 );
             }
         }
@@ -673,11 +704,10 @@ impl ConsoleStreamState {
         versionstamp: i64,
         entry: ChangefeedEntry,
     ) -> anyhow::Result<Option<OutEvent>> {
-        let out = |name: &'static str, payload: serde_json::Value| {
+        let out = |payload: ConsoleStreamEvent| {
             Some(OutEvent {
                 versionstamp,
                 rank,
-                name,
                 payload,
             })
         };
@@ -693,12 +723,16 @@ impl ConsoleStreamState {
                         let summary = principal_summary(&principal);
                         self.principal_names
                             .insert(record_key(&principal.id)?, principal.display_name);
-                        Ok(out("principal", upsert_payload(&summary)?))
+                        Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Principal(
+                            PrincipalEvent::Upsert { row: summary },
+                        ))))
                     }
                     ConsoleTable::Task => {
                         let task: TaskRecord = row.into_t()?;
                         let summary = task_summary(task, &self.principal_names)?;
-                        Ok(out("task", upsert_payload(&summary)?))
+                        Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Task(
+                            TaskEvent::Upsert { row: summary },
+                        ))))
                     }
                     ConsoleTable::ArtifactBlob => {
                         let blob: ArtifactBlobRecord = row.into_t()?;
@@ -730,14 +764,17 @@ impl ConsoleStreamState {
                         }
                         // Contentless, scoped notifications trigger a currently authorized status
                         // read. File descriptors, storage handles, and authority never enter SSE.
-                        let event = UploadChanged {
-                            op: "changed",
+                        let Some(notification_state) = upload_notification_state(upload.state)
+                        else {
+                            return Ok(None);
+                        };
+                        let event = ArtifactUploadNotification::Changed {
                             upload_id: veoveo_mcp_contract::ArtifactUploadId::parse(record_key(
                                 &upload.id,
                             )?)?,
-                            state: upload.state,
+                            state: notification_state,
                         };
-                        Ok(out("artifact_upload", serde_json::to_value(event)?))
+                        Ok(out(ConsoleStreamEvent::Upload(event)))
                     }
                     ConsoleTable::ArtifactGrant => {
                         let grant: ArtifactGrantEdge = row.into_t()?;
@@ -747,19 +784,19 @@ impl ConsoleStreamState {
                         }
                         self.grants.insert(
                             record_key(&grant.id)?,
-                            (artifact.clone(), artifact_grant_summary(&grant)),
+                            (artifact.clone(), artifact_grant_summary(&grant)?),
                         );
                         self.emit_artifact(&artifact, versionstamp, rank)
                     }
                     ConsoleTable::ArtifactAccessRequest => {
                         let request: ArtifactAccessRequestRecord = row.into_t()?;
-                        Ok(out(
-                            "access_request",
-                            serde_json::json!({
-                                "op": "changed",
-                                "id": record_key(&request.id)?,
-                            }),
-                        ))
+                        Ok(out(ConsoleStreamEvent::AccessRequest(
+                            AccessRequestEvent::Changed {
+                                id: veoveo_artifact_contract::ArtifactAccessRequestId::parse(
+                                    record_key(&request.id)?,
+                                )?,
+                            },
+                        )))
                     }
                     ConsoleTable::ShareLink => {
                         let link: ShareLinkRecord = row.into_t()?;
@@ -825,12 +862,17 @@ impl ConsoleStreamState {
                     ConsoleTable::Principal => {
                         let principal: PrincipalRecord = original.into_t()?;
                         self.principal_names.remove(&key);
-                        Ok(out(
-                            "principal",
-                            delete_payload(&principal_summary(&principal).id),
-                        ))
+                        Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Principal(
+                            PrincipalEvent::Delete {
+                                id: principal_summary(&principal).id,
+                            },
+                        ))))
                     }
-                    ConsoleTable::Task => Ok(out("task", delete_payload(&key))),
+                    ConsoleTable::Task => Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Task(
+                        TaskEvent::Delete {
+                            id: veoveo_types::TaskId::parse(key)?,
+                        },
+                    )))),
                     ConsoleTable::ArtifactBlob => {
                         self.blob_lengths.remove(&key);
                         Ok(None)
@@ -843,15 +885,20 @@ impl ConsoleStreamState {
                         }
                         self.grants.retain(|_, (artifact, _)| *artifact != key);
                         self.links.retain(|_, (artifact, _)| *artifact != key);
-                        Ok(out("artifact", delete_payload(&key)))
+                        Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Artifact(
+                            ArtifactEvent::Delete {
+                                id: veoveo_artifact_contract::ArtifactId::parse(key)?,
+                            },
+                        ))))
                     }
                     ConsoleTable::ArtifactGrant => match self.grants.remove(&key) {
                         Some((artifact, _)) => self.emit_artifact(&artifact, versionstamp, rank),
                         None => Ok(None),
                     },
                     ConsoleTable::ArtifactAccessRequest => Ok(out(
-                        "access_request",
-                        serde_json::json!({ "op": "changed", "id": key }),
+                        ConsoleStreamEvent::AccessRequest(AccessRequestEvent::Changed {
+                            id: veoveo_artifact_contract::ArtifactAccessRequestId::parse(key)?,
+                        }),
                     )),
                     ConsoleTable::ShareLink => match self.links.remove(&key) {
                         Some((artifact, _)) => self.emit_artifact(&artifact, versionstamp, rank),
@@ -861,7 +908,11 @@ impl ConsoleStreamState {
                         let agent: AgentRecord = original.into_t()?;
                         self.agents.remove(&key);
                         self.wakes.retain(|_, (agent, _)| *agent != key);
-                        Ok(out("agent", delete_payload(agent_public_key(&agent))))
+                        Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Agent(
+                            AgentEvent::Delete {
+                                id: agent_public_key(&agent).to_owned(),
+                            },
+                        ))))
                     }
                     ConsoleTable::Wake => match self.wakes.remove(&key) {
                         Some((agent, _)) => self.emit_agent(&agent, versionstamp, rank),
@@ -870,7 +921,11 @@ impl ConsoleStreamState {
                     ConsoleTable::Recording => {
                         self.recordings.remove(&key);
                         self.layers.retain(|_, (recording, _, _)| *recording != key);
-                        Ok(out("recording", delete_payload(&key)))
+                        Ok(out(ConsoleStreamEvent::Row(ConsoleRowEvent::Recording(
+                            RecordingEvent::Delete {
+                                id: veoveo_recording_contract::RecordingId::parse(key)?,
+                            },
+                        ))))
                     }
                     ConsoleTable::RecordingLayer => match self.layers.remove(&key) {
                         Some((recording, _, _)) => {
@@ -911,7 +966,7 @@ impl ConsoleStreamState {
             .filter(|(artifact, _)| artifact == id)
             .map(|(_, grant)| grant.clone())
             .collect();
-        grants.sort_by_key(|grant| std::cmp::Reverse(grant.created_at));
+        grants.sort_by_key(|grant| std::cmp::Reverse(grant.created_at()));
         let mut links: Vec<_> = self
             .links
             .values()
@@ -930,8 +985,9 @@ impl ConsoleStreamState {
         Ok(Some(OutEvent {
             versionstamp,
             rank,
-            name: "artifact",
-            payload: upsert_payload(&summary)?,
+            payload: ConsoleStreamEvent::Row(ConsoleRowEvent::Artifact(ArtifactEvent::Upsert {
+                row: Box::new(summary),
+            })),
         }))
     }
 
@@ -953,8 +1009,9 @@ impl ConsoleStreamState {
         Ok(Some(OutEvent {
             versionstamp,
             rank,
-            name: "agent",
-            payload: upsert_payload(&summary)?,
+            payload: ConsoleStreamEvent::Row(ConsoleRowEvent::Agent(AgentEvent::Upsert {
+                row: summary,
+            })),
         }))
     }
 
@@ -990,18 +1047,11 @@ impl ConsoleStreamState {
         Ok(Some(OutEvent {
             versionstamp,
             rank,
-            name: "recording",
-            payload: upsert_payload(&summary)?,
+            payload: ConsoleStreamEvent::Row(ConsoleRowEvent::Recording(RecordingEvent::Upsert {
+                row: summary,
+            })),
         }))
     }
-}
-
-fn upsert_payload<T: serde::Serialize>(row: &T) -> anyhow::Result<serde_json::Value> {
-    Ok(serde_json::json!({ "op": "upsert", "row": serde_json::to_value(row)? }))
-}
-
-fn delete_payload(id: &str) -> serde_json::Value {
-    serde_json::json!({ "op": "delete", "id": id })
 }
 
 #[cfg(test)]
@@ -1030,23 +1080,28 @@ mod tests {
             OutEvent {
                 versionstamp: 100,
                 rank: 1,
-                name: "task",
-                payload: serde_json::json!({}),
+                payload: ConsoleStreamEvent::Row(ConsoleRowEvent::Task(TaskEvent::Delete {
+                    id: veoveo_types::TaskId::new(),
+                })),
             },
             OutEvent {
                 versionstamp: 100,
                 rank: 3,
-                name: "artifact",
-                payload: serde_json::json!({}),
+                payload: ConsoleStreamEvent::Row(ConsoleRowEvent::Artifact(
+                    ArtifactEvent::Delete {
+                        id: veoveo_artifact_contract::ArtifactId::new(),
+                    },
+                )),
             },
             OutEvent {
                 versionstamp: 200,
                 rank: 1,
-                name: "task",
-                payload: serde_json::json!({}),
+                payload: ConsoleStreamEvent::Row(ConsoleRowEvent::Task(TaskEvent::Delete {
+                    id: veoveo_types::TaskId::new(),
+                })),
             },
         ];
-        let rendered = group_events(events);
+        let rendered = group_events(events).unwrap();
         assert_eq!(rendered.len(), 3);
         // Event doesn't expose its fields; assert through serialization.
         let frames: Vec<String> = rendered
@@ -1072,9 +1127,10 @@ mod tests {
 
     #[test]
     fn delete_payloads_carry_only_the_record_key() {
-        let payload = delete_payload("0197f78e");
+        let id = veoveo_types::TaskId::new();
+        let payload = serde_json::to_value(TaskEvent::Delete { id }).unwrap();
         assert_eq!(payload["op"], "delete");
-        assert_eq!(payload["id"], "0197f78e");
+        assert_eq!(payload["id"], id.to_string());
         assert!(payload.get("row").is_none());
     }
 }

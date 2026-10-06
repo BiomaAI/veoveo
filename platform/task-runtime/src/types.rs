@@ -3,6 +3,7 @@ use std::{
     fmt,
     str::FromStr,
 };
+pub use veoveo_task_contract::RecoveryClass;
 
 use chrono::{DateTime, Utc};
 use secrecy::SecretString;
@@ -10,9 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use surrealdb::types::{RecordId, RecordIdKey};
 use veoveo_platform_store::{
-    PrincipalKind, RecoveryClass as StoreRecoveryClass, StoreAuthLevel, StoreCredentials,
-    TaskRecord, TaskStatus as StoreTaskStatus, deterministic_principal_id, deterministic_tenant_id,
-    deterministic_work_context_id,
+    PrincipalKind, StoreAuthLevel, StoreCredentials, TaskRecord, TaskStatus as StoreTaskStatus,
+    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_types::InvocationAuthority;
 use veoveo_types::TaskId;
@@ -57,19 +57,6 @@ pub struct TaskRetentionPinError;
 
 const INSTALLATION_TENANT: &str = "installation";
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RecoveryClass {
-    /// Deterministic work can be reclaimed and rerun from its persisted input.
-    Resume,
-    /// Completion is accepted only through a provider webhook.
-    WebhookWait,
-    /// Recovery observes a persisted provider intent without replaying its mutation.
-    ProviderWait,
-    /// A process crash during execution makes the result unknowable.
-    InterruptedIndeterminate,
-}
-
 #[derive(Clone)]
 pub struct TaskRuntimeConfig {
     pub endpoint: String,
@@ -105,28 +92,6 @@ impl std::fmt::Debug for TaskRuntimeConfig {
             .field("database", &self.database)
             .field("credentials", &self.credentials)
             .finish()
-    }
-}
-
-impl From<RecoveryClass> for StoreRecoveryClass {
-    fn from(value: RecoveryClass) -> Self {
-        match value {
-            RecoveryClass::Resume => Self::Resume,
-            RecoveryClass::WebhookWait => Self::WebhookWait,
-            RecoveryClass::ProviderWait => Self::ProviderWait,
-            RecoveryClass::InterruptedIndeterminate => Self::InterruptedIndeterminate,
-        }
-    }
-}
-
-impl From<StoreRecoveryClass> for RecoveryClass {
-    fn from(value: StoreRecoveryClass) -> Self {
-        match value {
-            StoreRecoveryClass::Resume => Self::Resume,
-            StoreRecoveryClass::WebhookWait => Self::WebhookWait,
-            StoreRecoveryClass::ProviderWait => Self::ProviderWait,
-            StoreRecoveryClass::InterruptedIndeterminate => Self::InterruptedIndeterminate,
-        }
     }
 }
 
@@ -662,7 +627,7 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
         server: record_key(&record.server)?,
         task_type: record.task_type,
         request: envelope.input,
-        recovery_class: record.recovery_class.into(),
+        recovery_class: record.recovery_class,
         status: record.status,
         status_message: envelope.status_message,
         progress: record.progress,

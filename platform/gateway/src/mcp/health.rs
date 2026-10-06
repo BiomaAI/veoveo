@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, time::Duration};
+pub use veoveo_gateway_contract::GatewayServerHealthState;
 
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
-use serde::Serialize;
 use veoveo_mcp_contract::{ServerManifest, ServerSlug};
 
 use crate::{GatewayCatalog, GatewayCatalogSnapshot};
@@ -10,14 +10,6 @@ use crate::{GatewayCatalog, GatewayCatalogSnapshot};
 use super::GatewayUpstreamHttpClientPool;
 
 const SERVER_HEALTH_TIMEOUT: Duration = Duration::from_secs(3);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum GatewayServerHealthState {
-    Healthy,
-    Degraded,
-    Offline,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GatewayServerHealth {

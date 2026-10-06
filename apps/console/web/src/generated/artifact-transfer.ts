@@ -46,6 +46,23 @@ export type WorkContextId = string;
  */
 export type UploadSha256 = string;
 /**
+ * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
+ * via the `definition` "ArtifactUploadNotification".
+ */
+export type ArtifactUploadNotification = {
+  op: "changed";
+  state: ArtifactUploadNotificationState;
+  upload_id: string;
+};
+/**
+ * Upload notifications trigger a currently authorized status read.
+ *
+ * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
+ * via the `definition` "ArtifactUploadNotificationState".
+ */
+export type ArtifactUploadNotificationState =
+  "finalizing" | "verifying" | "completed" | "cancelled" | "expired" | "failed";
+/**
  * Neutral or server-presented Artifact occurrence URI.
  *
  * This interface was referenced by `ArtifactTransferSchema`'s JSON-Schema
@@ -100,6 +117,7 @@ export interface ArtifactTransferSchema {
   access_request: ArtifactAccessRequest;
   access_request_page: ArtifactAccessRequestPage;
   descriptor: CreateArtifactUpload;
+  notification: ArtifactUploadNotification;
   part: UploadPartReceipt;
   policy: EffectiveArtifactUploadPolicy;
   receipt: ArtifactUploadReceipt;

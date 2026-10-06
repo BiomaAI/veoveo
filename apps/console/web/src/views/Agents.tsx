@@ -191,7 +191,7 @@ function AgentCard({
       <dl>
         <div><dt>Profile</dt><dd>{agent.profile}</dd></div>
         <div><dt>Pending events</dt><dd>{agent.pendingWakes}</dd></div>
-        <div><dt>Last run</dt><dd>{formatDate(agent.lastEpisodeAt)}</dd></div>
+        <div><dt>Last run</dt><dd>{formatDate(agent.lastEpisodeAt ?? undefined)}</dd></div>
       </dl>
       <p className="agent-detail">{agent.detail}</p>
       <div className="agent-conversation">

@@ -1,5 +1,6 @@
 //! Direct governed detail projection, independent of the latest catalog window.
 use super::*;
+use veoveo_console_bff::contract::ArtifactSummary;
 use veoveo_mcp_contract::audit::AdministrativeOperation;
 use veoveo_platform_store::{ArtifactId, PrincipalRecord, ShareLinkRecord};
 
@@ -88,7 +89,7 @@ async fn project(
             .grants
             .iter()
             .map(artifact_grant_summary)
-            .collect(),
+            .collect::<anyhow::Result<Vec<_>>>()?,
         links
             .iter()
             .map(|row| share_link_summary(row, Utc::now()))

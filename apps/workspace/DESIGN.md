@@ -193,7 +193,7 @@ not establish a terminal Task outcome.
 `appProtocol.ts` validates the supported MCP result envelopes, preserving native
 extension fields. Generated Rust schemas own the surrounding HTTP DTOs; their
 native result field delegates to this pinned protocol adapter. The exact
-`@modelcontextprotocol/client` 2.0.0 development pin supplies shared bridge types,
+`@modelcontextprotocol/client` 2.3.1 development pin supplies shared bridge types,
 verified against the upstream npm registry on September 15, 2026. No MCP bearer
 transport or token is exposed to the browser. The host supports native Task
 get/update/cancel, reactive resource subscriptions, ordinary tool/resource calls,

@@ -126,6 +126,42 @@ impl ArtifactUploadState {
     }
 }
 
+/// Upload notifications trigger a currently authorized status read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, veoveo_types::Vocabulary)]
+pub enum ArtifactUploadNotificationState {
+    #[vocabulary(rename = "finalizing")]
+    Finalizing,
+    #[vocabulary(rename = "verifying")]
+    Verifying,
+    #[vocabulary(rename = "completed")]
+    Completed,
+    #[vocabulary(rename = "cancelled")]
+    Cancelled,
+    #[vocabulary(rename = "expired")]
+    Expired,
+    #[vocabulary(rename = "failed")]
+    Failed,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ArtifactUploadNotification {
+    Changed {
+        // Notifications emit the canonical ID spelling; other ledger profiles retain their aliases.
+        #[schemars(schema_with = "notification_upload_id_schema")]
+        upload_id: ArtifactUploadId,
+        state: ArtifactUploadNotificationState,
+    },
+}
+
+fn notification_upload_id_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    // The emitted notification profile is canonical; ledger admission keeps aliases.
+    schemars::json_schema!({
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UploadPartReceipt {
@@ -236,6 +272,7 @@ pub struct ArtifactUploadError {
 #[derive(JsonSchema)]
 #[expect(dead_code, reason = "schema-only bundle selects owner contracts")]
 struct ArtifactTransferSchema {
+    notification: ArtifactUploadNotification,
     descriptor: CreateArtifactUpload,
     receipt: ArtifactUploadReceipt,
     session: ArtifactUploadSession,
@@ -248,4 +285,51 @@ struct ArtifactTransferSchema {
 
 pub fn schema_bundle() -> schemars::Schema {
     schemars::schema_for!(ArtifactTransferSchema)
+}
+
+#[cfg(test)]
+mod notification_tests {
+    use super::*;
+
+    #[test]
+    fn accepted_aliases_emit_the_canonical_shared_notification() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../../testdata/upload-notifications.json")).unwrap();
+        let notification: ArtifactUploadNotification =
+            serde_json::from_value(fixture["alias"].clone()).unwrap();
+        assert_eq!(
+            serde_json::to_value(notification).unwrap(),
+            fixture["emitted"]
+        );
+        for id in fixture["invalid_ids"].as_array().unwrap() {
+            let mut wire = fixture["emitted"].clone();
+            wire["upload_id"] = id.clone();
+            assert!(serde_json::from_value::<ArtifactUploadNotification>(wire).is_err());
+        }
+    }
+
+    #[test]
+    fn emitted_upload_states_preserve_snake_case_contentless_notifications() {
+        let upload_id = ArtifactUploadId::new();
+        for state in ArtifactUploadNotificationState::ALL {
+            let value = ArtifactUploadNotification::Changed {
+                upload_id,
+                state: *state,
+            };
+            let wire = serde_json::to_value(&value).unwrap();
+            assert_eq!(wire["op"], "changed");
+            assert_eq!(wire["upload_id"], upload_id.to_string());
+            assert_eq!(wire["state"], state.as_str());
+            assert_eq!(wire.as_object().unwrap().len(), 3);
+            assert!(serde_json::from_value::<ArtifactUploadNotification>(wire).is_ok());
+        }
+        for wire in [
+            serde_json::json!({"op":"changed","upload_id":upload_id,"state":"open"}),
+            serde_json::json!({"op":"changed","upload_id":upload_id,"state":"completed","receipt":{}}),
+            serde_json::json!({"op":"unknown","upload_id":upload_id,"state":"completed"}),
+            serde_json::json!({"op":"changed","upload_id":"invalid","state":"completed"}),
+        ] {
+            assert!(serde_json::from_value::<ArtifactUploadNotification>(wire).is_err());
+        }
+    }
 }

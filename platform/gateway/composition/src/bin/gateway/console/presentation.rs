@@ -1,7 +1,6 @@
 use chrono::Utc;
-use veoveo_mcp_contract::{
-    ConsoleInstallation, ConsoleSession, ConsoleTenant, GatewayControlPlane, PrincipalDisplayName,
-};
+use veoveo_gateway_contract::{ConsoleInstallation, ConsoleSession, ConsoleTenant};
+use veoveo_mcp_contract::{GatewayControlPlane, PrincipalDisplayName};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_types::TenantId;
 

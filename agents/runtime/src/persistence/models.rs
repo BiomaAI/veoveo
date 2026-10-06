@@ -4,20 +4,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::*;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
-#[vocabulary(surreal)]
-pub enum AgentState {
-    #[vocabulary(rename = "idle")]
-    Idle,
-    #[vocabulary(rename = "running")]
-    Running,
-    #[vocabulary(rename = "waiting")]
-    Waiting,
-    #[vocabulary(rename = "disabled")]
-    Disabled,
-    #[vocabulary(rename = "failed")]
-    Failed,
-}
+pub use crate::contract::AgentState;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
 #[vocabulary(surreal)]

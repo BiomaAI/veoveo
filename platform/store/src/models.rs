@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+pub use veoveo_task_contract::{RecoveryClass, TaskStatus};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -104,38 +105,6 @@ pub enum GatewayControlRevisionSource {
     AdminApi,
     #[vocabulary(rename = "seed_file")]
     SeedFile,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
-#[vocabulary(surreal)]
-pub enum TaskStatus {
-    #[vocabulary(rename = "queued")]
-    Queued,
-    #[vocabulary(rename = "running")]
-    Running,
-    #[vocabulary(rename = "waiting")]
-    Waiting,
-    #[vocabulary(rename = "succeeded")]
-    Succeeded,
-    #[vocabulary(rename = "failed")]
-    Failed,
-    #[vocabulary(rename = "cancel_requested")]
-    CancelRequested,
-    #[vocabulary(rename = "cancelled")]
-    Cancelled,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]
-#[vocabulary(surreal)]
-pub enum RecoveryClass {
-    #[vocabulary(rename = "resume")]
-    Resume,
-    #[vocabulary(rename = "webhook_wait")]
-    WebhookWait,
-    #[vocabulary(rename = "provider_wait")]
-    ProviderWait,
-    #[vocabulary(rename = "interrupted_indeterminate")]
-    InterruptedIndeterminate,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, veoveo_types::Vocabulary)]

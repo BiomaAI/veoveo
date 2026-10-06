@@ -7,7 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use std::time::Duration;
-use veoveo_mcp_contract::ConsoleBootstrap;
+use veoveo_gateway_contract::ConsoleBootstrap;
 
 pub(crate) async fn session(State(state): State<AppState>, request: Request) -> Response {
     if request.uri().query().is_some() {

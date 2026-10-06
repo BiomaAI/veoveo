@@ -75,11 +75,10 @@ pub use deployment::{
 pub use gateway::{
     AccessTokenSubject, ArtifactAudience, AuthMethod, AuthMode, AuthOutcome, AuthReasonCode,
     AuthorizationServerEndpoint, CanonicalTaskId, CompatibilityHelperId, CompletionExposure,
-    ConsoleBootstrap, ConsoleInstallation, ConsoleSession, ConsoleTenant, DataLabelDefinition,
-    DiscoveryFailureMode, Exposure, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
-    GatewayControlPlane, GatewayControlPlaneError, GatewayControlPlaneRevision,
-    GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource, GatewayJwtRevocation,
-    GatewayJwtRevocationAdminStatus, GatewayJwtRevocationApplyResult,
+    DataLabelDefinition, DiscoveryFailureMode, Exposure, GatewayAuthorizationCodeRecord,
+    GatewayAuthorizationRequest, GatewayControlPlane, GatewayControlPlaneError,
+    GatewayControlPlaneRevision, GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource,
+    GatewayJwtRevocation, GatewayJwtRevocationAdminStatus, GatewayJwtRevocationApplyResult,
     GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
     GatewayRefreshFamilyId, GatewayRefreshGrant, GatewayRefreshRevocationRequest,
     GatewayResourceProjection, GatewayResourceSubscription, HttpsUrl, IdentityProvider,
@@ -98,7 +97,7 @@ pub use gateway::{
     PrincipalKind, ProfileServerExposure, PromptName, ResourceAuthorizationServer,
     ResourceProjectionMode, ResourceSelector, ResourceUriPrefix, ResourceUriTemplate,
     ServerManifest, ServerSlug, TaskExposure, TenantDefinition, TokenIssuer, TokenSubject, TraceId,
-    UpstreamEndpoint, UpstreamTransport, composed_gateway_schema, console_bootstrap_schema,
+    UpstreamEndpoint, UpstreamTransport, composed_gateway_schema,
 };
 pub use host::{
     HostAuthority, host_authority_is_allowed, parse_allowed_host_authority,

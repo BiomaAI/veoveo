@@ -1,4 +1,5 @@
 use std::{collections::BTreeSet, fmt, str::FromStr};
+pub use veoveo_gateway_contract::{OwnedRoutePurpose, UpstreamTransport};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -332,26 +333,11 @@ pub struct UpstreamEndpoint {
     pub client_private_key: Option<SecretReferenceId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum UpstreamTransport {
-    StreamableHttp,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OwnedRoute {
     pub path: MountPath,
     pub purpose: OwnedRoutePurpose,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum OwnedRoutePurpose {
-    Webhook,
-    ArtifactBytes,
-    ProviderFetchableFiles,
-    Health,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

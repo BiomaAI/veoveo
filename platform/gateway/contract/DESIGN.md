@@ -18,7 +18,7 @@ directly. MCP owns the MetaObject adapter and sorted/deduplicated degradation wr
 
 A separate crate prevents a dependency cycle: MCP contract already feeds gateway
 runtime, while browser schema generation must not enable MCP transports. This library
-depends only on foundational types, Serde, JSON Schema support, typed error derivation and the qualified URL library. The extraction preserves the
+depends only on foundational types, Serde, JSON Schema support, typed error derivation, UTC timestamp support and the qualified URL library. The extraction preserves the
 published spellings and schema names. Derived schema collision IDs follow the current
 owning Rust module; they do not change serialized JSON or schema definition names.
 
@@ -57,3 +57,12 @@ Its parser admits nonempty lowercase ASCII letters, digits, hyphens and undersco
 including existing unqualified names. Serde uses the same admission and the public
 schema keeps its string shape and `GatewayToolName` title. Invalid names return the
 owner error type with the existing identifier diagnostic.
+
+## Console Bootstrap And Health
+
+Gateway Contract owns authenticated Console bootstrap, installation presentation,
+session identity and available-tenant records. Its transport, HTTP route-purpose
+and health vocabularies supply the wire values used by Console producers and
+clients. The JSON profile preserves camelCase fields, declared omissions and
+RFC 3339 UTC timestamps. Installation inventory and event rows belong to the
+Console BFF contract because they compose optional domain contracts.

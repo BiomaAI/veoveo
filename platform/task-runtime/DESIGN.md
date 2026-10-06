@@ -577,3 +577,11 @@ The result envelope requires its payload while permitting any JSON value, includ
 These envelopes belong to the fresh coordinated schema; all Task writers and readers
 must use the current schema together. The SDK-owned native fixture qualifies Rust and
 Python storage in both directions without building another database harness.
+
+## Lifecycle Vocabulary Owner
+
+The dependency-light Task contract owns Task status and recovery classes.
+Runtime and Store use the same values, including `provider_wait`, which observes
+persisted provider intent without replaying its mutation. Store selects the
+contract's optional native adapter; browser contract consumers use its pure
+profile. Recovery execution, leases and current authority remain Runtime duties.

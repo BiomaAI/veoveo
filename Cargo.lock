@@ -16511,6 +16511,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "getrandom 0.4.3",
+ "jsonschema",
  "rcgen",
  "reqwest 0.13.5",
  "rmcp",
@@ -16519,6 +16520,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tokio-util",
@@ -16535,8 +16537,10 @@ dependencies = [
  "veoveo-http",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-recording-contract",
  "veoveo-recording-mcp",
  "veoveo-speech-contract",
+ "veoveo-task-contract",
  "veoveo-types",
  "veoveo-workspace",
 ]
@@ -16850,6 +16854,7 @@ dependencies = [
  "veoveo-audit-contract",
  "veoveo-computers",
  "veoveo-computers-contract",
+ "veoveo-console-bff",
  "veoveo-frames-mcp",
  "veoveo-gateway-catalog",
  "veoveo-gateway-contract",
@@ -16882,6 +16887,7 @@ dependencies = [
 name = "veoveo-gateway-contract"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "jsonschema",
  "schemars 1.2.2",
  "serde",
@@ -17387,6 +17393,7 @@ dependencies = [
  "veoveo-knowledge-contract",
  "veoveo-mcp-knowledge-extension",
  "veoveo-modules",
+ "veoveo-task-contract",
  "veoveo-types",
 ]
 
@@ -17947,6 +17954,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-task-contract"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "surrealdb",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-task-runtime"
 version = "0.1.0"
 dependencies = [
@@ -17968,6 +17986,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-modules",
  "veoveo-platform-store",
+ "veoveo-task-contract",
  "veoveo-types",
 ]
 

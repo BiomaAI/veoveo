@@ -21,6 +21,7 @@ runtime = [
     "dep:veoveo-mcp-knowledge-extension",
     "dep:veoveo-audit-contract",
     "dep:veoveo-types",
+    "dep:veoveo-task-contract",
     "dep:veoveo-gateway-contract",
     "dep:veoveo-artifact-contract",
     "dep:async-stream",
@@ -39,6 +40,7 @@ runtime = [
 ]
 
 [dependencies]
+veoveo-task-contract = { workspace = true, features = ["surreal"], optional = true }
 anyhow = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 veoveo-modules = { workspace = true, default-features = false, optional = true }

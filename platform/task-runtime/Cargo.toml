@@ -8,6 +8,7 @@ name = "veoveo_task_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+veoveo-task-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-modules.workspace = true
 anyhow.workspace = true

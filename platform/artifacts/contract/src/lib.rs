@@ -2,7 +2,10 @@
 //! Authorization and transport are owned by the Artifact service and its adapters.
 
 mod access;
-pub use access::{ArtifactShareLink, ArtifactShareLinkId, ArtifactShareLinkIdError, Grant};
+pub use access::{
+    ArtifactGrantSubjectKind, ArtifactShareLink, ArtifactShareLinkId, ArtifactShareLinkIdError,
+    Grant,
+};
 mod identity;
 mod ledger;
 mod metadata;

@@ -174,7 +174,7 @@ export function ArtifactDrawer({
       <section>
         <h3>Identity</h3>
         <button className="copy-field" onClick={() => void copyId()}><span className="mono">artifact://{artifact.id}</span>{copied ? <Check size={15} /> : <Copy size={15} />}</button>
-        <dl className="definition-list compact"><div><dt>Owner</dt><dd>{artifact.owner}</dd></div><div><dt>Owner identity</dt><dd>{artifact.outputOwner.kind === "principal" ? <IdentityText identity={artifact.outputOwner.id} directory={identityDirectory} /> : <span className="mono">group:{artifact.outputOwner.id}</span>}</dd></div><div><dt>Created</dt><dd>{formatDate(artifact.createdAt)}</dd></div><div><dt>Retention</dt><dd>{formatDate(artifact.retentionExpiresAt)}</dd></div></dl>
+        <dl className="definition-list compact"><div><dt>Owner</dt><dd>{artifact.owner}</dd></div><div><dt>Owner identity</dt><dd>{artifact.outputOwner.kind === "principal" ? <IdentityText identity={artifact.outputOwner.id} directory={identityDirectory} /> : <span className="mono">group:{artifact.outputOwner.id}</span>}</dd></div><div><dt>Created</dt><dd>{formatDate(artifact.createdAt)}</dd></div><div><dt>Retention</dt><dd>{formatDate(artifact.retentionExpiresAt ?? undefined)}</dd></div></dl>
       </section>
       <section>
         <div className="drawer-section-head"><h3>Effective access</h3><StatusPill value={artifact.effectiveAccess.level ?? "denied"} /></div>
@@ -201,7 +201,7 @@ export function ArtifactDrawer({
           <div><dt>Work Context</dt><dd>{artifact.provenance.workContext}</dd></div>
           <div><dt>Producer</dt><dd><IdentityText identity={artifact.provenance.producer} directory={identityDirectory} /></dd></div>
           <div><dt>Invocation</dt><dd>{invocationModeLabel(artifact.provenance.invocationMode)}</dd></div>
-          <div><dt>Initiator</dt><dd><IdentityText identity={artifact.provenance.initiator} directory={identityDirectory} /></dd></div>
+          <div><dt>Initiator</dt><dd><IdentityText identity={artifact.provenance.initiator ?? undefined} directory={identityDirectory} /></dd></div>
           <div><dt>Delegation</dt><dd className="mono">{artifact.provenance.delegationId ?? "-"}</dd></div>
           <div><dt>Policy revision</dt><dd className="mono">{artifact.provenance.policyRevision}</dd></div>
         </dl>

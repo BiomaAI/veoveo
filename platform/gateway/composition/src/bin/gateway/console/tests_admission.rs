@@ -3,7 +3,7 @@ use axum::extract::{Extension, State};
 use axum::http::{StatusCode, header};
 use chrono::{TimeDelta, Utc};
 use std::sync::Arc;
-use veoveo_gateway_contract::{GatewayAction, ProtectedResourceId};
+use veoveo_gateway_contract::{ConsoleBootstrap, GatewayAction, ProtectedResourceId};
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::GatewayCatalogHandle;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};

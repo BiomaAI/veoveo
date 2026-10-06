@@ -244,7 +244,7 @@ impl TaskRuntime {
             server: RecordId::new("mcp_server", self.server.clone()),
             task_type: draft.task_type.clone(),
             status: StoreTaskStatus::Queued,
-            recovery_class: draft.recovery_class.into(),
+            recovery_class: draft.recovery_class,
             request: envelope,
             owner_context,
             progress: 0.0,

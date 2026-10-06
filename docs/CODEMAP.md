@@ -257,14 +257,17 @@ designs above.
 | [`platform/gateway/composition/src/bin/gateway/console/`](../platform/gateway/composition/src/bin/gateway/console/DESIGN.md) | authenticated session bootstrap that does not depend on administrator inventory, navigation permissions, and shared branding and identity display |
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
-| `platform/gateway/contract/` | lightweight App declarations, discovery failures, kernel action vocabulary, catalog action/target/section registration, projected tool names, authorization-resource identities and HTTP/TLS configuration; owner contracts, browser contracts and MCP adapters import this owner directly |
+| `platform/gateway/contract/` | authenticated Console bootstrap and health/route/transport values, lightweight App declarations, discovery failures, kernel action vocabulary, catalog action/target/section registration, projected tool names, authorization-resource identities and HTTP/TLS configuration; owner contracts, browser contracts and MCP adapters import this owner directly |
+| `platform/task-runtime/contract/` | pure Task status/recovery vocabularies; optional native SDK hook selected by Store; runtime recovery uses the same owner values |
+| [`platform/task-runtime/contract/DESIGN.md`](../platform/task-runtime/contract/DESIGN.md) | Task lifecycle declaration order, wire/native profiles and dependency-light consumer contract |
+| `apps/console/bff/src/contract/installation.rs` and `events.rs` | nineteen installation snapshot records, checked browser byte length, typed grant subjects and entity-specific SSE/reset/access-request profiles |
+| `platform/gateway/contract/src/console.rs` and `presentation.rs` | authenticated Console bootstrap, installation/session identity and Gateway health/transport/HTTP purpose vocabularies |
 | `platform/gateway/contract/src/oauth.rs` | admitted OAuth request/code identities, PKCE values and client display names shared by Gateway, MCP adapters and native Store records |
 | `platform/gateway/catalog/` | installation catalog registration recipe using owner contract features; runtime libraries receive the resulting registry explicitly |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | owner-schema export and pinned TypeScript conversion, including agent control, Artifact transfer, Recording playback, App catalog and cluster inventory; `release client-types --check` detects generated-model drift |
 | `apps/console/web/tools/client-types.mjs`, `client-types.test.mjs` | TypeScript rendering of closed and boolean schemas with a generated-code compiler regression |
 | `apps/console/web/src/jsonSchema.ts`, `jsonSchema.test.ts` | shared Console/Workspace compiler for the generated JSON Schema profile, including equivalent boolean-definition handling |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
-| `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`platform/workspace/src/persistence/runs/`](../platform/workspace/src/persistence/runs/DESIGN.md) | per-chat agent admission; human-turn participation and same-chat replies in `platform/workspace/src/persistence/participation.rs`, with server-captured quotes tested by `tests/workspace/replies.rs`; immutable Artifact references tested by `tests/workspace/attachments.rs`; concurrent-run limits, fixed context, execution fences, cancellation and interrupted-worker recovery |
 | [`platform/modules/`](../platform/modules/DESIGN.md) | selected owner lanes, checksummed histories, transactional application and drift rejection; kernel declarations live in `platform/store/src/schema/`, and optional owners declare their own schemas |
 | `platform/workspace/src/persistence/personal.rs` and `platform/workspace/src/gateway/operations/personal.rs` | actor-private inventory, shared LIVE hints, native Task observation and SSE checked against current authorization; `apps/workspace/src/usePersonalEvents.ts` owns global attention and query invalidation |
@@ -571,7 +574,8 @@ even when that server is first-party.
 |---|---|
 | `access.rs` | artifact access levels, grants and decision composition using foundational subjects and Artifact-plane identities |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
-| `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
+| `testdata/upload-notifications.json` | shared admitted alias and canonical emitted upload notification consumed by Rust and browser schema tests |
+| `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, six-state contentless notifications, errors, explicit quota policy, and checked multipart layout/manifest validation |
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
 | `docs/knowledge.rs` | docs collection declaration, typed index pages and authenticated ordinary/conditional document reads shared by hosted servers |

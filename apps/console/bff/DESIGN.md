@@ -9,6 +9,9 @@ authority. This component owns the browser session and fixed upstream routing.
 Its JSON APIs are Veoveo application contracts. MCP clients use the repository's
 qualified MCP `2026-07-28` profile; they do not expose tokens to JavaScript.
 
+The browser MCP SDK packages use exact stable version `2.3.1`, verified against the
+[official release](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/v2.3.1).
+
 ## Application Authority
 
 Console and Workspace share one edge deployment. `BrowserApp` selects an explicit
@@ -36,8 +39,8 @@ by their host contract. Chat bodies render as text without executable HTML.
 
 ## Browser Transport Contracts
 
-The library's `contract` feature exports the App catalog and Kubernetes inventory
-transport models under `src/contract`. The binary enables `runtime`, which supplies
+The library's `contract` feature exports App catalog, Kubernetes inventory and
+installation snapshot/event transport models under `src/contract`. The binary enables `runtime`, which supplies
 HTTP handlers, OAuth sessions and provider clients. Consumers can select `contract`
 with default features disabled without enabling those browser-edge runtime dependencies.
 
@@ -115,3 +118,27 @@ streams bounded catalog invalidations without conveying model credentials.
 The App contract imports transport-free dependency and discovery values from
 `veoveo-gateway-contract`. The MCP contract and Artifact runtime API dependency are
 optional under `runtime`; schema-only library builds do not enable those transports.
+
+## Installation Snapshot And Events
+
+The `contract` feature owns the installation snapshot and its nineteen summary
+records. It imports bootstrap and health values from Gateway Contract, lifecycle
+values from the Agent and Task contracts, and Artifact and Recording owner values.
+The feature excludes MCP integration, the database SDK and execution services.
+Directory principal summaries use the issuer-and-subject directory key; output
+owners and grant subjects carry their actual principal or group identities.
+
+Each SSE entity has its own upsert/delete enum. Producer event selection binds the
+external event name to that enum, and generated browser validators admit the row
+before any query-cache mutation. Reset reasons and access-request notifications
+have closed profiles. Replay ordering and current access checks belong to Gateway
+composition. Required `byteLength` serializes as an integer or null; its checked
+scalar rejects values above 9007199254740991 during construction and decoding.
+Optional fields keep their declared omission behavior, and UTC timestamps preserve
+RFC 3339 fractional precision.
+
+The generated Console bundle includes snapshot, Artifact detail and event roots.
+Clients validate HTTP responses and every event root with these owner schemas.
+Browser demo latency is a presentation extension of service rows. Upload queue
+phases and file handles stay in the browser; the Artifact transfer contract owns
+contentless upload notifications.

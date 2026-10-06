@@ -156,6 +156,44 @@
     "ArtifactUploadId": {
       "type": "string"
     },
+    "ArtifactUploadNotification": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "changed",
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/$defs/ArtifactUploadNotificationState"
+            },
+            "upload_id": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "upload_id",
+            "state"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactUploadNotificationState": {
+      "description": "Upload notifications trigger a currently authorized status read.",
+      "enum": [
+        "finalizing",
+        "verifying",
+        "completed",
+        "cancelled",
+        "expired",
+        "failed"
+      ],
+      "type": "string"
+    },
     "ArtifactUploadPolicy": {
       "additionalProperties": false,
       "description": "Absence of a configured policy disables public uploads. There is no Default.",
@@ -561,6 +599,9 @@
     "descriptor": {
       "$ref": "#/$defs/CreateArtifactUpload"
     },
+    "notification": {
+      "$ref": "#/$defs/ArtifactUploadNotification"
+    },
     "part": {
       "$ref": "#/$defs/UploadPartReceipt"
     },
@@ -578,6 +619,7 @@
     }
   },
   "required": [
+    "notification",
     "descriptor",
     "receipt",
     "session",

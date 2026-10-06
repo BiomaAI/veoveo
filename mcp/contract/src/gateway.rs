@@ -53,8 +53,6 @@ mod tenant;
 pub use tenant::*;
 mod branding;
 pub use branding::*;
-mod console;
-pub use console::*;
 mod catalog_schema;
 mod catalog_wire;
 pub use catalog_schema::composed_gateway_schema;

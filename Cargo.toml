@@ -50,6 +50,7 @@ members = [
     "platform/runtimes/computers",
     "platform/store",
     "platform/task-runtime",
+    "platform/task-runtime/contract",
     "platform/types",
     "servers/knowledge-mcp",
     "servers/artifact-mcp",
@@ -89,6 +90,8 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+veoveo-console-bff = { path = "apps/console/bff", default-features = false }
+veoveo-task-contract = { path = "platform/task-runtime/contract" }
 veoveo-http = { path = "platform/http" }
 veoveo-embedding-contract = { path = "platform/runtimes/embedding/contract" }
 veoveo-embedding-client = { path = "platform/runtimes/embedding/client" }

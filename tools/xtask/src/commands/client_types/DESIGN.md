@@ -13,7 +13,8 @@ artifact-transfer, App catalog, cluster inventory and recording playback models 
 `apps/workspace/src/generated`. `--check`
 compares those outputs without modifying them. The command imports only the pure
 Computers contract, without the provider or domain-store dependency closure. The BFF
-contract-only library selects App catalog and cluster inventory DTOs, and the Recording
+contract-only library selects App catalog, cluster inventory and installation
+snapshot/event DTOs, and the Recording
 contract supplies playback manifests.
 Agents' pure authoring contract supplies agent-management models. Workspace's
 `app-contract` profile supplies its DTOs and native RMCP App envelopes. The Workspace
@@ -40,9 +41,14 @@ belong to the browser. The
 canonical JSON schemas keep their original boolean definitions. A native Node fixture
 compiles generated TypeScript and rejects assignments to impossible branches.
 Runtime validators consume the original JSON schemas through
-`CfWorkerJsonSchemaValidator` from `@modelcontextprotocol/client` 2.0.0. The shared
+`CfWorkerJsonSchemaValidator` from `@modelcontextprotocol/client` 2.3.1. The shared
 `apps/console/web/src/jsonSchema.ts` compiler interprets schemas without code generation
 under the browser CSP. Its qualified profile covers references, boolean schemas,
 nullable and closed objects, enums, UUIDs, timestamps, numeric bounds and composition.
 Both clients use this compiler. Runtime tests reject impossible definitions and preserve
 their nullable alternatives. No complete JSON Schema conformance is claimed.
+
+The Console BFF bundle selects installation snapshot, detail and entity-specific
+SSE roots. Gateway Contract supplies bootstrap declarations through that bundle.
+The Artifact transfer bundle includes its upload notification profile; browser
+queue state does not contribute wire schemas.

@@ -1,3 +1,4 @@
+use veoveo_gateway_contract::ConsoleBootstrap;
 use veoveo_gateway_contract::GatewayAction;
 mod presentation;
 
@@ -9,9 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 pub(crate) use presentation::{console_display_name, presentation};
-use veoveo_mcp_contract::{
-    ConsoleBootstrap, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId,
-};
+use veoveo_mcp_contract::{GatewayProfileId, PolicyEffect, PolicyTarget, TraceId};
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest};
 use veoveo_types::ScopeDefinition;
 

@@ -62,7 +62,7 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         (
             "console",
             "apps/console/web/src/generated",
-            serde_json::to_value(veoveo_mcp_contract::console_bootstrap_schema())?,
+            serde_json::to_value(veoveo_console_bff::contract::events::schema_bundle())?,
         ),
         (
             "workspace",

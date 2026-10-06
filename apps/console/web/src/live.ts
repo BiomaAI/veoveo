@@ -2,121 +2,21 @@ import { useEffect, useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { attachAppCatalogEvents } from "./apps/catalogEvents";
 import { queryKeys } from "./queries";
+import { ENTITY_EVENTS, applySnapshotEvent, parseEntityEvent, type EntityEvent } from "./consoleEvents";
+import { parseConsole } from "./generatedContracts";
 import { uploadNotificationSchema } from "./uploads/model";
 import type {
-  AgentSummary,
   AppCatalog,
-  ArtifactSummary,
   InstallationSnapshot,
-  McpServerSummary,
-  PrincipalSummary,
-  RecordingSummary,
-  TaskSummary,
 } from "./types";
 
 export type LiveStatus = "live" | "reconnecting" | "off";
 
-const ENTITY_EVENTS = ["principal", "task", "artifact", "agent", "recording", "server"] as const;
-type EntityEvent = (typeof ENTITY_EVENTS)[number];
-
-type RowEvent =
-  | { op: "upsert"; row: Record<string, unknown> }
-  | { op: "delete"; id: string };
-
-const ROW_CAP = 500;
-
-interface Keyed {
-  id: string;
-}
-
-function upsertSorted<Row extends Keyed>(
-  rows: Row[],
-  row: Row,
-  newestFirst: (row: Row) => string,
-  cap: number
-): Row[] {
-  const next = rows.filter((existing) => existing.id !== row.id);
-  next.push(row);
-  next.sort((left, right) => newestFirst(right).localeCompare(newestFirst(left)));
-  return next.slice(0, cap);
-}
-
-function upsertKeyed<Row extends Keyed>(rows: Row[], row: Row, cap: number): Row[] {
-  const index = rows.findIndex((existing) => existing.id === row.id);
-  if (index === -1) return [row, ...rows].slice(0, cap);
-  const next = rows.slice();
-  next[index] = row;
-  return next;
-}
-
-function removeRow<Row extends Keyed>(rows: Row[], id: string): Row[] {
-  return rows.filter((existing) => existing.id !== id);
-}
-
-export function applyRowEvent(client: QueryClient, entity: EntityEvent, event: RowEvent): void {
-  client.setQueryData<InstallationSnapshot>(queryKeys.snapshot, (snapshot) => {
-    if (!snapshot) return snapshot;
-    switch (entity) {
-      case "principal":
-        return {
-          ...snapshot,
-          principals:
-            event.op === "upsert"
-              ? upsertKeyed(snapshot.principals, event.row as unknown as PrincipalSummary, ROW_CAP)
-              : removeRow(snapshot.principals, event.id),
-        };
-      case "task":
-        return {
-          ...snapshot,
-          tasks:
-            event.op === "upsert"
-              ? upsertSorted(snapshot.tasks, event.row as unknown as TaskSummary, (task) => task.updatedAt, ROW_CAP)
-              : removeRow(snapshot.tasks, event.id),
-        };
-      case "artifact":
-        return {
-          ...snapshot,
-          artifacts:
-            event.op === "upsert"
-              ? upsertSorted(
-                  snapshot.artifacts,
-                  event.row as unknown as ArtifactSummary,
-                  (artifact) => artifact.createdAt,
-                  ROW_CAP
-                )
-              : removeRow(snapshot.artifacts, event.id),
-        };
-      case "agent":
-        return {
-          ...snapshot,
-          agents:
-            event.op === "upsert"
-              ? upsertKeyed(snapshot.agents, event.row as unknown as AgentSummary, ROW_CAP)
-              : removeRow(snapshot.agents, event.id),
-        };
-      case "recording":
-        return {
-          ...snapshot,
-          recordings:
-            event.op === "upsert"
-              ? upsertSorted(
-                  snapshot.recordings,
-                  event.row as unknown as RecordingSummary,
-                  (recording) => recording.startedAt,
-                  ROW_CAP
-                )
-              : removeRow(snapshot.recordings, event.id),
-        };
-      case "server":
-        return {
-          ...snapshot,
-          servers:
-            event.op === "upsert"
-              ? upsertKeyed(snapshot.servers, event.row as unknown as McpServerSummary, ROW_CAP)
-              : removeRow(snapshot.servers, event.id),
-        };
-    }
-  });
+export { applyRowEvent };
+function applyRowEvent(client: QueryClient, entity: EntityEvent, value: unknown): void {
+  const message = parseEntityEvent(entity, value);
+  client.setQueryData<InstallationSnapshot>(queryKeys.snapshot, (snapshot) =>
+    snapshot ? applySnapshotEvent(snapshot, message) : snapshot);
 }
 
 const RESYNC_AFTER_FAILURES = 3;
@@ -157,11 +57,16 @@ export function useConsoleLiveStream(cursor: string | undefined, reconcileUpload
     };
     for (const entity of ENTITY_EVENTS) {
       source.addEventListener(entity, (event) => {
-        applyRowEvent(client, entity, JSON.parse((event as MessageEvent<string>).data) as RowEvent);
+        try {
+          applyRowEvent(client, entity, JSON.parse((event as MessageEvent<string>).data));
+        } catch { /* Rejected events leave the snapshot unchanged. */ }
       });
     }
-    source.addEventListener("access_request", () => {
-      void client.invalidateQueries({ queryKey: queryKeys.accessRequests });
+    source.addEventListener("access_request", (event) => {
+      try {
+        parseConsole("accessRequestEvent", JSON.parse((event as MessageEvent<string>).data));
+        void client.invalidateQueries({ queryKey: queryKeys.accessRequests });
+      } catch { /* A malformed notification cannot drive reconciliation. */ }
     });
     source.addEventListener("artifact_upload", (event) => {
       try {
@@ -169,7 +74,12 @@ export function useConsoleLiveStream(cursor: string | undefined, reconcileUpload
         if (notification.success) reconcileUploads?.(notification.data.upload_id);
       } catch { /* A malformed event cannot establish an upload receipt. */ }
     });
-    source.addEventListener("reset", resync);
+    source.addEventListener("reset", (event) => {
+      try {
+        parseConsole("resetEvent", JSON.parse((event as MessageEvent<string>).data));
+        resync();
+      } catch { /* Only an admitted reset can restart the stream. */ }
+    });
 
     return () => {
       disposed = true;
