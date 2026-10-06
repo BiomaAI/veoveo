@@ -1,82 +1,14 @@
 # Platform Foundations And Contract Consistency Plan
 
-Status: Phase 0 is qualified. The declaration repetition
-repair is applied across owners and callers and passes native qualification.
-Compact ID and resource attributes now generate standard derives, conversions and
-convenience methods through owner profiles. Shared tests, the owner-contract aggregate,
-both independent consumers, full workspace compilation, strict lint, source-policy
-checks and Task Runtime's database integration pass. Phase 0 acceptance requires
-clearer authoring, strong types and qualified behavior. Complete-family line counts
-remain visible, but net line reduction is not a completion requirement. Shared address
-generation uses one typed field model for parsing, builders and accessors; its affected
-native, consumer, compilation and repository checks pass.
-Vocabulary, embedded documents, Id, ResourceAddress, Checked models and opaque cursors
-preserve their owner admission and wire/schema profiles. Production helper and static
-unit-error adoption is complete; the tracked-source macro catalog is enforced.
-Explicit owner adapters retain normalization, redundant-field projection, mutable
-representations and codec-specific envelopes. Later phases, Foundations and hardening
-transfer conditions, and installed acceptance remain open. Phase 1 is active: the
-module declarations, native runner, execution commands and rendered installation Jobs
-pass their native checks. The staged gateway image passes isolated installed checks
-for fresh preparation, lane completion, publication, credential rotation, stale Job
-rejection and later module enablement. Installed managed-agent replacement preserves
-identity and storage, advances the lease fence and survives replay. The extended
-three-generation lifecycle passes, including rejection of the old runtime password
-after database readiness and owned fixture cleanup. Full Helm qualification and
-reference product activation remain open.
-Phase 2 Task contributions, versioned kernel SQL admission and
-Optimization's catalog reads pass their native checks. The gateway composition split
-and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
-Agents and Workspace own their HTTP handlers; contributed route authentication and
-worker cleanup pass native checks. Agents owns its public token claim; generic
-claim admission and internal execution attribution pass Rust and Python checks.
-Recording owns its catalog and ingest policy; optional modules own their policy
-actions through a shared registry. Native owner, admission and schema tests pass,
-including exported-schema validation of all five installation catalogs. Affected
-consumer checks and independent contract/runtime builds pass. Installed catalog
-startup admission remains open. Agents' authoring and operator-control models and the
-dependent Workspace contracts have moved to their owners. Native tests, affected
-consumer checks and isolated contract/adapter builds pass; generated browser schemas
-are unchanged. Phase 3 is active: owners now declare their observation tables and
-Computers owns its change decoder. Native delivery, replay, stopped-reader recovery,
-listener cleanup and schema retention checks pass. Independent schema consumers and
-the affected runtime graphs pass qualification. Migration admission now follows exact
-function versions and preserves stored read-only callers across definition changes.
-Its native schema, transaction and recovery checks pass. Production schema admission
-and fresh lane execution pass for the kernel, each extracted repository's selection
-and the complete selected catalog, including unchanged replay, disabled-owner absence
-and reconnect. The owner-registered Audit target path passes native
-checks for reconnect, filtered reads, LIVE delivery, transaction rollback and sealed
-export while preserving record bytes and hashes. Agents, Workspace, Map and Recording
-persistence has moved into its owners. The combined test build passes, and every
-previously failing aggregate test passes in its owning-suite or focused rerun. The
-Agent event-stream failure did not recur individually or in its full gateway suite;
-its diagnostic now captures the unexpected stream outcome. Real installation commands
-pass fresh preparation, selected lanes, publication and stale-generation refusal.
-Time, Frames, Media and Agent execution query extraction passes syntax and
-statement-equivalence checks. The affected consumer builds, strict lint across
-28 packages, 13 isolated dependency profiles and the normal Store runtime build pass.
-Generated Audit readers and Console TypeScript pass their checks. Python Task query
-assets, packaged-wheel loading and the fresh kernel-lane fixture pass native and
-consumer checks. This qualifies the composed persistence batch for a source checkpoint;
-runtime kernel access and installed acceptance keep Phase 3 open.
-Five additional browser contract
-bundles pass generation, consumer tests and builds. Production schema ownership moves
-in Phase 3.
-Phase 5's MCP input batch closes controlled request fields and nested owner shapes.
-The independent consumer checks all 114 production tool-input root schemas; affected
-native suites and browser/Python consumers pass. A separate batch closes controlled
-HTTP bodies, registered installation configuration and private process inputs.
-Affected native suites, Python peers, generated browser consumers and Stream's C++
-build pass. Recording's sensor-stack loader now closes its flat variants and validates
-sensor IDs during decoding. UAV state, acknowledgements, completion results and events
-use typed Python output models. Authenticated native wire checks now cover unknown
-arguments on all sixteen Rust servers. Map, cuOpt, Reason, Speech and UAV compare
-their complete private JSON protocol graphs across Rust and Python. Exhaustive
-controlled-variant coverage and installed process qualification remain open. A
-52-branch batch qualifies Computers file transfers, Map spatial and authoring inputs,
-Optimization sources and View overlays through independent schema/byte decoding and
-authenticated hosted rejection.
+Status: Phase 0 is qualified. Phases 1–5 have qualified source checkpoints;
+the latest batch qualifies Knowledge authority, module prerequisites, Media receipts
+and expanded input coverage. Phase 6 Console snapshot/event integration is active.
+Phase 7 has an accepted embedding identity and producer-provenance design, with
+implementation next. The installation cut, remaining conformance work and final
+installed acceptance in phases 8–10 remain open. The cluster stays stopped during
+local development. See [Current Status](#current-status) for accepted checks and
+remaining gates.
+
 This is the single implementation plan for the former Foundations, Contract
 Consistency and Repository Hardening tracks; their required open conditions transfer
 without being declared complete.
@@ -120,8 +52,9 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 
 ## Current Status
 
-The consolidation is closing Phase 3 ownership and implementing Phase 4 storage
-types. Native qualification covers the composed nineteen-owner schema, installation
+The latest local qualification batch for Phases 3–5 is complete. Work now integrates
+the remaining generated consumers in Phase 6. Native qualification covers the composed
+nineteen-owner schema, installation
 commands, normalized Rust/Python identity, Task storage and product URIs, owner SQL
 exports, contributed Task lookups, and Media's journaled callback/recovery profile.
 These source checkpoints preserve policy checks before paging and decoding,
@@ -169,7 +102,7 @@ passes against the regenerated nineteen-owner plans. Corrected diagnostic fixtur
 retain their corruption, SQL admission and plaintext-absence assertions; production
 decoders continue to reject native database values inside JSON payloads.
 
-The current source batch adds the five retained Task contribution adapters and four
+Checkpoint `e878b4d3a` adds the five retained Task contribution adapters and four
 native row shapes listed in Phase 4. Map, Media and Reason preserve complete admitted
 result values; Knowledge and Audit bind their own records. Knowledge's generation
 requirements now declare the fields read during activation, and Agent chat admission
@@ -177,10 +110,35 @@ reads the declared execution projection. Independent review, strict lint and aff
 native suites pass. Fresh schema composition and the independent consumer pass
 against all four regenerated installation plans. The Reason failure fixture now
 clears the product URI when setting a Task to failed, preserving its retained result
-and stale owner settlement for the SQL paging check. Knowledge's optional-Agent
-dependency still needs the resolver and observation changes described in Phase 3.
-Audit sealing and Media cancellation receipts need the remaining typed binds in
-Phase 4; the complete variable-path, bind and relationship audit remains open.
+and stale owner settlement for the SQL paging check. Source ownership review reconciles
+495 production SQL assets across the
+optional owners, including variable targets and stored record links. A further bind
+review reconciles 1,799 production database-binding call sites and helper calls.
+It identifies the three final nominal-adapter families qualified in Phase 4. Source
+review also resolves the six outstanding relationship families as retained or
+owner-managed lifetimes; their owning designs now state why deletion must not cascade.
+
+Checkpoint `b4740fb7d` qualifies Knowledge's optional-Agent resolver and observation
+port, plan-selected startup and read-only module prerequisite checks. Native tests
+cover kernel-only operation without Agent tables, managed authority and observed
+revocation rechecks, selected prerequisites and preparation fences. The shipping
+profile and an isolated server build without the managed adapter pass their startup
+checks. Agent registration, installation commands, Helm, independent dependency
+profiles and strict lint also pass.
+
+Checkpoint `e2211a9bf` qualifies Media's nominal cancellation receipt and Task-owned
+receipt cleanup. Native codec, late-webhook/cancellation and actual Task-pruning
+checks pass, along with fresh schema composition and its independent consumer.
+Capability contexts and billing usage keep their separate lifetimes. Neither
+checkpoint establishes installed acceptance of the consolidated cut.
+
+Checkpoint `91357aeca` qualifies 447 cases across 112 owner-local input families
+and all sixteen Rust servers. The shared fixtures exercise published schemas, byte
+decoders and existing hosted admission tests. Independent review confirmed the
+inventory and preserved original cases. All sixteen owning hosted admission tests
+pass, including Recording's explicitly enabled binary target. Both independent-consumer
+profiles pass the expanded matrix. Recording completion also passes its SQL-authority
+check through the service adapter corrected in `ea413ca14`.
 
 Commit `faf8b9cee` retires the completed pilot migration helpers and their private
 installation fixtures. The generic record-restoration check keeps bound native
@@ -306,10 +264,12 @@ generation remains explicitly unqualified under the existing user restriction.
 | R7 | Keep Apple embedding qualification as a separate proposed profile | NVIDIA Foundations completion must not depend on unavailable Mac hardware; no CPU fallback is permitted |
 | R8 | Keep security-policy, offline-tooling and governance follow-ups visible without making them current-goal blockers | They were not part of Foundations; future CI gates still require the decision described in CONTINUOUS_INTEGRATION.md |
 
-Review also needs to resolve the breadth of mandatory derives (D14), kernel/module
-classification and migration-job cost (D8–D10), the naming scope (D1–D6), and embedding
-space reuse (D13). These decisions remain proposals until reviewed. Existing owning
-designs and AGENTS.md govern implementation until their qualified replacements land.
+Review covers the breadth of mandatory derives (D14), kernel/module classification
+and migration-job cost (D8–D10), the naming scope (D1–D6), and embedding space reuse
+(D13). Each phase records its accepted scope and outstanding qualification. D13's
+source architecture review is recorded in Phase 7; implementation and hardware
+qualification remain open. Existing owning designs and AGENTS.md govern behavior
+until their qualified replacements land.
 
 ## Working Rules
 
@@ -453,9 +413,9 @@ qualified profile; D12 records the separate Apple proposal.
 | Concern | Current state |
 |---|---|
 | Persistence ownership | Workspace, Agents, Map and Recording repositories and queries live in their owning modules. Their native suites and fresh owner-lane composition have qualified source checkpoints. Store supplies shared connections and kernel services |
-| Optional-module dependencies | The reusable gateway excludes optional owner runtimes from its normal/build graph. Store and Audit use the registered Audit target codec; Computers supplies its implementation. Audit's Computers dependency is test-only. Those native checks, isolated builds and generated reader checks pass. Knowledge still directly depends on Agent persistence for live client validation; its resolver cut remains required |
+| Optional-module dependencies | The reusable gateway excludes optional owner runtimes from its normal/build graph. Store and Audit use the registered Audit target codec; Computers supplies its implementation. Audit's Computers dependency is test-only. Knowledge runtime consumes Policy's resolver port; server composition selects the separately gated Agent adapter from admitted plan lanes. Native checks and isolated dependency profiles pass |
 | Schema ownership | Owners declare separate current-schema lanes through `ModuleSetup`; Store owns kernel lanes. Optimization and UAV use owned lookup tables. The installation must activate the composed lanes in phase 8 |
-| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents, Artifact and Map projection recovery. Task and Media adapters also pass native qualification. The variable-record and foreign-dereference audit and Media's protected host tracing correction still govern phase 3 completion |
+| Runtime kernel access | Qualified owner APIs cover Computers, UAV, Reason, Stream, Frames, Workspace, Agents, Artifact and Map projection recovery. Task, Media and Knowledge authority adapters also pass native qualification. Source review reconciles 495 optional-owner query assets, variable targets and record links. Media's protected host tracing correction remains open |
 
 Knowledge's dependencies on the gateway, store and `mcp/contract` are kernel-to-kernel
 under D11.
@@ -1268,8 +1228,12 @@ Agents' managed-instance provisioning creates its service principal through the
 Identity export. Definition publication, ownership transfer, executable reads,
 registration and reconciliation also use Identity APIs. These calls preserve each
 enclosing transaction, identity collisions, capacity rollback and current dispatch
-checks. The remaining ownership audit must inspect variable-record dereferences as
-well as named table access.
+checks. Source review reconciles 495 production query assets through their Rust
+include users, owner declarations and binders. Private variable-target helpers
+receive owner IDs or fixed owner table names. Stored dereferences use declared
+record links; UAV's Agents reads and Workspace's Agent functions have explicit
+module dependencies. Bound command paths and whole opaque values do not establish
+foreign-record access. This source check adds no new native or installed evidence.
 
 UAV and Reason need distinct caller and maintenance profiles. UAV preserves its
 indexed mission-plan and execution lookup, while Tasks owns terminal settlement
@@ -1672,17 +1636,41 @@ Knowledge generation requirements and chunk rows, and Audit append/indexing rows
 now use owner driver records. Their native record links and transactional checks
 keep the existing storage profiles. Canonical JSON text and explicitly open metadata
 remain separate from these controlled envelopes.
-Audit's `blocks.rs::block_row` and `block_write` still assemble controlled native maps
-for sealing. Give those binds nominal owner records, preserving frozen block and
-checkpoint values, hash spellings, native identities and timestamps, and seal fencing.
-Media's `record_provider_cancellation` also needs an owner receipt adapter for its
-known timestamp and cancellation outcome. Keep the shared Task journal handoff
-domain-neutral and preserve provider correlation. Resolve `media_task` receipt cleanup
-against its lifecycle while changing these records; Media context and usage rows
-have independent creation and expiry rules that preclude an assumed Task cascade.
-The final bind and relationship audit must classify its remaining candidates against
-owner lifecycles; a raw JSON value or a link without cascading deletion is not alone
-proof of a missing adapter or cleanup defect.
+Checkpoint `d75a5acea` qualifies Audit's sealing records, export values and lookup
+adapters together with Gateway's control-plane snapshot codec. Eleven owning native
+checks, strict all-target lint and independent review pass. Audit preserves frozen
+block/checkpoint values, hash spellings, native identities, timestamps and seal
+fencing. Gateway keeps registered extension documents open and preserves snapshot
+admission and revision hashes without adding a Store dependency on MCP or Gateway.
+
+Checkpoint `e2211a9bf` qualifies Media's cancellation receipt adapter, including its
+JSON timestamp/outcome profile and late authenticated callbacks after cancellation.
+It keeps the shared Task journal domain-neutral and preserves
+provider correlation. Its `media_task` receipt follows Task deletion; capability
+contexts and usage rows keep independent creation and expiry rules.
+
+The final source pass reconciles 1,799 production database-binding call sites and
+helper calls. Typed scalars and collections, accepted nominal records and genuinely
+opaque extension/provider values retain their classifications. This is a call-site
+inventory, not constructor-level proof for every value supplied through a helper.
+It identified the following final nominal-adapter families:
+
+| Owner | Final nominal adapter |
+|---|---|
+| Audit | Export block, payload and checkpoint query values use existing frozen-document codecs; view and page target/detail filters use their existing owner codecs. Closed rejection/class/outcome scalars do not need object wrappers. |
+| Gateway | A Gateway-owned control-plane snapshot codec replaces the generic write object through a generic Store payload or local write record. Registered extension documents remain open; current read admission and revision hashes stay unchanged. |
+| Python Tasks | Owner-native constructors replace repeated content, idempotency, input, request and authority dictionaries. Preserve native RecordID/datetime values, unsigned values, null/absence distinctions and sorted authority sets. |
+
+These changes enforce adapter consistency; the review established no authorization
+or data-corruption defect in the prior adapters. They require no new database schema.
+Store must not acquire MCP
+or Gateway runtime dependencies to type an owner snapshot.
+
+Checkpoint `42d98f00b` qualifies the Python repair. Independent review, 111 focused
+codec cases and 70 live Task storage/runtime cases pass, including Rust/Python
+interoperability, native SDK encoding and rejection of native values inside JSON
+payloads. Native record references, timestamps and full-value comparison predicates
+preserve their existing profiles.
 
 Gateway's storage cut moves the required OAuth and PKCE scalar declarations and
 their admission rules into `platform/gateway/contract`. Store imports those types
@@ -1708,6 +1696,25 @@ Exercise malformed and foreign rows, revocation, limits and competing transactio
 Move remaining relationship candidates to `record<table>` with `REFERENCE … ON DELETE`
 where the database can enforce the intended behavior. Test each adopted cleanup rule;
 record why a rejected candidate needs owner-managed lifecycle instead.
+
+Source review counts 356 record-bearing field declarations, including 21 explicit
+reference cleanup/rejection clauses; generated Knowledge chunk links are additional.
+Existing cleanup, independent products and owner-managed retention keep their prior
+qualification. The final six families have the following source-reviewed lifetimes,
+documented beside their owners:
+
+| Relationship | Lifetime and parent-delete behavior |
+|---|---|
+| `gateway_task_route.source_task` | Retain the route as a retry fence after Task pruning or route expiry. Access still checks expiry and current authority. |
+| `coordinate_operation.task` | Retain immutable operations. Missing Task parents deny reads and writes; direct operations have independent authority. |
+| `uav_mission_execution.{task,plan,lease}` | Retain execution identity for reconciliation and physical-work fencing. Missing plans do not release Task pins. |
+| Artifact upload parts and publication links | Retain admission/publication receipts. Recovery removes orphaned bytes under leases and generation fences; published products have independent lifetimes. |
+| `recording_projection_receipt.grant` | Receipt expiry cannot exceed grant expiry. One cleanup transaction removes expired receipts before grants; a missing grant denies access. |
+| Knowledge generation/member/sync collection links | Removed registration denies access without deleting generations or unrelated collections. Coordinator-fenced reclamation owns indexed-data cleanup. |
+
+This review requires no additional cascade or deletion rejection. Existing owner
+tests cover parent admission, retention fences and cleanup transactions. Source
+classification does not supply a new native or installed test result.
 
 | Gate | Pass condition |
 |---|---|
@@ -1740,25 +1747,36 @@ All sixteen production Rust servers now qualify that response for representative
 through authenticated native HTTP fixtures. Valid DTO controls and owner state checks
 separate malformed arguments from missing required values and side effects. Unavailable
 provider and GPU handles isolate admission; these fixtures do not qualify execution.
-Every reachable controlled variant still needs coverage before Phase 5 can close.
+The expanded variant matrix below passes local qualification at `91357aeca`.
 The coordinated installation cut carries the stricter decoders and matching callers together.
 
-Four owner fixture sets qualify 52 branches:
+The source matrix contains 447 cases across 112 owner-local families. Its explicit
+[consumer inventory](../testing/fixtures/server-contract-consumer/tests/controlled_inputs/owners.rs)
+registers every fixture and its decoded owner type:
 
-| Owner | Qualified input families |
-|---|---|
-| Computers | File transfers |
-| Map | Travel-time models, spatial queries, raster derivations, mobility profiles and feature mutations |
-| Optimization | Problem and travel-model sources |
-| View | Positions, overlay geometries and geometry sources |
+| Owner | Cases | Owner | Cases |
+|---|---:|---|---:|
+| Artifact | 8 | Reason | 5 |
+| Computers | 7 | Recording | 5 |
+| DuckDB | 26 | Speech | 2 |
+| Frames | 21 | Stream | 3 |
+| Knowledge | 2 | Time | 30 |
+| Map | 240 | Timeseries | 24 |
+| Media | 1 | UAV | 23 |
+| Optimization | 34 | View | 16 |
 
-The independent consumer checks schemas and serialized-byte decoding in both
-feature profiles. Hosted tests reuse those cases to reject unknown
-fields, tags and missing required values with the expected completed tool errors and
-unchanged domain state. Fixtures check omitted defaults, branch identity and open
-feature properties. View also checks its configured layer in the advertised schema.
-These checks qualify argument admission; remaining variants and installed execution
-still require their owning checks.
+The original 52 cases remain qualified and unchanged. Independent source review
+accepts the expanded matrix. All sixteen owning hosted tests and both independent consumer
+profiles pass. Recording's binary target is built with its required `redap` feature.
+The independent consumer
+checks schemas and serialized-byte decoding in both feature profiles. Existing
+hosted tests reuse the cases to reject unknown fields, tags and missing required
+values with completed tool errors and unchanged domain state. Untagged inputs
+compare decoded values, with explicit CQL and Timeseries alternative assertions.
+Fixtures preserve omitted defaults, admitted open feature/provider payloads and
+typed dictionaries. Scalar URI routes, outputs and administrative-only types retain
+their separate owner checks. These cases establish argument admission; they do not
+qualify domain execution or installed behavior.
 
 | Inbound surface | Change |
 |---|---|
@@ -1830,6 +1848,35 @@ lightweight owners without copying enums or importing runtime dependencies into 
 browser contract. Broader Artifact/grant, Task, Agent and policy projections remain
 required. Python peers and MCP App assets also retain the work listed below.
 
+The Console Task mirror currently omits the implemented `provider_wait` recovery
+class. Generated snapshot and row-event contracts must cover every owner vocabulary
+and keep each event's row type tied to its entity. Upload notifications also need
+an owner-generated schema. Keep the upload queue's presentation phases local; they
+describe browser interaction rather than a server wire contract.
+
+The next extraction uses the BFF's existing contract feature for the nineteen
+installation snapshot and summary structs. Gateway composition keeps projection,
+authorization and replay behavior and imports those declarations. Bootstrap and
+server-health declarations belong in the lightweight Gateway contract. That crate
+cannot aggregate Agent summaries because the Agent contract already depends on it.
+Agent lifecycle moves below persistence into the existing Agent contract feature;
+Artifact, Recording and access vocabularies come from their existing owners.
+
+Task status and recovery require a small contract crate below Store and Task Runtime.
+Importing a Task Runtime feature from Store would create a package cycle. The new
+contract's default graph excludes database and service dependencies; Store explicitly
+selects its optional native vocabulary adapter. The existing shared derive supplies
+that adapter. Qualification must preserve literal database kinds, enum ordinals,
+wire spellings and native optional values while removing the duplicated recovery
+declaration. This ownership change does not alter Task lifecycle or stored values.
+
+One typed event model ties each existing SSE entity name to its row schema. The
+browser validates rows before changing its cache, including nested summaries and
+operation tags. Upload notifications join their Artifact transfer schema bundle and
+keep their current snake_case fields. Preserve required nullable fields separately
+from omitted optionals, timestamp serialization and all six emitted upload states.
+Browser queue phases and selected-file state stay local.
+
 UAV's private snapshot derives eight endpoint roots from the actual Rust adapter types:
 world, command and operation requests, their responses, state and NDJSON events.
 Recursive comparison includes private Recording state, unresolved completion keys,
@@ -1856,9 +1903,8 @@ signed-context tests. The shared fixture qualifies nonempty actor and source
 assurances alongside empty defaults; unknown normalized values reject. External
 JWT claim parsing keeps its separate normalization step.
 
-The remaining source work is grouped into four batches. Controlled-input coverage
-starts with Timeseries predicates and forecast methods, then reconciles the other
-reachable variants against the shared owner fixtures. Browser generation covers
+The controlled-input batch has completed source review and native qualification.
+The remaining source work is grouped into three batches. Browser generation covers
 installation, Task, Artifact/grant, Agent and policy projections and upload SSE.
 Agent built-in tools derive their schemas from owner types, coordinated with the
 memory interface change. MCP App consumers adopt owner contracts for results,
@@ -1869,7 +1915,7 @@ their image and hardware checks in Phase 10, rather than another source migratio
 |---|---|
 | Console and Workspace | New schema bundles in `tools/xtask/src/commands/client_types/mod.rs` for every hand-mirrored contract; hand-written interfaces become imports from `src/generated`; `npm run build` then type-checks every field access |
 | Python peers of the Map helper, cuOpt executor, reason and speech runners and the UAV runtime | pydantic models with `extra="forbid"`; one test per protocol compares the model's JSON Schema with the Rust schema snapshot |
-| MCP App HTML assets (View, Stream, Timeseries, UAV, workbench) | Use available generated contracts and maintained browser checks; phase 8’s literal scanner supplements runtime behavior checks |
+| MCP App assets (View, Stream, Timeseries, UAV, Map and shared workbench) | Use owner-generated contracts and runtime admission for controlled results, continuations and errors. Keep shared workbench domain payloads open. Qualify Charts against its pinned upstream packaged contract rather than inventing a Rust owner; phase 8’s literal scanner supplements runtime behavior checks |
 | Agent kernel built-in tools | Derive controlled schemas from owner types and qualify the invoking clients. The [agent memory plan](AGENT_MEMORY_PLAN.md) replaces `memory_query` and `memory_write` with `memory_sql` |
 | SDKs, templates and cross-server clients | Complete the wider owner-local types and builders in the F-register, including catalog continuation and current-format result consumers |
 
@@ -1881,11 +1927,39 @@ their image and hardware checks in Phase 10, rather than another source migratio
 
 ## Phase 7: Embedding Profiles And Identity
 
-The current `EmbeddingSpace` includes `runtime_image`. D13 proposes model, checkpoint
-revision, dimension, pooling, normalization, numeric precision and maximum input
-tokens as its vector-space identity. Query instruction and chunker version stay in
+The current `EmbeddingSpace` includes `runtime_image`. D13's reviewed design uses
+model, checkpoint revision, dimension, pooling, normalization, numeric precision and
+maximum input tokens as its vector-space identity. Query instruction and chunker version stay in
 the Knowledge generation specification. Runtime image, vLLM version, GPU and driver
 remain recorded as execution provenance.
+
+The source architecture review accepts that separation subject to the following
+admission and provenance requirements. The embedding contract owns the space and
+execution-profile types. A qualified profile binds one space to the effective serving
+configuration, immutable image and checkpoint inputs, and the qualified GPU and driver
+environment. Installation configuration selects that profile and its endpoint.
+Client construction, indexing and search require an admitted profile; equal space
+values alone cannot authorize runtime reuse. Missing or mismatched profiles fail with
+a configuration diagnostic before vectors enter an index or a search.
+
+The installation's pinned deployment and checkpoint verification establish those
+claims. `/v1/models` establishes only the advertised model name. It does not attest
+the checkpoint, image, pooling, precision or hardware. Keep that trust limitation
+explicit and qualify the deployed configuration through the existing GPU harnesses;
+this change adds no attestation service or serving sidecar.
+
+Knowledge records which qualified execution profile produced each indexed batch and
+retains its immutable provenance alongside the data. Publish those associations in
+the existing owner transaction, so committed vectors cannot lack their producer
+record. A profile ID must identify immutable contents; conflicting contents reject.
+A runtime change cannot relabel stored vectors. Execution provenance stays
+outside the generation fingerprint, whose query instruction, chunker and collection
+requirements still apply. Reuse requires qualification of the selected query runtime
+against the runtimes that produced the retained vectors, not just separate successful
+self-tests of each runtime. Admission covers every retained producer profile and
+preserves that condition across concurrent batch publication and generation changes.
+The first matrix admits only the qualified NVIDIA profile;
+later image, configuration or hardware combinations need their own qualification.
 
 Qualify this change on the existing NVIDIA profile. Reference vectors must meet the
 existing 0.999 cosine threshold, and the existing retrieval harness must demonstrate
@@ -1898,7 +1972,8 @@ setting. Quantized and unquantized checkpoints remain different spaces.
 | Work | Gate |
 |---|---|
 | Contract and consumers | Update embedding, Knowledge, generated schemas and Helm; all consumers agree on the new identity and retained execution provenance |
-| Space reuse | Qualify supported upgrades with reference vectors and retrieval checks; unchanged qualified spaces preserve the active generation, incompatible ones cannot reuse it |
+| Space reuse | Qualify supported query/index runtime combinations with reference vectors and retrieval checks; unchanged qualified spaces preserve the active generation, incompatible or unknown combinations cannot reuse it |
+| Provenance and refusal | Producer associations survive restart and same-space runtime changes; missing, altered or unqualified runtime/configuration entries reject before indexing or search. Native fixtures prove these paths without claiming GPU qualification |
 | Current generation | Fresh-state cut activates one generation under the final identity; avoid an unnecessary intermediate production reindex before phase 8 |
 | GPU and capacity | Required NVIDIA resource, CUDA refusal, readiness, declared priority/bulk bound, throughput and search latency pass on hardware |
 | Network and Helm | Existing isolation checks and `veoveo-deployment-smoke` Knowledge/embedding Helm suites pass |

@@ -6,6 +6,90 @@ Statements such as “current”, “next” and “remaining” can be supersed
 Read the [active plan](CONTRACT_CONSISTENCY_PLAN.md#current-status) for current status,
 requirements, accepted risks and remaining work. This log does not establish completion.
 
+## Consolidation Baseline At `d75a5acea`
+
+The following status text was moved from the active plan's opening at this revision.
+It records earlier qualification and does not override the active plan's current
+status or the gates in its individual phases.
+
+Status: Phase 0 is qualified. The declaration repetition
+repair is applied across owners and callers and passes native qualification.
+Compact ID and resource attributes now generate standard derives, conversions and
+convenience methods through owner profiles. Shared tests, the owner-contract aggregate,
+both independent consumers, full workspace compilation, strict lint, source-policy
+checks and Task Runtime's database integration pass. Phase 0 acceptance requires
+clearer authoring, strong types and qualified behavior. Complete-family line counts
+remain visible, but net line reduction is not a completion requirement. Shared address
+generation uses one typed field model for parsing, builders and accessors; its affected
+native, consumer, compilation and repository checks pass.
+Vocabulary, embedded documents, Id, ResourceAddress, Checked models and opaque cursors
+preserve their owner admission and wire/schema profiles. Production helper and static
+unit-error adoption is complete; the tracked-source macro catalog is enforced.
+Explicit owner adapters retain normalization, redundant-field projection, mutable
+representations and codec-specific envelopes. Later phases, Foundations and hardening
+transfer conditions, and installed acceptance remain open. Phase 1 is active: the
+module declarations, native runner, execution commands and rendered installation Jobs
+pass their native checks. The staged gateway image passes isolated installed checks
+for fresh preparation, lane completion, publication, credential rotation, stale Job
+rejection and later module enablement. Installed managed-agent replacement preserves
+identity and storage, advances the lease fence and survives replay. The extended
+three-generation lifecycle passes, including rejection of the old runtime password
+after database readiness and owned fixture cleanup. Full Helm qualification and
+reference product activation remain open.
+Phase 2 Task contributions, versioned kernel SQL admission and
+Optimization's catalog reads pass their native checks. The gateway composition split
+and catalog, OAuth and TLS adapters pass native checks. Computers, Speech, Recordings,
+Agents and Workspace own their HTTP handlers; contributed route authentication and
+worker cleanup pass native checks. Agents owns its public token claim; generic
+claim admission and internal execution attribution pass Rust and Python checks.
+Recording owns its catalog and ingest policy; optional modules own their policy
+actions through a shared registry. Native owner, admission and schema tests pass,
+including exported-schema validation of all five installation catalogs. Affected
+consumer checks and independent contract/runtime builds pass. Installed catalog
+startup admission remains open. Agents' authoring and operator-control models and the
+dependent Workspace contracts have moved to their owners. Native tests, affected
+consumer checks and isolated contract/adapter builds pass; generated browser schemas
+are unchanged. Phase 3 is active: owners now declare their observation tables and
+Computers owns its change decoder. Native delivery, replay, stopped-reader recovery,
+listener cleanup and schema retention checks pass. Independent schema consumers and
+the affected runtime graphs pass qualification. Migration admission now follows exact
+function versions and preserves stored read-only callers across definition changes.
+Its native schema, transaction and recovery checks pass. Production schema admission
+and fresh lane execution pass for the kernel, each extracted repository's selection
+and the complete selected catalog, including unchanged replay, disabled-owner absence
+and reconnect. The owner-registered Audit target path passes native
+checks for reconnect, filtered reads, LIVE delivery, transaction rollback and sealed
+export while preserving record bytes and hashes. Agents, Workspace, Map and Recording
+persistence has moved into its owners. The combined test build passes, and every
+previously failing aggregate test passes in its owning-suite or focused rerun. The
+Agent event-stream failure did not recur individually or in its full gateway suite;
+its diagnostic now captures the unexpected stream outcome. Real installation commands
+pass fresh preparation, selected lanes, publication and stale-generation refusal.
+Time, Frames, Media and Agent execution query extraction passes syntax and
+statement-equivalence checks. The affected consumer builds, strict lint across
+28 packages, 13 isolated dependency profiles and the normal Store runtime build pass.
+Generated Audit readers and Console TypeScript pass their checks. Python Task query
+assets, packaged-wheel loading and the fresh kernel-lane fixture pass native and
+consumer checks. This qualifies the composed persistence batch for a source checkpoint;
+runtime kernel access and installed acceptance keep Phase 3 open.
+Five additional browser contract
+bundles pass generation, consumer tests and builds. Production schema ownership moves
+in Phase 3.
+Phase 5's MCP input batch closes controlled request fields and nested owner shapes.
+The independent consumer checks all 114 production tool-input root schemas; affected
+native suites and browser/Python consumers pass. A separate batch closes controlled
+HTTP bodies, registered installation configuration and private process inputs.
+Affected native suites, Python peers, generated browser consumers and Stream's C++
+build pass. Recording's sensor-stack loader now closes its flat variants and validates
+sensor IDs during decoding. UAV state, acknowledgements, completion results and events
+use typed Python output models. Authenticated native wire checks now cover unknown
+arguments on all sixteen Rust servers. Map, cuOpt, Reason, Speech and UAV compare
+their complete private JSON protocol graphs across Rust and Python. Exhaustive
+controlled-variant coverage and installed process qualification remain open. A
+52-branch batch qualifies Computers file transfers, Map spatial and authoring inputs,
+Optimization sources and View overlays through independent schema/byte decoding and
+authenticated hosted rejection.
+
 ## Implementation And Installation Checkpoints
 
 Typed route handoff and automation-grant batch (2026-10-04): Map commit
