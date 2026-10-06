@@ -786,9 +786,7 @@ impl<'a> Visitor<'a> {
             }
             RemoveStatement::Field(s) => {
                 let table = self.name(&s.what)?.to_owned();
-                let path = index::path(&s.name).ok_or_else(unsupported)?;
-                self.invalidate_field(&table, &path, false)?;
-                self.static_field(&s.name)?;
+                self.invalidate_field_shape(&table, &s.name, false)?;
                 self.object(
                     ObjectKind::Table,
                     self.name(&s.what)?,

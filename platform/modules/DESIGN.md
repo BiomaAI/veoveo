@@ -119,6 +119,14 @@ fields, events, table permissions, views and COUNT-index predicates. A body admi
 read-only cannot acquire writes through a later callee overwrite. Removing a referenced
 function requires removal or replacement of its surviving callers first.
 
+Field definitions and removals share static-path proof invalidation. A field path
+contains only named fields and array wildcards. A wildcard preserves its maximal
+named prefix's object shape while invalidating descendant proofs; an index that
+still needs a changed descendant refuses admission until the owner removes it.
+Dynamic, filtered, numeric-index and query-bearing field paths do not gain schema
+mutation authority. The table ownership and runner-history restrictions apply to
+every such statement.
+
 Schema declarations and removals are migration top-level statements. Conditional table,
 field, event, function and index declarations fail admission because they cannot prove
 which stored body survives. ALTER TABLE permission changes replace the stored permission

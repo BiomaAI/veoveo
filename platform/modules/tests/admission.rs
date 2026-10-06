@@ -662,3 +662,55 @@ fn closed_object_value_fields_preserve_owner_and_target_checks() {
         assert!(!admitted(sql));
     }
 }
+
+#[test]
+fn static_wildcard_removals_preserve_ancestors_and_refuse_unsafe_paths_before_effects() {
+    assert!(admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/preserves_ancestor.surql"
+    )));
+    assert!(admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/index_removed_first.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/surviving_index.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/descendant_proof.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/foreign.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/nested.surql"
+    )));
+    assert!(!admitted(include_str!(
+        "queries/admission/static_wildcard_field_removal/history.surql"
+    )));
+    // Unsupported child paths may be refused by the pinned parser or AST
+    // admission; neither path produces an executable prepared installation.
+    for (label, sql) in [
+        (
+            "dynamic",
+            include_str!("queries/admission/static_wildcard_field_removal/dynamic.surql"),
+        ),
+        (
+            "filtered",
+            include_str!("queries/admission/static_wildcard_field_removal/filtered.surql"),
+        ),
+        (
+            "indexed",
+            include_str!("queries/admission/static_wildcard_field_removal/indexed.surql"),
+        ),
+        (
+            "subquery",
+            include_str!("queries/admission/static_wildcard_field_removal/subquery.surql"),
+        ),
+    ] {
+        let registry =
+            ModuleRegistry::new(vec![module("own", ModuleLayer::Kernel, sql, vec![])]).unwrap();
+        assert!(
+            prepare(registry.select(vec![]).unwrap()).is_err(),
+            "{label}"
+        );
+    }
+}

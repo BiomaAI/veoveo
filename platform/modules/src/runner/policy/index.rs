@@ -51,33 +51,44 @@ impl Visitor<'_> {
         });
         Ok(())
     }
+    /// Definitions and removals share proof invalidation for static field paths.
+    /// A wildcard changes descendants of its maximal field-only prefix, while
+    /// retaining that prefix's own object shape and unrelated sibling proofs.
+    pub(super) fn invalidate_field_shape(
+        &mut self,
+        table: &str,
+        expression: &Expr,
+        preserves_object: bool,
+    ) -> Result<Option<Vec<String>>, RunnerError> {
+        self.static_field(expression)?;
+        if let Some(path) = path(expression) {
+            self.invalidate_field(table, &path, preserves_object)?;
+            return Ok(Some(path));
+        }
+        let prefix: Vec<String> = match expression {
+            Expr::Idiom(idiom) => idiom
+                .0
+                .iter()
+                .map_while(|part| match part {
+                    Part::Field(name) => Some(name.as_str().to_owned()),
+                    _ => None,
+                })
+                .collect(),
+            _ => return Err(unsupported()),
+        };
+        if prefix.is_empty() {
+            self.clear_table_proof(table, false)?;
+        } else {
+            self.invalidate_field(table, &prefix, true)?;
+        }
+        Ok(None)
+    }
     pub(super) fn field_proof(
         &mut self,
         field: &DefineFieldStatement,
         depth: usize,
     ) -> Result<(), RunnerError> {
         let table = self.name(&field.what)?.to_owned();
-        let Some(path) = path(&field.name) else {
-            // A wildcard affects descendants of its maximal static prefix, not the
-            // prefix's own shape or sibling objects. An unresolved/root prefix can
-            // affect every proof and keeps the conservative table-wide rule.
-            let prefix: Vec<String> = match &field.name {
-                Expr::Idiom(idiom) => idiom
-                    .0
-                    .iter()
-                    .map_while(|part| match part {
-                        Part::Field(name) => Some(name.as_str().to_owned()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => Vec::new(),
-            };
-            return if prefix.is_empty() {
-                self.clear_table_proof(&table, false)
-            } else {
-                self.invalidate_field(&table, &prefix, true)
-            };
-        };
         let object = field
             .field_kind
             .as_ref()
@@ -88,7 +99,9 @@ impl Visitor<'_> {
             });
         // IF NOT EXISTS cannot certify an existing shape. Only unconditional top-level definitions grant proof.
         let proven = depth == 1 && field.kind != DefineKind::IfNotExists && object;
-        self.invalidate_field(&table, &path, proven)?;
+        let Some(path) = self.invalidate_field_shape(&table, &field.name, proven)? else {
+            return Ok(());
+        };
         if proven {
             self.object_fields.insert((table, path));
         }
