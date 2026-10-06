@@ -1,0 +1,16 @@
+{
+  "name": "veoveo-mcp-app-browser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "build": "node build-workbench.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/core": "2.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

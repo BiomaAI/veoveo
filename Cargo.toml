@@ -222,6 +222,7 @@ x509-parser = "=0.18.1"
 zeroize = "=1.9.0"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
+veoveo-mcp-apps-extension = { path = "mcp/apps-extension" }
 veoveo-types = { path = "platform/types" }
 veoveo-modules = { path = "platform/modules", default-features = false }
 veoveo-gateway-contract = { path = "platform/gateway/contract" }

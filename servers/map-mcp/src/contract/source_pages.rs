@@ -80,6 +80,7 @@ pub struct MapSourcePage {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = super::app_pages::require_cursor_presence)]
 struct PageWire {
     #[schemars(length(max = 100))]
     items: Vec<SourceSummary>,

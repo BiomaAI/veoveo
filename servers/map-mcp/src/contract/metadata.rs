@@ -253,6 +253,7 @@ impl MapMetadataCursor {
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[schemars(transform = super::app_pages::require_cursor_presence)]
 pub struct MapMetadataPage<T> {
     pub items: Vec<T>,
     pub limit: usize,

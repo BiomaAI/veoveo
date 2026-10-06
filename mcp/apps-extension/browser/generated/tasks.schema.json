@@ -1,0 +1,2310 @@
+{
+  "$defs": {
+    "Annotations": {
+      "description": "Optional annotations for the client. The client can use annotations to inform how objects are\nused or displayed.",
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Role"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "lastModified": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ArrayTypeConst": {
+      "const": "array",
+      "format": "const",
+      "type": "string"
+    },
+    "AudioContent": {
+      "description": "Audio content with base64-encoded data (spec `AudioContent`).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional protocol-level metadata for this content block."
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional annotations describing how the client should use this content."
+        },
+        "data": {
+          "description": "The base64-encoded audio data.",
+          "type": "string"
+        },
+        "mimeType": {
+          "description": "The MIME type of the audio (e.g. `audio/wav`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "data",
+        "mimeType"
+      ],
+      "type": "object"
+    },
+    "BooleanSchema": {
+      "description": "Schema definition for boolean properties.",
+      "properties": {
+        "default": {
+          "description": "Default value",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Human-readable description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Optional title for the schema",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/BooleanTypeConst",
+          "description": "Type discriminator"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "BooleanTypeConst": {
+      "const": "boolean",
+      "format": "const",
+      "type": "string"
+    },
+    "ClientCapabilities": {
+      "description": "```rust\n# use rmcp::model::ClientCapabilities;\nlet cap = ClientCapabilities::builder()\n    .enable_experimental()\n    .build();\n```",
+      "properties": {
+        "elicitation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ElicitationCapability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Capability to handle elicitation requests from servers for interactive user input"
+        },
+        "experimental": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "extensions": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "description": "Optional MCP extensions that the client supports (SEP-1724).\nKeys are extension identifiers (e.g., `\"io.modelcontextprotocol/ui\"`),\nvalues are per-extension settings objects. An empty object indicates\nsupport with no settings.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "roots": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RootsCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Capability for filesystem roots (deprecated by SEP-2577)."
+        },
+        "sampling": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SamplingCapability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Capability for LLM sampling requests (SEP-1577, deprecated by SEP-2577)."
+        }
+      },
+      "title": "Builder",
+      "type": "object"
+    },
+    "ConstTitle": {
+      "description": "Schema definition for enum properties.\n\nRepresent single entry for titled item",
+      "properties": {
+        "const": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "const",
+        "title"
+      ],
+      "type": "object"
+    },
+    "ContentBlock": {
+      "description": "Unified content block union (spec `ContentBlock`).\n\n`text | image | audio | resource_link | resource`",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextContent",
+          "properties": {
+            "type": {
+              "const": "text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/ImageContent",
+          "properties": {
+            "type": {
+              "const": "image",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/AudioContent",
+          "properties": {
+            "type": {
+              "const": "audio",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/EmbeddedResource",
+          "properties": {
+            "type": {
+              "const": "resource",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/Resource",
+          "properties": {
+            "type": {
+              "const": "resource_link",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ContextInclusion": {
+      "description": "Specifies how much context should be included in sampling requests.\n\nThis allows clients to control what additional context information\nshould be provided to the LLM when processing sampling requests.",
+      "oneOf": [
+        {
+          "const": "allServers",
+          "description": "Include context from all connected MCP servers",
+          "type": "string"
+        },
+        {
+          "const": "none",
+          "description": "Include no additional context",
+          "type": "string"
+        },
+        {
+          "const": "thisServer",
+          "description": "Include context only from the requesting server",
+          "type": "string"
+        }
+      ]
+    },
+    "CreateMessageRequestMethod": {
+      "const": "sampling/createMessage",
+      "format": "const",
+      "type": "string"
+    },
+    "CreateMessageRequestParams": {
+      "deprecated": true,
+      "description": "Parameters for creating a message through LLM sampling.\n\nThis structure contains all the necessary information for a client to\ngenerate an LLM response, including conversation history, model preferences,\nand generation parameters.\n\nThis implements `TaskAugmentedRequestParamsMeta` as sampling requests can be\nlong-running and may benefit from task-based execution.",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequestMetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Protocol-level metadata for this request (SEP-1319)"
+        },
+        "includeContext": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextInclusion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How much context to include from MCP servers"
+        },
+        "maxTokens": {
+          "description": "Maximum number of tokens to generate",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "messages": {
+          "description": "The conversation history and current messages",
+          "items": {
+            "$ref": "#/$defs/SamplingMessage"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "description": "Additional metadata for the request"
+        },
+        "modelPreferences": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelPreferences"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Preferences for model selection and behavior"
+        },
+        "stopSequences": {
+          "description": "Sequences that should stop generation",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "systemPrompt": {
+          "description": "System prompt to guide the model's behavior",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "temperature": {
+          "description": "Temperature for controlling randomness (0.0 to 1.0)",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "toolChoice": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolChoice"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Tool selection behavior (SEP-1577)"
+        },
+        "tools": {
+          "description": "Tools available for the model to call (SEP-1577)",
+          "items": {
+            "$ref": "#/$defs/Tool"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "messages",
+        "maxTokens"
+      ],
+      "type": "object"
+    },
+    "CreateTaskResult": {
+      "description": "Result returned in lieu of a standard result to indicate the request will\nbe processed asynchronously (spec `CreateTaskResult`, `resultType: \"task\"`).\n\nThe embedded task is the seed state for the task; the client uses\n`task.task_id` for all subsequent `tasks/get`, `tasks/update`, and\n`tasks/cancel` calls.",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "description": "ISO 8601 timestamp when the task was created.",
+          "type": "string"
+        },
+        "lastUpdatedAt": {
+          "description": "ISO 8601 timestamp when the task was last updated.",
+          "type": "string"
+        },
+        "pollIntervalMs": {
+          "description": "Suggested polling interval in integer milliseconds. Clients SHOULD honor\nthis value to avoid overwhelming the server. This value MAY change over\nthe lifetime of a task.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "resultType": {
+          "const": "task"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus",
+          "description": "Current task status."
+        },
+        "statusMessage": {
+          "description": "Optional message describing the current task state.\nThis MAY be exposed to the end-user or model.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "taskId": {
+          "description": "Stable identifier for this task, generated by the server.",
+          "type": "string"
+        },
+        "ttlMs": {
+          "description": "Time-to-live duration from creation in integer milliseconds; `None`\n(serialized as `null`) means unlimited. The server may discard the task\nafter the TTL elapses. This value MAY change over the lifetime of a task.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "resultType",
+        "taskId",
+        "status",
+        "createdAt",
+        "lastUpdatedAt"
+      ],
+      "type": "object"
+    },
+    "ElicitRequestParams": {
+      "anyOf": [
+        {
+          "properties": {
+            "_meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RequestMetaObject"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "mode": {
+              "const": "form",
+              "type": "string"
+            },
+            "requestedSchema": {
+              "$ref": "#/$defs/ElicitationSchema"
+            }
+          },
+          "required": [
+            "mode",
+            "message",
+            "requestedSchema"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "_meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RequestMetaObject"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "elicitationId": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "mode": {
+              "const": "url",
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "message",
+            "url",
+            "elicitationId"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "_meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RequestMetaObject"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "requestedSchema": {
+              "$ref": "#/$defs/ElicitationSchema"
+            }
+          },
+          "required": [
+            "message",
+            "requestedSchema"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "Parameters for creating an elicitation request to gather user input.\n\nThis structure contains everything needed to request interactive input from a user:\n- A human-readable message explaining what information is needed\n- A type-safe schema defining the expected structure of the response\n\n# Example\n1. Form-based elicitation request\n```rust\nuse rmcp::model::*;\n\nlet params = ElicitRequestParams::FormElicitationParams {\n   meta: None,\n    message: \"Please provide your email\".to_string(),\n    requested_schema: ElicitationSchema::builder()\n        .required_email(\"email\")\n        .build()\n        .unwrap(),\n};\n```\n2. URL-based elicitation request\n```rust\nuse rmcp::model::*;\nlet params = ElicitRequestParams::UrlElicitationParams {\n    meta: None,\n    message: \"Please provide your feedback at the following URL\".to_string(),\n    url: \"https://example.com/feedback\".to_string(),\n    elicitation_id: \"unique-id-123\".to_string(),\n};\n```"
+    },
+    "ElicitationCapability": {
+      "description": "Elicitation allows servers to request interactive input from users during tool execution.\nThis capability indicates that a client can handle elicitation requests and present\nappropriate UI to users for collecting the requested information.",
+      "properties": {
+        "form": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FormElicitationCapability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether client supports form-based elicitation."
+        },
+        "url": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UrlElicitationCapability"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whether client supports URL-based elicitation."
+        }
+      },
+      "type": "object"
+    },
+    "ElicitationCreateRequestMethod": {
+      "const": "elicitation/create",
+      "format": "const",
+      "type": "string"
+    },
+    "ElicitationSchema": {
+      "description": "Type-safe elicitation schema for requesting structured user input.\n\nThis enforces the MCP 2025-06-18 specification that elicitation schemas\nmust be objects with primitive-typed properties.\n\n# Example\n\n```rust\nuse rmcp::model::*;\n\nlet schema = ElicitationSchema::builder()\n    .required_email(\"email\")\n    .required_integer(\"age\", 0, 150)\n    .optional_bool(\"newsletter\", false)\n    .build();\n```",
+      "properties": {
+        "$schema": {
+          "description": "Optional JSON Schema dialect identifier (the `$schema` keyword).\n\nThe 2025-11-25 protocol revision allows a `requestedSchema` to declare its\ndialect. It is preserved verbatim so a declared dialect survives a\ndecode/re-encode round-trip instead of being silently dropped.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Optional description of what this schema represents",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "properties": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PrimitiveSchemaDefinition"
+          },
+          "description": "Property definitions (must be primitive types)",
+          "type": "object"
+        },
+        "required": {
+          "description": "List of required property names",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Optional title for the schema",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/ObjectTypeConst",
+          "description": "Always \"object\" for elicitation schemas"
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ],
+      "type": "object"
+    },
+    "EmbeddedResource": {
+      "description": "Embedded resource content (spec `EmbeddedResource`).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional protocol-level metadata for this content block."
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional annotations describing how the client should use this content."
+        },
+        "resource": {
+          "$ref": "#/$defs/ResourceContents",
+          "description": "The embedded resource contents (text or blob)."
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "type": "object"
+    },
+    "EnumSchema": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SingleSelectEnumSchema"
+        },
+        {
+          "$ref": "#/$defs/MultiSelectEnumSchema"
+        },
+        {
+          "$ref": "#/$defs/LegacyEnumSchema"
+        }
+      ],
+      "description": "Compliant with MCP 2025-06-18 specification for elicitation schemas.\nEnums must have string type for values and can optionally include human-readable names.\n\n# Example\n\n```rust\nuse rmcp::model::*;\n\nlet enum_schema = EnumSchema::builder(vec![\"US\".to_string(), \"UK\".to_string()])\n   .multiselect()\n   .min_items(1u64).expect(\"Min items should be correct value\")\n   .max_items(4u64).expect(\"Max items should be correct value\")\n   .description(\"Country code\")\n   .build();\n```"
+    },
+    "FormElicitationCapability": {
+      "description": "Capability for handling elicitation requests from servers.\nElicitation allows servers to request interactive input from users during tool execution.\nThis capability indicates that a client can handle elicitation requests and present\nappropriate UI to users for collecting the requested information.\n\nCapability for form mode elicitation.",
+      "properties": {
+        "schemaValidation": {
+          "description": "Whether the client supports JSON Schema validation for elicitation responses.\nWhen true, the client will validate user input against the requested_schema\nbefore sending the response back to the server.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "GetTaskResult": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "input_required"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "inputRequests": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "inputRequests"
+            ]
+          }
+        }
+      ],
+      "description": "Response to a `tasks/get` request (spec `GetTaskResult = Result & DetailedTask`).\n\n`resultType` is `\"complete\"` — this is the standard result shape for\n`tasks/get`, not a task handle.",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "description": "ISO 8601 timestamp when the task was created.",
+          "type": "string"
+        },
+        "error": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "inputRequests": {
+          "additionalProperties": {
+            "$ref": "#/$defs/InputRequest"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "lastUpdatedAt": {
+          "description": "ISO 8601 timestamp when the task was last updated.",
+          "type": "string"
+        },
+        "pollIntervalMs": {
+          "description": "Suggested polling interval in integer milliseconds. Clients SHOULD honor\nthis value to avoid overwhelming the server. This value MAY change over\nthe lifetime of a task.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "result": {
+          "additionalProperties": true,
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "resultType": {
+          "$ref": "#/$defs/ResultType",
+          "default": "complete",
+          "description": "Result type discriminator. `tasks/get` responses are standard results:\n`\"complete\"` (SEP-2322). Absent values deserialize as `\"complete\"`."
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus",
+          "description": "Current task status."
+        },
+        "statusMessage": {
+          "description": "Optional message describing the current task state.\nThis MAY be exposed to the end-user or model.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "taskId": {
+          "description": "Stable identifier for this task, generated by the server.",
+          "type": "string"
+        },
+        "ttlMs": {
+          "description": "Time-to-live duration from creation in integer milliseconds; `None`\n(serialized as `null`) means unlimited. The server may discard the task\nafter the TTL elapses. This value MAY change over the lifetime of a task.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "taskId",
+        "status",
+        "createdAt",
+        "lastUpdatedAt"
+      ],
+      "type": "object"
+    },
+    "Icon": {
+      "description": "A URL pointing to an icon resource or a base64-encoded data URI.\n\nClients that support rendering icons MUST support at least the following MIME types:\n- image/png - PNG images (safe, universal compatibility)\n- image/jpeg (and image/jpg) - JPEG images (safe, universal compatibility)\n\nClients that support rendering icons SHOULD also support:\n- image/svg+xml - SVG images (scalable but requires security precautions)\n- image/webp - WebP images (modern, efficient format)",
+      "properties": {
+        "mimeType": {
+          "description": "Optional override if the server's MIME type is missing or generic",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sizes": {
+          "description": "Size specification, each string should be in WxH format (e.g., `\\\"48x48\\\"`, `\\\"96x96\\\"`) or `\\\"any\\\"` for scalable formats like SVG",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "src": {
+          "description": "A standard URI pointing to an icon resource",
+          "type": "string"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IconTheme"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional specifier for the theme this icon is designed for\nIf not provided, the client should assume the icon can be used with any theme."
+        }
+      },
+      "required": [
+        "src"
+      ],
+      "type": "object"
+    },
+    "IconTheme": {
+      "description": "Icon themes supported by the MCP specification",
+      "oneOf": [
+        {
+          "const": "light",
+          "description": "Indicates the icon is designed to be used with a light background",
+          "type": "string"
+        },
+        {
+          "const": "dark",
+          "description": "Indicates the icon is designed to be used with a dark background",
+          "type": "string"
+        }
+      ]
+    },
+    "ImageContent": {
+      "description": "Image content with base64-encoded data (spec `ImageContent`).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional protocol-level metadata for this content block."
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional annotations describing how the client should use this content."
+        },
+        "data": {
+          "description": "The base64-encoded image data.",
+          "type": "string"
+        },
+        "mimeType": {
+          "description": "The MIME type of the image (e.g. `image/png`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "data",
+        "mimeType"
+      ],
+      "type": "object"
+    },
+    "Implementation": {
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icons": {
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "websiteUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "type": "object"
+    },
+    "InputRequest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Request",
+          "description": "A `sampling/createMessage` request."
+        },
+        {
+          "$ref": "#/$defs/Request2",
+          "description": "An `elicitation/create` request."
+        },
+        {
+          "$ref": "#/$defs/RequestNoParam",
+          "description": "A `roots/list` request."
+        }
+      ],
+      "description": "A server-initiated request that can appear inside [`InputRequests`].\n\nPer the MCP spec, only `CreateMessageRequest` (sampling),\n`ElicitRequest` (elicitation), and `ListRootsRequest` (roots)\nare allowed. This is modeled as an untagged enum rather than a\n`ServerRequest` alias to prevent `PingRequest` or `CustomRequest` from\nbeing included."
+    },
+    "IntegerSchema": {
+      "description": "Schema definition for integer properties.\n\nCompliant with MCP 2025-06-18 specification for elicitation schemas.\nSupports only the fields allowed by the MCP spec.",
+      "properties": {
+        "default": {
+          "description": "Default value",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Human-readable description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "maximum": {
+          "description": "Maximum value (inclusive)",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minimum": {
+          "description": "Minimum value (inclusive)",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Optional title for the schema",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/IntegerTypeConst",
+          "description": "Type discriminator"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "IntegerTypeConst": {
+      "const": "integer",
+      "format": "const",
+      "type": "string"
+    },
+    "LegacyEnumSchema": {
+      "description": "Legacy enum schema, keep for backward compatibility",
+      "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enumNames": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/StringTypeConst"
+        }
+      },
+      "required": [
+        "type",
+        "enum"
+      ],
+      "type": "object"
+    },
+    "ListRootsRequestMethod": {
+      "const": "roots/list",
+      "format": "const",
+      "type": "string"
+    },
+    "LoggingLevel": {
+      "deprecated": true,
+      "description": "Logging levels supported by the MCP protocol",
+      "enum": [
+        "debug",
+        "info",
+        "notice",
+        "warning",
+        "error",
+        "critical",
+        "alert",
+        "emergency"
+      ],
+      "type": "string"
+    },
+    "MetaObject": {
+      "additionalProperties": true,
+      "description": "See [MCP general fields](https://modelcontextprotocol.io/specification/2026-07-28/basic#general-fields) for notes on _meta usage.",
+      "type": "object"
+    },
+    "ModelHint": {
+      "deprecated": true,
+      "description": "A hint suggesting a preferred model name or family.\n\nModel hints are advisory suggestions that help clients choose appropriate\nmodels. They can be specific model names or general families like \"claude\" or \"gpt\".",
+      "properties": {
+        "name": {
+          "description": "The suggested model name or family identifier",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ModelPreferences": {
+      "deprecated": true,
+      "description": "Preferences for model selection and behavior in sampling requests.\n\nThis allows servers to express their preferences for which model to use\nand how to balance different priorities when the client has multiple\nmodel options available.",
+      "properties": {
+        "costPriority": {
+          "description": "Priority for cost optimization (0.0 to 1.0, higher = prefer cheaper models)",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hints": {
+          "description": "Specific model names or families to prefer (e.g., \"claude\", \"gpt\")",
+          "items": {
+            "$ref": "#/$defs/ModelHint"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "intelligencePriority": {
+          "description": "Priority for intelligence/capability (0.0 to 1.0, higher = prefer more capable models)",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "speedPriority": {
+          "description": "Priority for speed/latency (0.0 to 1.0, higher = prefer faster models)",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MultiSelectEnumSchema": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UntitledMultiSelectEnumSchema"
+        },
+        {
+          "$ref": "#/$defs/TitledMultiSelectEnumSchema"
+        }
+      ],
+      "description": "Multi-select enum options"
+    },
+    "NumberOrString": {
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "NumberSchema": {
+      "description": "Schema definition for number properties (floating-point).\n\nCompliant with MCP 2025-06-18 specification for elicitation schemas.\nSupports only the fields allowed by the MCP spec.",
+      "properties": {
+        "default": {
+          "description": "Default value",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Human-readable description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "maximum": {
+          "description": "Maximum value (inclusive)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum": {
+          "description": "Minimum value (inclusive)",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Optional title for the schema",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/NumberTypeConst",
+          "description": "Type discriminator"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "NumberTypeConst": {
+      "const": "number",
+      "format": "const",
+      "type": "string"
+    },
+    "ObjectTypeConst": {
+      "const": "object",
+      "format": "const",
+      "type": "string"
+    },
+    "PrimitiveSchemaDefinition": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnumSchema",
+          "description": "Enum property (explicit enum schema)"
+        },
+        {
+          "$ref": "#/$defs/StringSchema",
+          "description": "String property (with optional enum constraint)"
+        },
+        {
+          "$ref": "#/$defs/NumberSchema",
+          "description": "Number property (with optional enum constraint)"
+        },
+        {
+          "$ref": "#/$defs/IntegerSchema",
+          "description": "Integer property (with optional enum constraint)"
+        },
+        {
+          "$ref": "#/$defs/BooleanSchema",
+          "description": "Boolean property"
+        }
+      ],
+      "description": "Primitive schema definition for elicitation properties.\n\nAccording to MCP 2025-06-18 specification, elicitation schemas must have\nproperties of primitive types only (string, number, integer, boolean, enum).\n\nNote: Put Enum as the first variant to avoid ambiguity during deserialization.\nThis is due to the fact that EnumSchema can contain StringSchema internally and serde\nuses first match wins strategy when deserializing untagged enums."
+    },
+    "ProgressToken": {
+      "$ref": "#/$defs/NumberOrString",
+      "description": "A token used to track the progress of long-running operations.\n\nProgress tokens allow clients and servers to associate progress notifications\nwith specific requests, enabling real-time updates on operation status."
+    },
+    "Request": {
+      "description": "Represents a JSON-RPC request with method, parameters, and extensions.\n\nThis is the core structure for all MCP requests, containing:\n- `method`: The name of the method being called\n- `params`: The parameters for the method\n- `extensions`: Additional context data (similar to HTTP headers)",
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/CreateMessageRequestMethod"
+        },
+        "params": {
+          "$ref": "#/$defs/CreateMessageRequestParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    "Request2": {
+      "description": "Represents a JSON-RPC request with method, parameters, and extensions.\n\nThis is the core structure for all MCP requests, containing:\n- `method`: The name of the method being called\n- `params`: The parameters for the method\n- `extensions`: Additional context data (similar to HTTP headers)",
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/ElicitationCreateRequestMethod"
+        },
+        "params": {
+          "$ref": "#/$defs/ElicitRequestParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    "RequestMetaObject": {
+      "additionalProperties": true,
+      "description": "Metadata reserved by MCP on requests. Extension keys are also allowed.",
+      "properties": {
+        "io.modelcontextprotocol/clientCapabilities": {
+          "$ref": "#/$defs/ClientCapabilities"
+        },
+        "io.modelcontextprotocol/clientInfo": {
+          "$ref": "#/$defs/Implementation"
+        },
+        "io.modelcontextprotocol/logLevel": {
+          "$ref": "#/$defs/LoggingLevel"
+        },
+        "io.modelcontextprotocol/protocolVersion": {
+          "type": "string"
+        },
+        "progressToken": {
+          "$ref": "#/$defs/ProgressToken"
+        }
+      },
+      "type": "object"
+    },
+    "RequestNoParam": {
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/ListRootsRequestMethod"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "type": "object"
+    },
+    "Resource": {
+      "description": "A known resource that the server is capable of reading (spec `Resource`).\n\nAlso used as the inner type of `ContentBlock::ResourceLink` (spec `ResourceLink extends Resource`).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional protocol-level metadata for this resource."
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional annotations describing how the client should use this resource."
+        },
+        "description": {
+          "description": "Optional description of what this resource represents.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icons": {
+          "description": "Optional set of icons the client may display for this resource.",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mimeType": {
+          "description": "The MIME type of this resource, if known.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "The programmatic name of the resource.",
+          "type": "string"
+        },
+        "size": {
+          "description": "The size of the raw resource content in bytes (before base64/tokenization), if known.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Optional human-readable display title.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri": {
+          "description": "The URI of this resource (e.g. `file:///path/to/file`).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "name"
+      ],
+      "type": "object"
+    },
+    "ResourceContents": {
+      "anyOf": [
+        {
+          "properties": {
+            "_meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MetaObject"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "mimeType": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "_meta": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MetaObject"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "blob": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "blob"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "The contents of a specific resource or sub-resource."
+    },
+    "ResultType": {
+      "description": "Indicates the type of a result object, allowing the client to\ndetermine how to parse the response.\n\nThe spec defines this as an open string (`\"complete\" | \"input_required\" | string`),\nso unknown values are preserved rather than rejected. Servers implementing this\nprotocol version MUST include `resultType` in every result. For backward\ncompatibility, clients MUST treat an absent field as `\"complete\"`.\n\nOrdinary results model the field as `Option<ResultType>`: `None` means the\nfield is absent on the wire. Constructors default to `Some(COMPLETE)`, and\nthe server handler strips the `\"complete\"` discriminator before responding\nto peers that negotiated a protocol version older than `2026-07-28`, so\nlegacy sessions keep their historical wire shape (see\n[`ServerResult::strip_result_type_for_legacy_peer`]).",
+      "type": "string"
+    },
+    "Role": {
+      "description": "Represents the role of a participant in a conversation or message exchange.\n\nUsed in sampling and chat contexts to distinguish between different\ntypes of message senders in the conversation flow.",
+      "oneOf": [
+        {
+          "const": "user",
+          "description": "A human user or client making a request",
+          "type": "string"
+        },
+        {
+          "const": "assistant",
+          "description": "An AI assistant or server providing a response",
+          "type": "string"
+        }
+      ]
+    },
+    "RootsCapabilities": {
+      "description": "Roots capability. Deprecated by SEP-2577; remains functional and will be\nremoved in a future release.\nSee <https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2577>.",
+      "properties": {
+        "listChanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SamplingCapability": {
+      "description": "Sampling capability with optional sub-capabilities (SEP-1577).\n\nDeprecated by SEP-2577; remains functional and will be removed in a future\nrelease.\nSee <https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2577>.",
+      "properties": {
+        "context": {
+          "additionalProperties": true,
+          "description": "Support for `includeContext` (soft-deprecated)",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "tools": {
+          "additionalProperties": true,
+          "description": "Support for `tools` and `toolChoice` parameters",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SamplingContent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SamplingMessageContentBlock"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/SamplingMessageContentBlock"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "Single or array content wrapper (SEP-1577)."
+    },
+    "SamplingMessage": {
+      "deprecated": true,
+      "description": "A message in a sampling conversation, containing a role and content.\n\nThis represents a single message in a conversation flow, used primarily\nin LLM sampling requests where the conversation history is important\nfor generating appropriate responses.",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "content": {
+          "$ref": "#/$defs/SamplingContent",
+          "description": "The actual content of the message (text, image, audio, tool use, or tool result)"
+        },
+        "role": {
+          "$ref": "#/$defs/Role",
+          "description": "The role of the message sender (User or Assistant)"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "type": "object"
+    },
+    "SamplingMessageContentBlock": {
+      "deprecated": true,
+      "description": "Content types for sampling messages (SEP-1577).",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextContent",
+          "properties": {
+            "type": {
+              "const": "text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/ImageContent",
+          "properties": {
+            "type": {
+              "const": "image",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/AudioContent",
+          "properties": {
+            "type": {
+              "const": "audio",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/ToolUseContent",
+          "description": "Assistant only",
+          "properties": {
+            "type": {
+              "const": "tool_use",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/ToolResultContent",
+          "description": "User only",
+          "properties": {
+            "type": {
+              "const": "tool_result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SingleSelectEnumSchema": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UntitledSingleSelectEnumSchema"
+        },
+        {
+          "$ref": "#/$defs/TitledSingleSelectEnumSchema"
+        }
+      ],
+      "description": "Combined single-select"
+    },
+    "StringFormat": {
+      "description": "String format types allowed by the MCP specification.",
+      "oneOf": [
+        {
+          "const": "email",
+          "description": "Email address format",
+          "type": "string"
+        },
+        {
+          "const": "uri",
+          "description": "URI format",
+          "type": "string"
+        },
+        {
+          "const": "date",
+          "description": "Date format (YYYY-MM-DD)",
+          "type": "string"
+        },
+        {
+          "const": "date-time",
+          "description": "Date-time format (ISO 8601)",
+          "type": "string"
+        }
+      ]
+    },
+    "StringSchema": {
+      "description": "Schema definition for string properties.\n\nCompliant with MCP 2025-06-18 specification for elicitation schemas.\nSupports only the fields allowed by the MCP spec:\n- format limited to: \"email\", \"uri\", \"date\", \"date-time\"",
+      "properties": {
+        "default": {
+          "description": "Default value",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Human-readable description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StringFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "String format - limited to: \"email\", \"uri\", \"date\", \"date-time\""
+        },
+        "maxLength": {
+          "description": "Maximum string length",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minLength": {
+          "description": "Minimum string length",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "Optional title for the schema",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/StringTypeConst",
+          "description": "Type discriminator"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "StringTypeConst": {
+      "const": "string",
+      "format": "const",
+      "type": "string"
+    },
+    "TaskStatus": {
+      "description": "Canonical task lifecycle status (SEP-2663).",
+      "oneOf": [
+        {
+          "const": "working",
+          "description": "The request is currently being processed.",
+          "type": "string"
+        },
+        {
+          "const": "input_required",
+          "description": "The server needs input from the client before the task can proceed.",
+          "type": "string"
+        },
+        {
+          "const": "completed",
+          "description": "The request completed successfully and the result is available.\nThis includes tool calls that returned results with `isError: true`.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "The request failed due to a JSON-RPC error during execution.",
+          "type": "string"
+        },
+        {
+          "const": "cancelled",
+          "description": "The request was cancelled before completion.",
+          "type": "string"
+        }
+      ]
+    },
+    "TextContent": {
+      "description": "Text content block (spec `TextContent`).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional protocol-level metadata for this content block."
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional annotations describing how the client should use this content."
+        },
+        "text": {
+          "description": "The text content of the message.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "TitledItems": {
+      "description": "Items for titled multi-select options",
+      "properties": {
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/ConstTitle"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "anyOf"
+      ],
+      "type": "object"
+    },
+    "TitledMultiSelectEnumSchema": {
+      "description": "Multi-select titled options",
+      "properties": {
+        "default": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "items": {
+          "$ref": "#/$defs/TitledItems"
+        },
+        "maxItems": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minItems": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/ArrayTypeConst"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "type": "object"
+    },
+    "TitledSingleSelectEnumSchema": {
+      "description": "Titled single-select",
+      "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/ConstTitle"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/StringTypeConst"
+        }
+      },
+      "required": [
+        "type",
+        "oneOf"
+      ],
+      "type": "object"
+    },
+    "Tool": {
+      "description": "A tool that can be used by a model.",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional additional metadata for this tool"
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolAnnotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Optional additional tool information."
+        },
+        "description": {
+          "description": "A description of what the tool does",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icons": {
+          "description": "Optional list of icons for the tool",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "inputSchema": {
+          "additionalProperties": true,
+          "description": "A JSON Schema object defining the expected parameters for the tool",
+          "type": "object"
+        },
+        "name": {
+          "description": "The name of the tool",
+          "type": "string"
+        },
+        "outputSchema": {
+          "additionalProperties": true,
+          "description": "An optional JSON Schema object defining the structure of the tool's output",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "A human-readable title for the tool",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema"
+      ],
+      "type": "object"
+    },
+    "ToolAnnotations": {
+      "description": "Additional properties describing a Tool to clients.\n\nNOTE: all properties in ToolAnnotations are **hints**.\nThey are not guaranteed to provide a faithful description of\ntool behavior (including descriptive properties like `title`).\n\nClients should never make tool use decisions based on ToolAnnotations\nreceived from untrusted servers.",
+      "properties": {
+        "destructiveHint": {
+          "description": "If true, the tool may perform destructive updates to its environment.\nIf false, the tool performs only additive updates.\n\n(This property is meaningful only when `readOnlyHint == false`)\n\nDefault: true\nA human-readable description of the tool's purpose.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "idempotentHint": {
+          "description": "If true, calling the tool repeatedly with the same arguments\nwill have no additional effect on the its environment.\n\n(This property is meaningful only when `readOnlyHint == false`)\n\nDefault: false.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "openWorldHint": {
+          "description": "If true, this tool may interact with an \"open world\" of external\nentities. If false, the tool's domain of interaction is closed.\nFor example, the world of a web search tool is open, whereas that\nof a memory tool is not.\n\nDefault: true",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "readOnlyHint": {
+          "description": "If true, the tool does not modify its environment.\n\nDefault: false",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "A human-readable title for the tool.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ToolChoice": {
+      "deprecated": true,
+      "description": "Tool choice configuration (SEP-1577).",
+      "properties": {
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolChoiceMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ToolChoiceMode": {
+      "description": "Tool selection mode (SEP-1577).",
+      "oneOf": [
+        {
+          "const": "auto",
+          "description": "Model decides whether to use tools",
+          "type": "string"
+        },
+        {
+          "const": "required",
+          "description": "Model must use at least one tool",
+          "type": "string"
+        },
+        {
+          "const": "none",
+          "description": "Model must not use tools",
+          "type": "string"
+        }
+      ]
+    },
+    "ToolResultContent": {
+      "deprecated": true,
+      "description": "Tool execution result in user message (SEP-1577).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "content": {
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          },
+          "type": "array"
+        },
+        "isError": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "structuredContent": true,
+        "toolUseId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "toolUseId",
+        "content"
+      ],
+      "type": "object"
+    },
+    "ToolUseContent": {
+      "deprecated": true,
+      "description": "Tool call request from assistant (SEP-1577).",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetaObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "input"
+      ],
+      "type": "object"
+    },
+    "UntitledItems": {
+      "description": "Items for untitled multi-select options",
+      "properties": {
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "$ref": "#/$defs/StringTypeConst"
+        }
+      },
+      "required": [
+        "type",
+        "enum"
+      ],
+      "type": "object"
+    },
+    "UntitledMultiSelectEnumSchema": {
+      "description": "Multi-select untitled options",
+      "properties": {
+        "default": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "items": {
+          "$ref": "#/$defs/UntitledItems"
+        },
+        "maxItems": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "minItems": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/ArrayTypeConst"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "type": "object"
+    },
+    "UntitledSingleSelectEnumSchema": {
+      "additionalProperties": false,
+      "description": "Untitled single-select",
+      "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/StringTypeConst"
+        }
+      },
+      "required": [
+        "type",
+        "enum"
+      ],
+      "type": "object"
+    },
+    "UrlElicitationCapability": {
+      "description": "Capability for URL mode elicitation.",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "detail": {
+      "$ref": "#/$defs/GetTaskResult"
+    },
+    "seed": {
+      "$ref": "#/$defs/CreateTaskResult"
+    }
+  },
+  "required": [
+    "seed",
+    "detail"
+  ],
+  "title": "TaskContracts",
+  "type": "object"
+}

@@ -1768,3 +1768,22 @@ Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness
 - Deliver install-time domain configuration through the generic `serverBootstrap` values only
   when the owning server defines an installation-time contract. Frames worlds are runtime MCP
   state and must never be placed in Helm bootstrap.
+
+### MCP App Browser Contracts
+
+| Owner path | Responsibility |
+|---|---|
+| `servers/{view,stream,timeseries,uav-sim,map}-mcp/src/contract/app_schema.rs` | Exact App-consumed schema roots selected from owner wire DTOs |
+| `servers/{view,stream,timeseries,uav-sim,map}-mcp/app/` | Generated schemas/types, typed admission, relationship checks and self-contained asset builds |
+| `mcp/apps-extension/browser/` | Domain-neutral maintained MCP envelope admission, CSP-safe schema validation and HTML bundling; shared Workbench consumer |
+| `servers/chart-mcp/app/` | Composer build and MCP envelope admission for pinned upstream open domain results |
+
+View's `LayerSummary` and `LayerSourceKind` live in its public contract; the source
+catalog imports those declarations. UAV's eight-field `SessionSummary` lives in its
+contract and supplies the sessions reader. Map's `contract/app_pages.rs` owns the
+existing acquisitions and release page DTOs that catalog readers produce.
+
+The MCP Apps browser boundary exports final Task schemas in
+`mcp/apps-extension/src/browser_schema.rs`. Its Recording-specific Workbench adapter
+in `browser/contracts.js` checks the generated Recording request and handle before
+stream transfer; the shared validator in `browser/admission.js` has no domain routes.

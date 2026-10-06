@@ -553,3 +553,26 @@ Capture metadata carries `result_uri` equal to its checked `frame_uri`. The MCP
 result contains short status text, image content and one matching frame resource link.
 Task completion admits that envelope before storage; retained reads reconstruct the
 same checked capture metadata and content.
+
+## Browser Contract Admission
+
+The App imports its generated `app/generated` types and JSON Schema bundle from
+`contract::app_schema`. The bundle selects the same DTOs that tools and resource
+readers serialize. Browser adapters validate a complete result before publishing
+it to state, then check its requested parent identities. Collection pages keep the
+owner's cursor representation and existing stale-response checks. Open provider
+maps keep their admitted contents.
+
+The shared MCP Apps browser package bundles the maintained SDK protocol schemas
+and CSP-safe CfWorker JSON Schema validator into the App. It has no domain route
+registry. This server owns the route and tool selection in `app/contracts.js`.
+The package build produces the self-contained HTML asset at its existing path,
+with a 2 MiB limit. Schema URLs describe formats and never fetch executable code.
+Behavioral contract tests qualify rejection before rendering or decoding; they
+make no hardware or visual acceptance claim.
+
+The App typecheck uses maintained `@types/three` `0.186.0` and `@types/draco3d`
+`1.4.10`, verified against their authoritative package metadata. The declared
+Three surface is limited to constructors and constants consumed from the
+qualified vendor; startup checks its required constructors and OrbitControls.
+These development declarations do not change the renderer or its GPU qualification.

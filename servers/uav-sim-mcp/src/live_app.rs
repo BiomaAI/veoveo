@@ -7,8 +7,49 @@ mod tests {
     use super::*;
 
     #[test]
-    fn app_is_self_contained_and_uses_only_simulator_live_view_tools() {
+    fn packaged_app_is_self_contained_and_under_host_limit() {
         let html = html();
+        assert!(html.len() <= 2 * 1024 * 1024);
+        for external in ["src=\"http", "href=\"http", "url(http", "@import"] {
+            assert!(!html.to_ascii_lowercase().contains(external));
+        }
+    }
+
+    #[test]
+    fn packaged_app_uses_monospace_tabular_telemetry() {
+        let styles = html()
+            .split_once("<style>")
+            .expect("packaged App has inline styles")
+            .1
+            .split_once("</style>")
+            .expect("packaged styles terminate")
+            .0;
+        assert!(styles.contains("ui-monospace"));
+        assert!(styles.contains("font-variant-numeric:tabular-nums"));
+        assert!(styles.contains(".stats{"));
+        assert!(styles.contains("font:9px/1.3 var(--mono)"));
+    }
+
+    #[test]
+    fn packaged_app_contains_agent_instruction_controls() {
+        let packaged = html();
+        for control in [
+            "<form id=\"commands\">",
+            "<select id=\"agent\" aria-label=\"Agent\">",
+            "<input id=\"command\" maxlength=\"16384\"",
+            "<button type=\"submit\">Send instruction</button>",
+            "<output id=\"command-result\">",
+        ] {
+            assert!(
+                packaged.contains(control),
+                "missing packaged control {control}"
+            );
+        }
+    }
+
+    #[test]
+    fn app_is_self_contained_and_uses_only_simulator_live_view_tools() {
+        let source = include_str!("../app/main.js");
         for expected in [
             "VideoDecoder",
             "EncodedVideoChunk",
@@ -32,8 +73,6 @@ mod tests {
             "stream.sourceRegion",
             "camera.rig?.smoothing",
             "video pending",
-            "font-variant-numeric:tabular-nums",
-            "ui-monospace",
             "fixedFps",
             ".padStart(2,\"0\")",
             "fixedFps(player.presentedAt.length)",
@@ -44,13 +83,12 @@ mod tests {
             "veoveo/agents/message",
             "ai.veoveo/agent-message-targets",
             "uuidV7",
-            "Send instruction",
             "if(!selected.size)",
             "await open(camera)",
             "views.get(camera.cameraId)!==view",
             "section.querySelector(\".empty\")?.remove()",
         ] {
-            assert!(html.contains(expected), "missing {expected}");
+            assert!(source.contains(expected), "missing {expected}");
         }
         for removed in [
             "reconciliation",
@@ -61,14 +99,18 @@ mod tests {
             "PressureObserver",
             "avc1.42E01E",
         ] {
-            assert!(!html.contains(removed), "obsolete App surface {removed}");
+            assert!(!source.contains(removed), "obsolete App source {removed}");
+            assert!(
+                !html().contains(removed),
+                "obsolete packaged App surface {removed}"
+            );
         }
-        assert!(html.contains("{session_id:sessionId}"));
-        assert!(html.contains("if(name===\"open_live_view\")await ensureSubscription()"));
-        assert!(!html.contains(
+        assert!(source.contains("{session_id:sessionId}"));
+        assert!(source.contains("if(name===\"open_live_view\")await ensureSubscription()"));
+        assert!(!source.contains(
             "error(\"Camera recovery is waiting for simulator readiness\");status();return;"
         ));
-        assert!(!html.contains("first.sessionId"));
-        assert!(!html.contains("setInterval"));
+        assert!(!source.contains("first.sessionId"));
+        assert!(!source.contains("setInterval"));
     }
 }

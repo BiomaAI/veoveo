@@ -1,0 +1,679 @@
+{
+  "$defs": {
+    "BoundingBox2D": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "format": "float",
+          "type": "number"
+        },
+        "width": {
+          "format": "float",
+          "type": "number"
+        },
+        "x": {
+          "format": "float",
+          "type": "number"
+        },
+        "y": {
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "Detection": {
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/BoundingBox2D"
+        },
+        "class_id": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "confidence": {
+          "description": "Detector confidence. DeepStream does not provide this value for every\nclustering mode or tracker-propagated object.",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "track_id": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tracker_confidence": {
+          "description": "Tracker confidence when the selected tracker exposes one.",
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "class_id",
+        "label",
+        "bounds"
+      ],
+      "type": "object"
+    },
+    "EncodedVideoChunk": {
+      "additionalProperties": false,
+      "properties": {
+        "data_base64": {
+          "type": "string"
+        },
+        "keyframe": {
+          "type": "boolean"
+        },
+        "sequence": {
+          "description": "Decode-order identity. This is the ordering contract for retained chunks.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timestamp_us": {
+          "description": "H.264 presentation timestamp in microseconds. AVC frame reordering can make\npresentation timestamps non-monotonic in decode sequence.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence",
+        "timestamp_us",
+        "keyframe",
+        "data_base64"
+      ],
+      "type": "object"
+    },
+    "LiveIngressView": {
+      "properties": {
+        "caps": {
+          "type": "string"
+        },
+        "clock_rate": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "host": {
+          "type": "string"
+        },
+        "payload_type": {
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "port": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "transport": {
+          "$ref": "#/$defs/LiveTransport"
+        }
+      },
+      "required": [
+        "transport",
+        "host",
+        "port",
+        "payload_type",
+        "clock_rate",
+        "caps"
+      ],
+      "type": "object"
+    },
+    "LivePreviewView": {
+      "properties": {
+        "chunks": {
+          "items": {
+            "$ref": "#/$defs/EncodedVideoChunk"
+          },
+          "type": "array"
+        },
+        "dropped_chunks": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "received_video_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "video": {
+          "$ref": "#/$defs/LiveVideoView"
+        }
+      },
+      "required": [
+        "schema",
+        "session_id",
+        "video",
+        "chunks",
+        "dropped_chunks",
+        "received_video_frames"
+      ],
+      "type": "object"
+    },
+    "LiveRecordingLifecycle": {
+      "enum": [
+        "starting",
+        "forwarding",
+        "draining",
+        "failed",
+        "stopped"
+      ],
+      "type": "string"
+    },
+    "LiveRecordingOutputView": {
+      "properties": {
+        "application_id": {
+          "type": "string"
+        },
+        "entity_path": {
+          "type": "string"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "forwarded_video_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/LiveRecordingLifecycle"
+        },
+        "recording_key": {
+          "type": "string"
+        },
+        "timeline": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "recording_key",
+        "application_id",
+        "entity_path",
+        "timeline",
+        "lifecycle",
+        "forwarded_video_frames"
+      ],
+      "type": "object"
+    },
+    "LiveResultFrame": {
+      "properties": {
+        "detections": {
+          "items": {
+            "$ref": "#/$defs/Detection"
+          },
+          "type": "array"
+        },
+        "index": {
+          "description": "Decode-order identity assigned after the GPU decoder. Presentation timestamps\nare intentionally not used because AVC reordering can make them non-monotonic.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "observed_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "observed_at",
+        "detections"
+      ],
+      "type": "object"
+    },
+    "LiveResultsView": {
+      "properties": {
+        "dropped_result_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frames": {
+          "items": {
+            "$ref": "#/$defs/LiveResultFrame"
+          },
+          "type": "array"
+        },
+        "pipeline_id": {
+          "type": "string"
+        },
+        "processed_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "session_id",
+        "pipeline_id",
+        "frames",
+        "processed_frames",
+        "dropped_result_frames"
+      ],
+      "type": "object"
+    },
+    "LiveSessionLifecycle": {
+      "enum": [
+        "starting",
+        "running",
+        "failed",
+        "stopped"
+      ],
+      "type": "string"
+    },
+    "LiveSessionView": {
+      "properties": {
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ingress": {
+          "$ref": "#/$defs/LiveIngressView"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/LiveSessionLifecycle"
+        },
+        "newest_result_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pipeline_id": {
+          "type": "string"
+        },
+        "pipeline_uri": {
+          "type": "string"
+        },
+        "preview_uri": {
+          "type": "string"
+        },
+        "processed_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "received_video_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recording_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveRecordingOutputView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "results_uri": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "session_uri": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "stopped_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "video": {
+          "$ref": "#/$defs/LiveVideoView"
+        }
+      },
+      "required": [
+        "session_id",
+        "session_uri",
+        "results_uri",
+        "pipeline_id",
+        "pipeline_uri",
+        "ingress",
+        "video",
+        "preview_uri",
+        "lifecycle",
+        "started_at",
+        "received_video_frames",
+        "processed_frames"
+      ],
+      "type": "object"
+    },
+    "LiveSessionsPage": {
+      "additionalProperties": false,
+      "description": "One authorized page of process-local live sessions, newest IDs first.",
+      "properties": {
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sessions": {
+          "items": {
+            "$ref": "#/$defs/LiveSessionView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sessions",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "LiveTransport": {
+      "enum": [
+        "rtp_h264_udp"
+      ],
+      "type": "string"
+    },
+    "LiveVideoView": {
+      "properties": {
+        "codec": {
+          "description": "RFC 6381 AVC codec string admitted with the native pipeline.",
+          "type": "string"
+        },
+        "expected_bitrate_bps": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "frame_rate": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "codec",
+        "width",
+        "height",
+        "frame_rate",
+        "expected_bitrate_bps"
+      ],
+      "type": "object"
+    },
+    "PerceptionOperation": {
+      "enum": [
+        "object_detection",
+        "object_detection_tracking",
+        "instance_segmentation",
+        "pose_estimation"
+      ],
+      "type": "string"
+    },
+    "PipelineProfile": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "pass_through",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "perception",
+              "type": "string"
+            },
+            "operation": {
+              "$ref": "#/$defs/PerceptionOperation"
+            },
+            "tracking": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "operation",
+            "tracking"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PipelineView": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "model_uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile": {
+          "$ref": "#/$defs/PipelineProfile"
+        },
+        "supports_live_input": {
+          "type": "boolean"
+        },
+        "supports_recording_replay": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "title",
+        "description",
+        "profile",
+        "supports_recording_replay",
+        "supports_live_input"
+      ],
+      "type": "object"
+    },
+    "StartLiveSessionOutput": {
+      "properties": {
+        "ingress": {
+          "$ref": "#/$defs/LiveIngressView"
+        },
+        "pipeline_uri": {
+          "type": "string"
+        },
+        "preview_uri": {
+          "type": "string"
+        },
+        "recording_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveRecordingOutputView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result_uri": {
+          "type": "string"
+        },
+        "results_uri": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "video": {
+          "$ref": "#/$defs/LiveVideoView"
+        }
+      },
+      "required": [
+        "session_id",
+        "result_uri",
+        "results_uri",
+        "pipeline_uri",
+        "ingress",
+        "video",
+        "preview_uri",
+        "started_at"
+      ],
+      "type": "object"
+    },
+    "StopLiveSessionOutput": {
+      "properties": {
+        "lifecycle": {
+          "$ref": "#/$defs/LiveSessionLifecycle"
+        },
+        "processed_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "received_video_frames": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "recording_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveRecordingOutputView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result_uri": {
+          "type": "string"
+        },
+        "stopped_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "result_uri",
+        "lifecycle",
+        "received_video_frames",
+        "processed_frames",
+        "stopped_at"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "pipelines": {
+      "items": {
+        "$ref": "#/$defs/PipelineView"
+      },
+      "type": "array"
+    },
+    "preview": {
+      "$ref": "#/$defs/LivePreviewView"
+    },
+    "results": {
+      "$ref": "#/$defs/LiveResultsView"
+    },
+    "session": {
+      "$ref": "#/$defs/LiveSessionView"
+    },
+    "sessions": {
+      "$ref": "#/$defs/LiveSessionsPage"
+    },
+    "started": {
+      "$ref": "#/$defs/StartLiveSessionOutput"
+    },
+    "stopped": {
+      "$ref": "#/$defs/StopLiveSessionOutput"
+    }
+  },
+  "required": [
+    "pipelines",
+    "sessions",
+    "session",
+    "results",
+    "preview",
+    "started",
+    "stopped"
+  ],
+  "title": "AppContracts",
+  "type": "object"
+}

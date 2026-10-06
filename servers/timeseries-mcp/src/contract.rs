@@ -70,6 +70,14 @@ mod terminal_contract_tests {
     use super::{TimeseriesForecastOutput, TimeseriesForecastRequest};
 
     #[test]
+    fn app_output_fixture_matches_owner_serialization() {
+        let value: serde_json::Value =
+            serde_json::from_str(include_str!("../testdata/app-output.json")).unwrap();
+        let output: TimeseriesForecastOutput = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(output).unwrap(), value);
+    }
+
+    #[test]
     fn forecast_input_preserves_the_duckdb_source_contract_schema() {
         let baseline: serde_json::Value =
             serde_json::from_str(include_str!("../testdata/source-contract.schema.json")).unwrap();
@@ -87,3 +95,6 @@ mod terminal_contract_tests {
         assert!(properties.contains_key("result_uri"));
     }
 }
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;

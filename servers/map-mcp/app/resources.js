@@ -1,3 +1,4 @@
+/** @type {[string,string,string,boolean?,boolean?][]} */
 const resources = [
   ["map://feature-layers", "layers", "feature_read", true, true],
   ["map://publications", "publications", "feature_read", true, true],

@@ -14,6 +14,7 @@
     "maplibre-gl": "6.6.0"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "parse5": "8.0.1"
   }
 }

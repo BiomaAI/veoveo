@@ -794,3 +794,21 @@ mod tests {
         assert_eq!(request.map_route.mobility_profile_uri(), &profile_uri);
     }
 }
+
+/// Public session collection row. World is required and nullable on this wire.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SessionSummary {
+    pub session_id: SessionId,
+    pub lifecycle: SimulationLifecycle,
+    #[schemars(required)]
+    pub world: Option<SimulationWorldBinding>,
+    pub tile_lifecycle: TileLifecycle,
+    pub vehicle_count: usize,
+    pub recording_count: usize,
+    pub timing: RuntimeTimingState,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;

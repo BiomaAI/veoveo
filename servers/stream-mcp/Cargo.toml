@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [package.metadata.veoveo]
-image-asset-inputs = ["servers/stream-mcp/assets/live.html"]
+image-asset-inputs = ["servers/stream-mcp/assets/live.html", "servers/stream-mcp/app"]
 
 [lib]
 name = "veoveo_stream_mcp"

@@ -488,17 +488,17 @@ pub(in crate::server) async fn observe(
     }
 }
 
-fn session_summary(state: &SimulationState) -> serde_json::Value {
-    json!({
-        "session_id": state.session_id,
-        "lifecycle": state.lifecycle,
-        "world": state.world,
-        "tile_lifecycle": state.tiles.lifecycle,
-        "vehicle_count": state.vehicles.len(),
-        "recording_count": state.recordings.len(),
-        "timing": state.timing,
-        "updated_at": state.updated_at,
-    })
+fn session_summary(state: &SimulationState) -> crate::contract::SessionSummary {
+    crate::contract::SessionSummary {
+        session_id: state.session_id.clone(),
+        lifecycle: state.lifecycle.clone(),
+        world: state.world.clone(),
+        tile_lifecycle: state.tiles.lifecycle.clone(),
+        vehicle_count: state.vehicles.len(),
+        recording_count: state.recordings.len(),
+        timing: state.timing.clone(),
+        updated_at: state.updated_at,
+    }
 }
 
 pub(super) fn world_view(state: &SimulationState) -> serde_json::Value {

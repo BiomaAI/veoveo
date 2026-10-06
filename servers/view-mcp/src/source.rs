@@ -16,7 +16,7 @@ use url::Url;
 
 use crate::{
     cache::WeightedLru,
-    contract::LayerId,
+    contract::{LayerId, LayerSourceKind},
     tiles::schema::{Tile, Tileset},
 };
 
@@ -67,12 +67,7 @@ fn default_request_cap() -> u32 {
     2_000
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
-pub struct LayerSummary {
-    pub layer_id: LayerId,
-    pub label: String,
-    pub source_kind: String,
-}
+pub use crate::contract::LayerSummary;
 
 #[derive(Clone)]
 pub struct LayerCatalog {
@@ -193,7 +188,7 @@ impl TileSource {
     fn new(
         definition: &LayerDefinition,
         config: SourceConfig,
-    ) -> Result<(Self, String), SourceError> {
+    ) -> Result<(Self, LayerSourceKind), SourceError> {
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(config.request_timeout)
@@ -230,13 +225,16 @@ impl TileSource {
                             cap: *daily_request_cap,
                         }),
                     },
-                    "google_photorealistic".to_owned(),
+                    LayerSourceKind::GooglePhotorealistic,
                 )
             }
             LayerSourceDefinition::HttpsTileset { root_url } => {
                 let root = validate_https_url(root_url)?;
                 let host = root.host_str().ok_or(SourceError::InvalidUrl)?.to_owned();
-                (SourceKind::Https { root, host }, "https_tileset".to_owned())
+                (
+                    SourceKind::Https { root, host },
+                    LayerSourceKind::HttpsTileset,
+                )
             }
             LayerSourceDefinition::LocalTileset { root_path } => {
                 if !root_path.is_absolute() {
@@ -246,7 +244,7 @@ impl TileSource {
                     SourceKind::Local {
                         root: root_path.clone(),
                     },
-                    "local_tileset".to_owned(),
+                    LayerSourceKind::LocalTileset,
                 )
             }
         };

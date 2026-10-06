@@ -1,3 +1,4 @@
+import { assertLocalAssets } from "./asset-policy.js";
 import { build } from "esbuild";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -55,25 +56,7 @@ const html = template
 if (html.includes("/*__MAPLIBRE_CSS__*/") || html.includes("/*__WORKSPACE_JS__*/")) {
   throw new Error("workspace template placeholders were not replaced");
 }
-for (const fetchReference of [
-  'src="http://',
-  'src="https://',
-  "src='http://",
-  "src='https://",
-  'href="http://',
-  'href="https://',
-  "href='http://",
-  "href='https://",
-  "url(http://",
-  "url(https://",
-  'url("http',
-  "url('http",
-  "@import",
-]) {
-  if (html.toLowerCase().includes(fetchReference)) {
-    throw new Error(`workspace app contains external fetch reference ${fetchReference}`);
-  }
-}
+assertLocalAssets(html);
 const maximumBytes = 2 * 1024 * 1024;
 const bytes = Buffer.byteLength(html);
 if (bytes > maximumBytes) {

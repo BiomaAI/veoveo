@@ -1,7 +1,7 @@
 //! Dataset release pages and exact reads, backed by tenant/parent-scoped SQL.
 use crate::persistence::MapRepository;
 use anyhow::{Result, ensure};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::{MapAccessContext, MapCatalog, decode};
 use crate::contract::{
@@ -54,12 +54,7 @@ impl ActiveReleaseRow {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ReleasePage {
-    pub items: Vec<DatasetRelease>,
-    pub limit: usize,
-    pub next_cursor: Option<String>,
-}
+pub use crate::contract::ReleasePage;
 
 impl MapCatalog {
     /// Public bounded selection; complete internal pointer inventories use

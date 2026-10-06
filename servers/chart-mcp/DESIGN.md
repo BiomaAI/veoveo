@@ -71,3 +71,17 @@ with synthetic signed tokens. It checks negotiation, cursor rejection, original 
 hashes, conditional delivery, expired and wrong-audience identity denial, forged
 observation rejection and manifest tampering. The fixture does not render charts;
 visual qualification uses the installed hardware workflow.
+
+## Composer Contract Admission
+
+The Composer bundles maintained MCP tool-result admission from the shared Apps
+browser package before accepting content or replacing its session draft output.
+The pinned `flint-chart-mcp` 0.5.1 package exports server registration and render
+helpers, with TypeScript declarations for render results. It does not publish JSON
+Schemas for structured compilation, validation, chart-type or theme tool outputs.
+The Composer therefore treats external compiled specifications and warning payloads
+as open values. This admission does not claim domain output-schema parity.
+
+The final-protocol adapter owns tool envelopes, inline-row limits and disabled file
+references. The App build keeps scripts local and enforces the host's 2 MiB cap.
+Its existing composer harness qualifies those controls without rendering charts.

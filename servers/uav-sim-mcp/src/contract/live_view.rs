@@ -612,6 +612,7 @@ pub enum LiveCameraHealth {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LiveViewState {
+    #[schemars(schema_with = "live_view_version_schema")]
     pub schema_version: String,
     pub live_view_id: LiveViewId,
     pub stream_product_id: LiveStreamProductId,
@@ -745,6 +746,10 @@ impl IdProfile for LiveViewTokens {
             Ok(())
         }
     });
+}
+
+fn live_view_version_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({"type":"string","const":LIVE_VIEW_SCHEMA})
 }
 
 #[cfg(test)]

@@ -1,7 +1,8 @@
+use schemars::JsonSchema;
 use serde::Serialize;
 
 /// One canonical resource surfaced by a server-owned operational App.
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkbenchResource<'a> {
     pub label: &'a str,
@@ -9,7 +10,7 @@ pub struct WorkbenchResource<'a> {
 }
 
 /// One server-owned tool surfaced by an operational App.
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkbenchTool<'a> {
     pub label: &'a str,
@@ -18,7 +19,7 @@ pub struct WorkbenchTool<'a> {
     pub arguments_json: &'a str,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WorkbenchStreamResult<'a> {
     RecordingProjection { tool_name: &'a str },
@@ -29,7 +30,7 @@ pub enum WorkbenchStreamResult<'a> {
 /// Servers own these values and therefore retain their domain vocabulary,
 /// resources, tools, and authorization boundary. The shared shell owns only
 /// MCP Apps transport and generic presentation behavior.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkbenchApp<'a> {
     pub app_id: &'a str,
@@ -55,6 +56,28 @@ pub fn workbench_app_html(config: &WorkbenchApp<'_>) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn projection_configuration_agrees_with_browser_fixture() {
+        let value = serde_json::to_value(WorkbenchApp {
+            app_id: "recording",
+            title: "Recording",
+            subtitle: "Fixture",
+            empty_message: "No recordings",
+            resources: &[],
+            tools: &[WorkbenchTool {
+                label: "Project",
+                name: "project",
+                arguments_json: "{}",
+            }],
+            stream_result: Some(WorkbenchStreamResult::RecordingProjection {
+                tool_name: "project",
+            }),
+        })
+        .unwrap();
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("../testdata/projection-workbench.json")).unwrap();
+        assert_eq!(value, fixture);
+    }
     #[test]
     fn generated_app_is_self_contained_and_uses_only_mcp_bridge_operations() {
         let html = workbench_app_html(&WorkbenchApp {

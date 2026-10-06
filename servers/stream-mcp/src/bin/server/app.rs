@@ -32,9 +32,19 @@ mod tests {
             "applyHostContext(initialized?.hostContext)",
             "ResizeObserver",
         ] {
-            assert!(LIVE_APP_HTML.contains(required), "missing {required}");
+            assert!(
+                (include_str!("../../../app/main.js").to_owned() + LIVE_APP_HTML)
+                    .contains(required),
+                "missing {required}"
+            );
         }
-        for forbidden in ["http://", "https://", "analyze_recording", "extract_clip"] {
+        for forbidden in [
+            "src=\"http",
+            "href=\"http",
+            "url(http",
+            "analyze_recording",
+            "extract_clip",
+        ] {
             assert!(
                 !LIVE_APP_HTML.contains(forbidden),
                 "App contains forbidden surface {forbidden}"

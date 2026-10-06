@@ -1,3 +1,5 @@
+mod app_pages;
+pub use app_pages::{OwnedPage, ReleasePage};
 mod task_product;
 pub use task_product::{MapTaskProduct, MapTaskProductValue};
 mod task_kind;
@@ -75,3 +77,6 @@ pub use travel_model_uri::*;
 pub use travel_models::*;
 pub use units::*;
 pub use workspace::*;
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;

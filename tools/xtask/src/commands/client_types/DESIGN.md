@@ -52,3 +52,9 @@ The Console BFF bundle selects installation snapshot, detail and entity-specific
 SSE roots. Gateway Contract supplies bootstrap declarations through that bundle.
 The Artifact transfer bundle includes its upload notification profile; browser
 queue state does not contribute wire schemas.
+
+The same generator selects the View, Stream, Timeseries, UAV and Map owner App
+bundles under each server's `app/generated` directory. Its Workbench selection
+combines the Apps configuration schema with the actual Recording projection handle.
+These selections belong to tooling composition. Domain routes and result relationships
+stay in the consuming server, and the browser admission package stays domain-neutral.

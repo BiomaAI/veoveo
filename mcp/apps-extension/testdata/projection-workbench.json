@@ -1,0 +1,1 @@
+{"appId":"recording","title":"Recording","subtitle":"Fixture","emptyMessage":"No recordings","resources":[],"tools":[{"label":"Project","name":"project","argumentsJson":"{}"}],"streamResult":{"kind":"recordingProjection","tool_name":"project"}}

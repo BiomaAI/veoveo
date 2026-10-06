@@ -1095,3 +1095,22 @@ metadata. Each result has one product link; source and secondary Artifact refere
 stay in structured output. Reachable areas return inline polygons and a calculation
 ID. GeoPackage inspection returns its typed source Artifact reference and manifest.
 Neither inline operation creates an addressable result resource.
+
+## Browser Contract Admission
+
+The App imports its generated `app/generated` types and JSON Schema bundle from
+`contract::app_schema`. The bundle selects the same DTOs that tools and resource
+readers serialize. Browser adapters validate a complete result before publishing
+it to state, then check its requested parent identities. Collection pages keep the
+owner's cursor representation and existing stale-response checks. Open provider
+maps keep their admitted contents.
+
+The shared MCP Apps browser package bundles the maintained SDK protocol schemas
+and CSP-safe CfWorker JSON Schema validator into the App. It has no domain route
+registry. This server owns the route and tool selection in `app/contracts.js`.
+The package build produces the self-contained HTML asset at its existing path,
+with a 2 MiB limit. Schema URLs describe formats and never fetch executable code.
+Behavioral contract tests qualify rejection before rendering or decoding; they
+make no hardware or visual acceptance claim.
+
+The App build uses parse5 8.0.1 to inspect browser-decoded HTML attributes and CSS load sites. This development dependency handles unquoted attributes and character references without rewriting packaged bytes; schema identifiers and validator URL metadata do not trigger remote asset rejection.

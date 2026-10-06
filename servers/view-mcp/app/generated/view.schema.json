@@ -1,0 +1,1404 @@
+{
+  "$defs": {
+    "AccessLevel": {
+      "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+      "enum": [
+        "read",
+        "write",
+        "admin"
+      ],
+      "type": "string"
+    },
+    "AccessSubject": {
+      "description": "A principal or group that can own governed data or receive access.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "kind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AttributionSet": {
+      "properties": {
+        "lines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "lines"
+      ],
+      "type": "object"
+    },
+    "CameraDefinition": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "pose",
+              "type": "string"
+            },
+            "orientation": {
+              "$ref": "#/$defs/HeadingPitchRoll"
+            },
+            "position": {
+              "$ref": "#/$defs/Wgs84Position3d"
+            },
+            "vertical_fov_degrees": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "orientation",
+            "vertical_fov_degrees"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "eye": {
+              "$ref": "#/$defs/Wgs84Position3d"
+            },
+            "kind": {
+              "const": "look_at",
+              "type": "string"
+            },
+            "target": {
+              "$ref": "#/$defs/Wgs84Position3d"
+            },
+            "vertical_fov_degrees": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "eye",
+            "target",
+            "vertical_fov_degrees"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "azimuth_degrees": {
+              "format": "double",
+              "type": "number"
+            },
+            "distance_meters": {
+              "format": "double",
+              "type": "number"
+            },
+            "elevation_degrees": {
+              "format": "double",
+              "type": "number"
+            },
+            "kind": {
+              "const": "orbit_target",
+              "type": "string"
+            },
+            "target": {
+              "$ref": "#/$defs/Wgs84Position3d"
+            },
+            "vertical_fov_degrees": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "target",
+            "distance_meters",
+            "azimuth_degrees",
+            "elevation_degrees",
+            "vertical_fov_degrees"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CloseViewResult": {
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "view_id": {
+          "$ref": "#/$defs/ViewId"
+        }
+      },
+      "required": [
+        "view_id",
+        "closed"
+      ],
+      "type": "object"
+    },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
+    "DelegationId": {
+      "description": "Auditable identity of authority delegated by an initiator to another actor.",
+      "type": "string"
+    },
+    "FrameId": {
+      "type": "string"
+    },
+    "FrameRecord": {
+      "description": "Immutable metadata for one admitted view/composition capture.\n\n```compile_fail\nuse veoveo_view_mcp::FrameRecord;\nfn corrupt(frame: &mut FrameRecord) { frame.view_revision = 0; }\n```",
+      "properties": {
+        "actual_max_screen_error_px": {
+          "format": "float",
+          "type": "number"
+        },
+        "attribution": {
+          "$ref": "#/$defs/AttributionSet"
+        },
+        "byte_length": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "composition_digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "composition_id": {
+          "$ref": "#/$defs/SceneCompositionId"
+        },
+        "composition_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "composition_uri": {
+          "type": "string"
+        },
+        "detail_complete": {
+          "type": "boolean"
+        },
+        "frame_id": {
+          "$ref": "#/$defs/FrameId"
+        },
+        "frame_uri": {
+          "type": "string"
+        },
+        "frame_world_revision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameWorldRevisionUri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "governed_inputs": {
+          "items": {
+            "$ref": "#/$defs/GovernedSceneInput"
+          },
+          "type": "array"
+        },
+        "height_px": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mime_type": {
+          "enum": [
+            "image/png",
+            "image/jpeg"
+          ],
+          "type": "string"
+        },
+        "output_digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "overlay_truncated": {
+          "type": "boolean"
+        },
+        "pending_tile_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rendered_overlay_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "resolved_camera": {
+          "$ref": "#/$defs/GeodeticCameraPose"
+        },
+        "result_uri": {
+          "type": "string"
+        },
+        "scene_layer": {
+          "$ref": "#/$defs/LayerId"
+        },
+        "scene_time": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "style_id": {
+          "$ref": "#/$defs/SceneStyleId"
+        },
+        "view_id": {
+          "$ref": "#/$defs/ViewId"
+        },
+        "view_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "visible_tile_count": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width_px": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frame_id",
+        "result_uri",
+        "frame_uri",
+        "view_id",
+        "view_revision",
+        "composition_id",
+        "composition_uri",
+        "composition_revision",
+        "composition_digest_sha256",
+        "style_id",
+        "governed_inputs",
+        "scene_layer",
+        "captured_at",
+        "scene_time",
+        "resolved_camera",
+        "width_px",
+        "height_px",
+        "mime_type",
+        "byte_length",
+        "detail_complete",
+        "actual_max_screen_error_px",
+        "visible_tile_count",
+        "pending_tile_count",
+        "rendered_overlay_count",
+        "overlay_truncated",
+        "attribution",
+        "output_digest_sha256"
+      ],
+      "type": "object"
+    },
+    "FrameWorldRevisionUri": {
+      "type": "string"
+    },
+    "GeodeticCameraPose": {
+      "additionalProperties": false,
+      "properties": {
+        "orientation": {
+          "$ref": "#/$defs/HeadingPitchRoll"
+        },
+        "position": {
+          "$ref": "#/$defs/Wgs84Position3d"
+        },
+        "vertical_fov_degrees": {
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "position",
+        "orientation",
+        "vertical_fov_degrees"
+      ],
+      "type": "object"
+    },
+    "GovernedResourceUri": {
+      "description": "An exact input from its domain owner. The wire value is a URI string.\n```compile_fail\nuse veoveo_view_mcp::contract::GovernedResourceUri;\nGovernedResourceUri::Recording(\"recording://recordings/arbitrary\".to_owned());\n```",
+      "type": "string"
+    },
+    "GovernedSceneInput": {
+      "additionalProperties": false,
+      "properties": {
+        "attribution": {
+          "type": "string"
+        },
+        "digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "input_id": {
+          "$ref": "#/$defs/SceneInputId"
+        },
+        "license": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resource_uri": {
+          "$ref": "#/$defs/GovernedResourceUri"
+        }
+      },
+      "required": [
+        "input_id",
+        "resource_uri",
+        "digest_sha256",
+        "license",
+        "attribution"
+      ],
+      "type": "object"
+    },
+    "GroupId": {
+      "description": "Identity-provider group identifier used by gateway policy.",
+      "type": "string"
+    },
+    "HeadingPitchRoll": {
+      "additionalProperties": false,
+      "properties": {
+        "heading_degrees": {
+          "format": "double",
+          "type": "number"
+        },
+        "pitch_degrees": {
+          "format": "double",
+          "type": "number"
+        },
+        "roll_degrees": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "heading_degrees",
+        "pitch_degrees",
+        "roll_degrees"
+      ],
+      "type": "object"
+    },
+    "InvocationAuthority": {
+      "additionalProperties": false,
+      "description": "Gateway-resolved authority signed into every internal service token.",
+      "properties": {
+        "membership": {
+          "$ref": "#/$defs/WorkContextMembershipLevel"
+        },
+        "output_policy": {
+          "$ref": "#/$defs/WorkContextOutputPolicy"
+        },
+        "policy_revision": {
+          "$ref": "#/$defs/PolicyVersion"
+        },
+        "provenance": {
+          "$ref": "#/$defs/InvocationProvenance"
+        },
+        "tenant": {
+          "$ref": "#/$defs/TenantId"
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "work_context",
+        "tenant",
+        "membership",
+        "policy_revision",
+        "output_policy",
+        "provenance"
+      ],
+      "type": "object"
+    },
+    "InvocationProvenance": {
+      "description": "Provenance retained across synchronous and asynchronous execution.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "initiator": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "mode": {
+              "const": "direct",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "initiator"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delegation_id": {
+              "$ref": "#/$defs/DelegationId"
+            },
+            "initiator": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "mode": {
+              "const": "delegated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "initiator",
+            "delegation_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "automated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "LayerId": {
+      "type": "string"
+    },
+    "LayerSourceKind": {
+      "enum": [
+        "google_photorealistic",
+        "https_tileset",
+        "local_tileset"
+      ],
+      "type": "string"
+    },
+    "LayerSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/LayerId"
+        },
+        "source_kind": {
+          "$ref": "#/$defs/LayerSourceKind"
+        }
+      },
+      "required": [
+        "layer_id",
+        "label",
+        "source_kind"
+      ],
+      "type": "object"
+    },
+    "LocalFrameBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "ecef_from_frame": {
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "type": "array"
+        },
+        "frame_uri": {
+          "$ref": "#/$defs/WorldFrameUri"
+        },
+        "operation_input_id": {
+          "$ref": "#/$defs/SceneInputId"
+        },
+        "world_revision": {
+          "$ref": "#/$defs/FrameWorldRevisionUri"
+        }
+      },
+      "required": [
+        "world_revision",
+        "frame_uri",
+        "ecef_from_frame",
+        "operation_input_id"
+      ],
+      "type": "object"
+    },
+    "MapReleaseUri": {
+      "description": "One release under its owning dataset.\n```compile_fail\nuse veoveo_map_mcp::contract::{MapReleaseUri, DatasetReleaseId, MapDatasetId};\nMapReleaseUri::new(DatasetReleaseId::new(), MapDatasetId::new());\n```",
+      "type": "string"
+    },
+    "OverlayColor": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "format": "float",
+          "type": "number"
+        },
+        "blue": {
+          "format": "float",
+          "type": "number"
+        },
+        "green": {
+          "format": "float",
+          "type": "number"
+        },
+        "red": {
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "red",
+        "green",
+        "blue",
+        "alpha"
+      ],
+      "type": "object"
+    },
+    "PolicyVersion": {
+      "description": "Immutable policy version identifier emitted with decisions and audit records.",
+      "type": "string"
+    },
+    "PreviewSceneRecord": {
+      "description": "The admitted view, render policy and preview cut share one immutable manifest.\n\n```compile_fail\nuse veoveo_view_mcp::PreviewSceneRecord;\nfn corrupt(scene: &mut PreviewSceneRecord) { scene.view_revision = 0; }\n```",
+      "properties": {
+        "attribution": {
+          "$ref": "#/$defs/AttributionSet"
+        },
+        "composition_digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "composition_id": {
+          "$ref": "#/$defs/SceneCompositionId"
+        },
+        "detail_complete": {
+          "type": "boolean"
+        },
+        "height_px": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "local_from_ecef": {
+          "description": "Column-major local frame (+X east, +Y up, -Z north) from ECEF meters,\nanchored at `local_origin` so composed tile transforms stay\nscene-local and f32-safe.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "type": "array"
+        },
+        "local_origin": {
+          "$ref": "#/$defs/Wgs84Position3d"
+        },
+        "max_screen_error_px": {
+          "format": "double",
+          "type": "number"
+        },
+        "resolved_camera": {
+          "$ref": "#/$defs/GeodeticCameraPose"
+        },
+        "scene_layer": {
+          "$ref": "#/$defs/LayerId"
+        },
+        "tiles": {
+          "items": {
+            "$ref": "#/$defs/SceneTileRecord"
+          },
+          "type": "array"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "view_id": {
+          "$ref": "#/$defs/ViewId"
+        },
+        "view_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "width_px": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "view_id",
+        "view_revision",
+        "composition_id",
+        "composition_digest_sha256",
+        "scene_layer",
+        "resolved_camera",
+        "local_origin",
+        "local_from_ecef",
+        "width_px",
+        "height_px",
+        "max_screen_error_px",
+        "detail_complete",
+        "truncated",
+        "attribution",
+        "tiles"
+      ],
+      "type": "object"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "SceneComposition": {
+      "description": "A validated immutable scene, including its request, authority and content identity.\n\n```compile_fail\nuse veoveo_view_mcp::SceneComposition;\nfn change_parent(scene: &mut SceneComposition) { scene.revision = 2; }\n```",
+      "properties": {
+        "algorithm_revision": {
+          "type": "string"
+        },
+        "authority": {
+          "$ref": "#/$defs/SceneCompositionAuthority"
+        },
+        "base_layer": {
+          "$ref": "#/$defs/LayerId"
+        },
+        "composition_digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "composition_id": {
+          "$ref": "#/$defs/SceneCompositionId"
+        },
+        "composition_uri": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "governed_inputs": {
+          "items": {
+            "$ref": "#/$defs/GovernedSceneInput"
+          },
+          "type": "array"
+        },
+        "local_frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalFrameBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "map_releases": {
+          "items": {
+            "$ref": "#/$defs/MapReleaseUri"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/SceneOverlay"
+          },
+          "type": "array"
+        },
+        "request_digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "style_id": {
+          "$ref": "#/$defs/SceneStyleId"
+        }
+      },
+      "required": [
+        "schema_version",
+        "composition_id",
+        "composition_uri",
+        "revision",
+        "base_layer",
+        "map_releases",
+        "style_id",
+        "governed_inputs",
+        "overlays",
+        "algorithm_revision",
+        "request_digest_sha256",
+        "composition_digest_sha256",
+        "authority",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "SceneCompositionAuthority": {
+      "properties": {
+        "invocation": {
+          "$ref": "#/$defs/InvocationAuthority"
+        },
+        "principal_id": {
+          "$ref": "#/$defs/PrincipalId"
+        }
+      },
+      "required": [
+        "principal_id",
+        "invocation"
+      ],
+      "type": "object"
+    },
+    "SceneCompositionId": {
+      "type": "string"
+    },
+    "SceneInputId": {
+      "type": "string"
+    },
+    "SceneOverlay": {
+      "additionalProperties": false,
+      "properties": {
+        "geometry": {
+          "$ref": "#/$defs/SceneOverlayGeometrySource"
+        },
+        "governed_input_ids": {
+          "items": {
+            "$ref": "#/$defs/SceneInputId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "overlay_id": {
+          "$ref": "#/$defs/SceneOverlayId"
+        },
+        "style": {
+          "$ref": "#/$defs/SceneOverlayStyle",
+          "default": {
+            "label_height_meters": 12.0,
+            "line_width_meters": 2.0,
+            "marker_size_meters": 8.0,
+            "stroke_color": {
+              "alpha": 1.0,
+              "blue": 1.0,
+              "green": 0.8500000238418579,
+              "red": 0.0
+            }
+          }
+        },
+        "validity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SceneValidity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visibility": {
+          "$ref": "#/$defs/SceneOverlayVisibility",
+          "default": {
+            "visible": true
+          }
+        }
+      },
+      "required": [
+        "overlay_id",
+        "governed_input_ids",
+        "geometry"
+      ],
+      "type": "object"
+    },
+    "SceneOverlayGeometry": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "marker",
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/ScenePosition"
+            }
+          },
+          "required": [
+            "kind",
+            "position"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "closed": {
+              "default": false,
+              "type": "boolean"
+            },
+            "kind": {
+              "const": "polyline",
+              "type": "string"
+            },
+            "positions": {
+              "items": {
+                "$ref": "#/$defs/ScenePosition"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "positions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "polygon",
+              "type": "string"
+            },
+            "positions": {
+              "items": {
+                "$ref": "#/$defs/ScenePosition"
+              },
+              "type": "array"
+            },
+            "triangle_indices": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "positions",
+            "triangle_indices"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "oriented_mesh_instance",
+              "type": "string"
+            },
+            "mesh_input_id": {
+              "$ref": "#/$defs/SceneInputId"
+            },
+            "orientation": {
+              "$ref": "#/$defs/HeadingPitchRoll"
+            },
+            "position": {
+              "$ref": "#/$defs/ScenePosition"
+            },
+            "scale": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "orientation",
+            "scale",
+            "mesh_input_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "label",
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/ScenePosition"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "text"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SceneOverlayGeometrySource": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "geometry": {
+              "$ref": "#/$defs/SceneOverlayGeometry"
+            },
+            "kind": {
+              "const": "inline",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "geometry"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "input_id": {
+              "$ref": "#/$defs/SceneInputId"
+            },
+            "kind": {
+              "const": "artifact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "input_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SceneOverlayId": {
+      "type": "string"
+    },
+    "SceneOverlayStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill_color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OverlayColor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label_height_meters": {
+          "default": 12.0,
+          "format": "double",
+          "type": "number"
+        },
+        "line_width_meters": {
+          "default": 2.0,
+          "format": "double",
+          "type": "number"
+        },
+        "marker_size_meters": {
+          "default": 8.0,
+          "format": "double",
+          "type": "number"
+        },
+        "stroke_color": {
+          "$ref": "#/$defs/OverlayColor",
+          "default": {
+            "alpha": 1.0,
+            "blue": 1.0,
+            "green": 0.8500000238418579,
+            "red": 0.0
+          }
+        }
+      },
+      "type": "object"
+    },
+    "SceneOverlayVisibility": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_camera_distance_meters": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum_camera_distance_meters": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "ScenePosition": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "wgs84",
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/Wgs84Position3d"
+            }
+          },
+          "required": [
+            "kind",
+            "position"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "local_meters",
+              "type": "string"
+            },
+            "xyz_meters": {
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "xyz_meters"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SceneStyleId": {
+      "type": "string"
+    },
+    "SceneTileRecord": {
+      "description": "One preview tile with finite, invertible affine transform and derived size status.\n\n```compile_fail\nuse veoveo_view_mcp::SceneTileRecord;\nfn corrupt(tile: &mut SceneTileRecord) { tile.oversize = false; }\n```",
+      "properties": {
+        "byte_length": {
+          "description": "Raw GLB length when resident in the byte cache; absent after eviction.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ecef_from_content": {
+          "description": "Column-major, meters (matches glam `to_cols_array` and three.js\n`Matrix4.fromArray`).",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "type": "array"
+        },
+        "oversize": {
+          "description": "Reads of oversize tiles fail; consumers must skip them.",
+          "type": "boolean"
+        },
+        "tile_uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tile_uri",
+        "ecef_from_content",
+        "oversize"
+      ],
+      "type": "object"
+    },
+    "SceneValidity": {
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_from": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_until": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Sha256Digest": {
+      "type": "string"
+    },
+    "TenantId": {
+      "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "ViewId": {
+      "type": "string"
+    },
+    "ViewRecord": {
+      "description": "One immutable composition binding with a checked, replaceable camera revision.\n\n```compile_fail\nuse veoveo_view_mcp::ViewRecord;\nfn change_parent(view: &mut ViewRecord) { view.revision = 0; }\n```",
+      "properties": {
+        "camera": {
+          "$ref": "#/$defs/CameraDefinition"
+        },
+        "composition_digest_sha256": {
+          "$ref": "#/$defs/Sha256Digest"
+        },
+        "composition_id": {
+          "$ref": "#/$defs/SceneCompositionId"
+        },
+        "composition_uri": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "resolved_camera": {
+          "$ref": "#/$defs/GeodeticCameraPose"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scene_layer": {
+          "$ref": "#/$defs/LayerId"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "view_id": {
+          "$ref": "#/$defs/ViewId"
+        },
+        "view_uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "view_id",
+        "view_uri",
+        "composition_id",
+        "composition_uri",
+        "composition_digest_sha256",
+        "scene_layer",
+        "revision",
+        "camera",
+        "resolved_camera",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "Wgs84Position3d": {
+      "additionalProperties": false,
+      "properties": {
+        "ellipsoidal_height_meters": {
+          "format": "double",
+          "type": "number"
+        },
+        "latitude_degrees": {
+          "format": "double",
+          "type": "number"
+        },
+        "longitude_degrees": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "latitude_degrees",
+        "longitude_degrees",
+        "ellipsoidal_height_meters"
+      ],
+      "type": "object"
+    },
+    "WorkContextGrant": {
+      "additionalProperties": false,
+      "description": "Initial discretionary policy stamped on every output in a Work Context.",
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/AccessLevel"
+        },
+        "subject": {
+          "$ref": "#/$defs/AccessSubject"
+        }
+      },
+      "required": [
+        "subject",
+        "level"
+      ],
+      "type": "object"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    },
+    "WorkContextMembershipLevel": {
+      "description": "A member's authority inside one Work Context.\n\nOrdering is intentional. It lets an enforcement point compare the current\nmembership with the minimum level required by an operation.",
+      "enum": [
+        "viewer",
+        "contributor",
+        "custodian",
+        "owner"
+      ],
+      "type": "string"
+    },
+    "WorkContextOutputPolicy": {
+      "additionalProperties": false,
+      "description": "Immutable output defaults resolved with an invocation.",
+      "properties": {
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "initial_grants": {
+          "items": {
+            "$ref": "#/$defs/WorkContextGrant"
+          },
+          "type": "array"
+        },
+        "owner": {
+          "$ref": "#/$defs/AccessSubject"
+        }
+      },
+      "required": [
+        "owner"
+      ],
+      "type": "object"
+    },
+    "WorldFrameUri": {
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "closed": {
+      "$ref": "#/$defs/CloseViewResult"
+    },
+    "composition": {
+      "$ref": "#/$defs/SceneComposition"
+    },
+    "frame": {
+      "$ref": "#/$defs/FrameRecord"
+    },
+    "layers": {
+      "items": {
+        "$ref": "#/$defs/LayerSummary"
+      },
+      "type": "array"
+    },
+    "scene": {
+      "$ref": "#/$defs/PreviewSceneRecord"
+    },
+    "view": {
+      "$ref": "#/$defs/ViewRecord"
+    }
+  },
+  "required": [
+    "layers",
+    "composition",
+    "view",
+    "scene",
+    "frame",
+    "closed"
+  ],
+  "title": "AppContracts",
+  "type": "object"
+}

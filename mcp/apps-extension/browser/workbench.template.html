@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Veoveo MCP App</title>
+<style>
+:root{color-scheme:light;--bg:#f4f2ed;--panel:#fffefa;--raised:#ebe8e1;--ink:#22211f;--muted:#706d67;--line:#d5d0c7;--accent:#376c5a;--good:#317051;--bad:#a44840;--shadow:0 14px 40px rgb(40 36 30/.12);font:14px/1.45 Inter,ui-sans-serif,system-ui,sans-serif}
+:root[data-theme=dark]{color-scheme:dark;--bg:#101112;--panel:#171819;--raised:#202224;--ink:#ece9e2;--muted:#a19d95;--line:#343638;--accent:#87c4aa;--good:#79ba94;--bad:#e17d72;--shadow:0 14px 40px rgb(0 0 0/.35)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}button,textarea{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:7px}button{cursor:pointer;padding:7px 11px;font-weight:650}button:hover{border-color:var(--accent)}button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}button:disabled{opacity:.5;cursor:default}header{display:flex;align-items:center;gap:18px;padding:18px 20px;border-bottom:1px solid var(--line);background:var(--panel)}header div:first-child{flex:1}h1,h2,h3,p{margin:0}h1{font-size:20px}h2{font-size:15px}h3{font-size:13px}.subtitle,.muted{color:var(--muted)}.subtitle{margin-top:2px}.status{font:12px ui-monospace,monospace;color:var(--muted)}.status.good{color:var(--good)}.status.bad{color:var(--bad)}main{display:grid;grid-template-columns:minmax(220px,310px) minmax(0,1fr);min-height:520px}.rail{padding:14px;border-right:1px solid var(--line)}.rail h2,.content h2{margin-bottom:9px}.resource-list,.tool-list{display:grid;gap:7px}.resource{width:100%;text-align:left;background:var(--panel)}.resource.active{border-color:var(--accent);box-shadow:inset 3px 0 var(--accent)}.content{min-width:0;padding:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}.panel-head h2{flex:1;margin:0}.payload{margin:0;padding:14px;min-height:310px;max-height:560px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}.tools{margin-top:14px}.tool{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px}.tool-head{display:flex;align-items:center;gap:8px}.tool-head h3{flex:1}textarea{width:100%;min-height:92px;margin-top:8px;padding:9px;resize:vertical;font:12px/1.45 ui-monospace,monospace}.tool-output{display:none;margin-top:8px;padding:8px;background:var(--raised);border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.45 ui-monospace,monospace}.tool-output.visible{display:block}.empty{padding:30px;color:var(--muted);text-align:center}@media(max-width:760px){main{grid-template-columns:1fr}.rail{border-right:0;border-bottom:1px solid var(--line)}.payload{min-height:240px}}
+</style>
+</head>
+<body>
+<header><div><h1 id="title"></h1><p id="subtitle" class="subtitle"></p></div><span id="status" class="status">connecting</span><button id="refresh">Refresh</button></header>
+<main>
+  <aside class="rail"><h2>Resources</h2><div id="resources" class="resource-list"></div><section class="tools"><h2>Actions</h2><div id="tools" class="tool-list"></div></section></aside>
+  <section class="content"><div class="panel"><div class="panel-head"><h2 id="resource-title">Resource</h2><span id="pager" hidden><button id="page-previous" disabled>Previous</button> <span id="page-number"></span> <button id="page-next" disabled>Next</button></span><button id="copy">Copy JSON</button></div><pre id="payload" class="payload"></pre></div></section>
+</main>
+<script>/*__VEOVEO_APP_BUNDLE__*/</script>
+</body>
+</html>

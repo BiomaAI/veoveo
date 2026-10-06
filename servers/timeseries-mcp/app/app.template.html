@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Forecasts</title>
+<style>
+  :root {
+    --surface: #f6f4ef;
+    --panel: #fffdf8;
+    --ink: #201e1a;
+    --ink-secondary: #55524a;
+    --ink-muted: #6f6a5f;
+    --grid: #e7e2d6;
+    --panel-border: #ddd8cc;
+    --panel-border-hover: #c7c0af;
+    --tooltip-surface: #fffdf8;
+    --tooltip-shadow: 0 8px 20px #2a251a14;
+    --ok: #3f7354;
+    --danger: #96423b;
+    --warn: #8a6430;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  }
+  :root[data-theme="dark"] {
+    --surface: #101012;
+    --panel: #161618;
+    --ink: #eae6dc;
+    --ink-secondary: #b0aca2;
+    --ink-muted: #918c82;
+    --grid: #232125;
+    --panel-border: #2b2a2d;
+    --panel-border-hover: #5a564e;
+    --tooltip-surface: #202023;
+    --tooltip-shadow: 0 8px 20px #0006;
+    --ok: #74a184;
+    --danger: #c96f67;
+    --warn: #bd8443;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--surface); color: var(--ink);
+    font: 13px/1.45 var(--sans); }
+  body { padding: 14px 16px 16px; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-family: var(--sans); font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .subtitle { color: var(--ink-secondary); font-size: 12px; }
+  form { display: flex; align-items: center; gap: 8px; }
+  label { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em; }
+  input[type="number"] { width: 72px; padding: 4px 6px; border: 1px solid var(--panel-border);
+    border-radius: 0; background: var(--surface); color: var(--ink); font: inherit;
+    font-variant-numeric: tabular-nums; }
+  input[type="number"]:hover { border-color: var(--panel-border-hover); }
+  button { padding: 5px 11px; border: 1px solid var(--panel-border); border-radius: 0;
+    background: var(--panel); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--panel-border-hover); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-secondary);
+    font-family: var(--mono); font-size: 11px; }
+  .legend i { width: 10px; height: 10px; border-radius: 0; }
+  .legend .style-key { color: var(--ink-muted); }
+  #chartwrap { position: relative; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  #tooltip { position: absolute; display: none; pointer-events: none; z-index: 2;
+    background: var(--tooltip-surface); border: 1px solid var(--panel-border); border-radius: 0;
+    padding: 7px 9px; font-size: 12px; box-shadow: var(--tooltip-shadow); min-width: 130px; }
+  #tooltip .tt-x { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+  #tooltip .tt-row { display: flex; align-items: center; gap: 6px; }
+  #tooltip .tt-row i { width: 8px; height: 8px; border-radius: 0; flex: 0 0 auto; }
+  #tooltip .tt-row b { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #status { color: var(--ink-muted); padding: 28px 0; text-align: center; }
+  #error { display: none; margin-top: 10px; padding: 7px 10px; border-radius: 0; font-size: 12px;
+    border: 1px solid var(--danger); color: var(--danger); }
+  .fold-note { color: var(--ink-muted); font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1 id="title">Forecasts</h1>
+      <div class="subtitle" id="subtitle">Waiting for forecast data…</div>
+    </div>
+    <form id="controls" hidden>
+      <label for="horizon">Horizon</label>
+      <input id="horizon" type="number" min="1" max="10000" value="12">
+      <button id="rerun" type="submit">Re-run forecast</button>
+    </form>
+  </div>
+  <div class="legend" id="legend" hidden></div>
+  <div id="chartwrap" hidden>
+    <svg id="chart" role="img" aria-label="Observed series and forecast with 10–90% band"></svg>
+    <div id="tooltip"></div>
+  </div>
+  <div id="status">Waiting for forecast data…</div>
+  <div id="error"></div>
+
+<script>/*__VEOVEO_APP_BUNDLE__*/</script>
+</body>
+</html>

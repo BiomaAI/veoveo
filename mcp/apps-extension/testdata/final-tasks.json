@@ -1,0 +1,43 @@
+{
+  "seed": {
+    "resultType": "task",
+    "taskId": "0195dabe-7777-7abc-8def-000000000001",
+    "status": "working",
+    "createdAt": "2026-10-01T00:00:00Z",
+    "lastUpdatedAt": "2026-10-01T00:00:00Z",
+    "ttlMs": null,
+    "pollIntervalMs": 10
+  },
+  "detail": {
+    "resultType": "complete",
+    "taskId": "0195dabe-7777-7abc-8def-000000000001",
+    "status": "working",
+    "createdAt": "2026-10-01T00:00:00Z",
+    "lastUpdatedAt": "2026-10-01T00:00:00Z",
+    "ttlMs": null,
+    "pollIntervalMs": 10
+  },
+  "complete": {
+    "resultType": "complete",
+    "taskId": "0195dabe-7777-7abc-8def-000000000001",
+    "status": "completed",
+    "createdAt": "2026-10-01T00:00:00Z",
+    "lastUpdatedAt": "2026-10-01T00:00:00Z",
+    "ttlMs": null,
+    "pollIntervalMs": 10,
+    "result": {
+      "resultType": "complete",
+      "content": [
+        {
+          "type": "text",
+          "text": "ready"
+        }
+      ],
+      "structuredContent": {
+        "provider": {
+          "open": null
+        }
+      }
+    }
+  }
+}

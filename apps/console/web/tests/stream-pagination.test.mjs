@@ -10,8 +10,11 @@ const ensureSession = browserHarness.match(/const STREAM_APP_ENSURE_SESSION: &st
 const session = (number) => ({
   session_id: `00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
   session_uri: `stream://session/00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
-  pipeline_id: 'fixture', lifecycle: 'stopped',
-  ingress: {host: 'fixture', port: 9001},
+  pipeline_id:'fixture',pipeline_uri:'stream://pipeline/fixture',lifecycle:'stopped',
+  results_uri:`stream://session/00000000-0000-7000-8000-${String(number).padStart(12,'0')}/results`,
+  preview_uri:`stream://session/00000000-0000-7000-8000-${String(number).padStart(12,'0')}/preview`,
+  started_at:'2026-10-05T00:00:00Z',received_video_frames:0,processed_frames:0,
+  ingress: {transport:'rtp_h264_udp',host:'fixture',port:9001,payload_type:96,clock_rate:90000,caps:'application/x-rtp'},
   video: {codec: 'avc1.42e01f', width: 640, height: 480, frame_rate: 30, expected_bitrate_bps: 1000000},
 });
 
@@ -32,14 +35,14 @@ test('Live Monitor and acceptance wait for initial session discovery before star
       }
       const uri = request.params.uri;
       let value;
-      if (uri === 'stream://pipelines') value = [{id: 'fixture', title: 'Fixture', supports_live_input: true}];
+      if (uri === 'stream://pipelines') value = [{id:'fixture',uri:'stream://pipeline/fixture',title:'Fixture',description:'Fixture',profile:{kind:'pass_through'},supports_live_input:true,supports_recording_replay:true}];
       else if (uri === 'stream://sessions') {
         await catalogGate;
         value = {sessions: [active], limit: 100};
       } else if (uri.endsWith('/results')) {
         await resultGate;
-        value = {frames: []};
-      } else if (uri.endsWith('/preview')) value = {session_id: active.session_id, video: active.video, chunks: []};
+        value = {schema:'veoveo.ai/stream-live-results/v1',session_id:uri.split('/')[3],pipeline_id:'fixture',frames:[],processed_frames:0,dropped_result_frames:0};
+      } else if (uri.endsWith('/preview')) value = {schema:'veoveo.ai/stream-live-preview/v1',session_id:active.session_id,video:active.video,chunks:[],dropped_chunks:0,received_video_frames:0};
       else throw new Error(`Unexpected read: ${uri}`);
       return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
     });
@@ -87,7 +90,7 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
     const page = await browser.newPage();
     page.setDefaultTimeout(10000);
     const reads = [];
-    let started = false, stopped = false, holdOlder = false, releaseOlder, olderArrived;
+    let started = false, stopped = false, holdOlder = false, releaseOlder, olderArrived, corruptPreview = false;
     const current = number => ({...session(number), lifecycle: number === 108 && !stopped ? 'running' : 'stopped'});
     const olderPending = new Promise(resolve => {olderArrived = resolve;});
     await page.exposeFunction('streamFixture', async (request) => {
@@ -95,18 +98,18 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
       if (request.method === 'tools/call') {
         if (request.params.name === 'start_live_session') {
           started = true;
-          return {structuredContent: {session_id: session(108).session_id, result_uri: session(108).session_uri}};
+          return {content:[],structuredContent:{session_id:session(108).session_id,result_uri:session(108).session_uri,results_uri:session(108).results_uri,preview_uri:session(108).preview_uri,pipeline_uri:'stream://pipeline/fixture',ingress:session(108).ingress,video:session(108).video,started_at:'2026-10-05T00:00:00Z'}};
         }
         assert.equal(request.params.name, 'stop_live_session');
         assert.equal(request.params.arguments.session_id, session(108).session_id);
         stopped = true;
-        return {structuredContent: {result_uri: session(108).session_uri, lifecycle: 'stopped'}};
+        return {content:[],structuredContent:{result_uri:session(108).session_uri,lifecycle:'stopped',received_video_frames:0,processed_frames:0,stopped_at:'2026-10-05T00:00:01Z'}};
       }
       assert.equal(request.method, 'resources/read');
       const uri = request.params.uri;
       reads.push(uri);
       let value;
-      if (uri === 'stream://pipelines') value = [{id: 'fixture', title: 'Fixture', supports_live_input: true}];
+      if (uri === 'stream://pipelines') value = [{id:'fixture',uri:'stream://pipeline/fixture',title:'Fixture',description:'Fixture',profile:{kind:'pass_through'},supports_live_input:true,supports_recording_replay:true}];
       else if (uri === 'stream://sessions') {
         const first = started ? 108 : 107;
         value = {sessions: Array.from({length: 100}, (_, i) => current(first - i)), limit: 100, next_cursor: 'older-page'};
@@ -117,9 +120,11 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
         }
         value = {sessions: Array.from({length: 7}, (_, i) => session(7 - i)), limit: 100};
       } else if (uri === session(108).session_uri) value = current(108);
-      else if (uri.endsWith('/results')) value = {frames: []};
-      else if (uri.endsWith('/preview')) value = {session_id: uri.split('/')[3], video: session(1).video, chunks: []};
+      else if (uri.endsWith('/results')) value = {schema:'veoveo.ai/stream-live-results/v1',session_id:uri.split('/')[3],pipeline_id:'fixture',frames:[],processed_frames:0,dropped_result_frames:0};
+      else if (uri.endsWith('/preview')) value = {schema:'veoveo.ai/stream-live-preview/v1',session_id:uri.split('/')[3],video:session(1).video,chunks:[],dropped_chunks:0,received_video_frames:0};
       else throw new Error(`Unexpected read: ${uri}`);
+      if(uri.endsWith('/preview') && corruptPreview === 'nested') value.chunks=[{sequence:0,timestamp_us:'invalid',keyframe:true,data_base64:'AA=='}];
+      if(uri.endsWith('/preview') && corruptPreview === 'parent') value.session_id=session(999).session_id;
       return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
     });
     await page.addInitScript(() => {
@@ -127,7 +132,7 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
       Object.defineProperty(navigator, 'mediaCapabilities', {value: {decodingInfo: async () => ({supported: true, smooth: true, powerEfficient: false})}});
       window.VideoDecoder = class {
         static async isConfigSupported() {return {supported: true};}
-        configure() {}
+        configure() {window.fixtureDecoderConfigurations=(window.fixtureDecoderConfigurations||0)+1;}
         close() {}
       };
       window.addEventListener('message', async ({data}) => {
@@ -172,6 +177,16 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
     await page.waitForFunction(() => document.querySelector('#stop').disabled && document.querySelector('#session').textContent.includes('stopped'));
     assert.equal(reads.filter(uri => uri === session(108).session_uri).length, 2, 'stopping must read the returned result URI');
     assert.equal(await page.locator('#error').isVisible(), false);
+    const beforeDecoder=await page.evaluate(()=>window.fixtureDecoderConfigurations||0);
+    const retainedSelection=await page.locator('#sessions').inputValue();
+    for(const [kind,diagnostic] of [['nested','Invalid preview response'],['parent','Resource belongs to another session']]) {
+      corruptPreview=kind;
+      await page.evaluate(()=>window.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result'},'*'));
+      await page.waitForFunction(text=>document.querySelector('#error').textContent.includes(text),diagnostic);
+      assert.equal(await page.locator('#sessions').inputValue(),retainedSelection);
+      assert.equal(await page.evaluate(()=>window.fixtureDecoderConfigurations||0),beforeDecoder,'invalid preview must be rejected before decoder configuration');
+    }
+    corruptPreview=false;
     await page.evaluate(() => window.postMessage({jsonrpc: '2.0', id: 'teardown', method: 'ui/resource-teardown'}, '*'));
   } finally {
     await browser.close();

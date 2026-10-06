@@ -37,3 +37,10 @@ veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 
 # Reuse the workspace-qualified parser; source-file policy is qualified by native tests.
 syn = { workspace = true, features = ["full", "visit", "parsing"] }
+
+veoveo-view-mcp = { path = "../../servers/view-mcp", default-features = false, features = ["contract"] }
+veoveo-stream-mcp = { path = "../../servers/stream-mcp", default-features = false, features = ["contract"] }
+veoveo-timeseries-mcp = { path = "../../servers/timeseries-mcp", default-features = false, features = ["contract"] }
+veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
+veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["contract"] }
+veoveo-mcp-apps-extension.workspace = true

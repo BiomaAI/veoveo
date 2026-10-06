@@ -518,7 +518,7 @@ mod tests {
         let layer = LayerSummary {
             layer_id: LayerId::parse("google-photorealistic").unwrap(),
             label: "Google Photorealistic 3D Tiles".to_owned(),
-            source_kind: "google_photorealistic".to_owned(),
+            source_kind: crate::contract::LayerSourceKind::GooglePhotorealistic,
         };
         let tool = advertise_configured_layers(tool, &[layer]);
         let schema = serde_json::Value::Object(tool.input_schema.as_ref().clone());
@@ -542,7 +542,7 @@ mod tests {
         let layers = [LayerSummary {
             layer_id: LayerId::parse("google-photorealistic").unwrap(),
             label: "Google Photorealistic 3D Tiles".to_owned(),
-            source_kind: "google_photorealistic".to_owned(),
+            source_kind: crate::contract::LayerSourceKind::GooglePhotorealistic,
         }];
         let error = invalid_scene_composition_params(
             ServiceError::LayerNotFound(LayerId::parse("google").unwrap()),

@@ -1,0 +1,3734 @@
+{
+  "$defs": {
+    "AccessSubject": {
+      "description": "A principal or group that can own governed data or receive access.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "kind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AcquisitionId": {
+      "type": "string"
+    },
+    "AcquisitionJob": {
+      "properties": {
+        "acquisition_id": {
+          "$ref": "#/$defs/AcquisitionId"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "diagnostics_uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected_source_digest_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "progress": {
+          "$ref": "#/$defs/AcquisitionProgress"
+        },
+        "raw_artifact_uri": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactUri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requested_coverage": {
+          "$ref": "#/$defs/Wgs84BoundingBox"
+        },
+        "source_id": {
+          "$ref": "#/$defs/MapSourceId"
+        },
+        "staged_release_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DatasetReleaseId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/AcquisitionStatus"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "acquisition_id",
+        "source_id",
+        "requested_coverage",
+        "status",
+        "progress",
+        "created_by",
+        "created_at",
+        "updated_at",
+        "record_version"
+      ],
+      "type": "object"
+    },
+    "AcquisitionModel": {
+      "enum": [
+        "snapshot",
+        "sequenced_delta",
+        "effective_event",
+        "observation_stream"
+      ],
+      "type": "string"
+    },
+    "AcquisitionPhase": {
+      "enum": [
+        "queued",
+        "downloading",
+        "verifying",
+        "normalizing",
+        "building_graph",
+        "validating",
+        "publishing_artifacts",
+        "staging_release",
+        "complete"
+      ],
+      "type": "string"
+    },
+    "AcquisitionProgress": {
+      "properties": {
+        "completed_units": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/AcquisitionPhase"
+        },
+        "total_units": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "phase",
+        "completed_units",
+        "message"
+      ],
+      "type": "object"
+    },
+    "AcquisitionStatus": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancel_requested",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "ActiveDatasetRelease": {
+      "properties": {
+        "pointer": {
+          "$ref": "#/$defs/ActiveReleasePointer"
+        },
+        "release": {
+          "$ref": "#/$defs/DatasetRelease"
+        }
+      },
+      "required": [
+        "pointer",
+        "release"
+      ],
+      "type": "object"
+    },
+    "ActiveReleasePointer": {
+      "properties": {
+        "activated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "dataset_id": {
+          "$ref": "#/$defs/MapDatasetId"
+        },
+        "previous_release_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DatasetReleaseId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "release_id": {
+          "$ref": "#/$defs/DatasetReleaseId"
+        }
+      },
+      "required": [
+        "dataset_id",
+        "release_id",
+        "record_version",
+        "activated_at"
+      ],
+      "type": "object"
+    },
+    "AircraftPerformance": {
+      "additionalProperties": false,
+      "properties": {
+        "cruise_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_range": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_reserve": {
+          "format": "double",
+          "type": "number"
+        },
+        "payload_capacity": {
+          "format": "double",
+          "type": "number"
+        },
+        "service_ceiling": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "maximum_speed",
+        "cruise_speed",
+        "service_ceiling",
+        "maximum_range",
+        "payload_capacity",
+        "minimum_reserve"
+      ],
+      "type": "object"
+    },
+    "ArtifactUri": {
+      "description": "Neutral or server-presented Artifact occurrence URI.",
+      "type": "string"
+    },
+    "AuthorityClass": {
+      "enum": [
+        "regulator",
+        "infrastructure_operator",
+        "hydrographic_office",
+        "air_navigation_service_provider",
+        "transport_operator",
+        "commercial_provider",
+        "community",
+        "derived",
+        "synthetic_test"
+      ],
+      "type": "string"
+    },
+    "CommitFeatureChangesOutput": {
+      "properties": {
+        "changeset": {
+          "$ref": "#/$defs/FeatureChangeSet"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/MapFeature"
+          },
+          "type": "array"
+        },
+        "projection_state": {
+          "$ref": "#/$defs/ProjectionState"
+        }
+      },
+      "required": [
+        "changeset",
+        "features",
+        "projection_state"
+      ],
+      "type": "object"
+    },
+    "CompositionLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "opacity": {
+          "default": 1.0,
+          "format": "double",
+          "type": "number"
+        },
+        "publication_id": {
+          "$ref": "#/$defs/LayerPublicationId"
+        },
+        "style_revision_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StyleRevisionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visible": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "layer_id",
+        "publication_id"
+      ],
+      "type": "object"
+    },
+    "CompositionView": {
+      "additionalProperties": false,
+      "properties": {
+        "bearing_deg": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "center": {
+          "$ref": "#/$defs/Wgs84Position"
+        },
+        "pitch_deg": {
+          "default": 0.0,
+          "format": "double",
+          "type": "number"
+        },
+        "zoom": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "center",
+        "zoom"
+      ],
+      "type": "object"
+    },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
+    "DatasetLicense": {
+      "additionalProperties": false,
+      "properties": {
+        "attribution": {
+          "type": "string"
+        },
+        "derivatives_allowed": {
+          "type": "boolean"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "license_id": {
+          "type": "string"
+        },
+        "offline_bundle_allowed": {
+          "type": "boolean"
+        },
+        "redistribution_allowed": {
+          "type": "boolean"
+        },
+        "source_terms_uri": {
+          "$ref": "#/$defs/HttpsUrl"
+        }
+      },
+      "required": [
+        "license_id",
+        "source_terms_uri",
+        "attribution",
+        "redistribution_allowed",
+        "derivatives_allowed",
+        "offline_bundle_allowed"
+      ],
+      "type": "object"
+    },
+    "DatasetRelease": {
+      "properties": {
+        "acquired_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "coverage": {
+          "$ref": "#/$defs/Wgs84BoundingBox"
+        },
+        "dataset_id": {
+          "$ref": "#/$defs/MapDatasetId"
+        },
+        "license": {
+          "$ref": "#/$defs/DatasetLicense"
+        },
+        "normalization_pipeline_version": {
+          "type": "string"
+        },
+        "normalized_artifact_uris": {
+          "items": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "type": "array"
+        },
+        "quality_report_uri": {
+          "$ref": "#/$defs/ArtifactUri"
+        },
+        "raw_artifact_uri": {
+          "$ref": "#/$defs/ArtifactUri"
+        },
+        "record_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "release_id": {
+          "$ref": "#/$defs/DatasetReleaseId"
+        },
+        "routing_build_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schema_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_digest_sha256": {
+          "type": "string"
+        },
+        "source_id": {
+          "$ref": "#/$defs/MapSourceId"
+        },
+        "state": {
+          "$ref": "#/$defs/DatasetReleaseState"
+        },
+        "supersedes_release_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DatasetReleaseId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "valid_from": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "valid_until": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "release_id",
+        "dataset_id",
+        "source_id",
+        "version_label",
+        "source_digest_sha256",
+        "coverage",
+        "acquired_at",
+        "valid_from",
+        "schema_version",
+        "normalization_pipeline_version",
+        "license",
+        "raw_artifact_uri",
+        "normalized_artifact_uris",
+        "quality_report_uri",
+        "state",
+        "record_version",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "DatasetReleaseId": {
+      "type": "string"
+    },
+    "DatasetReleaseState": {
+      "enum": [
+        "staged",
+        "active",
+        "retired",
+        "quarantined"
+      ],
+      "type": "string"
+    },
+    "DelegationId": {
+      "description": "Auditable identity of authority delegated by an initiator to another actor.",
+      "type": "string"
+    },
+    "EnergyProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "battery_capacity": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "liquid_fuel_capacity": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum_reserve": {
+          "format": "double",
+          "type": "number"
+        },
+        "source": {
+          "$ref": "#/$defs/EnergySource"
+        }
+      },
+      "required": [
+        "source",
+        "minimum_reserve"
+      ],
+      "type": "object"
+    },
+    "EnergySource": {
+      "enum": [
+        "human",
+        "battery",
+        "gasoline",
+        "diesel",
+        "aviation_fuel",
+        "hydrogen",
+        "natural_gas",
+        "nuclear",
+        "wind",
+        "hybrid",
+        "external_electric",
+        "other"
+      ],
+      "type": "string"
+    },
+    "FeatureChangeSet": {
+      "properties": {
+        "actor_id": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "base_layer_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "changeset_id": {
+          "$ref": "#/$defs/FeatureChangeSetId"
+        },
+        "commit_sequence": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "feature_ids": {
+          "items": {
+            "$ref": "#/$defs/MapFeatureId"
+          },
+          "type": "array"
+        },
+        "idempotency_key": {
+          "type": "string"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "request_digest_sha256": {
+          "type": "string"
+        },
+        "resulting_layer_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "changeset_id",
+        "layer_id",
+        "base_layer_revision",
+        "resulting_layer_revision",
+        "feature_ids",
+        "idempotency_key",
+        "request_digest_sha256",
+        "actor_id",
+        "work_context",
+        "commit_sequence",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "FeatureChangeSetId": {
+      "type": "string"
+    },
+    "FeatureContentClass": {
+      "enum": [
+        "reference",
+        "named_locations",
+        "facilities",
+        "boundaries",
+        "network_candidate"
+      ],
+      "type": "string"
+    },
+    "FeatureGeometry": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coordinates": {
+              "$ref": "#/$defs/GeoJsonPosition"
+            },
+            "type": {
+              "const": "Point",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coordinates": {
+              "items": {
+                "$ref": "#/$defs/GeoJsonPosition"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "MultiPoint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coordinates": {
+              "items": {
+                "$ref": "#/$defs/GeoJsonPosition"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "LineString",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coordinates": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/GeoJsonPosition"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "MultiLineString",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coordinates": {
+              "items": {
+                "items": {
+                  "$ref": "#/$defs/GeoJsonPosition"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "Polygon",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coordinates": {
+              "items": {
+                "items": {
+                  "items": {
+                    "$ref": "#/$defs/GeoJsonPosition"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "MultiPolygon",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "FeatureGeometryType": {
+      "enum": [
+        "Point",
+        "MultiPoint",
+        "LineString",
+        "MultiLineString",
+        "Polygon",
+        "MultiPolygon"
+      ],
+      "type": "string"
+    },
+    "FeatureLayer": {
+      "properties": {
+        "archived_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "content_class": {
+          "$ref": "#/$defs/FeatureContentClass"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "created_by": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "owner": {
+          "$ref": "#/$defs/AccessSubject"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schema": {
+          "$ref": "#/$defs/FeatureSchemaRevision"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapStyleRevision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "layer_id",
+        "title",
+        "content_class",
+        "schema",
+        "revision",
+        "owner",
+        "created_by",
+        "work_context",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "FeatureLayerId": {
+      "type": "string"
+    },
+    "FeatureProvenance": {
+      "properties": {
+        "actor_id": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "delegation_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DelegationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initiator_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invocation_mode": {
+          "$ref": "#/$defs/InvocationMode"
+        },
+        "policy_revision": {
+          "$ref": "#/$defs/PolicyVersion"
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "actor_id",
+        "work_context",
+        "policy_revision",
+        "invocation_mode"
+      ],
+      "type": "object"
+    },
+    "FeatureSchemaRevision": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "digest_sha256": {
+          "type": "string"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "schema": true,
+        "schema_revision_id": {
+          "$ref": "#/$defs/FeatureSchemaRevisionId"
+        },
+        "version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_revision_id",
+        "layer_id",
+        "version",
+        "digest_sha256",
+        "schema",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "FeatureSchemaRevisionId": {
+      "type": "string"
+    },
+    "FeatureTime": {
+      "additionalProperties": false,
+      "properties": {
+        "interval": {
+          "description": "Inclusive JSON-FG valid-time interval. The `..` string is an open bound.",
+          "items": {
+            "$ref": "#/$defs/JsonFgTimeBoundary"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "interval"
+      ],
+      "type": "object"
+    },
+    "FeatureValidationFinding": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "mutation_index": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mutation_index",
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "FixedWingClass": {
+      "enum": [
+        "light",
+        "regional_transport",
+        "heavy_cargo",
+        "amphibious"
+      ],
+      "type": "string"
+    },
+    "FixedWingProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "airspace_permissions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "class": {
+          "$ref": "#/$defs/FixedWingClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "maximum_takeoff_mass": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "minimum_runway_length": {
+          "format": "double",
+          "type": "number"
+        },
+        "navigation_capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "performance": {
+          "$ref": "#/$defs/AircraftPerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "maximum_takeoff_mass",
+        "performance",
+        "energy",
+        "minimum_runway_length"
+      ],
+      "type": "object"
+    },
+    "GeoJsonFeatureType": {
+      "enum": [
+        "Feature"
+      ],
+      "type": "string"
+    },
+    "GeoJsonPosition": {
+      "description": "A GeoJSON position with longitude, latitude, and optional ellipsoidal height.\n\nThe transparent array form keeps authored features valid GeoJSON while the\nconstructor and service validators retain the WGS84 and vertical contract.",
+      "items": {
+        "format": "double",
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "GeoPackageExtension": {
+      "properties": {
+        "column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "definition": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "table": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "definition",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "GeoPackageFeatureTable": {
+      "properties": {
+        "crs_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "extent_wgs84": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Wgs84BoundingBox"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "feature_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/GeoPackageField"
+          },
+          "type": "array"
+        },
+        "geometry_column": {
+          "type": "string"
+        },
+        "geometry_type": {
+          "type": "string"
+        },
+        "has_spatial_index": {
+          "type": "boolean"
+        },
+        "identifier": {
+          "type": "string"
+        },
+        "srs_id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "table",
+        "identifier",
+        "description",
+        "geometry_column",
+        "geometry_type",
+        "srs_id",
+        "feature_count",
+        "fields",
+        "has_spatial_index"
+      ],
+      "type": "object"
+    },
+    "GeoPackageField": {
+      "properties": {
+        "field_type": {
+          "$ref": "#/$defs/GeoPackageFieldType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nullable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "field_type",
+        "nullable"
+      ],
+      "type": "object"
+    },
+    "GeoPackageFieldType": {
+      "enum": [
+        "boolean",
+        "integer",
+        "integer64",
+        "real",
+        "string",
+        "binary",
+        "date",
+        "date_time",
+        "other"
+      ],
+      "type": "string"
+    },
+    "GeoPackageFinding": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/GeoPackageFindingLevel"
+        },
+        "message": {
+          "type": "string"
+        },
+        "table": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "level",
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "GeoPackageFindingLevel": {
+      "enum": [
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    },
+    "GeoPackageManifest": {
+      "properties": {
+        "application_id": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "extensions": {
+          "items": {
+            "$ref": "#/$defs/GeoPackageExtension"
+          },
+          "type": "array"
+        },
+        "feature_tables": {
+          "items": {
+            "$ref": "#/$defs/GeoPackageFeatureTable"
+          },
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/GeoPackageFinding"
+          },
+          "type": "array"
+        },
+        "user_version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "application_id",
+        "user_version",
+        "feature_tables",
+        "extensions",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "GroupId": {
+      "description": "Identity-provider group identifier used by gateway policy.",
+      "type": "string"
+    },
+    "HttpsUrl": {
+      "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+      "format": "uri",
+      "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
+      "type": "string"
+    },
+    "HumanMobilityProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "accessibility_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "carried_load": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_continuous_duration": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_slope": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_step": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "mode": {
+          "$ref": "#/$defs/HumanMovementMode"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        },
+        "preferred_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "stairs_allowed": {
+          "default": false,
+          "type": "boolean"
+        },
+        "unpaved_allowed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "mode",
+        "preferred_speed",
+        "maximum_speed",
+        "carried_load",
+        "maximum_slope",
+        "maximum_step",
+        "maximum_continuous_duration"
+      ],
+      "type": "object"
+    },
+    "HumanMovementMode": {
+      "enum": [
+        "walk",
+        "run",
+        "hike",
+        "manual_mobility_aid",
+        "powered_mobility_aid"
+      ],
+      "type": "string"
+    },
+    "InspectGeoPackageOutput": {
+      "properties": {
+        "manifest": {
+          "$ref": "#/$defs/GeoPackageManifest"
+        },
+        "source_artifact_uri": {
+          "$ref": "#/$defs/ArtifactUri"
+        }
+      },
+      "required": [
+        "source_artifact_uri",
+        "manifest"
+      ],
+      "type": "object"
+    },
+    "InvocationMode": {
+      "description": "How the current actor obtained authority to perform the work.",
+      "enum": [
+        "direct",
+        "delegated",
+        "automated"
+      ],
+      "type": "string"
+    },
+    "JsonFgTimeBoundary": {
+      "type": "string"
+    },
+    "LayerPublication": {
+      "properties": {
+        "artifact_uris": {
+          "items": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "type": "array"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "layer_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "publication_id": {
+          "$ref": "#/$defs/LayerPublicationId"
+        },
+        "published_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "published_by": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "schema_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "style_revision_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StyleRevisionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "publication_id",
+        "layer_id",
+        "layer_revision",
+        "schema_version",
+        "published_by",
+        "work_context",
+        "published_at"
+      ],
+      "type": "object"
+    },
+    "LayerPublicationId": {
+      "type": "string"
+    },
+    "LayerStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StyleRule"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "MapComposition": {
+      "properties": {
+        "archived_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "composition_id": {
+          "$ref": "#/$defs/MapCompositionId"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "created_by": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "current": {
+          "$ref": "#/$defs/MapCompositionRevision"
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "owner": {
+          "$ref": "#/$defs/AccessSubject"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "work_context": {
+          "$ref": "#/$defs/WorkContextId"
+        }
+      },
+      "required": [
+        "composition_id",
+        "title",
+        "current",
+        "owner",
+        "created_by",
+        "work_context",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "MapCompositionId": {
+      "type": "string"
+    },
+    "MapCompositionRevision": {
+      "properties": {
+        "composition_id": {
+          "$ref": "#/$defs/MapCompositionId"
+        },
+        "composition_revision_id": {
+          "$ref": "#/$defs/MapCompositionRevisionId"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "created_by": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "layers": {
+          "items": {
+            "$ref": "#/$defs/CompositionLayer"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "view": {
+          "$ref": "#/$defs/CompositionView"
+        }
+      },
+      "required": [
+        "composition_revision_id",
+        "composition_id",
+        "revision",
+        "layers",
+        "view",
+        "created_by",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "MapCompositionRevisionId": {
+      "type": "string"
+    },
+    "MapDatasetId": {
+      "type": "string"
+    },
+    "MapFamily": {
+      "enum": [
+        "road_street",
+        "active_mobility",
+        "rail_transit",
+        "off_road_terrain",
+        "maritime",
+        "aviation",
+        "intermodal"
+      ],
+      "type": "string"
+    },
+    "MapFeature": {
+      "description": "A map feature in a feature layer. Its core fields are valid GeoJSON, and\nits time and feature-type members use JSON-FG vocabulary.",
+      "properties": {
+        "conformsTo": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "deleted": {
+          "type": "boolean"
+        },
+        "evidence_resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "featureType": {
+          "type": "string"
+        },
+        "feature_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "geometry": {
+          "$ref": "#/$defs/FeatureGeometry"
+        },
+        "id": {
+          "$ref": "#/$defs/MapFeatureId"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "layer_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "properties": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "provenance": {
+          "$ref": "#/$defs/FeatureProvenance"
+        },
+        "related_resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schema_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeatureTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/GeoJsonFeatureType"
+        }
+      },
+      "required": [
+        "type",
+        "conformsTo",
+        "id",
+        "geometry",
+        "featureType",
+        "layer_id",
+        "feature_revision",
+        "layer_revision",
+        "schema_version",
+        "deleted",
+        "provenance",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "MapFeatureId": {
+      "type": "string"
+    },
+    "MapMetadataCursor": {
+      "description": "The cursor binds a typed position to its collection and optional parent.",
+      "type": "string"
+    },
+    "MapMetadataPage": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/FeatureLayer"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapMetadataCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "MapMetadataPage2": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/LayerPublication"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapMetadataCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "MapMetadataPage3": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/MapComposition"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MapMetadataCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "MapMobilityProfilePage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/MobilityProfile"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "maximum": 100,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "MapSourceId": {
+      "type": "string"
+    },
+    "MapSourcePage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SourceSummary"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "maximum": 100,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "MapStyleRevision": {
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "style": {
+          "$ref": "#/$defs/LayerStyle"
+        },
+        "style_revision_id": {
+          "$ref": "#/$defs/StyleRevisionId"
+        },
+        "version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "style_revision_id",
+        "layer_id",
+        "version",
+        "style",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "MapTaskProduct": {
+      "$ref": "#/$defs/MapTaskProductWire"
+    },
+    "MapTaskProductWire": {
+      "properties": {
+        "changeset": {
+          "$ref": "#/$defs/FeatureChangeSet"
+        },
+        "imported_feature_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "projection_state": {
+          "$ref": "#/$defs/ProjectionState"
+        },
+        "result_uri": {
+          "$ref": "#/$defs/ResourceUri"
+        }
+      },
+      "required": [
+        "result_uri",
+        "imported_feature_count",
+        "changeset",
+        "projection_state"
+      ],
+      "type": "object"
+    },
+    "MapWorkspaceAccess": {
+      "description": "Caller-specific capabilities for the single Map MCP workspace App.\n\nThe App reads this resource before rendering controls. Tool and resource\nhandlers remain the authorization boundary; these booleans only let the\nview present the surface the current caller can actually use.",
+      "properties": {
+        "administration": {
+          "type": "boolean"
+        },
+        "basemap": {
+          "$ref": "#/$defs/MapWorkspaceBasemap"
+        },
+        "dataset_read": {
+          "type": "boolean"
+        },
+        "feature_publish": {
+          "type": "boolean"
+        },
+        "feature_read": {
+          "type": "boolean"
+        },
+        "feature_write": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "administration",
+        "dataset_read",
+        "feature_read",
+        "feature_write",
+        "feature_publish",
+        "basemap"
+      ],
+      "type": "object"
+    },
+    "MapWorkspaceBasemap": {
+      "description": "Presentation-safe MapLibre Style basemap configuration owned by Map MCP.\n\nThe style URLs are returned to the sandboxed App and therefore must not\ncontain credentials. The supported profile keeps both styles and every\nstyle dependency on the same origin, which the App resource declares\nthrough MCP Apps CSP metadata.",
+      "properties": {
+        "dark_style_url": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "light_style_url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "light_style_url",
+        "dark_style_url"
+      ],
+      "type": "object"
+    },
+    "MobilityPlanningEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_restriction_kinds": {
+          "items": {
+            "$ref": "#/$defs/RestrictionKind"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "allowed_terrain_classes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "lateral_clearance": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_climb_angle": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maximum_descent_angle": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maximum_range": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maximum_route_points": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximum_segment_length": {
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_turn_radius": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "operating_ceiling": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "vertical_clearance": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_speed",
+        "vertical_clearance",
+        "lateral_clearance",
+        "maximum_route_points",
+        "maximum_segment_length"
+      ],
+      "type": "object"
+    },
+    "MobilityProfile": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "human",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/HumanMobilityProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "road_vehicle",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/RoadVehicleProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "off_road_vehicle",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/OffRoadVehicleProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "rail_vehicle",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/RailVehicleProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "surface_vessel",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/SurfaceVesselProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "subsurface_vessel",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/SubsurfaceVesselProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "fixed_wing",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/FixedWingProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "rotorcraft",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/RotorcraftProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "family": {
+              "const": "uas",
+              "type": "string"
+            },
+            "profile": {
+              "$ref": "#/$defs/UasProfile"
+            }
+          },
+          "required": [
+            "family",
+            "profile"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MobilityProfileId": {
+      "type": "string"
+    },
+    "MobilityProfileMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/MobilityProfileId"
+        },
+        "valid_from": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "valid_until": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/MobilityProfileVersion"
+        }
+      },
+      "required": [
+        "profile_id",
+        "name",
+        "version",
+        "valid_from"
+      ],
+      "type": "object"
+    },
+    "MobilityProfileVersion": {
+      "maximum": 9223372036854775807,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "MountRelativePath": {
+      "type": "string"
+    },
+    "OffRoadLocomotionClass": {
+      "enum": [
+        "wheeled",
+        "tracked",
+        "atv_utv",
+        "heavy_equipment",
+        "uncrewed_ground_vehicle"
+      ],
+      "type": "string"
+    },
+    "OffRoadVehicleProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_surface_classes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "class": {
+          "$ref": "#/$defs/OffRoadLocomotionClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "gross_mass": {
+          "format": "double",
+          "type": "number"
+        },
+        "ground_clearance": {
+          "format": "double",
+          "type": "number"
+        },
+        "ground_pressure": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_cross_slope": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_gap": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_slope": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_step": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_water_depth": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "performance": {
+          "$ref": "#/$defs/VehiclePerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "gross_mass",
+        "performance",
+        "energy",
+        "maximum_slope",
+        "maximum_cross_slope",
+        "maximum_step",
+        "maximum_gap",
+        "maximum_water_depth",
+        "ground_clearance",
+        "ground_pressure"
+      ],
+      "type": "object"
+    },
+    "OwnedPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/AcquisitionJob"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "PolicyVersion": {
+      "description": "Immutable policy version identifier emitted with decisions and audit records.",
+      "type": "string"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "ProjectionState": {
+      "enum": [
+        "ready",
+        "pending"
+      ],
+      "type": "string"
+    },
+    "QueryFeaturesOutput": {
+      "properties": {
+        "features": {
+          "items": {
+            "$ref": "#/$defs/MapFeature"
+          },
+          "type": "array"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "projection_sequence": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "layer_id",
+        "features",
+        "projection_sequence"
+      ],
+      "type": "object"
+    },
+    "QuerySourceFeaturesOutput": {
+      "properties": {
+        "features": {
+          "items": {
+            "$ref": "#/$defs/SourceFeatureMatch"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "query_digest_sha256": {
+          "type": "string"
+        },
+        "release_id": {
+          "$ref": "#/$defs/DatasetReleaseId"
+        }
+      },
+      "required": [
+        "release_id",
+        "query_digest_sha256",
+        "features"
+      ],
+      "type": "object"
+    },
+    "RailVehicleClass": {
+      "enum": [
+        "light_rail_metro",
+        "passenger_train",
+        "freight_train",
+        "maintenance_train"
+      ],
+      "type": "string"
+    },
+    "RailVehicleProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/RailVehicleClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "electrification_systems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "gauge": {
+          "format": "double",
+          "type": "number"
+        },
+        "gross_mass": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_axle_load": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "operator_permissions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "performance": {
+          "$ref": "#/$defs/VehiclePerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        },
+        "schedule_required": {
+          "default": false,
+          "type": "boolean"
+        },
+        "train_length": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "gross_mass",
+        "performance",
+        "energy",
+        "gauge",
+        "train_length",
+        "maximum_axle_load"
+      ],
+      "type": "object"
+    },
+    "RegisteredSource": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_model": {
+          "$ref": "#/$defs/AcquisitionModel"
+        },
+        "adapter_kind": {
+          "$ref": "#/$defs/SourceAdapterKind"
+        },
+        "authority": {
+          "$ref": "#/$defs/AuthorityClass"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "credential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceCredential"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dataset_id": {
+          "$ref": "#/$defs/MapDatasetId"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "expected_media_types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "license": {
+          "$ref": "#/$defs/DatasetLicense"
+        },
+        "location": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "map_families": {
+          "items": {
+            "$ref": "#/$defs/MapFamily"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "maximum_download_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximum_elapsed_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "publisher_key_refs": {
+          "items": {
+            "$ref": "#/$defs/SecretReference"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "record_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_id": {
+          "$ref": "#/$defs/MapSourceId"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "dataset_id",
+        "name",
+        "adapter_kind",
+        "authority",
+        "acquisition_model",
+        "map_families",
+        "location",
+        "expected_media_types",
+        "maximum_download_bytes",
+        "maximum_elapsed_seconds",
+        "license",
+        "enabled",
+        "record_version",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "ReleaseMutationResponse": {
+      "properties": {
+        "invalidated_route_count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "release": {
+          "$ref": "#/$defs/DatasetRelease"
+        }
+      },
+      "required": [
+        "release",
+        "invalidated_route_count"
+      ],
+      "type": "object"
+    },
+    "ReleasePage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/DatasetRelease"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "limit",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "ResourceUri": {
+      "type": "string"
+    },
+    "RestrictionKind": {
+      "enum": [
+        "closure",
+        "access",
+        "dimensional_limit",
+        "weight_limit",
+        "hazardous_cargo",
+        "speed_limit",
+        "environmental",
+        "protected_area",
+        "navigational_warning",
+        "airspace",
+        "weather",
+        "other"
+      ],
+      "type": "string"
+    },
+    "RoadVehicleClass": {
+      "enum": [
+        "bicycle",
+        "powered_two_wheeler",
+        "passenger_car",
+        "light_commercial",
+        "rigid_truck",
+        "articulated_truck",
+        "bus_coach",
+        "emergency_service"
+      ],
+      "type": "string"
+    },
+    "RoadVehicleProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "axle_count": {
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "class": {
+          "$ref": "#/$defs/RoadVehicleClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "emissions_class": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "gross_mass": {
+          "format": "double",
+          "type": "number"
+        },
+        "hazardous_cargo": {
+          "default": false,
+          "type": "boolean"
+        },
+        "maximum_axle_load": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "performance": {
+          "$ref": "#/$defs/VehiclePerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        },
+        "unpaved_allowed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "gross_mass",
+        "performance",
+        "energy",
+        "axle_count",
+        "maximum_axle_load"
+      ],
+      "type": "object"
+    },
+    "RotorcraftClass": {
+      "enum": [
+        "helicopter",
+        "heavy_lift_helicopter",
+        "tiltrotor"
+      ],
+      "type": "string"
+    },
+    "RotorcraftProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "airspace_permissions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "class": {
+          "$ref": "#/$defs/RotorcraftClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "maximum_takeoff_mass": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "navigation_capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "performance": {
+          "$ref": "#/$defs/AircraftPerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        },
+        "rotor_diameter": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "maximum_takeoff_mass",
+        "performance",
+        "energy",
+        "rotor_diameter"
+      ],
+      "type": "object"
+    },
+    "SecretReference": {
+      "type": "string"
+    },
+    "SourceAdapterKind": {
+      "enum": [
+        "open_street_map",
+        "authority_vector",
+        "gtfs_schedule",
+        "gtfs_realtime",
+        "s57_enc",
+        "s100",
+        "aixm",
+        "faa_nasr",
+        "environmental"
+      ],
+      "type": "string"
+    },
+    "SourceCredential": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "bearer",
+              "type": "string"
+            },
+            "secret_ref": {
+              "$ref": "#/$defs/SecretReference"
+            }
+          },
+          "required": [
+            "kind",
+            "secret_ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "header_name": {
+              "$ref": "#/$defs/SourceHeaderName"
+            },
+            "kind": {
+              "const": "header",
+              "type": "string"
+            },
+            "secret_ref": {
+              "$ref": "#/$defs/SecretReference"
+            }
+          },
+          "required": [
+            "kind",
+            "secret_ref",
+            "header_name"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SourceElementType": {
+      "enum": [
+        "node",
+        "way",
+        "relation",
+        "feature"
+      ],
+      "type": "string"
+    },
+    "SourceFeature": {
+      "properties": {
+        "acquired_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "feature_id": {
+          "$ref": "#/$defs/SourceFeatureId"
+        },
+        "geometry": {
+          "$ref": "#/$defs/FeatureGeometry"
+        },
+        "geometry_digest_sha256": {
+          "type": "string"
+        },
+        "license": {
+          "$ref": "#/$defs/DatasetLicense"
+        },
+        "normalized_tags": {
+          "additionalProperties": true,
+          "description": "Source-owned properties are deliberately open-ended. Map preserves\nevery normalized key and value rather than projecting an allowlist.",
+          "type": "object"
+        },
+        "operating_area_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "original_names": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "original_references": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "release_id": {
+          "$ref": "#/$defs/DatasetReleaseId"
+        },
+        "representation": {
+          "$ref": "#/$defs/SourceFeatureRepresentation"
+        },
+        "schema_version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_digest_sha256": {
+          "type": "string"
+        },
+        "source_element_id": {
+          "type": "string"
+        },
+        "source_element_type": {
+          "$ref": "#/$defs/SourceElementType"
+        },
+        "source_element_version": {
+          "type": "string"
+        },
+        "source_geometry_path": {
+          "description": "Zero-based traversal path from the source element's root geometry to\nthis simple or multi-geometry. The root geometry uses an\nempty path. Relation GeometryCollections produce one feature per leaf.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "source_id": {
+          "$ref": "#/$defs/MapSourceId"
+        }
+      },
+      "required": [
+        "schema_version",
+        "feature_id",
+        "source_id",
+        "release_id",
+        "source_element_type",
+        "source_element_id",
+        "source_element_version",
+        "representation",
+        "geometry",
+        "geometry_digest_sha256",
+        "normalized_tags",
+        "source_digest_sha256",
+        "license",
+        "acquired_at"
+      ],
+      "type": "object"
+    },
+    "SourceFeatureId": {
+      "type": "string"
+    },
+    "SourceFeatureMatch": {
+      "properties": {
+        "distance": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "feature": {
+          "$ref": "#/$defs/SourceFeature"
+        }
+      },
+      "required": [
+        "feature"
+      ],
+      "type": "object"
+    },
+    "SourceFeatureRepresentation": {
+      "enum": [
+        "point",
+        "line",
+        "polygon",
+        "relation"
+      ],
+      "type": "string"
+    },
+    "SourceHeaderName": {
+      "type": "string"
+    },
+    "SourceHost": {
+      "type": "string"
+    },
+    "SourceLocation": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "allowed_redirect_hosts": {
+              "items": {
+                "$ref": "#/$defs/SourceHost"
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            "endpoint": {
+              "$ref": "#/$defs/HttpsUrl"
+            },
+            "kind": {
+              "const": "https",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "endpoint"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "osm_replication",
+              "type": "string"
+            },
+            "replication_endpoint": {
+              "$ref": "#/$defs/HttpsUrl"
+            },
+            "snapshot_endpoint": {
+              "$ref": "#/$defs/HttpsUrl"
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_endpoint",
+            "replication_endpoint"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "mounted_exchange_set",
+              "type": "string"
+            },
+            "mount_id": {
+              "$ref": "#/$defs/SourceMountId"
+            },
+            "relative_path": {
+              "$ref": "#/$defs/MountRelativePath"
+            }
+          },
+          "required": [
+            "kind",
+            "mount_id",
+            "relative_path"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SourceMountId": {
+      "type": "string"
+    },
+    "SourceSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_model": {
+          "$ref": "#/$defs/AcquisitionModel"
+        },
+        "adapter_kind": {
+          "$ref": "#/$defs/SourceAdapterKind"
+        },
+        "authority": {
+          "$ref": "#/$defs/AuthorityClass"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "dataset_id": {
+          "$ref": "#/$defs/MapDatasetId"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "license": {
+          "$ref": "#/$defs/DatasetLicense"
+        },
+        "map_families": {
+          "items": {
+            "$ref": "#/$defs/MapFamily"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "record_version": {
+          "format": "uint64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "source_id": {
+          "$ref": "#/$defs/MapSourceId"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "dataset_id",
+        "name",
+        "adapter_kind",
+        "authority",
+        "acquisition_model",
+        "map_families",
+        "license",
+        "enabled",
+        "record_version",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "StyleRevisionId": {
+      "type": "string"
+    },
+    "StyleRule": {
+      "additionalProperties": false,
+      "properties": {
+        "circle_color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "circle_radius_px": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fill_color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fill_opacity": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "geometry_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FeatureGeometryType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label_property": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line_color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line_width_px": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maximum_zoom": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "minimum_zoom": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SubsurfaceVesselClass": {
+      "enum": [
+        "submarine",
+        "autonomous_underwater_vehicle",
+        "remotely_operated_vehicle",
+        "underwater_glider"
+      ],
+      "type": "string"
+    },
+    "SubsurfaceVesselProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/SubsurfaceVesselClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "displacement": {
+          "format": "double",
+          "type": "number"
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "maximum_operating_depth": {
+          "format": "double",
+          "type": "number"
+        },
+        "maximum_submerged_duration": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "minimum_bathymetric_clearance": {
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_operating_depth": {
+          "format": "double",
+          "type": "number"
+        },
+        "performance": {
+          "$ref": "#/$defs/VehiclePerformance"
+        },
+        "periodic_surfacing_required": {
+          "default": false,
+          "type": "boolean"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "displacement",
+        "performance",
+        "energy",
+        "minimum_operating_depth",
+        "maximum_operating_depth",
+        "minimum_bathymetric_clearance",
+        "maximum_submerged_duration"
+      ],
+      "type": "object"
+    },
+    "SurfaceVesselClass": {
+      "enum": [
+        "small_craft",
+        "cargo",
+        "tanker",
+        "passenger_ferry",
+        "tug_workboat",
+        "fishing_service",
+        "uncrewed_surface_vessel"
+      ],
+      "type": "string"
+    },
+    "SurfaceVesselProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "air_draft": {
+          "format": "double",
+          "type": "number"
+        },
+        "berth_requirements": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "class": {
+          "$ref": "#/$defs/SurfaceVesselClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "displacement": {
+          "format": "double",
+          "type": "number"
+        },
+        "draft": {
+          "format": "double",
+          "type": "number"
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "minimum_under_keel_clearance": {
+          "format": "double",
+          "type": "number"
+        },
+        "performance": {
+          "$ref": "#/$defs/VehiclePerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "displacement",
+        "performance",
+        "energy",
+        "draft",
+        "air_draft",
+        "minimum_under_keel_clearance"
+      ],
+      "type": "object"
+    },
+    "UasClass": {
+      "enum": [
+        "multirotor",
+        "fixed_wing",
+        "hybrid_vtol"
+      ],
+      "type": "string"
+    },
+    "UasProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "airspace_permissions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "beyond_visual_line_of_sight": {
+          "default": false,
+          "type": "boolean"
+        },
+        "class": {
+          "$ref": "#/$defs/UasClass"
+        },
+        "dimensions": {
+          "$ref": "#/$defs/VehicleDimensions"
+        },
+        "energy": {
+          "$ref": "#/$defs/EnergyProfile"
+        },
+        "maximum_takeoff_mass": {
+          "format": "double",
+          "type": "number"
+        },
+        "metadata": {
+          "$ref": "#/$defs/MobilityProfileMetadata"
+        },
+        "navigation_capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "performance": {
+          "$ref": "#/$defs/AircraftPerformance"
+        },
+        "planning": {
+          "$ref": "#/$defs/MobilityPlanningEnvelope"
+        }
+      },
+      "required": [
+        "metadata",
+        "planning",
+        "class",
+        "dimensions",
+        "maximum_takeoff_mass",
+        "performance",
+        "energy"
+      ],
+      "type": "object"
+    },
+    "ValidateFeatureChangesOutput": {
+      "properties": {
+        "expected_layer_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/FeatureValidationFinding"
+          },
+          "type": "array"
+        },
+        "layer_id": {
+          "$ref": "#/$defs/FeatureLayerId"
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid",
+        "layer_id",
+        "expected_layer_revision",
+        "findings"
+      ],
+      "type": "object"
+    },
+    "VehicleDimensions": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "format": "double",
+          "type": "number"
+        },
+        "length": {
+          "format": "double",
+          "type": "number"
+        },
+        "width": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "length",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "VehiclePerformance": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_range": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maximum_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "nominal_speed": {
+          "format": "double",
+          "type": "number"
+        },
+        "payload_capacity": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "maximum_speed",
+        "nominal_speed"
+      ],
+      "type": "object"
+    },
+    "Wgs84BoundingBox": {
+      "additionalProperties": false,
+      "properties": {
+        "east": {
+          "format": "double",
+          "type": "number"
+        },
+        "north": {
+          "format": "double",
+          "type": "number"
+        },
+        "south": {
+          "format": "double",
+          "type": "number"
+        },
+        "west": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "west",
+        "south",
+        "east",
+        "north"
+      ],
+      "type": "object"
+    },
+    "Wgs84Position": {
+      "additionalProperties": false,
+      "properties": {
+        "ellipsoidal_height_m": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "latitude_deg": {
+          "format": "double",
+          "type": "number"
+        },
+        "longitude_deg": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitude_deg",
+        "latitude_deg"
+      ],
+      "type": "object"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "acquisition": {
+      "$ref": "#/$defs/AcquisitionJob"
+    },
+    "acquisitions": {
+      "$ref": "#/$defs/OwnedPage"
+    },
+    "active_releases": {
+      "items": {
+        "$ref": "#/$defs/ActiveDatasetRelease"
+      },
+      "type": "array"
+    },
+    "committed": {
+      "$ref": "#/$defs/CommitFeatureChangesOutput"
+    },
+    "composition": {
+      "$ref": "#/$defs/MapComposition"
+    },
+    "compositions": {
+      "$ref": "#/$defs/MapMetadataPage3"
+    },
+    "datasets": {
+      "$ref": "#/$defs/ReleasePage"
+    },
+    "features": {
+      "$ref": "#/$defs/QueryFeaturesOutput"
+    },
+    "imported": {
+      "$ref": "#/$defs/MapTaskProduct"
+    },
+    "inspected": {
+      "$ref": "#/$defs/InspectGeoPackageOutput"
+    },
+    "layer": {
+      "$ref": "#/$defs/FeatureLayer"
+    },
+    "layers": {
+      "$ref": "#/$defs/MapMetadataPage"
+    },
+    "profile": {
+      "$ref": "#/$defs/MobilityProfile"
+    },
+    "profiles": {
+      "$ref": "#/$defs/MapMobilityProfilePage"
+    },
+    "publication": {
+      "$ref": "#/$defs/LayerPublication"
+    },
+    "publications": {
+      "$ref": "#/$defs/MapMetadataPage2"
+    },
+    "release": {
+      "$ref": "#/$defs/ReleaseMutationResponse"
+    },
+    "source": {
+      "$ref": "#/$defs/RegisteredSource"
+    },
+    "source_features": {
+      "$ref": "#/$defs/QuerySourceFeaturesOutput"
+    },
+    "sources": {
+      "$ref": "#/$defs/MapSourcePage"
+    },
+    "style": {
+      "$ref": "#/$defs/MapStyleRevision"
+    },
+    "validated": {
+      "$ref": "#/$defs/ValidateFeatureChangesOutput"
+    },
+    "workspace": {
+      "$ref": "#/$defs/MapWorkspaceAccess"
+    }
+  },
+  "required": [
+    "workspace",
+    "layers",
+    "publications",
+    "compositions",
+    "sources",
+    "datasets",
+    "profiles",
+    "acquisitions",
+    "active_releases",
+    "style",
+    "features",
+    "source_features",
+    "layer",
+    "validated",
+    "committed",
+    "acquisition",
+    "composition",
+    "source",
+    "profile",
+    "publication",
+    "inspected",
+    "imported",
+    "release"
+  ],
+  "title": "AppContracts",
+  "type": "object"
+}

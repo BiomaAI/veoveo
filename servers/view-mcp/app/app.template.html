@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Preview</title>
+<style>
+  :root {
+    --surface: #f6f4ef;
+    --panel: #fffdf8;
+    --ink: #201e1a;
+    --ink-secondary: #55524a;
+    --ink-muted: #6f6a5f;
+    --grid: #e7e2d6;
+    --panel-border: #ddd8cc;
+    --accent: #201e1a;
+    --accent-ink: #f6f4ef;
+    --danger: #96423b;
+    --ok: #3f7354;
+    --warn: #8a6430;
+    --chip: #f1eee6;
+    --canvas-bg: #ece9e0;
+    --hover-border: #c7c0af;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  }
+  :root[data-theme="dark"] {
+    --surface: #101012;
+    --panel: #161618;
+    --ink: #eae6dc;
+    --ink-secondary: #b0aca2;
+    --ink-muted: #918c82;
+    --grid: #232125;
+    --panel-border: #2b2a2d;
+    --accent: #e8e3d8;
+    --accent-ink: #131315;
+    --danger: #c96f67;
+    --ok: #74a184;
+    --warn: #bd8443;
+    --chip: #1b1b1e;
+    --canvas-bg: #131315;
+    --hover-border: #5a564e;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--surface); color: var(--ink);
+    font: 13px/1.45 var(--sans);
+    font-variant-numeric: tabular-nums; }
+  body { padding: 10px 12px 12px; }
+  h1 { margin: 0; font-family: var(--sans); font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .head .left { display: flex; align-items: baseline; gap: 10px; }
+  .subtitle { color: var(--ink-secondary); font-size: 12px; }
+  .head .right { display: flex; align-items: center; gap: 8px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 0; font-family: var(--mono);
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-secondary);
+    background: var(--chip); }
+  .chip.ok { color: var(--ok); }
+  .chip.warn { color: var(--warn); }
+  .mono { font-family: var(--mono); font-size: 11px; }
+  .muted { color: var(--ink-muted); }
+  button { padding: 4px 10px; border: 1px solid var(--panel-border); border-radius: 0;
+    background: var(--panel); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  button:hover { border-color: var(--hover-border); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.danger { border-color: var(--danger); color: var(--danger); }
+  button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
+  select, input { padding: 4px 6px; border: 1px solid var(--panel-border); border-radius: 0;
+    background: var(--surface); color: var(--ink);
+    font: 13px/1.45 var(--sans);
+    font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: normal; }
+  label { display: flex; flex-direction: column; gap: 2px; color: var(--ink-muted);
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .columns { display: flex; gap: 10px; align-items: stretch; }
+  #panel { width: 302px; flex: none; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 0; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    max-height: 680px; overflow-y: auto; }
+  #stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { border-radius: 0; border-bottom: none; font-weight: 600; }
+  .tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pane { position: relative; background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 0; overflow: hidden; height: 620px; }
+  #gl { width: 100%; height: 100%; display: block; background: var(--canvas-bg); }
+  #scene-hud { position: absolute; top: 8px; left: 10px; display: flex; gap: 6px; align-items: center;
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-muted); pointer-events: none; }
+  #scene-hud .chip { pointer-events: auto; }
+  .attribution { position: absolute; right: 8px; bottom: 8px; padding: 3px 8px; border-radius: 0;
+    background: rgba(16, 16, 18, 0.66); color: #eae6dc; font-size: 10.5px; max-width: 70%; text-align: right; }
+  :root[data-theme="light"] .attribution { background: rgba(246, 244, 239, 0.78); color: #55524a; }
+  #frame-pane { display: flex; flex-direction: column; }
+  #frame-wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center;
+    justify-content: center; background: var(--canvas-bg); }
+  #frame-img { max-width: 100%; max-height: 100%; }
+  #frame-empty { color: var(--ink-muted); }
+  #frame-meta { margin: 0; padding: 8px 10px; display: grid; grid-template-columns: auto 1fr auto 1fr;
+    gap: 2px 10px; font-size: 11.5px; border-top: 1px solid var(--grid); }
+  #frame-meta dt { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em; }
+  #frame-meta dd { margin: 0; font-family: var(--mono); font-size: 11px; }
+  .mode-tabs { display: flex; gap: 4px; }
+  .mode-tabs button { flex: 1; padding: 3px 4px; font-size: 11.5px; }
+  .mode-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  fieldset { border: 1px solid var(--grid); border-radius: 0; margin: 0; padding: 7px 8px 8px;
+    display: flex; flex-direction: column; gap: 6px; }
+  fieldset legend { color: var(--ink-muted); font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: .08em; font-weight: 500; padding: 0 4px; }
+  .field-row { display: flex; gap: 6px; }
+  .field-row label { flex: 1; min-width: 0; }
+  .field-row input { width: 100%; }
+  .slider-row { display: flex; align-items: center; gap: 6px; }
+  .slider-row input[type="range"] { flex: 1; padding: 0; }
+  .slider-row input[type="number"] { width: 74px; }
+  #resolved { border: 1px dashed var(--grid); border-radius: 0; padding: 6px 8px; font-size: 11px;
+    color: var(--ink-secondary); }
+  #resolved.confirmed { border-color: var(--accent); }
+  .actions { display: flex; flex-wrap: wrap; gap: 5px; }
+  details summary { cursor: pointer; color: var(--ink-secondary); font-size: 12px; font-weight: 600; }
+  details[open] summary { margin-bottom: 6px; }
+  .preset-list { display: flex; flex-direction: column; gap: 4px; }
+  .preset-list button { text-align: left; font-weight: 500; }
+  #status { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 22px;
+    font-size: 12px; color: var(--ink-secondary); }
+  #status .spin { width: 10px; height: 10px; border: 2px solid var(--accent); border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.9s linear infinite; display: none; }
+  #status.busy .spin { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error { display: none; padding: 6px 9px; border-radius: 0; font-size: 12px;
+    background: #f7ebe9; border: 1px solid #dcbab4; color: #8a3a33; white-space: pre-wrap; }
+  :root[data-theme="dark"] .error { background: #211416; border-color: #573530; color: #cf8b85; }
+  #boot { color: var(--ink-muted); padding: 24px 0; text-align: center; }
+  #diagnostics { font-size: 11px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+  <div id="boot">Loading Preview…</div>
+  <div class="error" id="boot-error"></div>
+  <div id="app" hidden>
+    <div class="head">
+      <div class="left">
+        <h1>Preview</h1>
+        <span class="subtitle" id="subtitle">Compose a camera, preview the scene, capture a frame.</span>
+      </div>
+      <div class="right">
+        <label>Layer
+          <select id="layer-select"></select>
+        </label>
+        <span class="chip" id="view-chip">no view</span>
+      </div>
+    </div>
+    <div class="columns">
+      <aside id="panel">
+        <nav class="mode-tabs" id="mode-tabs">
+          <button type="button" data-mode="orbit_target" aria-selected="true">Orbit</button>
+          <button type="button" data-mode="look_at" aria-selected="false">Look-at</button>
+          <button type="button" data-mode="pose" aria-selected="false">Pose</button>
+        </nav>
+        <fieldset id="fs-target">
+          <legend>Target (WGS84)</legend>
+          <div class="field-row">
+            <label>Latitude °<input id="target-lat" type="number" step="0.000001" min="-90" max="90" value="40.689200"></label>
+            <label>Longitude °<input id="target-lon" type="number" step="0.000001" min="-180" max="180" value="-74.044500"></label>
+          </div>
+          <label>Altitude m<input id="target-alt" type="number" step="1" value="30"></label>
+        </fieldset>
+        <fieldset id="fs-orbit">
+          <legend>Orbit</legend>
+          <label>Distance m
+            <div class="slider-row">
+              <input id="orbit-distance-slider" type="range" min="1" max="4.7" step="0.01" value="2.813">
+              <input id="orbit-distance" type="number" min="0.1" max="100000000" step="1" value="650">
+            </div>
+          </label>
+          <label>Azimuth °
+            <div class="slider-row">
+              <input id="orbit-azimuth-slider" type="range" min="0" max="360" step="1" value="210">
+              <input id="orbit-azimuth" type="number" step="0.1" value="210">
+            </div>
+          </label>
+          <label>Elevation °
+            <div class="slider-row">
+              <input id="orbit-elevation-slider" type="range" min="-89" max="89" step="1" value="40">
+              <input id="orbit-elevation" type="number" min="-89.9" max="89.9" step="0.1" value="40">
+            </div>
+          </label>
+        </fieldset>
+        <fieldset id="fs-eye" hidden>
+          <legend>Eye (WGS84)</legend>
+          <div class="field-row">
+            <label>Latitude °<input id="eye-lat" type="number" step="0.000001" min="-90" max="90" value="40.684000"></label>
+            <label>Longitude °<input id="eye-lon" type="number" step="0.000001" min="-180" max="180" value="-74.050000"></label>
+          </div>
+          <label>Altitude m<input id="eye-alt" type="number" step="1" value="400"></label>
+        </fieldset>
+        <fieldset id="fs-orientation" hidden>
+          <legend>Orientation</legend>
+          <label>Heading ° (0 = north, clockwise)
+            <div class="slider-row">
+              <input id="pose-heading-slider" type="range" min="0" max="360" step="1" value="30">
+              <input id="pose-heading" type="number" step="0.1" value="30">
+            </div>
+          </label>
+          <label>Pitch ° (up from horizon)
+            <div class="slider-row">
+              <input id="pose-pitch-slider" type="range" min="-90" max="90" step="1" value="-25">
+              <input id="pose-pitch" type="number" min="-90" max="90" step="0.1" value="-25">
+            </div>
+          </label>
+          <label>Roll °<input id="pose-roll" type="number" step="0.1" value="0"></label>
+        </fieldset>
+        <fieldset>
+          <legend>Lens</legend>
+          <label>Vertical FOV °
+            <div class="slider-row">
+              <input id="fov-slider" type="range" min="1" max="160" step="1" value="45">
+              <input id="fov" type="number" min="1" max="160" step="0.1" value="45">
+            </div>
+          </label>
+        </fieldset>
+        <div id="resolved" class="mono">resolved pose pending</div>
+        <details>
+          <summary>Capture policy</summary>
+          <fieldset>
+            <div class="field-row">
+              <label>Width px<input id="cap-width" type="number" min="16" max="4096" step="1" value="1280"></label>
+              <label>Height px<input id="cap-height" type="number" min="16" max="4096" step="1" value="720"></label>
+            </div>
+            <div class="field-row">
+              <label>Max SSE px<input id="cap-sse" type="number" min="0.25" max="256" step="0.25" value="16"></label>
+              <label>Deadline s<input id="cap-deadline" type="number" min="1" max="120" step="1" value="30"></label>
+            </div>
+            <div class="field-row">
+              <label>Encoding
+                <select id="cap-encoding">
+                  <option value="jpeg" selected>jpeg</option>
+                  <option value="png">png</option>
+                </select>
+              </label>
+              <label>On deadline
+                <select id="cap-behavior">
+                  <option value="return_best_available" selected>best available</option>
+                  <option value="fail">fail</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+        </details>
+        <div class="actions">
+          <button type="button" class="primary" id="btn-create">Create view</button>
+          <button type="button" class="primary" id="btn-apply" hidden>Apply camera</button>
+          <button type="button" class="primary" id="btn-capture" disabled>Capture frame</button>
+          <button type="button" class="danger" id="btn-cancel" hidden>Cancel capture</button>
+          <button type="button" id="btn-refresh-scene" disabled>Refresh scene</button>
+          <button type="button" id="btn-copy">Copy camera JSON</button>
+          <button type="button" class="danger" id="btn-close" hidden>Close view</button>
+        </div>
+        <details id="presets-details">
+          <summary>Presets</summary>
+          <div class="preset-list" id="preset-list"></div>
+        </details>
+        <div class="error" id="camera-error"></div>
+      </aside>
+      <main id="stage">
+        <nav class="tabs" id="stage-tabs">
+          <button type="button" data-pane="scene-pane" aria-selected="true">3D scene</button>
+          <button type="button" data-pane="frame-pane" aria-selected="false">Rendered frame</button>
+        </nav>
+        <section id="scene-pane" class="pane">
+          <canvas id="gl"></canvas>
+          <div id="scene-hud">
+            <span class="chip" id="tile-chip">no scene</span>
+            <span id="scene-hint">double-click terrain to retarget · drag to orbit</span>
+          </div>
+          <div class="attribution" id="scene-attribution" hidden></div>
+        </section>
+        <section id="frame-pane" class="pane" hidden>
+          <div id="frame-wrap">
+            <span id="frame-empty">No frame captured yet.</span>
+            <img id="frame-img" alt="Rendered frame" hidden>
+            <div class="attribution" id="frame-attribution" hidden></div>
+          </div>
+          <dl id="frame-meta" hidden></dl>
+        </section>
+        <div id="diagnostics" hidden></div>
+      </main>
+    </div>
+    <div id="status"><span class="spin"></span><span id="status-text">idle</span></div>
+    <div class="error" id="action-error"></div>
+  </div>
+
+<script>/*__VEOVEO_THREE_BUNDLE__*/</script>
+<script>/*__VEOVEO_APP_BUNDLE__*/</script>
+</body>
+</html>

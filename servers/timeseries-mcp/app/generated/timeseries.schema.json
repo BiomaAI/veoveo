@@ -1,0 +1,920 @@
+{
+  "$defs": {
+    "AccessSubject": {
+      "description": "A principal or group that can own governed data or receive access.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "kind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
+    "ArtifactMetadata": {
+      "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/ArtifactId"
+        },
+        "artifact_uri": {
+          "$ref": "#/$defs/ArtifactUri"
+        },
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "compliance": {
+          "$ref": "#/$defs/ComplianceMetadata",
+          "default": {}
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "download_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filename": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "default": null
+        },
+        "mime_type": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_state": {
+          "$ref": "#/$defs/ArtifactReleaseState",
+          "default": "private"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "byte_len",
+        "artifact_uri",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "ArtifactProvenance": {
+      "description": "Immutable explanation of how an artifact came into being.",
+      "oneOf": [
+        {
+          "properties": {
+            "delegation_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NoIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "initiator": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "invocation_mode": {
+              "const": "direct",
+              "type": "string"
+            },
+            "policy_revision": {
+              "$ref": "#/$defs/PolicyVersion"
+            },
+            "producer": {
+              "$ref": "#/$defs/PrincipalId"
+            }
+          },
+          "required": [
+            "invocation_mode",
+            "producer",
+            "initiator",
+            "policy_revision"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "delegation_id": {
+              "$ref": "#/$defs/DelegationId"
+            },
+            "initiator": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "invocation_mode": {
+              "const": "delegated",
+              "type": "string"
+            },
+            "policy_revision": {
+              "$ref": "#/$defs/PolicyVersion"
+            },
+            "producer": {
+              "$ref": "#/$defs/PrincipalId"
+            }
+          },
+          "required": [
+            "invocation_mode",
+            "producer",
+            "initiator",
+            "delegation_id",
+            "policy_revision"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "delegation_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NoIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "initiator": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/NoIdentity"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "invocation_mode": {
+              "const": "automated",
+              "type": "string"
+            },
+            "policy_revision": {
+              "$ref": "#/$defs/PolicyVersion"
+            },
+            "producer": {
+              "$ref": "#/$defs/PrincipalId"
+            }
+          },
+          "required": [
+            "invocation_mode",
+            "producer",
+            "policy_revision"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactReleaseState": {
+      "enum": [
+        "private",
+        "releasable",
+        "released"
+      ],
+      "type": "string"
+    },
+    "ArtifactUri": {
+      "description": "Neutral or server-presented Artifact occurrence URI.",
+      "type": "string"
+    },
+    "ComplianceMetadata": {
+      "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+      "properties": {
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AccessSubject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retention_expires_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tenant_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TenantId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "work_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkContextId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
+    "DelegationId": {
+      "description": "Auditable identity of authority delegated by an initiator to another actor.",
+      "type": "string"
+    },
+    "DuckDbColumnName": {
+      "allOf": [
+        {
+          "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+        },
+        {
+          "pattern": "^[^\\u0000]*$"
+        }
+      ],
+      "description": "Nonblank column name without NUL, preserved verbatim and quoted as one SQL identifier.",
+      "type": "string"
+    },
+    "DuckDbFormat": {
+      "enum": [
+        "auto",
+        "csv",
+        "parquet",
+        "json",
+        "ndjson"
+      ],
+      "type": "string"
+    },
+    "DuckDbReadOptionText": {
+      "pattern": "^[^\\u0000]*$",
+      "type": "string"
+    },
+    "DuckDbReadOptionValue": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/DuckDbReadOptionText"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/DuckDbReadOptionValue"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
+    },
+    "DuckDbReadOptions": {
+      "additionalProperties": false,
+      "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+      "properties": {
+        "delimiter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbReadOptionText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extra": {
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z_]": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            }
+          },
+          "propertyNames": {
+            "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+            "not": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "header",
+                    "delim",
+                    "delimiter",
+                    "sep",
+                    "timestampformat",
+                    "timestamp_format"
+                  ]
+                },
+                {
+                  "pattern": "[^a-z0-9_]"
+                }
+              ]
+            },
+            "pattern": "^[a-z_]",
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "header": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "timestamp_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbReadOptionText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "DuckDbSourceUris": {
+      "items": {
+        "$ref": "#/$defs/HttpsUrl"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "DuckDbTabularSource": {
+      "description": "Inline and HTTPS tabular inputs; consumers own network admission and execution.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "csv": {
+              "type": "string"
+            },
+            "filename": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "inline_csv",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            }
+          },
+          "required": [
+            "kind",
+            "csv"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "kind": {
+              "const": "uri",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "uri": {
+              "$ref": "#/$defs/HttpsUrl"
+            }
+          },
+          "required": [
+            "kind",
+            "uri",
+            "format"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "kind": {
+              "const": "uris",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "uris": {
+              "$ref": "#/$defs/DuckDbSourceUris"
+            }
+          },
+          "required": [
+            "kind",
+            "uris",
+            "format"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "GroupId": {
+      "description": "Identity-provider group identifier used by gateway policy.",
+      "type": "string"
+    },
+    "HttpsUrl": {
+      "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+      "format": "uri",
+      "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
+      "type": "string"
+    },
+    "NoIdentity": false,
+    "PolicyVersion": {
+      "description": "Immutable policy version identifier emitted with decisions and audit records.",
+      "type": "string"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "TenantId": {
+      "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "TimeseriesArtifactUri": {
+      "description": "```compile_fail\nuse veoveo_timeseries_mcp::contract::TimeseriesArtifactUri;\nuse veoveo_types::TaskId;\nTimeseriesArtifactUri::new(TaskId::new());\n```",
+      "type": "string"
+    },
+    "TimeseriesFilterCombination": {
+      "enum": [
+        "all",
+        "any"
+      ],
+      "type": "string"
+    },
+    "TimeseriesFilterNumber": {
+      "format": "double",
+      "type": "number"
+    },
+    "TimeseriesFilterPredicate": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            "op": {
+              "const": "eq",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/TimeseriesFilterValue"
+            }
+          },
+          "required": [
+            "op",
+            "column",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            "op": {
+              "const": "ne",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/TimeseriesFilterValue"
+            }
+          },
+          "required": [
+            "op",
+            "column",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            "op": {
+              "const": "in",
+              "type": "string"
+            },
+            "values": {
+              "$ref": "#/$defs/TimeseriesFilterValues"
+            }
+          },
+          "required": [
+            "op",
+            "column",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "column": {
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            "op": {
+              "const": "is_not_null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "column"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TimeseriesFilterValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "$ref": "#/$defs/TimeseriesFilterNumber"
+        }
+      ]
+    },
+    "TimeseriesFilterValues": {
+      "items": {
+        "$ref": "#/$defs/TimeseriesFilterValue"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "TimeseriesForecastHorizon": {
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "TimeseriesForecastMethod": {
+      "enum": [
+        "naive_trend"
+      ],
+      "type": "string"
+    },
+    "TimeseriesForecastOutput": {
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        },
+        "forecast": {
+          "$ref": "#/$defs/TimeseriesForecastSummary"
+        },
+        "preview": {
+          "items": {
+            "$ref": "#/$defs/TimeseriesSeriesPreview"
+          },
+          "type": "array"
+        },
+        "result_uri": {
+          "$ref": "#/$defs/TimeseriesArtifactUri"
+        }
+      },
+      "required": [
+        "result_uri",
+        "forecast",
+        "preview",
+        "artifact"
+      ],
+      "type": "object"
+    },
+    "TimeseriesForecastRequest": {
+      "additionalProperties": false,
+      "description": "Forecast requests use only the implemented inline/HTTPS source profile.\n\n```compile_fail\nuse veoveo_timeseries_mcp::contract::TimeseriesTableMapping;\nTimeseriesTableMapping::new(\"value\".to_owned());\n```\n```compile_fail\nuse veoveo_timeseries_mcp::contract::{TimeseriesForecastRequest, TimeseriesForecastHorizon, TimeseriesTableMapping};\nuse veoveo_duckdb_mcp::contract::DuckDbSource;\nfn forecast(source: DuckDbSource, mapping: TimeseriesTableMapping, horizon: TimeseriesForecastHorizon) {\n    TimeseriesForecastRequest::new(source, mapping, horizon);\n}\n```\n```compile_fail\nuse veoveo_timeseries_mcp::contract::{TimeseriesForecastRequest, TimeseriesTableMapping};\nuse veoveo_duckdb_mcp::contract::DuckDbTabularSource;\nlet source = DuckDbTabularSource::InlineCsv {\n    csv: \"value\\n1\\n\".into(), filename: None, options: Default::default(),\n};\nTimeseriesForecastRequest::new(source, TimeseriesTableMapping::new(\"value\".parse().unwrap()), 0);\n```",
+      "properties": {
+        "horizon": {
+          "$ref": "#/$defs/TimeseriesForecastHorizon"
+        },
+        "mapping": {
+          "$ref": "#/$defs/TimeseriesTableMapping"
+        },
+        "method": {
+          "$ref": "#/$defs/TimeseriesForecastMethod",
+          "default": "naive_trend"
+        },
+        "source": {
+          "$ref": "#/$defs/DuckDbTabularSource"
+        },
+        "training_filter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeseriesRowFilter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "mapping",
+        "horizon"
+      ],
+      "type": "object"
+    },
+    "TimeseriesForecastSummary": {
+      "properties": {
+        "horizon": {
+          "$ref": "#/$defs/TimeseriesForecastHorizon"
+        },
+        "method": {
+          "$ref": "#/$defs/TimeseriesForecastMethod"
+        },
+        "series": {
+          "items": {
+            "$ref": "#/$defs/TimeseriesSeriesSummary"
+          },
+          "type": "array"
+        },
+        "source_rows": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "method",
+        "horizon",
+        "source_rows",
+        "series"
+      ],
+      "type": "object"
+    },
+    "TimeseriesPreviewForecastPoint": {
+      "description": "One forecast step in a bounded chart preview.",
+      "properties": {
+        "mean": {
+          "format": "double",
+          "type": "number"
+        },
+        "q10": {
+          "format": "double",
+          "type": "number"
+        },
+        "q90": {
+          "format": "double",
+          "type": "number"
+        },
+        "step": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "mean",
+        "q10",
+        "q90"
+      ],
+      "type": "object"
+    },
+    "TimeseriesPreviewObservation": {
+      "description": "One observed point in a bounded chart preview.",
+      "properties": {
+        "event_time": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "type": "object"
+    },
+    "TimeseriesRowFilter": {
+      "additionalProperties": false,
+      "properties": {
+        "combination": {
+          "$ref": "#/$defs/TimeseriesFilterCombination",
+          "default": "all"
+        },
+        "predicates": {
+          "items": {
+            "$ref": "#/$defs/TimeseriesFilterPredicate"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "predicates"
+      ],
+      "type": "object"
+    },
+    "TimeseriesSeriesPreview": {
+      "description": "Downsampled chartable series shipped in structured output so app views\ncan render without re-reading the RRD artifact.",
+      "properties": {
+        "forecast": {
+          "items": {
+            "$ref": "#/$defs/TimeseriesPreviewForecastPoint"
+          },
+          "type": "array"
+        },
+        "observed": {
+          "items": {
+            "$ref": "#/$defs/TimeseriesPreviewObservation"
+          },
+          "type": "array"
+        },
+        "series_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "series_id",
+        "observed",
+        "forecast"
+      ],
+      "type": "object"
+    },
+    "TimeseriesSeriesSummary": {
+      "properties": {
+        "forecast_rows": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "observed_rows": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "series_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "series_id",
+        "observed_rows",
+        "forecast_rows"
+      ],
+      "type": "object"
+    },
+    "TimeseriesTableMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "series_column": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "time_column": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbColumnName"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value_column": {
+          "$ref": "#/$defs/DuckDbColumnName"
+        }
+      },
+      "required": [
+        "value_column"
+      ],
+      "type": "object"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "forecast": {
+      "$ref": "#/$defs/TimeseriesForecastOutput"
+    },
+    "request": {
+      "$ref": "#/$defs/TimeseriesForecastRequest"
+    }
+  },
+  "required": [
+    "request",
+    "forecast"
+  ],
+  "title": "AppContracts",
+  "type": "object"
+}

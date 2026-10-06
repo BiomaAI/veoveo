@@ -1,3 +1,6 @@
+import {element as el,input,query} from "./dom.js";
+import {resourceJson, structuredResult, toolEnvelope, taskEnvelope} from "../../../mcp/apps-extension/browser/admission.js";
+import {admit, resourceValue, toolValue} from "./contracts.js";
 import * as maplibregl from "maplibre-gl";
 import workerSource from "embedded:maplibre-worker";
 import { createBridge } from "./bridge.js";
@@ -12,23 +15,23 @@ maplibregl.setWorkerUrl(workerUrl);
 const bridge = createBridge();
 
 const state = {
-  access: {
+  access: /** @type {import("./generated/map").AppContracts["workspace"]} */ ({
     administration: false,
     dataset_read: false,
     feature_read: false,
     feature_write: false,
     feature_publish: false,
     basemap: null,
-  },
-  layers: [],
-  publications: [],
-  compositions: [],
-  styles: new Map(),
-  sources: [],
-  datasets: [],
-  activeReleases: [],
-  acquisitions: [],
-  profiles: [],
+  }),
+  layers: /** @type {import("./generated/map").AppContracts["layers"]["items"]} */ ([]),
+  publications: /** @type {import("./generated/map").AppContracts["publications"]["items"]} */ ([]),
+  compositions: /** @type {import("./generated/map").AppContracts["compositions"]["items"]} */ ([]),
+  styles: /** @type {Map<string,import("./generated/map").AppContracts["style"]>} */ (new Map()),
+  sources: /** @type {import("./generated/map").AppContracts["sources"]["items"]} */ ([]),
+  datasets: /** @type {import("./generated/map").AppContracts["datasets"]["items"]} */ ([]),
+  activeReleases: /** @type {import("./generated/map").AppContracts["active_releases"]} */ ([]),
+  acquisitions: /** @type {import("./generated/map").AppContracts["acquisitions"]["items"]} */ ([]),
+  profiles: /** @type {import("./generated/map").AppContracts["profiles"]["items"]} */ ([]),
   entries: new Map(),
   selectedKey: null,
   selectedFeatureId: null,
@@ -67,7 +70,7 @@ const QUERY_CONCURRENCY = 4;
 const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled"]);
 const ACTIVE_ACQUISITION_STATUSES = new Set(["queued", "running", "cancel_requested"]);
 const PALETTE = ["#287e8e", "#b8683b", "#5a7d3c", "#725e9c", "#b34f68", "#3f70a5", "#99712d", "#477369"];
-const el = (id) => document.getElementById(id);
+
 
 function node(tag, text, className) {
   const value = document.createElement(tag);
@@ -87,12 +90,8 @@ function uuid() {
     (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function read(uri) {
-  const result = await bridge.request("resources/read", { uri });
-  const content = (result && result.contents || [])[0];
-  if (!content || typeof content.text !== "string") throw new Error(`No JSON returned for ${uri}`);
-  return JSON.parse(content.text);
-}
+/** @template {keyof import("./generated/map").AppContracts} K @param {string} uri @param {K} root @returns {Promise<import("./generated/map").AppContracts[K]>} */
+async function read(uri,root) {return resourceValue(uri,resourceJson(await bridge.request("resources/read",{uri}),uri),root);}
 
 function toolFailureText(result, name) {
   const content = Array.isArray(result && result.content) ? result.content : [];
@@ -101,7 +100,7 @@ function toolFailureText(result, name) {
 }
 
 async function toolRaw(name, args) {
-  const result = await bridge.request("tools/call", { name, arguments: args });
+  const result = toolEnvelope(await bridge.request("tools/call", { name, arguments: args }));
   if (result && (result.isError || result.is_error)) throw new Error(toolFailureText(result, name));
   return result;
 }
@@ -110,37 +109,40 @@ function structured(result) {
   return result && (result.structuredContent || result.structured_content) || result;
 }
 
+/** @template {keyof typeof import("./contracts.js").tools} N @param {N} name @param {Record<string,unknown>} args @returns {Promise<import("./generated/map").AppContracts[(typeof import("./contracts.js").tools)[N]]>} */
 async function tool(name, args) {
-  return structured(await toolRaw(name, args));
+  return toolValue(name,structuredResult(await toolRaw(name,args)),args);
 }
 
+/** @template {keyof typeof import("./contracts.js").tools} N @param {N} name @param {Record<string,unknown>} args @param {(status:string,message:string)=>void} [onProgress] @returns {Promise<import("./generated/map").AppContracts[(typeof import("./contracts.js").tools)[N]]>} */
 async function taskTool(name, args, onProgress = () => {}) {
   const created = await toolRaw(name, args);
-  const seed = created && (created.task || created);
-  const taskId = seed && (seed.taskId || seed.task_id);
-  if (!taskId) return structured(created);
-  const pollInterval = Math.min(Math.max(seed.pollIntervalMs || seed.poll_interval_ms || 500, 250), 5000);
+  const seed = created;
+  const taskId = seed?.taskId;
+  if (!taskId) return toolValue(name,structuredResult(created),args);
+  const pollInterval = Math.min(Math.max(seed.pollIntervalMs || 500, 250), 5000);
   let snapshot = seed;
   let status = seed.status || "working";
   while (!TERMINAL_TASK_STATUSES.has(status)) {
-    onProgress(status, seed.statusMessage || seed.status_message || "");
+    onProgress(status, seed.statusMessage || "");
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
-    snapshot = await bridge.request("tasks/get", { taskId });
+    snapshot = taskEnvelope(await bridge.request("tasks/get", { taskId }),taskId);
     status = snapshot.status || status;
     if (status === "input_required") throw new Error(`${name} requires additional input outside this workflow`);
   }
-  const statusMessage = snapshot.statusMessage || snapshot.status_message || "";
+  const statusMessage = snapshot.statusMessage || "";
   onProgress(status, statusMessage);
   if (status === "failed") throw new Error(statusMessage || `${name} task failed`);
   if (status === "cancelled") throw new Error(`${name} task was cancelled`);
   const result = snapshot.result || {};
   if (result.isError || result.is_error) throw new Error(toolFailureText(result, name));
-  return structured(result);
+  return toolValue(name,structuredResult(result),args);
 }
 
+/** @param {ParentNode} [root] */
 function applyAccessVisibility(root = document) {
-  root.querySelectorAll("[data-feature-write]").forEach((item) => { item.hidden = !state.access.feature_write; });
-  root.querySelectorAll("[data-admin]").forEach((item) => { item.hidden = !state.access.administration; });
+  root.querySelectorAll("[data-feature-write]").forEach((item) => { if(item instanceof HTMLElement)item.hidden = !state.access.feature_write; });
+  root.querySelectorAll("[data-admin]").forEach((item) => { if(item instanceof HTMLElement)item.hidden = !state.access.administration; });
 }
 
 function renderAccess() {
@@ -173,12 +175,9 @@ function allDatasetReleases() {
 
 function activeReleaseEntries() {
   if (!state.access.dataset_read) return [];
-  const releases = allDatasetReleases();
-  return state.activeReleases.flatMap((pointer) => {
-    const release = releases.find((candidate) => candidate.release_id === pointer.release_id);
-    if (!release) return [];
+  return state.activeReleases.map(({pointer,release}) => {
     const source = state.sources.find((candidate) => candidate.source_id === release.source_id);
-    return [{ pointer, release, source }];
+    return { pointer, release, source };
   });
 }
 
@@ -208,7 +207,7 @@ async function rebuildEntries() {
     const styleId = pinned?.style_revision_id || publication?.style_revision_id;
     if (styleId && (!style || style.style_revision_id !== styleId)) {
       if (!state.styles.has(styleId)) {
-        state.styles.set(styleId, await read(`map://feature-style/${styleId}`));
+        state.styles.set(styleId, await read(`map://feature-style/${styleId}`,"style"));
       }
       style = state.styles.get(styleId);
     }
@@ -396,6 +395,7 @@ function css(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/** @returns {import("maplibre-gl").StyleSpecification} */
 function fallbackStyle(theme) {
   return {
     version: 8,
@@ -740,6 +740,7 @@ function asSourceGeoFeature(match, entry) {
 
 async function queryAuthoredEntry(entry, bbox, generation) {
   const features = [];
+  const seenCursors = new Set();
   let cursor;
   do {
     const request = { layer_id: entry.layer.layer_id, bbox, limit: 1000 };
@@ -749,6 +750,8 @@ async function queryAuthoredEntry(entry, bbox, generation) {
     if (generation !== state.queryGeneration) return null;
     features.push(...(output.features || []).map((feature) => asAuthoredGeoFeature(feature, entry)));
     cursor = output.next_cursor;
+    if(cursor && seenCursors.has(cursor)) throw new Error("Feature cursor did not advance");
+    if(cursor) seenCursors.add(cursor);
   } while (cursor && features.length < MAX_AUTHORED_VIEW_FEATURES);
   entry.truncated = Boolean(cursor);
   return features;
@@ -756,6 +759,7 @@ async function queryAuthoredEntry(entry, bbox, generation) {
 
 async function querySourceEntry(entry, bbox, generation) {
   const features = [];
+  const seenCursors = new Set();
   let cursor;
   do {
     const request = {
@@ -769,6 +773,8 @@ async function querySourceEntry(entry, bbox, generation) {
     if (generation !== state.queryGeneration) return null;
     features.push(...(output.features || []).map((feature) => asSourceGeoFeature(feature, entry)));
     cursor = output.next_cursor;
+    if(cursor && seenCursors.has(cursor)) throw new Error("Feature cursor did not advance");
+    if(cursor) seenCursors.add(cursor);
   } while (cursor && features.length < MAX_SOURCE_VIEW_FEATURES);
   entry.truncated = Boolean(cursor);
   return features;
@@ -1035,7 +1041,9 @@ function mountTemplate(templateId, title) {
   state.action = templateId;
   el("inspector-title").textContent = title;
   el("close-action").hidden = false;
-  const fragment = el(templateId).content.cloneNode(true);
+  const template = el(templateId);
+  if(!(template instanceof HTMLTemplateElement))throw new Error("Invalid action template");
+  const fragment = template.content.cloneNode(true);
   const body = el("inspector-body");
   body.replaceChildren(fragment);
   applyAccessVisibility(body);
@@ -1131,8 +1139,8 @@ function addPropertyRow(key = "", value = "") {
 function propertyFormValue() {
   const properties = {};
   el("property-rows").querySelectorAll(".property-row").forEach((row) => {
-    const key = row.querySelector("[data-property-key]").value.trim();
-    const raw = row.querySelector("[data-property-value]").value.trim();
+    const key = query(row,"[data-property-key]","input").value.trim();
+    const raw = query(row,"[data-property-value]","input").value.trim();
     if (!key) return;
     try { properties[key] = JSON.parse(raw); } catch { properties[key] = raw; }
   });
@@ -1201,7 +1209,7 @@ function bindAddFeature(root, preferredId) {
 }
 
 function selectedFormLayer(selectId) {
-  const layer = state.layers.find((candidate) => candidate.layer_id === el(selectId).value);
+  const layer = state.layers.find((candidate) => candidate.layer_id === input(selectId).value);
   if (!layer) throw new Error("Choose an authored destination layer.");
   return layer;
 }
@@ -1331,7 +1339,7 @@ async function importArtifact() {
         ["semantic_type_column", "geopackage-semantic"],
         ["title_column", "geopackage-title"],
       ];
-      for (const [field, id] of mappings) if (el(id).value) source[field] = el(id).value;
+      for (const [field, id] of mappings) if (input(id).value) source[field] = input(id).value;
     }
     const request = {
       layer_id: layer.layer_id,
@@ -1378,7 +1386,7 @@ function bindAcquireSource(root, preferredId) {
 }
 
 function setCoverage(bounds) {
-  for (const field of ["west", "south", "east", "north"]) el(`bbox-${field}`).value = bounds[field].toFixed(6);
+  for (const field of ["west", "south", "east", "north"]) input(`bbox-${field}`).value = bounds[field].toFixed(6);
   el("coverage-status").textContent = formatBounds(bounds);
 }
 
@@ -1386,7 +1394,7 @@ function requestedCoverage() {
   const ranges = { west: [-180, 180], south: [-90, 90], east: [-180, 180], north: [-90, 90] };
   const coverage = {};
   for (const [field, [minimum, maximum]] of Object.entries(ranges)) {
-    const value = Number(el(`bbox-${field}`).value);
+    const value = Number(input(`bbox-${field}`).value);
     if (!Number.isFinite(value) || value < minimum || value > maximum) throw new Error(`${field} must be between ${minimum} and ${maximum}.`);
     coverage[field] = value;
   }
@@ -1484,7 +1492,7 @@ function bindManageData(root) {
   for (const job of state.acquisitions) {
     const record = node("div", undefined, "record");
     const head = node("div", undefined, "record-head");
-    head.append(node("strong", job.acquisition_id), node("span", job.status, `chip ${job.status === "completed" ? "good" : ""}`));
+    head.append(node("strong", job.acquisition_id), node("span", job.status, `chip ${job.status === "succeeded" ? "good" : ""}`));
     record.append(head, node("div", job.progress?.phase || "", "mono"));
     if (ACTIVE_ACQUISITION_STATUSES.has(job.status) && job.status !== "cancel_requested") {
       const actions = node("div", undefined, "actions");
@@ -1510,11 +1518,11 @@ function bindManageData(root) {
     const head = node("div", undefined, "record-head");
     head.append(node("strong", release.version_label || release.release_id), node("span", release.state, `chip ${release.state === "active" ? "good" : ""}`));
     record.append(head, node("div", release.release_id, "mono"), node("div", formatBounds(release.coverage), "mono"));
-    const pointer = state.activeReleases.find((candidate) => candidate.dataset_id === release.dataset_id);
+    const pointer = state.activeReleases.find((candidate) => candidate.pointer.dataset_id === release.dataset_id);
     const request = {
       release_id: release.release_id,
       expected_record_version: release.record_version,
-      expected_active_pointer_version: pointer ? pointer.record_version : 0,
+      expected_active_pointer_version: pointer ? pointer.pointer.record_version : 0,
     };
     const actions = node("div", undefined, "actions");
     const addAction = (label, name) => {
@@ -1861,7 +1869,7 @@ async function start() {
     });
     bridge.notify("ui/notifications/initialized", {});
     applyHostContext(initialized && initialized.hostContext);
-    state.access = await read("map://workspace");
+    state.access = await read("map://workspace","workspace");
     renderAccess();
     // Register before the snapshot so updates during startup cannot be lost.
     await subscribeResources();

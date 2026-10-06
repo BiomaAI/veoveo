@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "strict": false
+  },
+  "include": [
+    "contracts.js",
+    "generated/*.ts",
+    "main.js",
+    "globals.d.ts"
+  ]
+}

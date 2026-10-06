@@ -7,6 +7,7 @@
 
 mod admission;
 mod asset;
+pub mod browser_schema;
 mod client;
 mod models;
 mod server;

@@ -237,3 +237,6 @@ mod strict_runner_product_tests {
         }
     }
 }
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;

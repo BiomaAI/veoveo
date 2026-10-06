@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 
+const tasks = JSON.parse(await readFile(new URL('../../../../mcp/apps-extension/testdata/final-tasks.json', import.meta.url), 'utf8'));
 const template = await readFile(new URL('../../../../mcp/apps-extension/src/workbench.html', import.meta.url), 'utf8');
 const taskId = index => `0195dabe-7777-7abc-8def-${index.toString(16).padStart(12, '0')}`;
 const cases = [
@@ -35,7 +36,7 @@ for (const fixture of cases) {
   const config = {
     appId: `${fixture.domain}-pagination-test`, title: fixture.title, subtitle: 'Fixture', emptyMessage: 'No resources',
     resources: [{label: fixture.label, uri: fixture.collection}, {label: fixture.otherLabel, uri: fixture.other}],
-    tools: [], streamResult: null,
+    tools: fixture.domain === "duckdb-databases" ? [{label:"Task fixture",name:"fixture_task",argumentsJson:"{}"}] : [], streamResult: null,
   };
   const nextPage = new URL(fixture.collection);
   nextPage.searchParams.set('cursor', fixture.cursor);
@@ -46,11 +47,14 @@ for (const fixture of cases) {
       const page = await browser.newPage();
       page.setDefaultTimeout(10000);
       const reads = [];
+      let taskFailure = null;
       let hold = false, release, arrived;
       const pending = new Promise(resolve => {arrived = resolve;});
       await page.exposeFunction('workbenchFixture', async request => {
         if (request.method === 'ui/initialize') return {hostContext: {theme: 'dark'}};
         if (request.method === 'subscriptions/listen') return {};
+        if (request.method === 'tools/call') return taskFailure === 'invalidSeed' ? {...tasks.seed,status:'invented'} : taskFailure === 'toolError' ? {content:[{type:'text',text:'fixture tool failed'}],isError:true,structuredContent:{input:{malicious:true}}} : tasks.seed;
+        if (request.method === 'tasks/get') return taskFailure === 'wrongTask' ? {...tasks.complete,taskId:'another-task'} : tasks.complete;
         assert.equal(request.method, 'resources/read');
         const uri = request.params.uri;
         reads.push(uri);
@@ -67,7 +71,7 @@ for (const fixture of cases) {
       });
       await page.addInitScript(() => {
         window.addEventListener('message', async ({data}) => {
-          if (!['ui/initialize', 'subscriptions/listen', 'resources/read'].includes(data?.method) || data.id === undefined) return;
+          if (!['ui/initialize', 'subscriptions/listen', 'resources/read', 'tools/call', 'tasks/get'].includes(data?.method) || data.id === undefined) return;
           try {window.postMessage({jsonrpc: '2.0', id: data.id, result: await window.workbenchFixture(data)}, '*');}
           catch (error) {window.postMessage({jsonrpc: '2.0', id: data.id, error: {message: error.message}}, '*');}
         });
@@ -76,6 +80,23 @@ for (const fixture of cases) {
       await page.goto(`http://${fixture.domain}.test/`);
       await page.waitForFunction(() => !document.querySelector('#pager').hidden && document.querySelector('#page-next').disabled === false && document.querySelector('#status').textContent === 'ready');
       assert.deepEqual(reads, [fixture.collection], 'later pages are not prefetched');
+      const retained = await page.locator('#payload').textContent();
+      await page.evaluate(() => window.dispatchEvent(new MessageEvent('message', {source:null, data:{jsonrpc:'2.0', method:'ui/notifications/tool-result', params:{content:[],structuredContent:{foreign:true}}}})));
+      assert.equal(await page.locator('#payload').textContent(), retained, 'foreign source cannot mutate cache');
+      if (fixture.domain === 'duckdb-databases') {
+        await page.getByRole('button', {name:'Run',exact:true}).click();
+        await page.waitForFunction(() => document.querySelector('.tool-output').textContent.includes('provider'));
+        assert.match(await page.locator('.tool-output').textContent(), /provider/);
+        const before = await page.locator('#payload').textContent();
+        for (const failure of ['invalidSeed','wrongTask','toolError']) {
+          taskFailure = failure;
+          const beforeReads = reads.length;
+          await page.getByRole('button', {name:'Run',exact:true}).click();
+          await page.waitForFunction(() => document.querySelector('#status').textContent === 'action failed');
+          assert.equal(await page.locator('#payload').textContent(), before, failure);
+          assert.equal(reads.length, beforeReads, 'failure must not refresh');
+        }
+      }
       assert.equal(await page.locator('#page-previous').isDisabled(), true);
       await page.getByRole('button', {name: 'Next', exact: true}).click();
       await page.waitForFunction(() => document.querySelector('#page-previous').disabled === false);

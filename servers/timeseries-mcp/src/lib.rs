@@ -64,7 +64,8 @@ mod forecast_app_tests {
         assert!(FORECAST_APP_HTML.contains("ui/initialize"));
         assert!(FORECAST_APP_HTML.contains("tools/call"));
         assert!(
-            FORECAST_APP_HTML.contains("applyHostContext(initialized && initialized.hostContext)")
+            include_str!("../app/main.js")
+                .contains("applyHostContext(initialized && initialized.hostContext)")
         );
     }
 }

@@ -37,6 +37,7 @@ export function createBridge(host = window, timeoutMs = 15000) {
   };
   host.addEventListener("message", receive);
   return {
+    /** @param {string} method @param {unknown} params @param {{onError?:(error:unknown)=>boolean|void}} [options] */
     request(method, params, { onError } = {}) {
       if (closed) return Promise.reject(new Error("The map connection has closed."));
       return new Promise((resolve, reject) => {

@@ -1,0 +1,23 @@
+{
+  "result_uri": "timeseries://artifact/00000000-0000-7000-8000-000000000001",
+  "forecast": {
+    "method": "naive_trend",
+    "horizon": 1,
+    "source_rows": 0,
+    "series": []
+  },
+  "preview": [],
+  "artifact": {
+    "artifact_id": "00000000-0000-7000-8000-000000000001",
+    "byte_len": 0,
+    "mime_type": null,
+    "filename": null,
+    "artifact_uri": "artifact://00000000-0000-7000-8000-000000000001",
+    "created_at": "2026-10-05T00:00:00Z",
+    "release_state": "private",
+    "compliance": {},
+    "metadata": {
+      "extension": null
+    }
+  }
+}

@@ -481,3 +481,24 @@ mod tests {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LayerSummary {
+    pub layer_id: LayerId,
+    pub label: String,
+    pub source_kind: LayerSourceKind,
+}
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, veoveo_types::Vocabulary)]
+pub enum LayerSourceKind {
+    #[vocabulary(rename = "google_photorealistic")]
+    GooglePhotorealistic,
+    #[vocabulary(rename = "https_tileset")]
+    HttpsTileset,
+    #[vocabulary(rename = "local_tileset")]
+    LocalTileset,
+}

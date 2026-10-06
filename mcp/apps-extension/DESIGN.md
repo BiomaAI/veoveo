@@ -23,6 +23,9 @@ Implemented in this workspace.
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
 | WHATWG URL | The Workbench uses the browser URL and URLSearchParams APIs to encode opaque continuation cursors under configured resource roots. |
 
+The browser MCP SDK packages use exact stable version `2.3.1`, verified against the
+[official release](https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/v2.3.1).
+
 ## The rule
 
 A domain server's entire operational surface crosses exactly one protocol
@@ -319,3 +322,33 @@ operation journal and rechecks admission during dispatch and App recovery.
 subscription bridge. Each host supplies fixed browser routes and authenticated
 transport functions. Workspace's client design declares its supported subset of
 Console extensions rather than implying full Console host parity.
+
+## Browser Validation And Asset Builds
+
+`browser/admission.js` admits official tool, Task and resource envelopes using the
+pinned MCP core schemas. Its owner-schema parser uses the maintained CfWorker
+validator without dynamic code generation. Each purpose-built App supplies its
+own generated bundle and selects roots beside its tool and resource consumers.
+Only the tooling composition enumerates these bundles; another server can reuse
+the browser parser without changing this crate.
+
+`browser/build.mjs` bundles scripts and validators into local HTML. It rejects
+remote executable asset references and documents larger than 2 MiB. Map retains
+its MapLibre worker build and image asset context. Stream retains its separate
+image asset context. Browser queue state and provider payloads do not enter the
+shared schema vocabulary.
+
+The Workbench admits its generated configuration and official protocol envelopes.
+Generic tool output and resource bodies stay open. Its existing named Recording
+projection adapter validates the actual Recording contract handle before requesting
+a transfer. Pagination keeps the selected resource root, opaque cursor and response
+generation together; an invalid response does not replace the retained value.
+
+The shared browser Task adapter generates seed and detail schemas from the pinned Rust
+SDK's final flat Task declarations. Its schema adapter preserves the SDK's custom
+status-to-payload decoder checks. Synchronous tool and resource envelopes use the
+maintained browser SDK admission. Workbench configuration and Recording projection
+requests use generated owner declarations; the Recording adapter checks request
+identity, timeline, sample grid, units, frame references and limits before requesting
+a stream. It verifies the admitted byte length and payload SHA-256 before presenting
+stream integrity. Message listeners accept only their parent window.

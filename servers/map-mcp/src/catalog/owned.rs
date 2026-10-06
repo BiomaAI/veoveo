@@ -17,12 +17,7 @@ use crate::{
 
 pub const PAGE_SIZE: usize = 100;
 
-#[derive(Debug, Serialize)]
-pub struct OwnedPage<T> {
-    pub items: Vec<T>,
-    pub limit: usize,
-    pub next_cursor: Option<String>,
-}
+pub use crate::contract::OwnedPage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

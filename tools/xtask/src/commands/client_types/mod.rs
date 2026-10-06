@@ -11,6 +11,41 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
     let web = repository.root().join("apps/console/web");
     let schemas = [
         (
+            "tasks",
+            "mcp/apps-extension/browser/generated",
+            veoveo_mcp_apps_extension::browser_schema::task_schema_bundle(),
+        ),
+        (
+            "workbench",
+            "mcp/apps-extension/browser/generated",
+            serde_json::to_value(schemars::schema_for!(WorkbenchContracts))?,
+        ),
+        (
+            "view",
+            "servers/view-mcp/app/generated",
+            serde_json::to_value(veoveo_view_mcp::contract::app_schema::schema_bundle())?,
+        ),
+        (
+            "stream",
+            "servers/stream-mcp/app/generated",
+            serde_json::to_value(veoveo_stream_mcp::contract::app_schema::schema_bundle())?,
+        ),
+        (
+            "timeseries",
+            "servers/timeseries-mcp/app/generated",
+            serde_json::to_value(veoveo_timeseries_mcp::contract::app_schema::schema_bundle())?,
+        ),
+        (
+            "uav-sim",
+            "servers/uav-sim-mcp/app/generated",
+            serde_json::to_value(veoveo_uav_sim_mcp::contract::app_schema::schema_bundle())?,
+        ),
+        (
+            "map",
+            "servers/map-mcp/app/generated",
+            serde_json::to_value(veoveo_map_mcp::contract::app_schema::schema_bundle())?,
+        ),
+        (
             "app-catalog",
             "apps/console/web/src/generated",
             serde_json::to_value(veoveo_console_bff::contract::apps::schema_bundle())?,
@@ -125,4 +160,12 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         if check { "verified" } else { "generated" }
     );
     Ok(())
+}
+
+#[derive(schemars::JsonSchema)]
+#[allow(dead_code)]
+struct WorkbenchContracts {
+    config: veoveo_mcp_apps_extension::WorkbenchApp<'static>,
+    projection: veoveo_recording_contract::RecordingProjectionHandle,
+    projection_request: veoveo_recording_contract::CreateRecordingProjectionRequest,
 }

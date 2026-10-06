@@ -67,26 +67,23 @@ mod tests {
     #[test]
     fn preview_app_speaks_the_bridge_protocol() {
         let html = preview_app_html();
-        for needle in [
-            "ui/initialize",
-            "tools/call",
-            "resources/read",
-            "tasks/get",
-            "applyHostContext(initialized && initialized.hostContext)",
-        ] {
+        for needle in ["ui/initialize", "tools/call", "resources/read", "tasks/get"] {
             assert!(html.contains(needle), "app must contain {needle}");
         }
     }
 
     #[test]
     fn preview_app_uses_host_tool_identity_and_initial_result() {
-        let html = preview_app_html();
+        let html = include_str!("../app/main.js");
         for needle in [
+            "applyHostContext(initialized && initialized.hostContext)",
             "hostContext.toolInfo.tool.name",
             "projectedToolName(name)",
             "ui/notifications/tool-input",
             "ui/notifications/tool-result",
-            "result.structuredContent",
+            "app.pendingToolResult = toolEnvelope(params?.result || params)",
+            "const record = structuredResult(result)",
+            "void applyInitialToolResult(result)",
         ] {
             assert!(html.contains(needle), "app must contain {needle}");
         }
@@ -131,9 +128,9 @@ mod tests {
 
     #[test]
     fn preview_app_hydrates_and_reuses_initial_compositions() {
-        let html = preview_app_html();
+        let html = include_str!("../app/main.js");
         for needle in [
-            "app.composition = record",
+            "app.composition = admit(\"composition\", record)",
             "composition ready",
             "app.composition.base_layer === selectedLayer",
         ] {
@@ -143,7 +140,7 @@ mod tests {
 
     #[test]
     fn preview_app_keeps_orientation_without_a_reference_grid() {
-        let html = preview_app_html();
+        let html = include_str!("../app/main.js");
         assert!(!html.contains("THREE.GridHelper"));
         assert!(
             html.contains("this.compass.position.set(localPoint[0], localPoint[1], localPoint[2])")
