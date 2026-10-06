@@ -1,0 +1,208 @@
+[
+  {
+    "branch": "RecordingProjectionSampling.range",
+    "tool": "create_recording_projection",
+    "arguments": {
+      "dataset_id": "01983da0-0000-7000-8000-000000000000",
+      "recording_id": "01983da0-0000-7000-8000-000000000000",
+      "entity_paths": [
+        "/camera/front"
+      ],
+      "component_ids": [
+        "rerun.components.ImageFormat"
+      ],
+      "timeline": "sensor_time",
+      "sampling": {
+        "kind": "range",
+        "start": 1,
+        "end": 3
+      },
+      "sparse_fill": "none",
+      "maximum_entities": 1,
+      "maximum_columns": 1,
+      "maximum_samples": 4,
+      "maximum_rows": 4,
+      "maximum_bytes": 1024,
+      "deadline_ms": 1000,
+      "idempotency_key": "input-fixture",
+      "units": {},
+      "coordinate_frame_refs": []
+    },
+    "tag": "/sampling/kind",
+    "required": [
+      "/timeline",
+      "/dataset_id",
+      "/entity_paths",
+      "/sampling/start",
+      "/sampling/end"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "object_errors": {
+      "/units": "invalid type"
+    }
+  },
+  {
+    "branch": "RecordingProjectionSampling.latest_at",
+    "tool": "create_recording_projection",
+    "arguments": {
+      "dataset_id": "01983da0-0000-7000-8000-000000000000",
+      "recording_id": "01983da0-0000-7000-8000-000000000000",
+      "entity_paths": [
+        "/camera/front"
+      ],
+      "component_ids": [
+        "rerun.components.ImageFormat"
+      ],
+      "timeline": "sensor_time",
+      "sampling": {
+        "kind": "latest_at",
+        "at": 1
+      },
+      "sparse_fill": "none",
+      "maximum_entities": 1,
+      "maximum_columns": 1,
+      "maximum_samples": 4,
+      "maximum_rows": 4,
+      "maximum_bytes": 1024,
+      "deadline_ms": 1000,
+      "idempotency_key": "input-fixture",
+      "units": {},
+      "coordinate_frame_refs": []
+    },
+    "tag": "/sampling/kind",
+    "required": [
+      "/timeline",
+      "/dataset_id",
+      "/entity_paths",
+      "/sampling/at"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "object_errors": {
+      "/units": "invalid type"
+    }
+  },
+  {
+    "branch": "RecordingProjectionSampling.sample_grid",
+    "tool": "create_recording_projection",
+    "arguments": {
+      "dataset_id": "01983da0-0000-7000-8000-000000000000",
+      "recording_id": "01983da0-0000-7000-8000-000000000000",
+      "entity_paths": [
+        "/camera/front"
+      ],
+      "component_ids": [
+        "rerun.components.ImageFormat"
+      ],
+      "timeline": "sensor_time",
+      "sampling": {
+        "kind": "sample_grid",
+        "values": [
+          1,
+          2
+        ]
+      },
+      "sparse_fill": "none",
+      "maximum_entities": 1,
+      "maximum_columns": 1,
+      "maximum_samples": 4,
+      "maximum_rows": 4,
+      "maximum_bytes": 1024,
+      "deadline_ms": 1000,
+      "idempotency_key": "input-fixture",
+      "units": {},
+      "coordinate_frame_refs": []
+    },
+    "tag": "/sampling/kind",
+    "required": [
+      "/timeline",
+      "/dataset_id",
+      "/entity_paths",
+      "/sampling/values"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "object_errors": {
+      "/units": "invalid type"
+    }
+  },
+  {
+    "branch": "RecordingProjectionSparseFill.none",
+    "tool": "create_recording_projection",
+    "arguments": {
+      "dataset_id": "01983da0-0000-7000-8000-000000000000",
+      "recording_id": "01983da0-0000-7000-8000-000000000000",
+      "entity_paths": [
+        "/camera/front"
+      ],
+      "component_ids": [
+        "rerun.components.ImageFormat"
+      ],
+      "timeline": "sensor_time",
+      "sampling": {
+        "kind": "range",
+        "start": 1,
+        "end": 3
+      },
+      "sparse_fill": "none",
+      "maximum_entities": 1,
+      "maximum_columns": 1,
+      "maximum_samples": 4,
+      "maximum_rows": 4,
+      "maximum_bytes": 1024,
+      "deadline_ms": 1000,
+      "idempotency_key": "input-fixture",
+      "units": {},
+      "coordinate_frame_refs": []
+    },
+    "tag": "/sparse_fill",
+    "required": [
+      "/recording_id"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "object_errors": {
+      "/units": "invalid type"
+    }
+  },
+  {
+    "branch": "RecordingProjectionSparseFill.latest_at_global",
+    "tool": "create_recording_projection",
+    "arguments": {
+      "dataset_id": "01983da0-0000-7000-8000-000000000000",
+      "recording_id": "01983da0-0000-7000-8000-000000000000",
+      "entity_paths": [
+        "/camera/front"
+      ],
+      "component_ids": [
+        "rerun.components.ImageFormat"
+      ],
+      "timeline": "sensor_time",
+      "sampling": {
+        "kind": "range",
+        "start": 1,
+        "end": 3
+      },
+      "sparse_fill": "latest_at_global",
+      "maximum_entities": 1,
+      "maximum_columns": 1,
+      "maximum_samples": 4,
+      "maximum_rows": 4,
+      "maximum_bytes": 1024,
+      "deadline_ms": 1000,
+      "idempotency_key": "input-fixture",
+      "units": {},
+      "coordinate_frame_refs": []
+    },
+    "tag": "/sparse_fill",
+    "required": [
+      "/recording_id"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "object_errors": {
+      "/units": "invalid type"
+    }
+  }
+]

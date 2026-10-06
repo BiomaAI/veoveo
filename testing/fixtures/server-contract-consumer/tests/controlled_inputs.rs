@@ -18,6 +18,14 @@ fn qualify<T: JsonSchema + DeserializeOwned + Serialize>(case: &ToolInputCase) {
         case.branch,
         validator.iter_errors(&case.arguments).collect::<Vec<_>>()
     );
+    for (pointer, value) in case.omitted_values() {
+        assert!(
+            validator.is_valid(&value),
+            "{} schema rejected optional omission {pointer}",
+            case.branch
+        );
+        let _: T = serde_json::from_slice(&serde_json::to_vec(&value).unwrap()).unwrap();
+    }
     for value in case.open_values() {
         assert!(
             validator.is_valid(&value),

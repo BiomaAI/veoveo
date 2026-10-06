@@ -53,15 +53,28 @@ and time objects, tagged Map variants and opaque Media provider input. These tes
 exercise owner contracts without importing RMCP. They do not establish the response
 envelope of a running server; hosted owner tests qualify that behavior.
 
-`tests/controlled_inputs.rs` qualifies 52 named branches across Computers file
-transfers, Map travel-time, spatial-query, raster, mobility and feature mutations,
-Optimization model sources, and View overlay inputs. The checked-in owner fixture
-sets are also consumed by their authenticated hosted tests through the pure
-[tool input fixture helper](../tool_inputs.rs). Each fixture label must match its
-tag, each declared default is absent before byte decoding, and the expected branch
-set rejects omissions or repeated cases. Every controlled object in these values
-receives an undeclared field. Unknown tags and missing required fields must fail
-both the published schema and the real serialized-byte decoder. Declared open
-feature properties accept arbitrary nested extensions in both paths. The matrix
-qualifies these branches without claiming every reachable server variant, service
-execution, installed authority or GPU behavior.
+`tests/controlled_inputs.rs` declares 447 cases in 112 owner-qualified families
+across all sixteen Rust servers. Its finite branch inventory covers controlled
+request variants, nested frame trees, calendar and camera inputs, sampling policies,
+scalar vocabularies, untagged filter and CQL values, and typed reader-option maps.
+The checked-in owner fixture sets also feed each server's existing authenticated
+hosted tests through the pure [tool input fixture helper](../tool_inputs.rs).
+
+Tagged labels must agree with their wire discriminants. Untagged cases assert decoded
+owner values; Timeseries numeric alternatives and CQL alternatives also assert their
+decoded enum variants. Declared defaults must be absent before serialized-byte
+admission. The explicit expected sets reject missing or repeated branches.
+Controlled objects receive an undeclared key, including objects inside arrays.
+Unknown tags, missing required fields and declared invalid shapes must fail both the
+published schema and the serialized-byte decoder. Untagged decoder diagnostics use
+an explicit error profile when Serde cannot identify the rejected nested field.
+Typed dictionaries admit their declared value types. Media provider input, Map feature
+properties and schema payloads accept arbitrary extensions through their open maps.
+
+Hosted owner tests submit the same malformed values and require a completed MCP
+response with `isError: true` before domain effects. The source inventory defines
+which cases the harnesses exercise; native execution establishes whether those
+checks pass. Neither the inventory nor these isolated admission checks establishes
+installed authority, provider execution or GPU behavior. URI-dispatch enums retain
+their scalar wire shape and use their owning address-admission suites. Response,
+administration-only and internal error vocabularies are outside this input matrix.

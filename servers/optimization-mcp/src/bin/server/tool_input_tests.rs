@@ -83,7 +83,7 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
         let cases = input_fixture::ToolInputCase::load(include_bytes!(
             "../../../testdata/controlled-inputs.json"
         ));
-        assert_eq!(cases.len(), 12);
+        assert_eq!(cases.len(), 34);
         for case in cases {
             match case.tool.as_str() {
                 "solve_convex" => {

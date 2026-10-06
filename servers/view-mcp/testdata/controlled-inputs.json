@@ -480,5 +480,181 @@
       "/overlays/0/visibility/visible": true
     },
     "open_objects": []
+  },
+  {
+    "branch": "CameraDefinition.pose",
+    "tool": "set_camera",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "camera": {
+        "kind": "pose",
+        "position": {
+          "longitude_degrees": 0,
+          "latitude_degrees": 0,
+          "ellipsoidal_height_meters": 100
+        },
+        "orientation": {
+          "heading_degrees": 0,
+          "pitch_degrees": -45,
+          "roll_degrees": 0
+        },
+        "vertical_fov_degrees": 60
+      }
+    },
+    "tag": "/camera/kind",
+    "required": [
+      "/view_id",
+      "/expected_revision",
+      "/camera/position"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "CameraDefinition.look_at",
+    "tool": "set_camera",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "camera": {
+        "kind": "look_at",
+        "eye": {
+          "longitude_degrees": 0,
+          "latitude_degrees": 0,
+          "ellipsoidal_height_meters": 100
+        },
+        "target": {
+          "longitude_degrees": 0,
+          "latitude_degrees": 0,
+          "ellipsoidal_height_meters": 0
+        },
+        "vertical_fov_degrees": 60
+      }
+    },
+    "tag": "/camera/kind",
+    "required": [
+      "/view_id",
+      "/expected_revision",
+      "/camera/eye"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "CameraDefinition.orbit_target",
+    "tool": "set_camera",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "camera": {
+        "kind": "orbit_target",
+        "target": {
+          "longitude_degrees": 0,
+          "latitude_degrees": 0,
+          "ellipsoidal_height_meters": 100
+        },
+        "distance_meters": 100,
+        "azimuth_degrees": 0,
+        "elevation_degrees": 45,
+        "vertical_fov_degrees": 60
+      }
+    },
+    "tag": "/camera/kind",
+    "required": [
+      "/view_id",
+      "/expected_revision",
+      "/camera/target"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DeadlineBehavior.return_best_available",
+    "tool": "capture_frame",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "scene_time": "2026-01-01T00:00:00Z",
+      "policy": {
+        "width_px": 64,
+        "height_px": 64,
+        "max_screen_error_px": 2,
+        "deadline_ms": 1000,
+        "deadline_behavior": "return_best_available"
+      }
+    },
+    "tag": "/policy/deadline_behavior",
+    "required": [
+      "/policy/width_px"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DeadlineBehavior.fail",
+    "tool": "capture_frame",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "scene_time": "2026-01-01T00:00:00Z",
+      "policy": {
+        "width_px": 64,
+        "height_px": 64,
+        "max_screen_error_px": 2,
+        "deadline_ms": 1000,
+        "deadline_behavior": "fail"
+      }
+    },
+    "tag": "/policy/deadline_behavior",
+    "required": [
+      "/policy/width_px"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameEncoding.png",
+    "tool": "capture_frame",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "scene_time": "2026-01-01T00:00:00Z",
+      "policy": {
+        "width_px": 64,
+        "height_px": 64,
+        "max_screen_error_px": 2,
+        "deadline_ms": 1000,
+        "encoding": "png"
+      }
+    },
+    "tag": "/policy/encoding",
+    "required": [
+      "/policy/deadline_ms"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameEncoding.jpeg",
+    "tool": "capture_frame",
+    "arguments": {
+      "view_id": "view-fixture",
+      "expected_revision": 1,
+      "scene_time": "2026-01-01T00:00:00Z",
+      "policy": {
+        "width_px": 64,
+        "height_px": 64,
+        "max_screen_error_px": 2,
+        "deadline_ms": 1000,
+        "encoding": "jpeg"
+      }
+    },
+    "tag": "/policy/encoding",
+    "required": [
+      "/policy/deadline_ms"
+    ],
+    "defaults": {},
+    "open_objects": []
   }
 ]

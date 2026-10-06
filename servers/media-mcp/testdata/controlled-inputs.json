@@ -1,0 +1,19 @@
+[
+  {
+    "branch": "RunArgs.object",
+    "tool": "run",
+    "arguments": {
+      "model": "fixture/image",
+      "input": {}
+    },
+    "tag": null,
+    "required": [
+      "/model",
+      "/input"
+    ],
+    "defaults": {},
+    "open_objects": [
+      "/input"
+    ]
+  }
+]

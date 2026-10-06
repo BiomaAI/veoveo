@@ -1,4 +1,6 @@
 //! Hosted argument admission only; no provider, renderer or solver executes.
+#[path = "../../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 use super::*;
 use crate::store_fixture as fixture;
 use serde_json::json;
@@ -37,6 +39,24 @@ async fn unknown_tool_arguments_return_completed_error_before_domain_effects() {
   let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
   assert_eq!(result.is_error,Some(true));
   assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        let cases = input_fixture::ToolInputCase::load(include_bytes!("../../../testdata/controlled-inputs.json"));
+        assert_eq!(cases.len(), 26);
+        for case in cases {
+            match case.tool.as_str() {
+                "ingest" => { let _: veoveo_duckdb_mcp::contract::DuckDbIngestRequest = case.decode(); },
+                "query" => { let _: veoveo_duckdb_mcp::contract::DuckDbQueryRequest = case.decode(); },
+                "export" => { let _: veoveo_duckdb_mcp::contract::DuckDbExportRequest = case.decode(); },
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case.unknown_fields().into_iter().chain(case.invalid_values()) {
+                let body = gateway.rpc("tools/call", json!({"name":case.tool,"arguments":arguments})).await;
+                assert!(body.get("error").is_none(), "{} {location}: {body}", case.branch);
+                assert_eq!(body["result"]["resultType"], "complete", "{} {location}: {body}", case.branch);
+                let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(result.is_error, Some(true), "{} {location}: {body}", case.branch);
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
   assert!(state.tasks.list().await.unwrap().is_empty());
   assert!(std::fs::read_dir(root.path()).unwrap().next().is_none(), "tool must not create files");
  }).await.expect("hosted argument admission exceeded 120 seconds");

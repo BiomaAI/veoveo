@@ -1,0 +1,177 @@
+[
+  {
+    "branch": "ReasoningTask.describe_segment",
+    "tool": "analyze_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "task": {
+        "kind": "describe_segment"
+      }
+    },
+    "tag": "/task/kind",
+    "required": [
+      "/video/entity_path",
+      "/video/range/start",
+      "/pipeline_id"
+    ],
+    "defaults": {
+      "/sampling/max_frames": 32,
+      "/decode": {
+        "mode": "greedy"
+      },
+      "/include_source_clip": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "ReasoningTask.detect_events",
+    "tool": "analyze_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "task": {
+        "kind": "detect_events",
+        "prompt": "detect traffic"
+      }
+    },
+    "tag": "/task/kind",
+    "required": [
+      "/video/entity_path",
+      "/video/range/start",
+      "/pipeline_id",
+      "/task/prompt"
+    ],
+    "defaults": {
+      "/sampling/max_frames": 32,
+      "/decode": {
+        "mode": "greedy"
+      },
+      "/include_source_clip": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "ReasoningTask.answer_question",
+    "tool": "analyze_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "task": {
+        "kind": "answer_question",
+        "question": "what happened?"
+      }
+    },
+    "tag": "/task/kind",
+    "required": [
+      "/video/entity_path",
+      "/video/range/start",
+      "/pipeline_id",
+      "/task/question"
+    ],
+    "defaults": {
+      "/sampling/max_frames": 32,
+      "/decode": {
+        "mode": "greedy"
+      },
+      "/include_source_clip": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "DecodePolicy.greedy",
+    "tool": "analyze_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "task": {
+        "kind": "describe_segment"
+      },
+      "decode": {
+        "mode": "greedy"
+      },
+      "sampling": {
+        "max_frames": 4
+      }
+    },
+    "tag": "/decode/mode",
+    "required": [
+      "/video",
+      "/pipeline_id",
+      "/sampling/max_frames"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DecodePolicy.sampled",
+    "tool": "analyze_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "task": {
+        "kind": "describe_segment"
+      },
+      "decode": {
+        "mode": "sampled",
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "seed": 1
+      },
+      "sampling": {
+        "max_frames": 4
+      }
+    },
+    "tag": "/decode/mode",
+    "required": [
+      "/video",
+      "/pipeline_id",
+      "/sampling/max_frames",
+      "/decode/temperature",
+      "/decode/top_p",
+      "/decode/seed"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

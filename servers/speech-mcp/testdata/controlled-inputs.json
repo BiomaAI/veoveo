@@ -1,0 +1,30 @@
+[
+  {
+    "branch": "TranscribeRequest.object",
+    "tool": "transcribe",
+    "arguments": {
+      "artifact_uri": "artifact://01983da0-0000-7000-8000-000000000000"
+    },
+    "tag": null,
+    "required": [
+      "/artifact_uri"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "StartDictation.object",
+    "tool": "start_dictation",
+    "arguments": {
+      "id": "01983da0-0000-7000-8000-000000000000",
+      "sample_rate": 16000
+    },
+    "tag": null,
+    "required": [
+      "/id",
+      "/sample_rate"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

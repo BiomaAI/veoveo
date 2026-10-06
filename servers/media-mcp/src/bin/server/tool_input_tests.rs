@@ -1,4 +1,6 @@
 //! Hosted protocol and callback admission with isolated Store and loopback billing fixtures.
+#[path = "../../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 use super::*;
 use std::time::Duration;
 use veoveo_mcp_contract::hosting::testing::{self, TestGateway};
@@ -81,6 +83,49 @@ async fn unknown_tool_arguments_complete_without_provider_dispatch() {
                 .unwrap()
                 .contains("undeclared")
         );
+        let cases = input_fixture::ToolInputCase::load(include_bytes!(
+            "../../../testdata/controlled-inputs.json"
+        ));
+        assert_eq!(cases.len(), 1);
+        for case in cases {
+            match case.tool.as_str() {
+                "run" => {
+                    let _: veoveo_media_mcp::contract::RunArgs = case.decode();
+                }
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case
+                .unknown_fields()
+                .into_iter()
+                .chain(case.invalid_values())
+            {
+                let body = gateway
+                    .rpc(
+                        "tools/call",
+                        json!({"name":case.tool,"arguments":arguments}),
+                    )
+                    .await;
+                assert!(
+                    body.get("error").is_none(),
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                assert_eq!(
+                    body["result"]["resultType"], "complete",
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                let result: rmcp::model::CallToolResult =
+                    serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(
+                    result.is_error,
+                    Some(true),
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
         assert!(state.tasks.list().await.unwrap().is_empty());
         assert!(state.registry.read().await.is_none());
     })

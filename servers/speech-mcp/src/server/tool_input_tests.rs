@@ -1,5 +1,7 @@
 //! Hosted argument admission with an exited process and unavailable worker socket.
 //! This fixture cannot establish GPU inference readiness.
+#[path = "../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 use super::*;
 use serde_json::json;
 use veoveo_mcp_contract::hosting::testing::{self, TestGateway};
@@ -49,6 +51,52 @@ async fn unknown_tool_arguments_complete_before_transcription_admission() {
                 .unwrap()
                 .contains("undeclared")
         );
+        let cases = input_fixture::ToolInputCase::load(include_bytes!(
+            "../../testdata/controlled-inputs.json"
+        ));
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            match case.tool.as_str() {
+                "transcribe" => {
+                    let _: crate::contract::TranscribeRequest = case.decode();
+                }
+                "start_dictation" => {
+                    let _: crate::contract::dictation::StartDictation = case.decode();
+                }
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case
+                .unknown_fields()
+                .into_iter()
+                .chain(case.invalid_values())
+            {
+                let body = gateway
+                    .rpc(
+                        "tools/call",
+                        json!({"name":case.tool,"arguments":arguments}),
+                    )
+                    .await;
+                assert!(
+                    body.get("error").is_none(),
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                assert_eq!(
+                    body["result"]["resultType"], "complete",
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                let result: rmcp::model::CallToolResult =
+                    serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(
+                    result.is_error,
+                    Some(true),
+                    "{} {location}: {body}",
+                    case.branch
+                );
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
         assert!(service.tasks.list().await.unwrap().is_empty());
         service
             .audit

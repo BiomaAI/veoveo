@@ -1,4 +1,6 @@
 //! Hosted protocol admission with unavailable execution paths; no GPU work occurs.
+#[path = "../../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 use super::*;
 use serde_json::json;
 use std::time::Duration;
@@ -51,6 +53,22 @@ async fn unknown_tool_arguments_complete_before_recording_or_runner_access() {
         let result:rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
         assert_eq!(result.is_error,Some(true));
         assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        let cases = input_fixture::ToolInputCase::load(include_bytes!("../../../testdata/controlled-inputs.json"));
+        assert_eq!(cases.len(), 3);
+        for case in cases {
+            match case.tool.as_str() {
+                "run_recording" => { let _: veoveo_stream_mcp::contract::RunRecordingRequest = case.decode(); },
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case.unknown_fields().into_iter().chain(case.invalid_values()) {
+                let body = gateway.rpc("tools/call", json!({"name":case.tool,"arguments":arguments})).await;
+                assert!(body.get("error").is_none(), "{} {location}: {body}", case.branch);
+                assert_eq!(body["result"]["resultType"], "complete", "{} {location}: {body}", case.branch);
+                let result: rmcp::model::CallToolResult = serde_json::from_value(body["result"].clone()).unwrap();
+                assert_eq!(result.is_error, Some(true), "{} {location}: {body}", case.branch);
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
         assert!(state.tasks.list().await.unwrap().is_empty());
         assert_eq!(state.work_slots.available_permits(),1);
     }).await.expect("Stream argument admission exceeded 120 seconds");

@@ -1,0 +1,819 @@
+[
+  {
+    "branch": "CoordinatePoint.wgs84",
+    "tool": "convert_frame",
+    "arguments": {
+      "target": {
+        "kind": "ecef_wgs84"
+      },
+      "points": [
+        {
+          "kind": "wgs84",
+          "latitude_degrees": 1,
+          "longitude_degrees": 2,
+          "ellipsoid_height_m": 3
+        }
+      ]
+    },
+    "tag": "/points/0/kind",
+    "required": [
+      "/points/0/latitude_degrees",
+      "/points/0/longitude_degrees",
+      "/points/0/ellipsoid_height_m"
+    ],
+    "defaults": {
+      "/allow_approximation": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "CoordinateSpace.wgs84",
+    "tool": "convert_frame",
+    "arguments": {
+      "target": {
+        "kind": "wgs84"
+      },
+      "points": [
+        {
+          "kind": "wgs84",
+          "latitude_degrees": 1,
+          "longitude_degrees": 2,
+          "ellipsoid_height_m": 3
+        }
+      ]
+    },
+    "tag": "/target/kind",
+    "required": [
+      "/points"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "CoordinatePoint.ecef_wgs84",
+    "tool": "convert_frame",
+    "arguments": {
+      "target": {
+        "kind": "ecef_wgs84"
+      },
+      "points": [
+        {
+          "kind": "ecef_wgs84",
+          "x_m": 1,
+          "y_m": 2,
+          "z_m": 3
+        }
+      ]
+    },
+    "tag": "/points/0/kind",
+    "required": [
+      "/points/0/x_m",
+      "/points/0/y_m",
+      "/points/0/z_m"
+    ],
+    "defaults": {
+      "/allow_approximation": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "CoordinateSpace.ecef_wgs84",
+    "tool": "convert_frame",
+    "arguments": {
+      "target": {
+        "kind": "ecef_wgs84"
+      },
+      "points": [
+        {
+          "kind": "wgs84",
+          "latitude_degrees": 1,
+          "longitude_degrees": 2,
+          "ellipsoid_height_m": 3
+        }
+      ]
+    },
+    "tag": "/target/kind",
+    "required": [
+      "/points"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "CoordinatePoint.world_frame",
+    "tool": "convert_frame",
+    "arguments": {
+      "target": {
+        "kind": "ecef_wgs84"
+      },
+      "points": [
+        {
+          "kind": "world_frame",
+          "frame_uri": "frames://world/fixture/revision/revision-one/frame/local",
+          "x_m": 1,
+          "y_m": 2,
+          "z_m": 3
+        }
+      ]
+    },
+    "tag": "/points/0/kind",
+    "required": [
+      "/points/0/frame_uri",
+      "/points/0/x_m",
+      "/points/0/y_m",
+      "/points/0/z_m"
+    ],
+    "defaults": {
+      "/allow_approximation": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "CoordinateSpace.world_frame",
+    "tool": "convert_frame",
+    "arguments": {
+      "target": {
+        "kind": "world_frame",
+        "frame_uri": "frames://world/fixture/revision/revision-one/frame/local"
+      },
+      "points": [
+        {
+          "kind": "wgs84",
+          "latitude_degrees": 1,
+          "longitude_degrees": 2,
+          "ellipsoid_height_m": 3
+        }
+      ]
+    },
+    "tag": "/target/kind",
+    "required": [
+      "/points"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameBasis.ecef_wgs84",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "enu"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "geodetic_tangent",
+              "origin": {
+                "latitude_degrees": 1,
+                "longitude_degrees": 2,
+                "ellipsoid_height_m": 3
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/0/basis/kind",
+    "required": [
+      "/tree/frames/0/frame_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameBasis.enu",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "enu"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "geodetic_tangent",
+              "origin": {
+                "latitude_degrees": 1,
+                "longitude_degrees": 2,
+                "ellipsoid_height_m": 3
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/kind",
+    "required": [
+      "/tree/frames/1/frame_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameBasis.ned",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "ned"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "geodetic_tangent",
+              "origin": {
+                "latitude_degrees": 1,
+                "longitude_degrees": 2,
+                "ellipsoid_height_m": 3
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/kind",
+    "required": [
+      "/tree/frames/1/frame_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameBasis.frd",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "frd"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/kind",
+    "required": [
+      "/tree/frames/1/frame_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameBasis.optical_rdf",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "optical_rdf"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/kind",
+    "required": [
+      "/tree/frames/1/frame_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameBasis.cartesian",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "right",
+                "y": "forward",
+                "z": "up"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/kind",
+    "required": [
+      "/tree/frames/1/frame_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameParentTransform.geodetic_tangent",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "enu"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "geodetic_tangent",
+              "origin": {
+                "latitude_degrees": 1,
+                "longitude_degrees": 2,
+                "ellipsoid_height_m": 3
+              }
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/parent_transform/kind",
+    "required": [
+      "/tree/frames/1/parent_transform/origin"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameParentTransform.static_rigid",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "enu"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                1,
+                2,
+                3
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/parent_transform/kind",
+    "required": [
+      "/tree/frames/1/parent_transform/translation_m",
+      "/tree/frames/1/parent_transform/rotation_xyzw"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameParentTransform.dynamic_stream",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "enu"
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "dynamic_stream",
+              "stream_uri": "frames://stream/01983da0-0000-7000-8000-000000000000",
+              "entity_path": "/transforms/local"
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/parent_transform/kind",
+    "required": [
+      "/tree/frames/1/parent_transform/stream_uri",
+      "/tree/frames/1/parent_transform/entity_path"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameAxisDirection.right",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "right",
+                "y": "up",
+                "z": "forward"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/axes/x",
+    "required": [
+      "/tree/frames/1/basis/axes/y"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameAxisDirection.left",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "left",
+                "y": "up",
+                "z": "forward"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/axes/x",
+    "required": [
+      "/tree/frames/1/basis/axes/y"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameAxisDirection.up",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "up",
+                "y": "right",
+                "z": "forward"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/axes/x",
+    "required": [
+      "/tree/frames/1/basis/axes/y"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameAxisDirection.down",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "down",
+                "y": "right",
+                "z": "forward"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/axes/x",
+    "required": [
+      "/tree/frames/1/basis/axes/y"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameAxisDirection.forward",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "forward",
+                "y": "right",
+                "z": "up"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/axes/x",
+    "required": [
+      "/tree/frames/1/basis/axes/y"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "FrameAxisDirection.back",
+    "tool": "publish_world",
+    "arguments": {
+      "world_id": "fixture",
+      "tree": {
+        "frames": [
+          {
+            "frame_id": "ecef",
+            "basis": {
+              "kind": "ecef_wgs84"
+            }
+          },
+          {
+            "frame_id": "local",
+            "basis": {
+              "kind": "cartesian",
+              "axes": {
+                "x": "back",
+                "y": "right",
+                "z": "up"
+              }
+            },
+            "parent_frame_id": "ecef",
+            "parent_transform": {
+              "kind": "static_rigid",
+              "translation_m": [
+                0,
+                0,
+                0
+              ],
+              "rotation_xyzw": [
+                0,
+                0,
+                0,
+                1
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "tag": "/tree/frames/1/basis/axes/x",
+    "required": [
+      "/tree/frames/1/basis/axes/y"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

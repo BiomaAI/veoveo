@@ -18,10 +18,18 @@ async fn file_transfer_branches_reject_before_domain_effects() {
         let cases = input_fixture::ToolInputCase::load(include_bytes!(
             "../../testdata/controlled-inputs.json"
         ));
-        assert_eq!(cases.len(), 2);
+        assert_eq!(cases.len(), 7);
         for case in cases {
-            assert_eq!(case.tool, "transfer_file");
-            let _: veoveo_computers_mcp::contract::TransferFileInput = case.decode();
+            match case.tool.as_str() {
+                "transfer_file" => {
+                    let _: veoveo_computers_mcp::contract::TransferFileInput = case.decode();
+                }
+                "grant_automation" => {
+                    let _: veoveo_computers_mcp::contract::IssueAutomationGrantInput =
+                        case.decode();
+                }
+                _ => panic!("unexpected fixture tool"),
+            }
             for (location, arguments) in case
                 .unknown_fields()
                 .into_iter()

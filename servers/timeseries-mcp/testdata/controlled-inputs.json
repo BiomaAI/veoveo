@@ -1,0 +1,773 @@
+[
+  {
+    "branch": "TimeseriesFilterPredicate.eq",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "eq",
+            "column": "value",
+            "value": 1
+          }
+        ]
+      }
+    },
+    "tag": "/training_filter/predicates/0/op",
+    "required": [
+      "/source",
+      "/mapping/value_column",
+      "/horizon",
+      "/training_filter/predicates",
+      "/training_filter/predicates/0/column",
+      "/training_filter/predicates/0/value"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/training_filter/combination": "all"
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesFilterPredicate.ne",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "ne",
+            "column": "value",
+            "value": "skip"
+          }
+        ]
+      }
+    },
+    "tag": "/training_filter/predicates/0/op",
+    "required": [
+      "/source",
+      "/mapping/value_column",
+      "/horizon",
+      "/training_filter/predicates",
+      "/training_filter/predicates/0/column",
+      "/training_filter/predicates/0/value"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/training_filter/combination": "all"
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesFilterPredicate.in",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "in",
+            "column": "value",
+            "values": [
+              true,
+              1,
+              "x"
+            ]
+          }
+        ]
+      }
+    },
+    "tag": "/training_filter/predicates/0/op",
+    "required": [
+      "/source",
+      "/mapping/value_column",
+      "/horizon",
+      "/training_filter/predicates",
+      "/training_filter/predicates/0/column",
+      "/training_filter/predicates/0/values"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/training_filter/combination": "all"
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesFilterPredicate.is_not_null",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "is_not_null",
+            "column": "value"
+          }
+        ]
+      }
+    },
+    "tag": "/training_filter/predicates/0/op",
+    "required": [
+      "/source",
+      "/mapping/value_column",
+      "/horizon",
+      "/training_filter/predicates",
+      "/training_filter/predicates/0/column"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/training_filter/combination": "all"
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesFilterValue.string",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "eq",
+            "column": "value",
+            "value": "x"
+          }
+        ]
+      }
+    },
+    "tag": null,
+    "required": [
+      "/mapping/value_column"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/training_filter/predicates/0/value",
+        "value": null,
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "TimeseriesFilterValue.bool",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "eq",
+            "column": "value",
+            "value": true
+          }
+        ]
+      }
+    },
+    "tag": null,
+    "required": [
+      "/mapping/value_column"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/training_filter/predicates/0/value",
+        "value": null,
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "TimeseriesFilterValue.i64",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "eq",
+            "column": "value",
+            "value": -1
+          }
+        ]
+      }
+    },
+    "tag": null,
+    "required": [
+      "/mapping/value_column"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/training_filter/predicates/0/value",
+        "value": null,
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "TimeseriesFilterValue.u64",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "eq",
+            "column": "value",
+            "value": 18446744073709551615
+          }
+        ]
+      }
+    },
+    "tag": null,
+    "required": [
+      "/mapping/value_column"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/training_filter/predicates/0/value",
+        "value": null,
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "TimeseriesFilterValue.f64",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "predicates": [
+          {
+            "op": "eq",
+            "column": "value",
+            "value": 1.5
+          }
+        ]
+      }
+    },
+    "tag": null,
+    "required": [
+      "/mapping/value_column"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/training_filter/predicates/0/value",
+        "value": null,
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbTabularSource.inline_csv",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/source/csv"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/source/options": {}
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbTabularSource.uri",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data.csv",
+        "format": "csv"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/source/uri"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/source/options": {}
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbTabularSource.uris",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uris",
+        "uris": [
+          "https://source.example/a.csv"
+        ],
+        "format": "csv"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/source/uris"
+    ],
+    "defaults": {
+      "/method": "naive_trend",
+      "/source/options": {}
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbFormat.auto",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "auto"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/format",
+    "required": [
+      "/source/uri"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbFormat.csv",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "csv"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/format",
+    "required": [
+      "/source/uri"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbFormat.parquet",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "parquet"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/format",
+    "required": [
+      "/source/uri"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbFormat.json",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "json"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/format",
+    "required": [
+      "/source/uri"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbFormat.ndjson",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "ndjson"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": "/source/format",
+    "required": [
+      "/source/uri"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesFilterCombination.all",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "combination": "all",
+        "predicates": [
+          {
+            "op": "is_not_null",
+            "column": "value"
+          }
+        ]
+      }
+    },
+    "tag": "/training_filter/combination",
+    "required": [
+      "/training_filter/predicates"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesFilterCombination.any",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "training_filter": {
+        "combination": "any",
+        "predicates": [
+          {
+            "op": "is_not_null",
+            "column": "value"
+          }
+        ]
+      }
+    },
+    "tag": "/training_filter/combination",
+    "required": [
+      "/training_filter/predicates"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeseriesForecastMethod.naive_trend",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n"
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4,
+      "method": "naive_trend"
+    },
+    "tag": "/method",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbReadOptionValue.bool",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": true
+          }
+        }
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": null,
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbReadOptionValue.number",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": 3
+          }
+        }
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": null,
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbReadOptionValue.string",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": "x"
+          }
+        }
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": null,
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbReadOptionValue.array",
+    "tool": "forecast",
+    "arguments": {
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n2\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": [
+              true,
+              3,
+              "x",
+              [
+                false
+              ]
+            ]
+          }
+        }
+      },
+      "mapping": {
+        "value_column": "value"
+      },
+      "horizon": 4
+    },
+    "tag": null,
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  }
+]

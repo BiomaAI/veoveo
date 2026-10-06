@@ -1,0 +1,36 @@
+[
+  {
+    "branch": "EmbedRequest.document",
+    "tool": "embed",
+    "arguments": {
+      "mode": "document",
+      "texts": [
+        "fixture"
+      ]
+    },
+    "tag": "/mode",
+    "required": [
+      "/texts"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "EmbedRequest.query",
+    "tool": "embed",
+    "arguments": {
+      "mode": "query",
+      "texts": [
+        "fixture"
+      ],
+      "task": "Find related passages"
+    },
+    "tag": "/mode",
+    "required": [
+      "/texts",
+      "/task"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

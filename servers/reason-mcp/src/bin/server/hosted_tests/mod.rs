@@ -3,6 +3,8 @@
 mod auth;
 mod data;
 mod fixture;
+#[path = "../../../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 mod probe;
 #[path = "../../../../tests/support/finding.rs"]
 mod result_fixture;
@@ -41,6 +43,20 @@ async fn unknown_tool_arguments_complete_before_analysis_admission() {
         let CallToolResponse::Complete(result) = response else { panic!("malformed input must complete"); };
         assert_eq!(result.is_error, Some(true));
         assert!(serde_json::to_string(&result.content).unwrap().contains("undeclared"));
+        let cases = input_fixture::ToolInputCase::load(include_bytes!("../../../../testdata/controlled-inputs.json"));
+        assert_eq!(cases.len(), 5);
+        for case in cases {
+            match case.tool.as_str() {
+                "analyze_recording" => { let _: veoveo_reason_mcp::contract::AnalyzeRecordingRequest = case.decode(); },
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case.unknown_fields().into_iter().chain(case.invalid_values()) {
+                let response = client.call_tool_once(rmcp::model::CallToolRequestParams::new(case.tool.clone()).with_arguments(arguments.as_object().unwrap().clone())).await.unwrap();
+                let rmcp::model::CallToolResponse::Complete(result) = response else { panic!("{} {location}: malformed input must complete", case.branch); };
+                assert_eq!(result.is_error, Some(true), "{} {location}: {result:?}", case.branch);
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
         assert!(tasks.list().await.unwrap().is_empty());
         assert_eq!(fixture.content_reads.load(std::sync::atomic::Ordering::Relaxed), 0);
         client.cancel().await.unwrap();

@@ -106,11 +106,17 @@ async fn unknown_tool_arguments_complete_before_view_changes() {
         let cases = input_fixture::ToolInputCase::load(include_bytes!(
             "../../testdata/controlled-inputs.json"
         ));
-        assert_eq!(cases.len(), 9);
+        assert_eq!(cases.len(), 16);
         for case in cases {
             match case.tool.as_str() {
                 "create_scene_composition" => {
                     let _: crate::contract::CreateSceneCompositionRequest = case.decode();
+                }
+                "set_camera" => {
+                    let _: crate::contract::SetCameraRequest = case.decode();
+                }
+                "capture_frame" => {
+                    let _: crate::contract::CaptureFrameRequest = case.decode();
                 }
                 _ => panic!("unexpected fixture tool"),
             }

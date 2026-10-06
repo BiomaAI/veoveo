@@ -127,23 +127,64 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
         )
         .unwrap();
         let handler = state.clone();
+        // These scopes cover the direct and durable tools in this fixture inventory.
+        // Invalid arguments must reach decoding rather than fail authorization first.
+        let mut principal = testing::principal();
+        principal.scopes.extend(
+            [
+                MapScope::Admin,
+                MapScope::DatasetRead,
+                MapScope::FeatureRead,
+                MapScope::FeatureWrite,
+                MapScope::FeaturePublish,
+                MapScope::Route,
+                MapScope::RouteMatrix,
+                MapScope::SpatialDerive,
+                MapScope::RasterDerive,
+                MapScope::RestrictionPublish,
+            ]
+            .map(|scope| scope.name().clone()),
+        );
+        const KEY_ID: &str = "map-input-fixture";
+        let token = veoveo_mcp_contract::GatewayInternalTokenIssuer::new(
+            veoveo_types::TokenIssuer::parse(veoveo_mcp_contract::GATEWAY_INTERNAL_TOKEN_ISSUER)
+                .unwrap(),
+            testing::signing_key(KEY_ID),
+        )
+        .issue(
+            veoveo_types::GatewayProfileId::parse("operations").unwrap(),
+            veoveo_types::ServerSlug::parse("map").unwrap(),
+            principal,
+            testing::authority(),
+            None,
+            chrono::Utc::now() + chrono::TimeDelta::minutes(5),
+        )
+        .unwrap()
+        .bearer_token;
         let gateway = TestGateway::new(
             testing::for_domain::<MapMcp>()
+                .internal_trust(testing::trust_bundle(KEY_ID))
+                .unwrap()
                 .handler(move || Hosted::new(MapMcp::new(handler.clone(), app.clone())))
                 .build(),
         );
-        let discover = gateway.rpc("server/discover", json!({})).await;
+        let discover = gateway
+            .rpc_with("server/discover", json!({}), Some(&token))
+            .await
+            .1;
         assert!(discover.get("error").is_none(), "{discover}");
         let mut arguments = json!({"source_crs":"EPSG:4326","target_crs":"EPSG:4326","positions":[{"crs":"EPSG:4326","x":8.0,"y":47.0}]});
         let _: crate::contract::TransformCrsRequest =
             serde_json::from_value(arguments.clone()).unwrap();
         arguments["undeclared"] = true.into();
         let body = gateway
-            .rpc(
+            .rpc_with(
                 "tools/call",
                 json!({"name":"transform_crs","arguments":arguments}),
+                Some(&token),
             )
-            .await;
+            .await
+            .1;
         assert!(body.get("error").is_none(), "{body}");
         assert_eq!(body["result"]["resultType"], "complete", "{body}");
         let result: rmcp::model::CallToolResult =
@@ -158,7 +199,7 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
         let cases = input_fixture::ToolInputCase::load(include_bytes!(
             "../../testdata/controlled-inputs.json"
         ));
-        assert_eq!(cases.len(), 29);
+        assert_eq!(cases.len(), 240);
         for case in cases {
             match case.tool.as_str() {
                 "build_travel_model" => {
@@ -176,6 +217,39 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
                 "validate_feature_changes" => {
                     let _: crate::contract::ValidateFeatureChangesRequest = case.decode();
                 }
+                "query_features" => {
+                    let _: crate::contract::QueryFeaturesRequest = case.decode();
+                }
+                "route" => {
+                    let _: crate::contract::RouteRequest = case.decode();
+                }
+                "reachable_area" => {
+                    let _: crate::contract::ReachableAreaRequest = case.decode();
+                }
+                "import_feature_layer" => {
+                    let _: crate::contract::ImportFeatureLayerRequest = case.decode();
+                }
+                "export_feature_layer" => {
+                    let _: crate::contract::ExportFeatureLayerRequest = case.decode();
+                }
+                "derive_spatial_geometry" => {
+                    let _: crate::contract::DeriveSpatialGeometryRequest = case.decode();
+                }
+                "register_source" => {
+                    let _: crate::contract::CreateSourceRequest = case.decode();
+                }
+                "validate_geofence" => {
+                    let _: crate::contract::ValidateGeofenceRequest = case.decode();
+                }
+                "create_feature_layer" => {
+                    let _: crate::contract::CreateFeatureLayerRequest = case.decode();
+                }
+                "publish_restriction" => {
+                    let _: crate::contract::PublishRestrictionRequest = case.decode();
+                }
+                "validate_route" => {
+                    let _: crate::contract::ValidateRouteRequest = case.decode();
+                }
                 _ => panic!("unexpected fixture tool"),
             }
             for (location, arguments) in case
@@ -184,11 +258,13 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
                 .chain(case.invalid_values())
             {
                 let body = gateway
-                    .rpc(
+                    .rpc_with(
                         "tools/call",
                         json!({"name":case.tool,"arguments":arguments}),
+                        Some(&token),
                     )
-                    .await;
+                    .await
+                    .1;
                 assert!(
                     body.get("error").is_none(),
                     "{} {location}: {body}",
@@ -214,6 +290,9 @@ async fn unknown_tool_arguments_complete_before_map_operation() {
         let profiles: Vec<crate::persistence::MapMobilityProfileRecord> =
             db.a.client().select("map_mobility_profile").await.unwrap();
         assert!(profiles.is_empty());
+        let restrictions: Vec<crate::persistence::MapRestrictionRecord> =
+            db.a.client().select("map_restriction").await.unwrap();
+        assert!(restrictions.is_empty());
         assert!(state.valhalla_process.exited().await.unwrap());
     };
     tokio::time::timeout(Duration::from_secs(120), qualification)

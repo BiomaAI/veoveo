@@ -1,0 +1,647 @@
+[
+  {
+    "branch": "DuckDbSource.inline_csv",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/db",
+      "/table",
+      "/mode",
+      "/source/csv"
+    ],
+    "defaults": {
+      "/source/options": {},
+      "/create_db_if_missing": false
+    },
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbSource.uri",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data.csv",
+        "format": "csv"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/db",
+      "/table",
+      "/mode",
+      "/source/uri"
+    ],
+    "defaults": {
+      "/source/options": {},
+      "/create_db_if_missing": false
+    },
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbSource.uris",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uris",
+        "uris": [
+          "https://source.example/a.csv"
+        ],
+        "format": "csv"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/db",
+      "/table",
+      "/mode",
+      "/source/uris"
+    ],
+    "defaults": {
+      "/source/options": {},
+      "/create_db_if_missing": false
+    },
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbSource.artifact",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "artifact",
+        "uri": "artifact://01983da0-0000-7000-8000-000000000000",
+        "format": "parquet"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/kind",
+    "required": [
+      "/db",
+      "/table",
+      "/mode",
+      "/source/uri"
+    ],
+    "defaults": {
+      "/source/options": {},
+      "/create_db_if_missing": false
+    },
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbIngestMode.create",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n"
+      },
+      "mode": "create"
+    },
+    "tag": "/mode",
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbIngestMode.append",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n"
+      },
+      "mode": "append"
+    },
+    "tag": "/mode",
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbIngestMode.replace",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n"
+      },
+      "mode": "replace"
+    },
+    "tag": "/mode",
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbFormat.auto",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "auto"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/format",
+    "required": [
+      "/table"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbFormat.csv",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "csv"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/format",
+    "required": [
+      "/table"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbFormat.parquet",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "parquet"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/format",
+    "required": [
+      "/table"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbFormat.json",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "json"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/format",
+    "required": [
+      "/table"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbFormat.ndjson",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "uri",
+        "uri": "https://source.example/data",
+        "format": "ndjson"
+      },
+      "mode": "create"
+    },
+    "tag": "/source/format",
+    "required": [
+      "/table"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbReadOptionValue.bool",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": true
+          }
+        }
+      },
+      "mode": "create"
+    },
+    "tag": null,
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbReadOptionValue.number",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": 3
+          }
+        }
+      },
+      "mode": "create"
+    },
+    "tag": null,
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbReadOptionValue.string",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": "x"
+          }
+        }
+      },
+      "mode": "create"
+    },
+    "tag": null,
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbReadOptionValue.array",
+    "tool": "ingest",
+    "arguments": {
+      "db": "input_fixture",
+      "table": "rows",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true,
+          "delimiter": ",",
+          "timestamp_format": "%Y",
+          "extra": {
+            "sample": [
+              true,
+              3,
+              "x",
+              [
+                false
+              ]
+            ]
+          }
+        }
+      },
+      "mode": "create"
+    },
+    "tag": null,
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "invalid": [
+      {
+        "pointer": "/source/options/extra/sample",
+        "value": {},
+        "error": "did not match any variant"
+      }
+    ],
+    "error_profile": "untagged",
+    "typed_dictionaries": {
+      "/source/options/extra": [
+        true,
+        1,
+        "x"
+      ]
+    }
+  },
+  {
+    "branch": "DuckDbQueryOutputMode.inline",
+    "tool": "query",
+    "arguments": {
+      "db": "input_fixture",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "inline"
+      }
+    },
+    "tag": "/output/mode",
+    "required": [
+      "/db",
+      "/sql"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbQueryOutputMode.artifact",
+    "tool": "query",
+    "arguments": {
+      "db": "input_fixture",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "artifact",
+        "format": "parquet"
+      }
+    },
+    "tag": "/output/mode",
+    "required": [
+      "/db",
+      "/sql"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbExportFormat.parquet",
+    "tool": "export",
+    "arguments": {
+      "db": "input_fixture",
+      "format": "parquet",
+      "selection": {
+        "kind": "table",
+        "table": "rows"
+      }
+    },
+    "tag": "/format",
+    "required": [
+      "/db",
+      "/selection"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbExportFormat.csv",
+    "tool": "export",
+    "arguments": {
+      "db": "input_fixture",
+      "format": "csv",
+      "selection": {
+        "kind": "table",
+        "table": "rows"
+      }
+    },
+    "tag": "/format",
+    "required": [
+      "/db",
+      "/selection"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbExportFormat.duck_db",
+    "tool": "export",
+    "arguments": {
+      "db": "input_fixture",
+      "format": "duck_db",
+      "selection": {
+        "kind": "database"
+      }
+    },
+    "tag": "/format",
+    "required": [
+      "/db",
+      "/selection"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbTabularSelection.table",
+    "tool": "export",
+    "arguments": {
+      "db": "input_fixture",
+      "format": "parquet",
+      "selection": {
+        "kind": "table",
+        "table": "rows"
+      }
+    },
+    "tag": "/selection/kind",
+    "required": [
+      "/db",
+      "/selection/table"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbTabularSelection.sql",
+    "tool": "export",
+    "arguments": {
+      "db": "input_fixture",
+      "format": "parquet",
+      "selection": {
+        "kind": "sql",
+        "sql": "SELECT 1"
+      }
+    },
+    "tag": "/selection/kind",
+    "required": [
+      "/db",
+      "/selection/sql"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "SnapshotSelection.database",
+    "tool": "export",
+    "arguments": {
+      "db": "input_fixture",
+      "format": "duck_db",
+      "selection": {
+        "kind": "database"
+      }
+    },
+    "tag": "/selection/kind",
+    "required": [
+      "/db"
+    ],
+    "defaults": {},
+    "open_objects": [],
+    "error_profile": "untagged"
+  },
+  {
+    "branch": "DuckDbTabularFormat.parquet",
+    "tool": "query",
+    "arguments": {
+      "db": "input_fixture",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "artifact",
+        "format": "parquet"
+      }
+    },
+    "tag": "/output/format",
+    "required": [
+      "/db",
+      "/sql",
+      "/output/format"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "DuckDbTabularFormat.csv",
+    "tool": "query",
+    "arguments": {
+      "db": "input_fixture",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "artifact",
+        "format": "csv"
+      }
+    },
+    "tag": "/output/format",
+    "required": [
+      "/db",
+      "/sql",
+      "/output/format"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

@@ -10,6 +10,8 @@ mod hosted;
 #[path = "support/indexing.rs"]
 #[allow(dead_code)]
 mod indexing;
+#[path = "../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 #[path = "support/installed.rs"]
 mod installed;
 #[path = "support/managed.rs"]
@@ -99,6 +101,20 @@ async fn hosted_search_links_catalog_and_embedding_follow_current_sql_authority(
             let rmcp::model::CallToolResponse::Complete(malformed) = response else { panic!("malformed input must complete"); };
             assert_eq!(malformed.is_error, Some(true));
             assert!(serde_json::to_string(&malformed.content).unwrap().contains("undeclared"));
+        }
+        let cases = input_fixture::ToolInputCase::load(include_bytes!("../testdata/controlled-inputs.json"));
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            match case.tool.as_str() {
+                "embed" => { let _: veoveo_knowledge_mcp::contract::EmbedRequest = case.decode(); },
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case.unknown_fields().into_iter().chain(case.invalid_values()) {
+                let response = client.call_tool_once(rmcp::model::CallToolRequestParams::new(case.tool.clone()).with_arguments(arguments.as_object().unwrap().clone())).await.unwrap();
+                let rmcp::model::CallToolResponse::Complete(result) = response else { panic!("{} {location}: malformed input must complete", case.branch); };
+                assert_eq!(result.is_error, Some(true), "{} {location}: {result:?}", case.branch);
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
         }
         let sources=client.read_resource(ReadResourceRequestParams::new(KnowledgeResource::Sources {after:None}.to_uri().unwrap().to_string())).await.unwrap();
         let body=serde_json::to_string(&sources).unwrap();assert!(body.contains("media.records"));assert!(!body.contains("media.private"));

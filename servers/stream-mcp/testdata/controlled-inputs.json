@@ -1,0 +1,90 @@
+[
+  {
+    "branch": "SamplingPolicy.every_frame",
+    "tool": "run_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "sampling": {
+        "mode": "every_frame"
+      }
+    },
+    "tag": "/sampling/mode",
+    "required": [
+      "/video",
+      "/pipeline_id"
+    ],
+    "defaults": {
+      "/include_source_clip": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SamplingPolicy.every_nth",
+    "tool": "run_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "sampling": {
+        "mode": "every_nth",
+        "step": 2
+      }
+    },
+    "tag": "/sampling/mode",
+    "required": [
+      "/video",
+      "/pipeline_id",
+      "/sampling/step"
+    ],
+    "defaults": {
+      "/include_source_clip": false
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "SamplingPolicy.maximum_frames",
+    "tool": "run_recording",
+    "arguments": {
+      "video": {
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front",
+        "timeline": "sensor_time",
+        "range": {
+          "start": 10,
+          "end": 20
+        }
+      },
+      "pipeline_id": "preview",
+      "sampling": {
+        "mode": "maximum_frames",
+        "count": 4
+      }
+    },
+    "tag": "/sampling/mode",
+    "required": [
+      "/video",
+      "/pipeline_id",
+      "/sampling/count"
+    ],
+    "defaults": {
+      "/include_source_clip": false
+    },
+    "open_objects": []
+  }
+]

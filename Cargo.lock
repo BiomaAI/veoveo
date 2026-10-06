@@ -17632,6 +17632,7 @@ dependencies = [
  "veoveo-recording-reader",
  "veoveo-recording-store",
  "veoveo-rrd",
+ "veoveo-task-runtime",
  "veoveo-types",
 ]
 

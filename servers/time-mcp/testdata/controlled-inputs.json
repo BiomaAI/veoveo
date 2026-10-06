@@ -1,0 +1,928 @@
+[
+  {
+    "branch": "TimeExpression.rfc3339",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "rfc3339",
+        "value": "2026-01-01T00:00:00Z"
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.rfc9557",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "rfc9557",
+        "value": "2026-01-01T00:00:00Z[UTC]"
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0,
+      "/expression/disambiguation": "reject"
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.civil",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "civil",
+        "value": {
+          "local_datetime": "2026-01-01T00:00:00",
+          "zone_id": "UTC",
+          "tzdb_release_id": "time-release-tzdb-fixture"
+        }
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0,
+      "/expression/value/disambiguation": "reject"
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.unix",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "unix",
+        "seconds": 0
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/seconds"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0,
+      "/expression/nanosecond": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.tai",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "tai",
+        "seconds_since_1970": 0
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/seconds_since_1970"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0,
+      "/expression/nanosecond": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.gps",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "gps",
+        "week": 1,
+        "seconds_of_week": 0
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/week",
+      "/expression/seconds_of_week"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.julian_tai",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "julian_tai",
+        "day": 2451545.0
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/day"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.military_dtg",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "military_dtg",
+        "value": "011200ZJAN26"
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "TimeExpression.epoch_relative",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "epoch_relative",
+        "epoch_id": "epoch-fixture",
+        "offset_nanoseconds": 1
+      }
+    },
+    "tag": "/expression/format",
+    "required": [
+      "/expression/epoch_id",
+      "/expression/offset_nanoseconds"
+    ],
+    "defaults": {
+      "/additional_uncertainty_nanoseconds": 0
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "Disambiguation.reject",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "rfc9557",
+        "value": "2026-01-01T00:00:00Z[UTC]",
+        "disambiguation": "reject"
+      }
+    },
+    "tag": "/expression/disambiguation",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Disambiguation.earlier",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "rfc9557",
+        "value": "2026-01-01T00:00:00Z[UTC]",
+        "disambiguation": "earlier"
+      }
+    },
+    "tag": "/expression/disambiguation",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Disambiguation.later",
+    "tool": "resolve_time",
+    "arguments": {
+      "expression": {
+        "format": "rfc9557",
+        "value": "2026-01-01T00:00:00Z[UTC]",
+        "disambiguation": "later"
+      }
+    },
+    "tag": "/expression/disambiguation",
+    "required": [
+      "/expression/value"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeScale.utc",
+    "tool": "convert_time",
+    "arguments": {
+      "instant": {
+        "tai_seconds_since_1970": 1,
+        "nanosecond": 0,
+        "uncertainty_nanoseconds": 0,
+        "authority": {
+          "tzdb_release_id": "time-release-tzdb-fixture",
+          "leap_seconds_release_id": "time-release-leaps-fixture"
+        }
+      },
+      "scales": [
+        "utc"
+      ]
+    },
+    "tag": "/scales/0",
+    "required": [
+      "/instant/nanosecond"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeScale.tai",
+    "tool": "convert_time",
+    "arguments": {
+      "instant": {
+        "tai_seconds_since_1970": 1,
+        "nanosecond": 0,
+        "uncertainty_nanoseconds": 0,
+        "authority": {
+          "tzdb_release_id": "time-release-tzdb-fixture",
+          "leap_seconds_release_id": "time-release-leaps-fixture"
+        }
+      },
+      "scales": [
+        "tai"
+      ]
+    },
+    "tag": "/scales/0",
+    "required": [
+      "/instant/nanosecond"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeScale.tt",
+    "tool": "convert_time",
+    "arguments": {
+      "instant": {
+        "tai_seconds_since_1970": 1,
+        "nanosecond": 0,
+        "uncertainty_nanoseconds": 0,
+        "authority": {
+          "tzdb_release_id": "time-release-tzdb-fixture",
+          "leap_seconds_release_id": "time-release-leaps-fixture"
+        }
+      },
+      "scales": [
+        "tt"
+      ]
+    },
+    "tag": "/scales/0",
+    "required": [
+      "/instant/nanosecond"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeScale.tdb",
+    "tool": "convert_time",
+    "arguments": {
+      "instant": {
+        "tai_seconds_since_1970": 1,
+        "nanosecond": 0,
+        "uncertainty_nanoseconds": 0,
+        "authority": {
+          "tzdb_release_id": "time-release-tzdb-fixture",
+          "leap_seconds_release_id": "time-release-leaps-fixture"
+        }
+      },
+      "scales": [
+        "tdb"
+      ]
+    },
+    "tag": "/scales/0",
+    "required": [
+      "/instant/nanosecond"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeScale.gpst",
+    "tool": "convert_time",
+    "arguments": {
+      "instant": {
+        "tai_seconds_since_1970": 1,
+        "nanosecond": 0,
+        "uncertainty_nanoseconds": 0,
+        "authority": {
+          "tzdb_release_id": "time-release-tzdb-fixture",
+          "leap_seconds_release_id": "time-release-leaps-fixture"
+        }
+      },
+      "scales": [
+        "gpst"
+      ]
+    },
+    "tag": "/scales/0",
+    "required": [
+      "/instant/nanosecond"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "TimeScale.gst",
+    "tool": "convert_time",
+    "arguments": {
+      "instant": {
+        "tai_seconds_since_1970": 1,
+        "nanosecond": 0,
+        "uncertainty_nanoseconds": 0,
+        "authority": {
+          "tzdb_release_id": "time-release-tzdb-fixture",
+          "leap_seconds_release_id": "time-release-leaps-fixture"
+        }
+      },
+      "scales": [
+        "gst"
+      ]
+    },
+    "tag": "/scales/0",
+    "required": [
+      "/instant/nanosecond"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "WindowOperation.union",
+    "tool": "evaluate_windows",
+    "arguments": {
+      "operation": "union",
+      "left": [
+        {
+          "start": {
+            "tai_seconds_since_1970": 1,
+            "nanosecond": 0,
+            "uncertainty_nanoseconds": 0,
+            "authority": {
+              "tzdb_release_id": "time-release-tzdb-fixture",
+              "leap_seconds_release_id": "time-release-leaps-fixture"
+            }
+          },
+          "end": {
+            "tai_seconds_since_1970": 2,
+            "nanosecond": 0,
+            "uncertainty_nanoseconds": 0,
+            "authority": {
+              "tzdb_release_id": "time-release-tzdb-fixture",
+              "leap_seconds_release_id": "time-release-leaps-fixture"
+            }
+          }
+        }
+      ]
+    },
+    "tag": "/operation",
+    "required": [
+      "/left"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "WindowOperation.intersection",
+    "tool": "evaluate_windows",
+    "arguments": {
+      "operation": "intersection",
+      "left": [
+        {
+          "start": {
+            "tai_seconds_since_1970": 1,
+            "nanosecond": 0,
+            "uncertainty_nanoseconds": 0,
+            "authority": {
+              "tzdb_release_id": "time-release-tzdb-fixture",
+              "leap_seconds_release_id": "time-release-leaps-fixture"
+            }
+          },
+          "end": {
+            "tai_seconds_since_1970": 2,
+            "nanosecond": 0,
+            "uncertainty_nanoseconds": 0,
+            "authority": {
+              "tzdb_release_id": "time-release-tzdb-fixture",
+              "leap_seconds_release_id": "time-release-leaps-fixture"
+            }
+          }
+        }
+      ]
+    },
+    "tag": "/operation",
+    "required": [
+      "/left"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "WindowOperation.difference",
+    "tool": "evaluate_windows",
+    "arguments": {
+      "operation": "difference",
+      "left": [
+        {
+          "start": {
+            "tai_seconds_since_1970": 1,
+            "nanosecond": 0,
+            "uncertainty_nanoseconds": 0,
+            "authority": {
+              "tzdb_release_id": "time-release-tzdb-fixture",
+              "leap_seconds_release_id": "time-release-leaps-fixture"
+            }
+          },
+          "end": {
+            "tai_seconds_since_1970": 2,
+            "nanosecond": 0,
+            "uncertainty_nanoseconds": 0,
+            "authority": {
+              "tzdb_release_id": "time-release-tzdb-fixture",
+              "leap_seconds_release_id": "time-release-leaps-fixture"
+            }
+          }
+        }
+      ]
+    },
+    "tag": "/operation",
+    "required": [
+      "/left"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "RecurrenceFrequency.daily",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "daily"
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/frequency",
+    "required": [
+      "/calendar/windows/0/start_local"
+    ],
+    "defaults": {
+      "/calendar/windows/0/recurrence/interval": 1,
+      "/calendar/windows/0/recurrence/weekdays": [],
+      "/maximum_occurrences": 10000
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "RecurrenceFrequency.weekly",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly"
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/frequency",
+    "required": [
+      "/calendar/windows/0/start_local"
+    ],
+    "defaults": {
+      "/calendar/windows/0/recurrence/interval": 1,
+      "/calendar/windows/0/recurrence/weekdays": [],
+      "/maximum_occurrences": 10000
+    },
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.monday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "monday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.tuesday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "tuesday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.wednesday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "wednesday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.thursday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "thursday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.friday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "friday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.saturday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "saturday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "Weekday.sunday",
+    "tool": "expand_schedule",
+    "arguments": {
+      "calendar": {
+        "calendar_id": "calendar-fixture",
+        "version": 1,
+        "name": "Fixture",
+        "zone_id": "UTC",
+        "windows": [
+          {
+            "start_local": "09:00:00",
+            "end_local": "10:00:00",
+            "recurrence": {
+              "frequency": "weekly",
+              "weekdays": [
+                "sunday"
+              ]
+            }
+          }
+        ]
+      },
+      "horizon": {
+        "start": {
+          "tai_seconds_since_1970": 1,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        },
+        "end": {
+          "tai_seconds_since_1970": 100000,
+          "nanosecond": 0,
+          "uncertainty_nanoseconds": 0,
+          "authority": {
+            "tzdb_release_id": "time-release-tzdb-fixture",
+            "leap_seconds_release_id": "time-release-leaps-fixture"
+          }
+        }
+      }
+    },
+    "tag": "/calendar/windows/0/recurrence/weekdays/0",
+    "required": [
+      "/horizon"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

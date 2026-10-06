@@ -1,6 +1,8 @@
 //! Real Artifact service and MCP transport over an isolated SurrealDB fixture.
 mod auth;
 mod fixture;
+#[path = "../../../../../../testing/fixtures/tool_inputs.rs"]
+mod input_fixture;
 use fixture::{Client, Fixture};
 use rmcp::{model::*, service::Subscription};
 use std::{collections::BTreeSet, time::Duration};
@@ -59,6 +61,44 @@ async fn unknown_tool_arguments_complete_without_changing_artifact_metadata() {
                 .unwrap()
                 .contains("undeclared")
         );
+        let cases = input_fixture::ToolInputCase::load(include_bytes!(
+            "../../../../testdata/controlled-inputs.json"
+        ));
+        assert_eq!(cases.len(), 8);
+        for case in cases {
+            match case.tool.as_str() {
+                "grant_access" => {
+                    let _: veoveo_artifact_mcp::contract::GrantArtifactRequest = case.decode();
+                }
+                "set_release_state" => {
+                    let _: veoveo_artifact_mcp::contract::SetArtifactReleaseRequest = case.decode();
+                }
+                _ => panic!("unexpected fixture tool"),
+            }
+            for (location, arguments) in case
+                .unknown_fields()
+                .into_iter()
+                .chain(case.invalid_values())
+            {
+                let response = client
+                    .call_tool_once(
+                        rmcp::model::CallToolRequestParams::new(case.tool.clone())
+                            .with_arguments(arguments.as_object().unwrap().clone()),
+                    )
+                    .await
+                    .unwrap();
+                let rmcp::model::CallToolResponse::Complete(result) = response else {
+                    panic!("{} {location}: malformed input must complete", case.branch);
+                };
+                assert_eq!(
+                    result.is_error,
+                    Some(true),
+                    "{} {location}: {result:?}",
+                    case.branch
+                );
+                case.assert_error(&location, &serde_json::to_string(&result.content).unwrap());
+            }
+        }
         let after = f
             .artifacts
             .head(&f.owner, &artifact.artifact_id())

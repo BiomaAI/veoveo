@@ -1,0 +1,138 @@
+[
+  {
+    "branch": "AccessSubject.principal",
+    "tool": "grant_access",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "subject": {
+        "kind": "principal",
+        "id": "fixture"
+      },
+      "level": "read"
+    },
+    "tag": "/subject/kind",
+    "required": [
+      "/artifact_id",
+      "/subject/id",
+      "/level"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AccessSubject.group",
+    "tool": "grant_access",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "subject": {
+        "kind": "group",
+        "id": "fixture"
+      },
+      "level": "read"
+    },
+    "tag": "/subject/kind",
+    "required": [
+      "/artifact_id",
+      "/subject/id",
+      "/level"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AccessLevel.read",
+    "tool": "grant_access",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "subject": {
+        "kind": "principal",
+        "id": "fixture"
+      },
+      "level": "read"
+    },
+    "tag": "/level",
+    "required": [
+      "/artifact_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AccessLevel.write",
+    "tool": "grant_access",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "subject": {
+        "kind": "principal",
+        "id": "fixture"
+      },
+      "level": "write"
+    },
+    "tag": "/level",
+    "required": [
+      "/artifact_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AccessLevel.admin",
+    "tool": "grant_access",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "subject": {
+        "kind": "principal",
+        "id": "fixture"
+      },
+      "level": "admin"
+    },
+    "tag": "/level",
+    "required": [
+      "/artifact_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "ArtifactReleaseState.private",
+    "tool": "set_release_state",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "release_state": "private"
+    },
+    "tag": "/release_state",
+    "required": [
+      "/artifact_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "ArtifactReleaseState.releasable",
+    "tool": "set_release_state",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "release_state": "releasable"
+    },
+    "tag": "/release_state",
+    "required": [
+      "/artifact_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "ArtifactReleaseState.released",
+    "tool": "set_release_state",
+    "arguments": {
+      "artifact_id": "01983da0-0000-7000-8000-000000000000",
+      "release_state": "released"
+    },
+    "tag": "/release_state",
+    "required": [
+      "/artifact_id"
+    ],
+    "defaults": {},
+    "open_objects": []
+  }
+]

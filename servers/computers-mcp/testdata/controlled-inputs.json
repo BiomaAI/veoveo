@@ -62,5 +62,144 @@
       "/grantId": null
     },
     "open_objects": []
+  },
+  {
+    "branch": "AutomationPermission.read",
+    "tool": "grant_automation",
+    "arguments": {
+      "computerId": "01983da0-0000-7000-8000-000000000000",
+      "requestId": "01983da0-0000-7000-8000-000000000000",
+      "principalId": "fixture",
+      "oauthClientId": "fixture",
+      "name": "Fixture",
+      "permissions": [
+        "read"
+      ],
+      "executionLimits": {
+        "maximumSeconds": 10,
+        "maximumOutputBytes": 1024,
+        "onInterruption": "stop_computer"
+      },
+      "expiresAt": "2026-01-02T00:00:00Z"
+    },
+    "tag": "/permissions/0",
+    "required": [
+      "/computerId",
+      "/requestId",
+      "/principalId"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AutomationPermission.execute",
+    "tool": "grant_automation",
+    "arguments": {
+      "computerId": "01983da0-0000-7000-8000-000000000000",
+      "requestId": "01983da0-0000-7000-8000-000000000000",
+      "principalId": "fixture",
+      "oauthClientId": "fixture",
+      "name": "Fixture",
+      "permissions": [
+        "execute"
+      ],
+      "executionLimits": {
+        "maximumSeconds": 10,
+        "maximumOutputBytes": 1024,
+        "onInterruption": "stop_computer"
+      },
+      "expiresAt": "2026-01-02T00:00:00Z"
+    },
+    "tag": "/permissions/0",
+    "required": [
+      "/computerId",
+      "/requestId",
+      "/principalId"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AutomationPermission.start",
+    "tool": "grant_automation",
+    "arguments": {
+      "computerId": "01983da0-0000-7000-8000-000000000000",
+      "requestId": "01983da0-0000-7000-8000-000000000000",
+      "principalId": "fixture",
+      "oauthClientId": "fixture",
+      "name": "Fixture",
+      "permissions": [
+        "start"
+      ],
+      "executionLimits": {
+        "maximumSeconds": 10,
+        "maximumOutputBytes": 1024,
+        "onInterruption": "stop_computer"
+      },
+      "expiresAt": "2026-01-02T00:00:00Z"
+    },
+    "tag": "/permissions/0",
+    "required": [
+      "/computerId",
+      "/requestId",
+      "/principalId"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AutomationPermission.stop",
+    "tool": "grant_automation",
+    "arguments": {
+      "computerId": "01983da0-0000-7000-8000-000000000000",
+      "requestId": "01983da0-0000-7000-8000-000000000000",
+      "principalId": "fixture",
+      "oauthClientId": "fixture",
+      "name": "Fixture",
+      "permissions": [
+        "stop"
+      ],
+      "executionLimits": {
+        "maximumSeconds": 10,
+        "maximumOutputBytes": 1024,
+        "onInterruption": "stop_computer"
+      },
+      "expiresAt": "2026-01-02T00:00:00Z"
+    },
+    "tag": "/permissions/0",
+    "required": [
+      "/computerId",
+      "/requestId",
+      "/principalId"
+    ],
+    "defaults": {},
+    "open_objects": []
+  },
+  {
+    "branch": "AutomationInterruption.stop_computer",
+    "tool": "grant_automation",
+    "arguments": {
+      "computerId": "01983da0-0000-7000-8000-000000000000",
+      "requestId": "01983da0-0000-7000-8000-000000000000",
+      "principalId": "fixture",
+      "oauthClientId": "fixture",
+      "name": "Fixture",
+      "permissions": [
+        "read"
+      ],
+      "executionLimits": {
+        "maximumSeconds": 10,
+        "maximumOutputBytes": 1024,
+        "onInterruption": "stop_computer"
+      },
+      "expiresAt": "2026-01-02T00:00:00Z"
+    },
+    "tag": "/executionLimits/onInterruption",
+    "required": [
+      "/executionLimits/maximumSeconds",
+      "/executionLimits/maximumOutputBytes"
+    ],
+    "defaults": {},
+    "open_objects": []
   }
 ]
