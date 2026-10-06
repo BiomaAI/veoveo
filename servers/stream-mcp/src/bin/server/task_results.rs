@@ -146,9 +146,9 @@ pub(super) fn run_view(snapshot: &TaskSnapshot) -> Result<RunView, McpError> {
         RunDetails {
             status: task_status(snapshot.status).to_owned(),
             progress: snapshot.progress,
-            recording_uri: input.video.recording_uri,
-            entity_path: input.video.entity_path,
-            timeline: input.video.timeline,
+            recording_uri: input.video.recording_uri.clone(),
+            entity_path: input.video.entity_path.clone(),
+            timeline: input.video.timeline.clone(),
             created_at: snapshot.created_at.to_rfc3339(),
             updated_at: snapshot.updated_at.to_rfc3339(),
         },

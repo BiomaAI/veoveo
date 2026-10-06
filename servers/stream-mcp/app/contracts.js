@@ -1,6 +1,7 @@
 // @ts-check
 import bundle from "./generated/stream.schema.json" with {type:"json"};
 import {ownerContracts} from "../../../mcp/apps-extension/browser/admission.js";
+import {validate as validateUuid,version as uuidVersion} from "uuid";
 const validate=ownerContracts(bundle);
 /**
  * @template {keyof import("./generated/stream").AppContracts} K
@@ -8,7 +9,21 @@ const validate=ownerContracts(bundle);
  * @param {unknown} value
  * @returns {import("./generated/stream").AppContracts[K]}
  */
-export function admit(root,value){return /** @type {import("./generated/stream").AppContracts[K]} */ (validate(root,value));}
+export function admit(root,value){
+ const admitted=validate(root,value);
+ if(root==="results"){
+  const results=/** @type {import("./generated/stream").AppContracts["results"]} */ (admitted);
+  sessionIdentity(results.session_id);
+  if(results.processed_frames<results.frames.length)throw new Error("Stream result count differs from frames");
+  for(const frame of results.frames)for(const detection of frame.detections){
+   if(detection.class_id>65535||!(/[^\p{White_Space}]/u.test(detection.label))||new TextEncoder().encode(detection.label).length>256)throw new Error("Invalid Stream detection class or label");
+   for(const confidence of [detection.confidence,detection.tracker_confidence])if(confidence!=null&&(!Number.isFinite(confidence)||confidence<0||confidence>1))throw new Error("Invalid Stream detection confidence");
+   const bounds=detection.bounds;
+   if(![bounds.x,bounds.y,bounds.width,bounds.height].every(Number.isFinite)||bounds.x<0||bounds.y<0||bounds.width<=0||bounds.height<=0)throw new Error("Invalid Stream detection bounds");
+  }
+ }
+ return /** @type {import("./generated/stream").AppContracts[K]} */ (admitted);
+}
 
 export const tools=/** @type {const} */ ({"start_live_session": "started", "stop_live_session": "stopped"});
 /** @template {keyof typeof tools} N @param {N} name @param {unknown} value @param {Record<string,unknown>} args @returns {import("./generated/stream").AppContracts[(typeof tools)[N]]} */
@@ -18,6 +33,7 @@ export function toolValue(name,value,args={}) {
   const admitted=admit(root,value);
   if(root==="started") {
     const started=admit("started",value);
+    sessionIdentity(started.session_id);
     if(started.result_uri!==new URL(encodeURIComponent(started.session_id),"stream://session/").href) throw new Error("Session address disagrees with identity");
     if(args.pipeline_id && started.pipeline_uri!==new URL(encodeURIComponent(String(args.pipeline_id)),"stream://pipeline/").href) throw new Error("Stream pipeline differs from request");
   } else {
@@ -30,11 +46,19 @@ export function toolValue(name,value,args={}) {
 /** @template {keyof import("./generated/stream").AppContracts} K @param {string} uri @param {unknown} value @param {K} [expectedRoot] @returns {import("./generated/stream").AppContracts[K]} */
 export function resourceValue(uri,value,expectedRoot) {
   const address=new URL(uri);
-  const parts=address.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  if(address.href!==uri||address.username||address.password||address.port||uri.includes("%")||uri.includes("?")||uri.includes("#"))throw new Error("Invalid Stream resource address");
+  const path=/^\/([^/]+)(?:\/(results|preview))?$/u.exec(address.pathname);
+  const parts=path?[path[1],...(path[2]?[path[2]]:[])]:[];
   /** @type {keyof import("./generated/stream").AppContracts|undefined} */
   let root;
   if(address.protocol!=="stream:") throw new Error("Wrong Stream resource owner");
   root=(/** @type {const} */ ({pipelines:"pipelines",sessions:"sessions"}))[address.hostname];
+  if(address.hostname==="session") {
+    if(!path)throw new Error("Invalid Stream session resource route");
+    sessionIdentity(parts[0]);
+    if(parts.length>2)throw new Error("Invalid Stream session resource route");
+  }
+  if(address.hostname!=="session"&&address.pathname!=="")throw new Error("Invalid Stream collection route");
   if(address.hostname==="session") root=parts.length===1?"session":(/** @type {const} */ ({results:"results",preview:"preview"}))[parts[1]];
   if(!root) throw new Error("Unknown App resource contract");
   if(expectedRoot && root!==expectedRoot) throw new Error("Resource route differs from declared root");
@@ -48,3 +72,6 @@ export function resourceValue(uri,value,expectedRoot) {
   }
   return /** @type {import("./generated/stream").AppContracts[K]} */ (admitted);
 }
+
+/** Session IDs use the Stream owner's canonical UUIDv7 profile. @param {string} value */
+function sessionIdentity(value){if(!validateUuid(value)||uuidVersion(value)!==7||value!==value.toLowerCase())throw new Error("Invalid Stream session identity");return value;}

@@ -206,6 +206,30 @@ The recording spool remains read-only. Cancellation removes incomplete downloads
 and releases cache reservations. This integration needs hardware workload acceptance
 before the common compiler image can be admitted.
 
+## Published Result Admission
+
+`ReasoningResultsBuilder` produces an immutable `Checked` result. Construction
+and decoding agree on the result tag, source selector and snapshot, task/answer
+kind, positive observed-frame count, event ranges and ordering, and portable answer fields. The executor retains
+its configured response budgets and verifies cited tracks against the admitted
+grounding input. Portable decoding does not establish grounding membership.
+
+The terminal envelope binds its analysis, finding and result provenance. Summary
+ranges and event totals agree with the finding; annotation descriptors identify
+that result Artifact and the same recording and snapshot. Optional clip provenance
+also agrees with the finding's entity, timeline and decode start. The producer
+calculates observed-frame and elapsed summaries from its admitted full result.
+Those values cannot be reconstructed from an unseen Artifact during decoding.
+
+This coordinated admission cut requires producers and retained-result consumers
+to upgrade together. Contradictory products are rejected without rewriting their
+payloads. Existing JSON tags, enum ordinals, provenance bytes and source snapshot
+hash profiles continue to define published valid products. The shared Workbench
+keeps its normal MCP envelope admission; Reason adds no owner renderer.
+
+Results, annotations and a source clip each name a distinct Artifact occurrence;
+their different provenance roles cannot describe the same immutable object.
+
 ## Reasoning contract
 
 One tool, `analyze_recording`, accepts a video selection, a pipeline identity,

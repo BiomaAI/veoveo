@@ -169,3 +169,9 @@ def test_nested_integer_widths_and_closed_model_vocabulary():
         response[key] = 2**64
         with pytest.raises(ValueError):
             protocol.RunnerResponse.model_validate(response)
+
+
+def test_signed_ranges_share_owner_admission_before_runner_work() -> None:
+    assert protocol.IndexRange(start=-10, end=-1).model_dump() == {"start": -10, "end": -1}
+    with pytest.raises(ValueError, match="range must be ordered"):
+        protocol.IndexRange(start=2, end=1)

@@ -54,7 +54,7 @@ fn request() -> serde_json::Value {
             "pipeline_id": "fixture",
             "video": {
                 "recording_uri": format!("recording://recordings/{}", uuid::Uuid::now_v7()),
-                "entity_path": "camera", "timeline": "log_time", "range": {"start": 0, "end": 1}
+                "entity_path": "/camera", "timeline": "log_time", "range": {"start": 0, "end": 1}
             }
         },
         "artifact_write_capability": capability,
@@ -65,7 +65,7 @@ fn request() -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
+async fn native_completion_filters_before_limits_and_enumerates_separate_artifact_roles() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
         fixture::module_lanes::install(
@@ -113,6 +113,8 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap()
                 .snapshot;
             let artifact = uuid::Uuid::now_v7().to_string();
+            let annotation = uuid::Uuid::now_v7().to_string();
+            let clip = uuid::Uuid::now_v7().to_string();
             let mut output: serde_json::Value =
                 serde_json::from_str(include_str!("../../../testdata/run-output.json")).unwrap();
             let run = veoveo_stream_mcp::contract::RunId::try_from(task.task_id).unwrap();
@@ -121,14 +123,33 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             output["result_uri"] =
                 serde_json::to_value(veoveo_stream_mcp::contract::RunResultsUri::new(run)).unwrap();
             output["pipeline_uri"] = "stream://pipeline/fixture".into();
-            for field in ["results_artifact", "annotations_artifact"] {
+            for (field, artifact) in [
+                ("results_artifact", &artifact),
+                ("annotations_artifact", &annotation),
+            ] {
                 output[field]["artifact_id"] = artifact.clone().into();
                 output[field]["artifact_uri"] = serde_json::to_value(
                     veoveo_stream_mcp::uris::artifact_uri(artifact.parse().unwrap()),
                 )
                 .unwrap();
             }
+            output["results_artifact"]["metadata"]["provenance"]["run_id"] = run.to_string().into();
+            output["results_artifact"]["metadata"]["provenance"]["pipeline_id"] = "fixture".into();
+            output["annotations_artifact"]["metadata"]["provenance"]["run_id"] =
+                run.to_string().into();
+            output["annotations_artifact"]["metadata"]["provenance"]["results_artifact_uri"] =
+                output["results_artifact"]["artifact_uri"].clone();
             output["source_clip_artifact"] = output["results_artifact"].clone();
+            output["source_clip_artifact"]["artifact_id"] = clip.clone().into();
+            output["source_clip_artifact"]["artifact_uri"] =
+                serde_json::to_value(veoveo_stream_mcp::uris::artifact_uri(clip.parse().unwrap()))
+                    .unwrap();
+            output["source_clip_artifact"]["metadata"]["provenance"] = json!({
+                "kind":"stream_source_clip", "run_id":run,
+                "recording_id":"01983da0-0000-7000-8000-000000000000",
+                "entity_path":"/camera", "timeline":"log_time", "decode_start_index":0,
+                "source_snapshot_sha256":"a".repeat(64)
+            });
             let result = super::super::task_results::recording_result(
                 serde_json::from_value(output).unwrap(),
             )
@@ -167,7 +188,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             }
             if index >= 2 {
                 expected_tasks.push(task.task_id.to_string());
-                expected_artifacts.push(artifact);
+                expected_artifacts.extend([artifact, annotation, clip]);
             }
         }
         let page = runs_page(&tasks, &owner(), None).await.unwrap();

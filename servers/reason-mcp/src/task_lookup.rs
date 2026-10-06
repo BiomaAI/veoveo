@@ -251,7 +251,7 @@ mod tests {
             serde_json::to_value(&output.finding).unwrap(),
         );
         assert!(FindingRecord::from_value(good).is_ok());
-        let mut finding = serde_json::to_value(output.finding).unwrap();
+        let mut finding = serde_json::to_value(&output.finding).unwrap();
         finding["answer"]["unknown"] = true.into();
         assert!(
             FindingRecord::from_value(veoveo_platform_store::native_json_into_value(finding))
@@ -263,7 +263,7 @@ mod tests {
             ))
             .is_ok()
         );
-        let mut metadata = output.results_artifact.metadata;
+        let mut metadata = output.results_artifact.metadata.clone();
         metadata["provenance"]["unknown"] = true.into();
         assert!(
             MetadataRecord::from_value(veoveo_platform_store::native_json_into_value(metadata))

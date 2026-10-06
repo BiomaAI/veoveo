@@ -19,9 +19,9 @@ pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.reason-runner-request/v3";
 pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.reason-runner-response/v1";
 use crate::contract::REASONING_RESULTS_SCHEMA;
 
-pub const MAX_EVENT_LABEL_BYTES: usize = 256;
-pub const MAX_EVENT_DESCRIPTION_BYTES: usize = 4_096;
-pub const MAX_TRACK_CITATIONS_PER_EVENT: usize = 64;
+use crate::contract::{
+    MAX_EVENT_DESCRIPTION_BYTES, MAX_EVENT_LABEL_BYTES, MAX_TRACK_CITATIONS_PER_EVENT,
+};
 
 #[derive(Clone, Debug)]
 pub struct ReasonExecutor {
@@ -177,7 +177,7 @@ impl ReasonExecutor {
             analysis.grounding,
             &response,
         )?;
-        Ok(ReasoningResults {
+        crate::contract::ReasoningResultsBuilder {
             schema: REASONING_RESULTS_SCHEMA.to_owned(),
             pipeline_id: analysis.pipeline.id.clone(),
             model_id: analysis.model.id.clone(),
@@ -195,7 +195,8 @@ impl ReasonExecutor {
             model_digest: analysis.model.model_digest.clone(),
             decode: analysis.decode,
             confidence_basis: ConfidenceBasis::ModelReported,
-        })
+        }
+        .build()
     }
 
     fn validate_response(
@@ -362,17 +363,16 @@ mod tests {
     use crate::contract::ModelFormat;
 
     fn selection() -> RecordingVideoSelection {
-        RecordingVideoSelection {
+        veoveo_recording_video::contract::RecordingVideoSelectionBuilder {
             recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000"
                 .parse()
                 .unwrap(),
             entity_path: "/camera/front".to_owned(),
             timeline: "sensor_time".to_owned(),
-            range: IndexRange {
-                start: 120,
-                end: 140,
-            },
+            range: IndexRange::new(120, 140).unwrap(),
         }
+        .build()
+        .unwrap()
     }
 
     fn pipeline() -> PipelineConfig {
@@ -443,7 +443,7 @@ mod tests {
             elapsed_ms: 10,
         };
         let error = executor
-            .validate_response(&task, IndexRange { start: 0, end: 10 }, None, &response)
+            .validate_response(&task, IndexRange::new(0, 10).unwrap(), None, &response)
             .unwrap_err();
         assert!(error.to_string().contains("answered"));
     }
@@ -458,7 +458,7 @@ mod tests {
             schema: RUNNER_RESPONSE_SCHEMA.to_owned(),
             answer: ReasoningAnswer::Events {
                 events: vec![ReasonedEvent {
-                    range: IndexRange { start: 2, end: 4 },
+                    range: IndexRange::new(2, 4).unwrap(),
                     label: "vehicle passes".to_owned(),
                     description: "a vehicle crosses the frame".to_owned(),
                     track_ids: vec![7],
@@ -468,7 +468,7 @@ mod tests {
             elapsed_ms: 10,
         };
         let error = executor
-            .validate_response(&task, IndexRange { start: 0, end: 10 }, None, &response)
+            .validate_response(&task, IndexRange::new(0, 10).unwrap(), None, &response)
             .unwrap_err();
         assert!(error.to_string().contains("without grounding"));
     }
@@ -483,7 +483,7 @@ mod tests {
             schema: RUNNER_RESPONSE_SCHEMA.to_owned(),
             answer: ReasoningAnswer::Events {
                 events: vec![ReasonedEvent {
-                    range: IndexRange { start: 2, end: 40 },
+                    range: IndexRange::new(2, 40).unwrap(),
                     label: "vehicle passes".to_owned(),
                     description: "a vehicle crosses the frame".to_owned(),
                     track_ids: Vec::new(),
@@ -493,7 +493,7 @@ mod tests {
             elapsed_ms: 10,
         };
         let error = executor
-            .validate_response(&task, IndexRange { start: 0, end: 10 }, None, &response)
+            .validate_response(&task, IndexRange::new(0, 10).unwrap(), None, &response)
             .unwrap_err();
         assert!(error.to_string().contains("outside the requested range"));
     }
@@ -557,10 +557,11 @@ mod tests {
         assert_eq!(request["decode"]["mode"], "greedy");
         assert_eq!(request["max_response_bytes"], 1_000_000);
         std::fs::remove_file(&captured).unwrap();
-        let mut wrong_video = video.clone();
+        let mut wrong_video = video.clone().into_builder();
         wrong_video.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000099"
             .parse()
             .unwrap();
+        let wrong_video = wrong_video.build().unwrap();
         let error = executor
             .analyze(ReasonAnalysisRequest {
                 task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),

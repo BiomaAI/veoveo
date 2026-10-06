@@ -20,9 +20,9 @@ returns structured output with a bounded chartable preview.
 - `forecast` executes only as a durable task on the shared task runtime
   through official Tasks; there is no alternate completion path.
 - The immutable RRD artifact is the full resolution record. The `preview`
-  layer is derived, capped at 500 points per series by
-  `PREVIEW_POINTS_PER_SERIES`, and exists so clients chart without re-reading
-  the RRD.
+  layer is derived by the 500-sample stride in `PREVIEW_POINTS_PER_SERIES`
+  and retains its final point, yielding at most 501 points per series. Clients
+  chart this admitted preview without re-reading the RRD.
 - Artifact operations use the caller's forwarded gateway identity; bytes flow
   through the artifact plane (`timeseries://artifact/{artifact_id}`).
 - The app view is self contained by contract (no external fetches, HTML at

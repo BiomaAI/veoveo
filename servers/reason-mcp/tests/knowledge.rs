@@ -12,7 +12,7 @@ use veoveo_platform_store::{
     task_record_id,
 };
 use veoveo_reason_mcp::{
-    contract::{AnalysisId, AnalysisUri, AnalyzeRecordingOutput, ReasonTaskKind},
+    contract::{AnalysisId, AnalysisUri, AnalyzeRecordingOutput, ReasonTaskKind, ResultsUri},
     knowledge::{FindingSelection, observe, readable_findings},
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
@@ -97,9 +97,12 @@ async fn finding(
         })
         .await
         .unwrap();
-    let mut output: AnalyzeRecordingOutput =
+    let output: AnalyzeRecordingOutput =
         serde_json::from_str(include_str!("../testdata/analysis-output-v1.json")).unwrap();
+    let mut output = output.into_builder();
     output.analysis_uri = AnalysisUri::new(id);
+    output.result_uri = ResultsUri::new(id);
+    output.annotations_artifact.metadata["provenance"]["analysis_id"] = id.to_string().into();
     let mut metadata = output.results_artifact.metadata.clone();
     metadata["provenance"]["analysis_id"] = id.to_string().into();
     let artifact = ArtifactId::new();
@@ -137,6 +140,9 @@ async fn finding(
     output.results_artifact.artifact_uri = ArtifactUri::plane(artifact);
     output.results_artifact.created_at = receipt.occurrence.created_at;
     output.results_artifact.metadata = serde_json::to_value(&receipt.occurrence.metadata).unwrap();
+    output.annotations_artifact.metadata["provenance"]["results_artifact_uri"] =
+        serde_json::to_value(&output.results_artifact.artifact_uri).unwrap();
+    let output = output.build().unwrap();
     tasks
         .claim(id.task_id(), Duration::from_secs(30))
         .await

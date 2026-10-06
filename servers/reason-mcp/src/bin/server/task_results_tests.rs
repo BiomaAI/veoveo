@@ -50,6 +50,7 @@ fn current_output(id: TaskId) -> Value {
     value["analysis_uri"] = format!("reason://analysis/{id}").into();
     value["result_uri"] = format!("reason://analysis/{id}/results").into();
     value["results_artifact"]["metadata"]["provenance"]["analysis_id"] = id.to_string().into();
+    value["annotations_artifact"]["metadata"]["provenance"]["analysis_id"] = id.to_string().into();
     value
 }
 

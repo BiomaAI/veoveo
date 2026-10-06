@@ -78,7 +78,21 @@ impl Fixture {
             .artifacts
             .put(
                 &self.owner,
-                PutArtifactRequest::default(),
+                PutArtifactRequest {
+                    metadata: serde_json::to_value(ReasonArtifactMetadata {
+                        provenance: ReasonArtifactProvenance::AnnotationLayer {
+                            analysis_id: analysis,
+                            recording_id: results.recording_uri.id(),
+                            results_artifact_uri: result.artifact_uri.clone(),
+                            source_snapshot_sha256: results
+                                .source_snapshot
+                                .digest_sha256()
+                                .unwrap(),
+                        },
+                    })
+                    .unwrap(),
+                    ..Default::default()
+                },
                 b"inert annotation fixture".to_vec(),
             )
             .await
@@ -101,7 +115,8 @@ impl Fixture {
             },
             result,
             annotation,
-        );
+        )
+        .unwrap();
         tasks
             .claim(analysis.task_id(), std::time::Duration::from_secs(30))
             .await

@@ -24,7 +24,8 @@ pub struct TimeseriesSeriesSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TimeseriesForecastSummary {
+#[schemars(rename = "TimeseriesForecastSummary")]
+pub struct TimeseriesForecastSummaryBuilder {
     pub method: TimeseriesForecastMethod,
     pub horizon: TimeseriesForecastHorizon,
     pub source_rows: u64,
@@ -53,17 +54,82 @@ pub struct TimeseriesPreviewForecastPoint {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeseriesSeriesPreview {
     pub series_id: String,
+    #[schemars(length(max = MAX_PREVIEW_POINTS))]
     pub observed: Vec<TimeseriesPreviewObservation>,
+    #[schemars(length(max = MAX_PREVIEW_POINTS))]
     pub forecast: Vec<TimeseriesPreviewForecastPoint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TimeseriesForecastOutput {
+#[schemars(rename = "TimeseriesForecastOutput")]
+pub struct TimeseriesForecastOutputBuilder {
     pub result_uri: TimeseriesArtifactUri,
     pub forecast: TimeseriesForecastSummary,
     pub preview: Vec<TimeseriesSeriesPreview>,
     pub artifact: ArtifactMetadata,
 }
+
+impl TimeseriesForecastSummaryBuilder {
+    pub fn build(self) -> Result<TimeseriesForecastSummary, TimeseriesForecastError> {
+        veoveo_types::Checked::new(self).map(TimeseriesForecastSummary)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TimeseriesForecastSummary(veoveo_types::Checked<TimeseriesForecastSummaryBuilder>);
+impl schemars::JsonSchema for TimeseriesForecastSummary {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <TimeseriesForecastSummaryBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <TimeseriesForecastSummaryBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <TimeseriesForecastSummaryBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl std::ops::Deref for TimeseriesForecastSummary {
+    type Target = TimeseriesForecastSummaryBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+
+impl TimeseriesForecastOutputBuilder {
+    pub fn build(self) -> Result<TimeseriesForecastOutput, TimeseriesForecastError> {
+        veoveo_types::Checked::new(self).map(TimeseriesForecastOutput)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TimeseriesForecastOutput(veoveo_types::Checked<TimeseriesForecastOutputBuilder>);
+impl schemars::JsonSchema for TimeseriesForecastOutput {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <TimeseriesForecastOutputBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <TimeseriesForecastOutputBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <TimeseriesForecastOutputBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl std::ops::Deref for TimeseriesForecastOutput {
+    type Target = TimeseriesForecastOutputBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+
+mod relationships;
+pub use relationships::{
+    MAX_PREVIEW_POINTS, TimeseriesForecastError, validate_forecast_point, validate_forecast_preview,
+};
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;
 
 #[cfg(test)]
 mod terminal_contract_tests {
@@ -95,6 +161,3 @@ mod terminal_contract_tests {
         assert!(properties.contains_key("result_uri"));
     }
 }
-
-/// Schemas consumed by the server-owned browser App.
-pub mod app_schema;

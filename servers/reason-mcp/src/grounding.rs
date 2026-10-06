@@ -45,6 +45,7 @@ pub fn extract_grounding(
         document.requested_range.contains(selection.range),
         "grounding result range must cover the requested video range"
     );
+    let document = document.into_builder();
     Ok(GroundingDetections {
         schema: GroundingSchema::V1,
         source_artifact_uri: source_artifact_uri.clone(),
@@ -59,9 +60,12 @@ pub fn extract_grounding(
                 detections: frame
                     .detections
                     .into_iter()
-                    .map(|detection| GroundingDetection {
-                        label: detection.label,
-                        track_id: detection.track_id,
+                    .map(|detection| {
+                        let detection = detection.into_builder();
+                        GroundingDetection {
+                            label: detection.label,
+                            track_id: detection.track_id,
+                        }
                     })
                     .collect(),
             })

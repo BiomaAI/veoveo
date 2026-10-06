@@ -1,26 +1,19 @@
-use serde_json::{Value, json};
+use serde_json::Value;
 use veoveo_stream_mcp::contract::*;
 
 const ID: &str = "01983da0-0000-7000-8000-000000000001";
 const OTHER: &str = "01983da0-0000-7000-8000-000000000002";
 
 fn output(id: &str, pipeline: &str) -> RunRecordingOutput {
-    let artifact = json!({"artifact_id": ID, "artifact_uri": format!("stream://artifact/{ID}"), "byte_len": 12, "created_at": "2026-09-28T00:00:00Z"});
-    RunRecordingOutput::new(
-        id.parse().unwrap(),
-        pipeline.parse().unwrap(),
-        "detector".parse().unwrap(),
-        AnalysisSummary {
-            processed_frames: 10,
-            detection_count: 3,
-            elapsed_ms: 10,
-            decode_start_index: 0,
-            requested_start_index: 10,
-            requested_end_index: 20,
-        },
-        serde_json::from_value(artifact.clone()).unwrap(),
-        serde_json::from_value(artifact).unwrap(),
-    )
+    let mut wire: Value =
+        serde_json::from_str(include_str!("../../testdata/run-output.json")).unwrap();
+    wire["run_uri"] = format!("stream://run/{id}").into();
+    wire["result_uri"] = format!("stream://run/{id}/results").into();
+    wire["pipeline_uri"] = format!("stream://pipeline/{pipeline}").into();
+    wire["results_artifact"]["metadata"]["provenance"]["run_id"] = id.into();
+    wire["results_artifact"]["metadata"]["provenance"]["pipeline_id"] = pipeline.into();
+    wire["annotations_artifact"]["metadata"]["provenance"]["run_id"] = id.into();
+    serde_json::from_value(wire).unwrap()
 }
 
 fn run() -> RunView {
@@ -287,5 +280,118 @@ fn recording_references_use_the_recording_owner_admission() {
         invalid["recording_uri"] = address.into();
         let error = serde_json::from_value::<RunView>(invalid).unwrap_err();
         assert!(!error.to_string().contains(address));
+    }
+}
+
+#[test]
+fn terminal_artifact_provenance_and_visible_ranges_share_constructor_admission() {
+    let good = output(ID, "traffic");
+    let original = serde_json::to_value(&good).unwrap();
+    for (pointer, value) in [
+        ("/summary/requested_end_index", serde_json::json!(9)),
+        ("/summary/decode_start_index", serde_json::json!(11)),
+        (
+            "/results_artifact/metadata/provenance/run_id",
+            serde_json::json!(OTHER),
+        ),
+        (
+            "/results_artifact/metadata/provenance/pipeline_id",
+            serde_json::json!("other"),
+        ),
+        (
+            "/annotations_artifact/metadata/provenance/recording_id",
+            serde_json::json!(OTHER),
+        ),
+        (
+            "/annotations_artifact/metadata/provenance/results_artifact_uri",
+            serde_json::json!(format!("stream://artifact/{OTHER}")),
+        ),
+        (
+            "/annotations_artifact/metadata/provenance/source_snapshot_sha256",
+            serde_json::json!("b".repeat(64)),
+        ),
+    ] {
+        let mut bad = original.clone();
+        *bad.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            serde_json::from_value::<RunRecordingOutput>(bad).is_err(),
+            "{pointer}"
+        );
+    }
+    assert!(
+        RunRecordingOutput::new(
+            OTHER.parse().unwrap(),
+            good.pipeline_uri.id().clone(),
+            good.model_uri.id().clone(),
+            good.summary.clone(),
+            good.results_artifact.clone(),
+            good.annotations_artifact.clone()
+        )
+        .is_err()
+    );
+    let mut clip = good.results_artifact.clone();
+    let mut clip_wire = serde_json::to_value(&clip).unwrap();
+    clip_wire["artifact_id"] = "01983da0-0000-7000-8000-000000000004".into();
+    clip_wire["artifact_uri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
+    clip = serde_json::from_value(clip_wire).unwrap();
+    clip.metadata = serde_json::json!({"provenance":{
+        "kind":"stream_source_clip", "run_id":ID,
+        "recording_id":"01983da0-0000-7000-8000-000000000000",
+        "entity_path":"/camera", "timeline":"sensor_time", "decode_start_index":0,
+        "source_snapshot_sha256":"a".repeat(64)}});
+    let with_clip = good.clone().with_source_clip(Some(clip.clone())).unwrap();
+    assert!(
+        serde_json::from_value::<RunRecordingOutput>(serde_json::to_value(with_clip).unwrap())
+            .is_ok()
+    );
+    clip.metadata["provenance"]["decode_start_index"] = 1.into();
+    assert!(good.with_source_clip(Some(clip)).is_err());
+}
+
+#[test]
+fn admitted_products_emit_the_actual_object_schemas() {
+    let schema = serde_json::to_value(schemars::schema_for!(AnalysisResults)).unwrap();
+    assert_eq!(schema["type"], "object", "AnalysisResults");
+    assert!(schema.get("$ref").is_none(), "AnalysisResults");
+    let schema = serde_json::to_value(schemars::schema_for!(Detection)).unwrap();
+    assert_eq!(schema["type"], "object", "Detection");
+    assert!(schema.get("$ref").is_none(), "Detection");
+    let schema = serde_json::to_value(schemars::schema_for!(RunRecordingOutput)).unwrap();
+    assert_eq!(schema["type"], "object", "RunRecordingOutput");
+    assert!(schema.get("$ref").is_none(), "RunRecordingOutput");
+}
+
+#[test]
+fn terminal_roles_cannot_reuse_one_immutable_artifact_occurrence() {
+    let mut wire = serde_json::to_value(output(ID, "traffic")).unwrap();
+    let mut clip = wire["annotations_artifact"].clone();
+    clip["artifact_id"] = "01983da0-0000-7000-8000-000000000004".into();
+    clip["artifact_uri"] = "stream://artifact/01983da0-0000-7000-8000-000000000004".into();
+    clip["metadata"]["provenance"] = serde_json::json!({
+        "kind": "stream_source_clip", "run_id": ID,
+        "recording_id": "01983da0-0000-7000-8000-000000000000", "entity_path":"/camera/front", "timeline":"sensor_time",
+        "decode_start_index": wire["summary"]["decode_start_index"],
+        "source_snapshot_sha256": wire["results_artifact"]["metadata"]["provenance"]["source_snapshot_sha256"]
+    });
+    wire["source_clip_artifact"] = clip;
+    assert!(serde_json::from_value::<RunRecordingOutput>(wire.clone()).is_ok());
+    for (target, source) in [
+        ("annotations_artifact", "results_artifact"),
+        ("source_clip_artifact", "results_artifact"),
+        ("source_clip_artifact", "annotations_artifact"),
+    ] {
+        let mut bad = wire.clone();
+        bad[target]["artifact_id"] = wire[source]["artifact_id"].clone();
+        bad[target]["artifact_uri"] = wire[source]["artifact_uri"].clone();
+        assert!(
+            serde_json::from_value::<RunRecordingOutput>(bad.clone()).is_err(),
+            "{target}/{source}"
+        );
+        assert!(
+            serde_json::from_value::<RunRecordingOutputBuilder>(bad)
+                .unwrap()
+                .build()
+                .is_err()
+        );
     }
 }

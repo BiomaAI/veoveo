@@ -3,13 +3,36 @@
   "forecast": {
     "method": "naive_trend",
     "horizon": 1,
-    "source_rows": 0,
-    "series": []
+    "source_rows": 1,
+    "series": [
+      {
+        "series_id": "series",
+        "observed_rows": 1,
+        "forecast_rows": 1
+      }
+    ]
   },
-  "preview": [],
+  "preview": [
+    {
+      "series_id": "series",
+      "observed": [
+        {
+          "value": 1.0
+        }
+      ],
+      "forecast": [
+        {
+          "step": 1,
+          "mean": 1.0,
+          "q10": 0.9,
+          "q90": 1.1
+        }
+      ]
+    }
+  ],
   "artifact": {
     "artifact_id": "00000000-0000-7000-8000-000000000001",
-    "byte_len": 0,
+    "byte_len": 12,
     "mime_type": null,
     "filename": null,
     "artifact_uri": "artifact://00000000-0000-7000-8000-000000000001",

@@ -285,15 +285,16 @@ fn selection(
             && end * 1_000_000_000.0 < i64::MAX as f64,
         "UAV recording has insufficient or invalid simulation history"
     );
-    Ok(RecordingVideoSelection {
+    RecordingVideoSelection::new(
         recording_uri,
-        entity_path: camera.entity_path.clone(),
-        timeline: "simulation_time".into(),
-        range: IndexRange {
-            start: (start * 1_000_000_000.0) as i64,
-            end: (end * 1_000_000_000.0) as i64,
-        },
-    })
+        camera.entity_path.clone(),
+        "simulation_time".into(),
+        IndexRange::new(
+            (start * 1_000_000_000.0) as i64,
+            (end * 1_000_000_000.0) as i64,
+        )
+        .unwrap(),
+    )
 }
 
 fn assert_source(
@@ -415,7 +416,7 @@ mod tests {
         check(snapshot.clone(), &requested).unwrap();
         for index in 0..6 {
             let mut snapshot = snapshot.clone();
-            let mut video = requested.clone();
+            let mut video = requested.clone().into_builder();
             match index {
                 0 => snapshot["recording_id"] = serde_json::to_value(RecordingId::new()).unwrap(),
                 1 => {
@@ -431,9 +432,12 @@ mod tests {
                 }
                 3 => video.entity_path = "/other-camera".into(),
                 4 => video.timeline = "other-time".into(),
-                _ => video.range.end -= 1,
+                _ => video.range = IndexRange::new(video.range.start, video.range.end - 1).unwrap(),
             }
-            assert!(check(snapshot, &video).is_err(), "case {index}");
+            assert!(
+                check(snapshot, &video.build().unwrap()).is_err(),
+                "case {index}"
+            );
         }
     }
 }

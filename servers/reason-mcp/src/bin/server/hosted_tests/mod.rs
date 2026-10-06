@@ -226,10 +226,10 @@ async fn findings_conform_across_service_restarts_and_artifact_grant_revocation(
         assert!(chrono::Utc::now() >= expiry, "expiry notification arrived before the deadline");
         assert!(read(&client, &member, Some(observed.revision())).await.is_err());
         let _ = expiring.cancel().await;
-        let mut large_results = result_fixture::results();
+        let mut large_results = result_fixture::results().into_builder();
         large_results.answer = ReasoningAnswer::Answer { text: "交通🚘".repeat(120_000) };
         assert!(serde_json::to_vec(&large_results).unwrap().len() > 1024 * 1024);
-        let large = fixture.finding_with_results(large_results).await;
+        let large = fixture.finding_with_results(large_results.build().unwrap()).await;
         fixture.grant(large.artifact, "reader").await.unwrap();
         for collection in FindingCollection::ALL {
             let uri = FindingResource::Member { collection, analysis: large.analysis }.to_uri().unwrap();

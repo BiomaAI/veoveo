@@ -22,6 +22,19 @@ Its Rerun query uses the catalog's dataset and Recording IDs for both committed
 segments and copied live parts. Source snapshots identify the original inputs before
 the shared reader normalizes its live copies.
 
+## Selector Admission
+
+`RecordingVideoSelectionBuilder` and `IndexRangeBuilder` construct immutable
+`Checked` products. JSON decoding applies the same range, absolute entity-path
+and timeline checks before a selector reaches materialization. Range indices stay
+signed; an ordered negative range is valid. Source snapshot serialization and its
+SHA-256 input bytes keep their existing profile.
+
+This coordinated admission cut rejects selectors that previously required an
+explicit validation call to detect malformed fields. Producers and readers must
+upgrade together; persisted malformed selectors require correction before replay.
+No reader repairs a selector or attributes an old snapshot to another recording.
+
 ## Library Features
 
 `contract` exposes `contract::RecordingVideoSelection`, `IndexRange`,

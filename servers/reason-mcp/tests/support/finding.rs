@@ -1,7 +1,7 @@
 use veoveo_reason_mcp::contract::*;
 
 pub fn results() -> ReasoningResults {
-    ReasoningResults {
+    veoveo_reason_mcp::contract::ReasoningResultsBuilder {
         schema: "veoveo.reason-results/v1".into(),
         pipeline_id: "video-reasoning".parse().unwrap(),
         model_id: "world-model".parse().unwrap(),
@@ -11,7 +11,7 @@ pub fn results() -> ReasoningResults {
         entity_path: "/camera/front".into(),
         timeline: "sensor_time".into(),
         timeline_kind: VideoTimelineKind::DurationNanoseconds,
-        requested_range: IndexRange { start: 0, end: 100 },
+        requested_range: IndexRange::new(0, 100).unwrap(),
         source_snapshot: serde_json::from_str(include_str!(
             "../../../../platform/recordings/video/testdata/source-snapshot.json"
         ))
@@ -31,4 +31,6 @@ pub fn results() -> ReasoningResults {
         decode: DecodePolicy::Greedy,
         confidence_basis: ConfidenceBasis::ModelReported,
     }
+    .build()
+    .unwrap()
 }

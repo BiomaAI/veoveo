@@ -7,7 +7,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
 use veoveo_timeseries_mcp::{
-    contract::{TimeseriesArtifactUri, TimeseriesForecastOutput, TimeseriesForecastSummary},
+    contract::{TimeseriesArtifactUri, TimeseriesForecastSummary},
     forecast::{ForecastArtifact, RRD_FILENAME, RRD_MIME_TYPE},
     state::TaskOwner,
 };
@@ -22,6 +22,10 @@ pub(super) async fn forecast_result(
     owner: &TaskOwner,
     artifact: ForecastArtifact,
 ) -> anyhow::Result<CallToolResult> {
+    veoveo_timeseries_mcp::contract::validate_forecast_preview(
+        &artifact.summary,
+        &artifact.preview,
+    )?;
     let mut put = ArtifactPut::new(artifact.rrd_bytes);
     put.mime_type = Some(RRD_MIME_TYPE.to_string());
     put.filename = Some(RRD_FILENAME.to_string());
@@ -57,12 +61,15 @@ pub(super) async fn forecast_result(
             .with_mime_type(RRD_MIME_TYPE),
     ));
     let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(serde_json::to_value(TimeseriesForecastOutput {
-        result_uri,
-        forecast: artifact.summary,
-        preview: artifact.preview,
-        artifact: public_metadata,
-    })?);
+    result.structured_content = Some(serde_json::to_value(
+        veoveo_timeseries_mcp::contract::TimeseriesForecastOutputBuilder {
+            result_uri,
+            forecast: artifact.summary,
+            preview: artifact.preview,
+            artifact: public_metadata,
+        }
+        .build()?,
+    )?);
     Ok(result)
 }
 
@@ -134,16 +141,25 @@ mod terminal_status_tests {
 
     #[test]
     fn terminal_status_is_short_and_identity_free() {
-        let status = forecast_status(&TimeseriesForecastSummary {
-            method: TimeseriesForecastMethod::NaiveTrend,
-            horizon: veoveo_timeseries_mcp::contract::TimeseriesForecastHorizon::new(12).unwrap(),
-            source_rows: 48,
-            series: Vec::new(),
-        });
+        let status = forecast_status(
+            &veoveo_timeseries_mcp::contract::TimeseriesForecastSummaryBuilder {
+                method: TimeseriesForecastMethod::NaiveTrend,
+                horizon: veoveo_timeseries_mcp::contract::TimeseriesForecastHorizon::new(12)
+                    .unwrap(),
+                source_rows: 48,
+                series: vec![veoveo_timeseries_mcp::contract::TimeseriesSeriesSummary {
+                    series_id: "series".into(),
+                    observed_rows: 48,
+                    forecast_rows: 12,
+                }],
+            }
+            .build()
+            .unwrap(),
+        );
 
         assert_eq!(
             status,
-            "timeseries forecast completed; source rows: 48; series: 0; forecast steps: 12"
+            "timeseries forecast completed; source rows: 48; series: 1; forecast steps: 12"
         );
         assert!(!status.contains("://"));
         assert!(!status.contains("artifact-"));

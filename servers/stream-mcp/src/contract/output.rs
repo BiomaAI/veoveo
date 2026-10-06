@@ -7,18 +7,31 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
 
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(try_from = "RunRecordingOutputWire", into = "RunRecordingOutputWire")]
-pub struct RunRecordingOutput {
-    pub run_uri: RunUri,
-    pub pipeline_uri: PipelineUri,
-    pub model_uri: ModelUri,
-    pub summary: AnalysisSummary,
-    pub results_artifact: ArtifactMetadata,
-    pub annotations_artifact: ArtifactMetadata,
-    pub source_clip_artifact: Option<ArtifactMetadata>,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct RunRecordingOutput(veoveo_types::Checked<RunRecordingOutputBuilder>);
+impl schemars::JsonSchema for RunRecordingOutput {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <RunRecordingOutputBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <RunRecordingOutputBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <RunRecordingOutputBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl std::ops::Deref for RunRecordingOutput {
+    type Target = RunRecordingOutputBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
 }
 impl RunRecordingOutput {
+    pub fn into_builder(self) -> RunRecordingOutputBuilder {
+        self.0.into_inner()
+    }
     pub fn new(
         run: RunId,
         pipeline: PipelineId,
@@ -26,9 +39,10 @@ impl RunRecordingOutput {
         summary: AnalysisSummary,
         results: ArtifactMetadata,
         annotations: ArtifactMetadata,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, StreamContractError> {
+        RunRecordingOutputBuilder {
             run_uri: RunUri::new(run),
+            result_uri: RunResultsUri::new(run),
             pipeline_uri: PipelineUri::new(pipeline),
             model_uri: ModelUri::new(model),
             summary,
@@ -36,60 +50,44 @@ impl RunRecordingOutput {
             annotations_artifact: annotations,
             source_clip_artifact: None,
         }
-    }
-    pub fn with_source_clip(mut self, clip: Option<ArtifactMetadata>) -> Self {
-        self.source_clip_artifact = clip;
-        self
+        .build()
     }
     pub fn run_id(&self) -> RunId {
         *self.run_uri.id()
     }
     pub fn result_uri(&self) -> RunResultsUri {
-        RunResultsUri::new(self.run_id())
+        self.0.result_uri.clone()
+    }
+    pub fn with_source_clip(
+        self,
+        clip: Option<ArtifactMetadata>,
+    ) -> Result<Self, StreamContractError> {
+        let mut value = self.0.into_inner();
+        value.source_clip_artifact = clip;
+        value.build()
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-struct RunRecordingOutputWire {
-    run_uri: RunUri,
-    result_uri: RunResultsUri,
-    pipeline_uri: PipelineUri,
-    model_uri: ModelUri,
-    summary: AnalysisSummary,
-    results_artifact: ArtifactMetadata,
-    annotations_artifact: ArtifactMetadata,
+#[schemars(rename = "RunRecordingOutput")]
+pub struct RunRecordingOutputBuilder {
+    pub run_uri: RunUri,
+    pub result_uri: RunResultsUri,
+    pub pipeline_uri: PipelineUri,
+    pub model_uri: ModelUri,
+    pub summary: AnalysisSummary,
+    pub results_artifact: ArtifactMetadata,
+    pub annotations_artifact: ArtifactMetadata,
     #[serde(skip_serializing_if = "Option::is_none")]
-    source_clip_artifact: Option<ArtifactMetadata>,
+    pub source_clip_artifact: Option<ArtifactMetadata>,
 }
-impl TryFrom<RunRecordingOutputWire> for RunRecordingOutput {
-    type Error = StreamContractError;
-    fn try_from(wire: RunRecordingOutputWire) -> Result<Self, Self::Error> {
-        if wire.run_uri.id() != wire.result_uri.id() {
-            return Err(StreamContractError::InvalidRelationship(
-                "run and results URIs",
-            ));
-        }
-        Ok(Self::new(
-            *wire.run_uri.id(),
-            wire.pipeline_uri.id().clone(),
-            wire.model_uri.id().clone(),
-            wire.summary,
-            wire.results_artifact,
-            wire.annotations_artifact,
-        )
-        .with_source_clip(wire.source_clip_artifact))
+impl RunRecordingOutputBuilder {
+    pub fn build(self) -> Result<RunRecordingOutput, StreamContractError> {
+        veoveo_types::Checked::new(self).map(RunRecordingOutput)
     }
 }
-impl From<RunRecordingOutput> for RunRecordingOutputWire {
-    fn from(view: RunRecordingOutput) -> Self {
-        Self {
-            result_uri: view.result_uri(),
-            run_uri: view.run_uri,
-            pipeline_uri: view.pipeline_uri,
-            model_uri: view.model_uri,
-            summary: view.summary,
-            results_artifact: view.results_artifact,
-            annotations_artifact: view.annotations_artifact,
-            source_clip_artifact: view.source_clip_artifact,
-        }
+impl veoveo_types::Check for RunRecordingOutputBuilder {
+    type Error = StreamContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::output_relationships::check(self)
     }
 }

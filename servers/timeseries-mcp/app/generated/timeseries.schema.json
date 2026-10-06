@@ -823,12 +823,14 @@
           "items": {
             "$ref": "#/$defs/TimeseriesPreviewForecastPoint"
           },
+          "maxItems": 501,
           "type": "array"
         },
         "observed": {
           "items": {
             "$ref": "#/$defs/TimeseriesPreviewObservation"
           },
+          "maxItems": 501,
           "type": "array"
         },
         "series_id": {

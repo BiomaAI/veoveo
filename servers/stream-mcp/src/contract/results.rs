@@ -4,7 +4,7 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{AnalysisResults, Detection, RecordingVideoSelection};
+use super::{AnalysisResultsBuilder, DetectionBuilder};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 pub enum StreamResultsSchema {
@@ -43,17 +43,19 @@ impl fmt::Display for StreamResultsError {
 }
 impl std::error::Error for StreamResultsError {}
 
-impl AnalysisResults {
+impl veoveo_types::Check for AnalysisResultsBuilder {
+    type Error = StreamResultsError;
     /// Check the relationships expressible in a published replay document.
     /// The producer separately checks bounds against its private input dimensions.
-    pub fn validate(&self) -> Result<(), StreamResultsError> {
+    fn check(&self) -> Result<(), StreamResultsError> {
         let StreamResultsSchema::V1 = self.schema;
-        veoveo_recording_video::contract::validate_video_selection(&RecordingVideoSelection {
+        veoveo_recording_video::contract::RecordingVideoSelectionBuilder {
             recording_uri: self.recording_uri.clone(),
             entity_path: self.entity_path.clone(),
             timeline: self.timeline.clone(),
             range: self.requested_range,
-        })
+        }
+        .build()
         .map_err(|_| StreamResultsError::Selection)?;
         if self.source_snapshot.recording_id != self.recording_uri.id() {
             return Err(StreamResultsError::SourceRecording);
@@ -78,8 +80,9 @@ impl AnalysisResults {
     }
 }
 
-impl Detection {
-    pub fn validate(&self) -> Result<(), StreamResultsError> {
+impl veoveo_types::Check for DetectionBuilder {
+    type Error = StreamResultsError;
+    fn check(&self) -> Result<(), StreamResultsError> {
         if u16::try_from(self.class_id).is_err() {
             return Err(StreamResultsError::ClassId);
         }

@@ -627,7 +627,8 @@ in Recording MCP. Stream and Reason consume this library through the video mater
 ### `platform/recordings/video`
 
 Exposes video selection and captured source identity through its isolated `contract`
-feature. Its `runtime` feature owns task-start materialization for Stream replay and
+feature. Selection and signed index-range builders share decoder admission through
+immutable checked values. Its `runtime` feature owns task-start materialization for Stream replay and
 Reason. It takes Recording reader plans, combines immutable Artifact-backed layers
 with acknowledged live ingest parts, and remuxes the selected H.264 range without
 re-encoding.
@@ -955,6 +956,8 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/contract/usage.rs` | isolated public usage address, cursor and page contracts; native Task IDs and checked component builders |
 | `servers/timeseries-mcp/src/contract/request.rs` | forecast request builders, checked horizon and training filters; DuckDB-owned tabular source profile and column types |
+| `servers/timeseries-mcp/src/contract/relationships.rs`, `src/forecast.rs` | shared forecast summary/preview/Artifact relationships and finite full-point admission before RRD encoding and publication |
+| `servers/timeseries-mcp/app/contracts.js`, `artifact.js` | browser forecast relationship checks, exact row-count admission and owner-specific Artifact address parsing before chart state changes |
 | `servers/timeseries-mcp/src/contract/resources.rs`, `artifact_uri.rs`, `src/bin/server/setup.rs`, `resources.rs` | typed Artifact and hosted routes, checked startup/discovery and exhaustive authorized resource dispatch |
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
@@ -1493,6 +1496,7 @@ dependencies, forces checked setup and starts the listener.
 | `src/contract/subscriptions.rs`, `src/bin/server/subscriptions.rs`, `subscriptions_tests.rs` | typed Task-backed run addresses and composition with authorized live-owner updates; reconnect, overflow and MCP cancellation qualification |
 | `src/bin/server/test_support.rs` | inert capabilities and current products shared by native Task delivery and subscription fixtures |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
+| `src/contract/artifact_provenance.rs`, `output_relationships.rs` | publication provenance and visible terminal-output relationships across result, annotation and optional clip descriptors |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | native replay-runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
@@ -1519,6 +1523,7 @@ depend on Recording Hub.
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types through the isolated `contract` feature; `runtime` and `mcp` enable execution and hosted integration |
 | `src/contract/ids.rs`, `resources.rs`, `cursor.rs`, `scopes.rs`, `subscriptions.rs` | Reason-owned pipeline, model and analysis identities, typed addresses, versioned analysis cursors, the empty domain scope vocabulary and Task-backed analysis resource relationships |
 | `src/contract/catalog_views.rs`, `output.rs`, `analysis_view.rs`, `tests/contract/responses.rs` | constructor-derived response identities and checked flat JSON decoding, including nested output ownership by Task and pipeline |
+| `src/contract/output_relationships.rs` | visible finding, summary, source and Artifact-provenance relationships in immutable terminal outputs |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | world-model runner protocol and response validation |
 | `src/grounding.rs`, `tests/contract/grounding.rs` | contract-only consumption of Stream's complete replay model, matching video selection and extraction of selected track citations |

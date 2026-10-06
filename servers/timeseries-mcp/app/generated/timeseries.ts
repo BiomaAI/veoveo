@@ -351,7 +351,13 @@ export interface TimeseriesSeriesSummary {
  * via the `definition` "TimeseriesSeriesPreview".
  */
 export interface TimeseriesSeriesPreview {
+  /**
+   * @maxItems 501
+   */
   forecast: TimeseriesPreviewForecastPoint[];
+  /**
+   * @maxItems 501
+   */
   observed: TimeseriesPreviewObservation[];
   series_id: string;
 }

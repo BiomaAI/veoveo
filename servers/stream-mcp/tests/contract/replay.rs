@@ -32,24 +32,23 @@ fn replay_profile_and_intrinsic_checks_are_owned_by_the_contract() {
 
 #[test]
 fn replay_validation_rejects_inconsistent_frames_and_detection_values() {
-    let mut invalid = results();
+    let mut invalid = results().into_builder();
     invalid.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000001"
         .parse()
         .unwrap();
     assert_eq!(invalid.validate(), Err(StreamResultsError::SourceRecording));
-    let mut invalid = results();
+    let mut invalid = results().into_builder();
     invalid.processed_frames = 0;
     assert_eq!(invalid.validate(), Err(StreamResultsError::FrameCount));
-    let mut invalid = results();
+    let mut invalid = results().into_builder();
     invalid.frames[1].index = invalid.frames[0].index;
     assert_eq!(invalid.validate(), Err(StreamResultsError::FrameOrder));
-    let mut invalid = results();
+    let mut invalid = results().into_builder();
     invalid.frames[0].index = -1;
     assert_eq!(invalid.validate(), Err(StreamResultsError::FrameRange));
-    let mut invalid = results();
-    invalid.requested_range.end = -1;
-    assert_eq!(invalid.validate(), Err(StreamResultsError::Selection));
-    let detection = results().frames.remove(0).detections.remove(0);
+    let invalid = results().into_builder();
+    assert!(IndexRange::new(invalid.requested_range.start, -1).is_err());
+    let detection = results().frames[0].detections[0].clone().into_builder();
     for (confidence, expected) in [
         (Some(f32::NAN), false),
         (Some(1.1), false),
@@ -105,4 +104,36 @@ fn stream_artifact_addresses_use_shared_occurrences_and_reject_other_presentatio
         let error = StreamArtifactUri::parse(&value).unwrap_err();
         assert!(!error.to_string().contains(&value));
     }
+}
+
+#[test]
+fn ordinary_replay_decoding_rejects_portable_relationship_failures() {
+    let wire = serde_json::to_value(results()).unwrap();
+    for (pointer, value) in [
+        (
+            "/recording_uri",
+            serde_json::json!("recording://recordings/01983da0-0000-7000-8000-000000000001"),
+        ),
+        ("/entity_path", serde_json::json!("relative")),
+        ("/processed_frames", serde_json::json!(0)),
+        ("/frames/1/index", serde_json::json!(0)),
+        ("/frames/0/index", serde_json::json!(-1)),
+        ("/frames/0/detections/0/confidence", serde_json::json!(1.1)),
+        ("/frames/0/detections/0/bounds/width", serde_json::json!(0)),
+    ] {
+        let mut bad = wire.clone();
+        *bad.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            serde_json::from_value::<AnalysisResults>(bad).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut sparse = results().into_builder();
+    sparse.frames.clear();
+    sparse.processed_frames = 0;
+    sparse.requested_range = IndexRange::new(-10, 10).unwrap();
+    let admitted = sparse.build().unwrap();
+    assert!(
+        serde_json::from_value::<AnalysisResults>(serde_json::to_value(admitted).unwrap()).is_ok()
+    );
 }

@@ -174,7 +174,7 @@ impl StreamExecutor {
             analysis.input_height,
             &response,
         )?;
-        let results = AnalysisResults {
+        let results = crate::contract::AnalysisResultsBuilder {
             schema: StreamResultsSchema::V1,
             pipeline_id: analysis.pipeline.id.clone(),
             model_id: analysis.model.id.clone(),
@@ -187,8 +187,8 @@ impl StreamExecutor {
             frames: response.frames,
             processed_frames: response.processed_frames,
             elapsed_ms: response.elapsed_ms,
-        };
-        results.validate()?;
+        }
+        .build()?;
         Ok(results)
     }
 
@@ -354,7 +354,7 @@ mod tests {
 
     #[test]
     fn invalid_detection_is_rejected() {
-        let detection = Detection {
+        let detection = crate::contract::DetectionBuilder {
             class_id: 1,
             label: "person".to_owned(),
             confidence: Some(1.5),
@@ -367,7 +367,7 @@ mod tests {
             },
             track_id: None,
         };
-        assert!(validate_detection(&detection, 32, 32).is_err());
+        assert!(detection.build().is_err());
     }
 
     #[cfg(unix)]
@@ -394,17 +394,16 @@ mod tests {
         std::fs::write(&input, []).unwrap();
         let executor =
             StreamExecutor::new(runner, Duration::from_secs(5), 10, 10, 1_000_000).unwrap();
-        let video = RecordingVideoSelection {
+        let video = veoveo_recording_video::contract::RecordingVideoSelectionBuilder {
             recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000"
                 .parse()
                 .unwrap(),
             entity_path: "/camera/front".to_owned(),
             timeline: "sensor_time".to_owned(),
-            range: IndexRange {
-                start: 120,
-                end: 140,
-            },
-        };
+            range: IndexRange::new(120, 140).unwrap(),
+        }
+        .build()
+        .unwrap();
         let pipeline = PipelineConfig {
             id: "detect".parse().unwrap(),
             title: "Detect".to_owned(),
@@ -484,10 +483,11 @@ mod tests {
             "/etc/stream/detect.txt"
         );
         std::fs::remove_file(&captured).unwrap();
-        let mut wrong_video = video.clone();
+        let mut wrong_video = video.clone().into_builder();
         wrong_video.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000099"
             .parse()
             .unwrap();
+        let wrong_video = wrong_video.build().unwrap();
         let error = executor
             .analyze(StreamAnalysisRequest {
                 task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),

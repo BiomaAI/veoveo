@@ -164,14 +164,26 @@ pub fn run_forecast(
     }
     summaries.sort_by(|left, right| left.series_id.cmp(&right.series_id));
     series_docs.sort_by(|left, right| left.series_id.cmp(&right.series_id));
-    let preview = series_docs.iter().map(series_preview).collect();
+    let preview: Vec<_> = series_docs.iter().map(series_preview).collect();
 
-    let summary = TimeseriesForecastSummary {
+    let summary = crate::contract::TimeseriesForecastSummaryBuilder {
         method: request.method,
         horizon: request.horizon,
-        source_rows: series_docs.iter().map(|series| series.observed_rows).sum(),
+        source_rows: series_docs
+            .iter()
+            .try_fold(0_u64, |total, series| {
+                total.checked_add(series.observed_rows)
+            })
+            .context("forecast source count overflow")?,
         series: summaries,
-    };
+    }
+    .build()?;
+    for series in &series_docs {
+        for point in &series.forecast {
+            crate::contract::validate_forecast_point(point.step, point.mean, point.q10, point.q90)?;
+        }
+    }
+    crate::contract::validate_forecast_preview(&summary, &preview)?;
     let source_digest = source_digest(&request.source)?;
     let provenance = RrdProvenance {
         task_id,
@@ -710,6 +722,36 @@ mod tests {
             .join("testdata/timesfm-showcase/manifest.json");
         let text = std::fs::read_to_string(path).unwrap();
         serde_json::from_str(&text).unwrap()
+    }
+
+    #[test]
+    fn tail_preserving_preview_has_the_declared_501_bound() {
+        let rows = (0..1000).collect::<Vec<_>>();
+        let preview = downsample(&rows, PREVIEW_POINTS_PER_SERIES).collect::<Vec<_>>();
+        assert_eq!(preview.len(), crate::contract::MAX_PREVIEW_POINTS);
+        assert_eq!(preview.last().copied(), rows.last());
+    }
+
+    #[test]
+    fn finite_observations_that_overflow_forecasting_fail_before_rrd_creation() {
+        let input = TimeseriesForecastRequest {
+            source: DuckDbTabularSource::InlineCsv {
+                csv: "time,value,series\n0,-1e308,a\n1,1e308,a\n".into(),
+                filename: None,
+                options: DuckDbReadOptions::default().with_header(true),
+            },
+            mapping: TimeseriesTableMapping {
+                time_column: None,
+                value_column: "value".parse().unwrap(),
+                series_column: Some("series".parse().unwrap()),
+            },
+            training_filter: None,
+            horizon: TimeseriesForecastHorizon::new(2).unwrap(),
+            method: TimeseriesForecastMethod::NaiveTrend,
+        };
+        let error =
+            run_forecast(TaskId::new(), &input, &HttpsSourcePolicy::deny_network()).unwrap_err();
+        assert!(error.to_string().contains("finite"));
     }
 
     #[test]

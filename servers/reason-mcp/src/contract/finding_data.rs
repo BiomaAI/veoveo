@@ -72,7 +72,7 @@ impl FindingData {
         if let ReasoningAnswer::Events { events } = &results.answer {
             for event in events {
                 ensure!(
-                    event.track_ids.len() <= 64,
+                    event.track_ids.len() <= MAX_TRACK_CITATIONS_PER_EVENT,
                     "finding event has too many track citations"
                 );
                 ensure!(

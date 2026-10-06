@@ -47,19 +47,17 @@ fn source_identity_rejects_unknown_fields_and_kinds() {
 
 #[test]
 fn selection_validation_is_available_without_materialization() {
-    let mut selection: RecordingVideoSelection = serde_json::from_value(serde_json::json!({
+    let mut wire = serde_json::json!({
         "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-        "entity_path": "/camera/front",
-        "timeline": "sensor_time",
-        "range": {"start": 10, "end": 20}
-    }))
-    .unwrap();
+        "entity_path": "/camera/front", "timeline": "sensor_time", "range": {"start": 10, "end": 20}
+    });
+    let selection: RecordingVideoSelection = serde_json::from_value(wire.clone()).unwrap();
     validate_video_selection(&selection).unwrap();
-    selection.range.end = 9;
-    assert!(validate_video_selection(&selection).is_err());
-    selection.range.end = 20;
-    selection.timeline = "sensor\n_time".into();
-    assert!(validate_video_selection(&selection).is_err());
+    wire["range"]["end"] = 9.into();
+    assert!(serde_json::from_value::<RecordingVideoSelection>(wire.clone()).is_err());
+    wire["range"]["end"] = 20.into();
+    wire["timeline"] = "sensor\n_time".into();
+    assert!(serde_json::from_value::<RecordingVideoSelection>(wire).is_err());
 }
 
 #[test]
@@ -146,7 +144,8 @@ fn source_admission_checks_ids_digests_parts_and_layer_relationships() {
 fn admitted_source_models_delegate_builder_schema_identity() {
     use schemars::JsonSchema;
     use veoveo_recording_video::contract::{
-        RecordingSourceIdentity, RecordingSourceIdentityBuilder, RecordingSourceSnapshotBuilder,
+        IndexRange, IndexRangeBuilder, RecordingSourceIdentity, RecordingSourceIdentityBuilder,
+        RecordingSourceSnapshotBuilder, RecordingVideoSelectionBuilder,
     };
     fn same<Model: JsonSchema, Builder: JsonSchema>() {
         assert_eq!(Model::schema_name(), Builder::schema_name());
@@ -156,4 +155,6 @@ fn admitted_source_models_delegate_builder_schema_identity() {
     }
     same::<RecordingSourceSnapshot, RecordingSourceSnapshotBuilder>();
     same::<RecordingSourceIdentity, RecordingSourceIdentityBuilder>();
+    same::<RecordingVideoSelection, RecordingVideoSelectionBuilder>();
+    same::<IndexRange, IndexRangeBuilder>();
 }

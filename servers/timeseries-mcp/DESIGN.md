@@ -202,6 +202,35 @@ Checked constructors initialize private wire caches, and discovery templates ali
 generated declaration. Serde and schema declarations preserve the public string profile;
 cursor payload encoding remains a separate checked owner contract.
 
+## Forecast Result Admission
+
+A completed forecast contains at least one series, and every series contains usable
+observations. Admission rejects an empty success or a zero-observation series,
+matching the producer's finite observation extraction.
+
+`TimeseriesForecastSummaryBuilder` and `TimeseriesForecastOutputBuilder` construct
+immutable `Checked` products. Decoding binds the result URI to its Artifact
+occurrence, requires one unique sorted series set in summary and preview, checks
+source-count sums and horizon counts, and validates finite points, ordered steps
+and enclosing quantiles. Preview steps may be sparse. Their final step equals the
+horizon; the even-stride sampler retains the tail and can emit 501 points.
+
+The forecast producer checks every full-resolution point before encoding an RRD,
+publishing an Artifact or recording usage. Finite observations can overflow trend
+arithmetic, which fails this admission instead of creating a nonfinite product.
+Series labels and source columns keep their user-defined vocabulary. The current
+forecast method and valid RRD encoding are unchanged.
+
+The coordinated admission cut rejects inconsistent retained outputs without a
+repairing reader. The App applies the same visible relationships before chart
+state changes. Its URI adapter uses platform URL parsing and `uuid` 14.0.2 semantic
+UUID validation: Artifact metadata keeps its qualified aliases, while the forecast
+result URI requires the owner's canonical Timeseries presentation. Rust keeps the
+published u64 row counts. The App accepts those counts only through JavaScript's
+safe-integer limit before comparing their sum, because ordinary JSON parsing rounds
+larger integers. A result above that consumer limit is rejected with an explicit
+precision diagnostic before chart state changes.
+
 ## Value Admission
 
 TimeseriesRowFilter stores its published predicate and combination fields through `Checked`. The owner check rejects empty predicates without changing scalar filter or forecast-horizon admission.

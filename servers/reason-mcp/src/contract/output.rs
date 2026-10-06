@@ -14,108 +14,91 @@ pub enum AnalysisOutputSchema {
     V1,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(
-    try_from = "AnalyzeRecordingOutputWire",
-    into = "AnalyzeRecordingOutputWire"
-)]
-pub struct AnalyzeRecordingOutput {
-    pub analysis_uri: AnalysisUri,
-    pub pipeline_uri: PipelineUri,
-    pub model_uri: ModelUri,
-    pub summary: ReasoningSummary,
-    pub finding: FindingData,
-    pub results_artifact: ArtifactMetadata,
-    pub annotations_artifact: ArtifactMetadata,
-    pub source_clip_artifact: Option<ArtifactMetadata>,
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct AnalyzeRecordingOutput(veoveo_types::Checked<AnalyzeRecordingOutputBuilder>);
+impl schemars::JsonSchema for AnalyzeRecordingOutput {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <AnalyzeRecordingOutputBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <AnalyzeRecordingOutputBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <AnalyzeRecordingOutputBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
 }
 
+impl std::ops::Deref for AnalyzeRecordingOutput {
+    type Target = AnalyzeRecordingOutputBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
 impl AnalyzeRecordingOutput {
+    pub fn into_builder(self) -> AnalyzeRecordingOutputBuilder {
+        self.0.into_inner()
+    }
     pub fn new(
         analysis: AnalysisId,
         finding: FindingData,
         summary: ReasoningSummary,
         results: ArtifactMetadata,
         annotations: ArtifactMetadata,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ReasonContractError> {
+        AnalyzeRecordingOutputBuilder {
+            schema: AnalysisOutputSchema::V1,
             analysis_uri: AnalysisUri::new(analysis),
+            result_uri: ResultsUri::new(analysis),
             pipeline_uri: PipelineUri::new(finding.pipeline_id().clone()),
             model_uri: ModelUri::new(finding.model_id().clone()),
-            summary,
             finding,
+            summary,
             results_artifact: results,
             annotations_artifact: annotations,
             source_clip_artifact: None,
         }
-    }
-    pub fn with_source_clip(mut self, clip: Option<ArtifactMetadata>) -> Self {
-        self.source_clip_artifact = clip;
-        self
+        .build()
     }
     pub fn analysis_id(&self) -> AnalysisId {
         *self.analysis_uri.id()
     }
     pub fn result_uri(&self) -> ResultsUri {
-        ResultsUri::new(self.analysis_id())
+        self.0.result_uri.clone()
+    }
+    pub fn with_source_clip(
+        self,
+        clip: Option<ArtifactMetadata>,
+    ) -> Result<Self, ReasonContractError> {
+        let mut value = self.0.into_inner();
+        value.source_clip_artifact = clip;
+        value.build()
     }
 }
-
-#[derive(Clone, Deserialize, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct AnalyzeRecordingOutputWire {
-    schema: AnalysisOutputSchema,
-    analysis_uri: AnalysisUri,
-    result_uri: ResultsUri,
-    pipeline_uri: PipelineUri,
-    model_uri: ModelUri,
-    summary: ReasoningSummary,
-    finding: FindingData,
-    results_artifact: ArtifactMetadata,
-    annotations_artifact: ArtifactMetadata,
+#[schemars(rename = "AnalyzeRecordingOutput")]
+pub struct AnalyzeRecordingOutputBuilder {
+    pub schema: AnalysisOutputSchema,
+    pub analysis_uri: AnalysisUri,
+    pub result_uri: ResultsUri,
+    pub pipeline_uri: PipelineUri,
+    pub model_uri: ModelUri,
+    pub summary: ReasoningSummary,
+    pub finding: FindingData,
+    pub results_artifact: ArtifactMetadata,
+    pub annotations_artifact: ArtifactMetadata,
     #[serde(skip_serializing_if = "Option::is_none")]
-    source_clip_artifact: Option<ArtifactMetadata>,
+    pub source_clip_artifact: Option<ArtifactMetadata>,
 }
-impl TryFrom<AnalyzeRecordingOutputWire> for AnalyzeRecordingOutput {
-    type Error = ReasonContractError;
-    fn try_from(wire: AnalyzeRecordingOutputWire) -> Result<Self, Self::Error> {
-        // Adding a version requires an explicit conversion here.
-        let AnalysisOutputSchema::V1 = wire.schema;
-        if wire.analysis_uri.id() != wire.result_uri.id() {
-            return Err(ReasonContractError::InvalidRelationship(
-                "analysis and results URIs",
-            ));
-        }
-        if wire.pipeline_uri.id() != wire.finding.pipeline_id()
-            || wire.model_uri.id() != wire.finding.model_id()
-        {
-            return Err(ReasonContractError::InvalidRelationship(
-                "finding pipeline and model",
-            ));
-        }
-        Ok(Self::new(
-            *wire.analysis_uri.id(),
-            wire.finding,
-            wire.summary,
-            wire.results_artifact,
-            wire.annotations_artifact,
-        )
-        .with_source_clip(wire.source_clip_artifact))
+impl AnalyzeRecordingOutputBuilder {
+    pub fn build(self) -> Result<AnalyzeRecordingOutput, ReasonContractError> {
+        veoveo_types::Checked::new(self).map(AnalyzeRecordingOutput)
     }
 }
-impl From<AnalyzeRecordingOutput> for AnalyzeRecordingOutputWire {
-    fn from(output: AnalyzeRecordingOutput) -> Self {
-        Self {
-            schema: AnalysisOutputSchema::V1,
-            result_uri: output.result_uri(),
-            analysis_uri: output.analysis_uri,
-            pipeline_uri: output.pipeline_uri,
-            model_uri: output.model_uri,
-            summary: output.summary,
-            finding: output.finding,
-            results_artifact: output.results_artifact,
-            annotations_artifact: output.annotations_artifact,
-            source_clip_artifact: output.source_clip_artifact,
-        }
+impl veoveo_types::Check for AnalyzeRecordingOutputBuilder {
+    type Error = ReasonContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::output_relationships::check(self)
     }
 }

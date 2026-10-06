@@ -28,7 +28,19 @@ pub(super) async fn publish_analysis(
     task_id: AnalysisId,
     products: AnalysisProducts,
 ) -> Result<CallToolResult> {
+    anyhow::ensure!(
+        products.results.source_snapshot == products.source.source_snapshot,
+        "Reason result source differs from materialized source"
+    );
     let finding = FindingData::from_results(&products.results)?;
+    anyhow::ensure!(
+        products.source.clip.decode_start_index <= products.results.requested_range.start
+            && products.source.clip.requested_start_index == products.results.requested_range.start
+            && products.source.clip.requested_end_index == products.results.requested_range.end
+            && products.source.clip.entity_path == products.results.entity_path
+            && products.source.clip.timeline == products.results.timeline,
+        "Reason materialized clip differs from requested range"
+    );
     let compliance = compliance(&products.source.classification, &products.source.labels)?;
     let source_snapshot_sha256 = products.results.source_snapshot.digest_sha256()?;
     let results_bytes = serde_json::to_vec_pretty(&products.results)?;
@@ -104,13 +116,13 @@ pub(super) async fn publish_analysis(
             event_count,
             elapsed_ms: products.results.elapsed_ms,
             decode_start_index: products.source.clip.decode_start_index,
-            requested_start_index: products.source.clip.requested_start_index,
-            requested_end_index: products.source.clip.requested_end_index,
+            requested_start_index: products.results.requested_range.start,
+            requested_end_index: products.results.requested_range.end,
         },
         results_artifact,
         annotations_artifact,
-    )
-    .with_source_clip(source_clip_artifact);
+    )?
+    .with_source_clip(source_clip_artifact)?;
     analysis_tool_result(output)
 }
 

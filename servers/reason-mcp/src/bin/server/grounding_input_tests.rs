@@ -64,12 +64,12 @@ fn admission_checks_the_actual_artifact_occurrence_and_video_selection() {
         )
         .is_err()
     );
-    let mut selected = selection();
+    let mut selected = selection().into_builder();
     selected.timeline = "other-time".into();
     assert!(
         GroundingInput::from_artifact(
             &StreamArtifactUri::new(ID.parse().unwrap()),
-            &selected,
+            &selected.build().unwrap(),
             artifact()
         )
         .is_err()

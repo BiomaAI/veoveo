@@ -42,7 +42,7 @@ fn owner() -> TaskOwner {
 }
 
 #[tokio::test]
-async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
+async fn native_completion_filters_before_limits_and_enumerates_separate_artifact_roles() {
     let db = fixture::TestDb::new().await;
     fixture::module_lanes::install(
         &db.a,
@@ -107,6 +107,8 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap()
                 .snapshot;
             let artifact = uuid::Uuid::now_v7().to_string();
+            let annotation = uuid::Uuid::now_v7().to_string();
+            let clip = uuid::Uuid::now_v7().to_string();
             let mut output: serde_json::Value =
                 serde_json::from_str(include_str!("../../../testdata/analysis-output-v1.json"))
                     .unwrap();
@@ -140,11 +142,22 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                     .unwrap();
             output["results_artifact"]["metadata"]["provenance"]["analysis_id"] =
                 task.task_id.to_string().into();
-            for field in ["results_artifact", "annotations_artifact"] {
+            for (field, artifact) in [("results_artifact", &artifact), ("annotations_artifact", &annotation)] {
                 output[field]["artifact_id"] = artifact.clone().into();
                 output[field]["artifact_uri"] = format!("reason://artifact/{artifact}").into();
             }
+            output["annotations_artifact"]["metadata"]["provenance"]["analysis_id"] = task.task_id.to_string().into();
+            output["annotations_artifact"]["metadata"]["provenance"]["results_artifact_uri"] = output["results_artifact"]["artifact_uri"].clone();
             output["source_clip_artifact"] = output["results_artifact"].clone();
+            output["source_clip_artifact"]["artifact_id"] = clip.clone().into();
+            output["source_clip_artifact"]["artifact_uri"] = format!("reason://artifact/{clip}").into();
+            output["source_clip_artifact"]["metadata"]["provenance"] = serde_json::json!({
+                "kind":"reason_source_clip", "analysis_id":analysis,
+                "recording_id":output["results_artifact"]["metadata"]["provenance"]["recording_id"],
+                "entity_path":output["finding"]["entity_path"], "timeline":output["finding"]["timeline"],
+                "decode_start_index":output["summary"]["decode_start_index"],
+                "source_snapshot_sha256":output["results_artifact"]["metadata"]["provenance"]["source_snapshot_sha256"]
+            });
             let output: veoveo_reason_mcp::contract::AnalyzeRecordingOutput =
                 serde_json::from_value(output).unwrap();
             let result = super::super::task_results::analysis_tool_result(output).unwrap();
@@ -161,7 +174,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap();
             if index >= 2 {
                 expected_tasks.push(task.task_id.to_string());
-                expected_artifacts.push(artifact);
+                expected_artifacts.extend([artifact, annotation, clip]);
             }
         }
         for (domain, mut expected) in [

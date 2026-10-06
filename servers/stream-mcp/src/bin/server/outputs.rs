@@ -1,9 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use veoveo_stream_mcp::contract::{ModelId, PipelineId, RunId};
+use veoveo_stream_mcp::contract::{RunId, StreamArtifactMetadata, StreamArtifactProvenance};
 
 use anyhow::{Context, Result};
 use rmcp::model::CallToolResult;
-use serde::Serialize;
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
@@ -29,6 +28,26 @@ pub(super) async fn publish_analysis(
     task_id: RunId,
     products: AnalysisProducts,
 ) -> Result<CallToolResult> {
+    let detection_count = products
+        .results
+        .frames
+        .iter()
+        .try_fold(0_u64, |total, frame| {
+            total.checked_add(frame.detections.len() as u64)
+        })
+        .context("Stream detection count overflow")?;
+    anyhow::ensure!(
+        products.results.source_snapshot == products.source.source_snapshot,
+        "Stream result source differs from materialized source"
+    );
+    anyhow::ensure!(
+        products.source.clip.decode_start_index <= products.results.requested_range.start
+            && products.source.clip.requested_start_index == products.results.requested_range.start
+            && products.source.clip.requested_end_index == products.results.requested_range.end
+            && products.source.clip.entity_path == products.results.entity_path
+            && products.source.clip.timeline == products.results.timeline,
+        "Stream materialized clip differs from requested range"
+    );
     let compliance = compliance(&products.source.classification, &products.source.labels)?;
     let source_snapshot_sha256 = products.results.source_snapshot.digest_sha256()?;
     let results_bytes = serde_json::to_vec_pretty(&products.results)?;
@@ -93,12 +112,6 @@ pub(super) async fn publish_analysis(
         None
     };
     record_usage(state, task_id, &products.results).await?;
-    let detection_count = products
-        .results
-        .frames
-        .iter()
-        .map(|frame| frame.detections.len() as u64)
-        .sum();
     let output = RunRecordingOutput::new(
         task_id,
         products.results.pipeline_id.clone(),
@@ -108,52 +121,14 @@ pub(super) async fn publish_analysis(
             detection_count,
             elapsed_ms: products.results.elapsed_ms,
             decode_start_index: products.source.clip.decode_start_index,
-            requested_start_index: products.source.clip.requested_start_index,
-            requested_end_index: products.source.clip.requested_end_index,
+            requested_start_index: products.results.requested_range.start,
+            requested_end_index: products.results.requested_range.end,
         },
         results_artifact,
         annotations_artifact,
-    )
-    .with_source_clip(source_clip_artifact);
+    )?
+    .with_source_clip(source_clip_artifact)?;
     super::task_results::recording_result(output)
-}
-
-#[derive(Debug, Serialize)]
-#[serde(deny_unknown_fields)]
-struct StreamArtifactMetadata {
-    provenance: StreamArtifactProvenance,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum StreamArtifactProvenance {
-    #[serde(rename = "stream_results")]
-    Results {
-        run_id: RunId,
-        recording_id: veoveo_recording_mcp::contract::RecordingId,
-        pipeline_id: PipelineId,
-        model_id: ModelId,
-        #[serde(with = "veoveo_types::sha256_hex")]
-        source_snapshot_sha256: veoveo_types::Sha256Digest,
-    },
-    #[serde(rename = "stream_annotation_layer")]
-    AnnotationLayer {
-        run_id: RunId,
-        recording_id: veoveo_recording_mcp::contract::RecordingId,
-        results_artifact_uri: veoveo_artifact_contract::ArtifactUri,
-        #[serde(with = "veoveo_types::sha256_hex")]
-        source_snapshot_sha256: veoveo_types::Sha256Digest,
-    },
-    #[serde(rename = "stream_source_clip")]
-    SourceClip {
-        run_id: RunId,
-        recording_id: veoveo_recording_mcp::contract::RecordingId,
-        entity_path: String,
-        timeline: String,
-        decode_start_index: i64,
-        #[serde(with = "veoveo_types::sha256_hex")]
-        source_snapshot_sha256: veoveo_types::Sha256Digest,
-    },
 }
 
 fn artifact_metadata(provenance: StreamArtifactProvenance) -> Result<serde_json::Value> {

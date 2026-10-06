@@ -67,7 +67,7 @@ fn finding_addresses_preserve_collection_and_reject_ambiguous_routes() {
 
 #[test]
 fn summaries_bound_unicode_and_preserve_full_result_provenance() {
-    let mut results = fixture::results();
+    let mut results = fixture::results().into_builder();
     results.answer = ReasoningAnswer::Answer {
         text: "交通🚘".repeat(2000),
     };
@@ -79,7 +79,7 @@ fn summaries_bound_unicode_and_preserve_full_result_provenance() {
         artifact,
         time,
         time,
-        &FindingData::from_results(&results).unwrap(),
+        &FindingData::from_results(&results.clone().build().unwrap()).unwrap(),
     )
     .unwrap();
     let FindingContent::Answer { excerpt } = summary.content() else {
@@ -98,17 +98,14 @@ fn summaries_bound_unicode_and_preserve_full_result_provenance() {
 
 #[test]
 fn event_summary_declares_omissions_and_checks_source_relationships() {
-    let mut results = fixture::results();
+    let mut results = fixture::results().into_builder();
     results.task = ReasoningTask::DetectEvents {
         prompt: "Vehicles entering".into(),
     };
     results.answer = ReasoningAnswer::Events {
         events: (0..12)
             .map(|index| ReasonedEvent {
-                range: IndexRange {
-                    start: index,
-                    end: index,
-                },
+                range: IndexRange::new(index, index).unwrap(),
                 label: "entry".into(),
                 description: "Vehicle enters. ".repeat(100),
                 track_ids: vec![7],
@@ -126,7 +123,7 @@ fn event_summary_declares_omissions_and_checks_source_relationships() {
             &FindingData::from_results(r)?,
         )
     };
-    let summary = make(&results).unwrap();
+    let summary = make(&results.clone().build().unwrap()).unwrap();
     let FindingContent::Events {
         events,
         total,
@@ -140,12 +137,12 @@ fn event_summary_declares_omissions_and_checks_source_relationships() {
     results.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000010"
         .parse()
         .unwrap();
-    assert!(make(&results).is_err());
-    results = fixture::results();
+    assert!(results.build().is_err());
+    let mut results = fixture::results().into_builder();
     results.answer = ReasoningAnswer::Description {
         text: "Unexpected answer kind".into(),
     };
-    assert!(make(&results).is_err());
+    assert!(results.build().is_err());
 }
 
 #[test]
@@ -217,7 +214,86 @@ fn retained_findings_reject_invalid_content_and_unbounded_provenance() {
             "{pointer}"
         );
     }
-    let mut unsupported = results;
+    let mut unsupported = results.into_builder();
     unsupported.schema = "unsupported".into();
-    assert!(FindingData::from_results(&unsupported).is_err());
+    assert!(unsupported.build().is_err());
+}
+
+#[test]
+fn full_reason_results_admit_each_answer_and_reject_detached_source_and_task() {
+    let results = fixture::results();
+    let original = serde_json::to_value(&results).unwrap();
+    for (pointer, value) in [
+        ("/schema", serde_json::json!("unsupported")),
+        (
+            "/recording_uri",
+            serde_json::json!("recording://recordings/01983da0-0000-7000-8000-000000000001"),
+        ),
+        ("/entity_path", serde_json::json!("relative")),
+        ("/task/kind", serde_json::json!("detect_events")),
+        ("/answer/text", serde_json::json!(" ")),
+        (
+            "/decode",
+            serde_json::json!({"mode":"sampled","temperature":0.0,"top_p":0.5,"seed":1}),
+        ),
+    ] {
+        let mut bad = original.clone();
+        *bad.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            serde_json::from_value::<ReasoningResults>(bad).is_err(),
+            "{pointer}"
+        );
+    }
+    for (task, answer) in [
+        (
+            ReasoningTask::DescribeSegment { prompt: None },
+            ReasoningAnswer::Description {
+                text: "A vehicle turns.".into(),
+            },
+        ),
+        (
+            ReasoningTask::DetectEvents {
+                prompt: "Find turns".into(),
+            },
+            ReasoningAnswer::Events { events: Vec::new() },
+        ),
+    ] {
+        let mut candidate = results.clone().into_builder();
+        candidate.task = task;
+        candidate.answer = answer;
+        let admitted = candidate.build().unwrap();
+        assert!(
+            serde_json::from_value::<ReasoningResults>(serde_json::to_value(admitted).unwrap())
+                .is_ok()
+        );
+    }
+    let mut events = results.into_builder();
+    events.task = ReasoningTask::DetectEvents {
+        prompt: "Find turns".into(),
+    };
+    events.answer = ReasoningAnswer::Events {
+        events: vec![ReasonedEvent {
+            range: IndexRange::new(-1, 1).unwrap(),
+            label: "turn".into(),
+            description: "Vehicle turns.".into(),
+            track_ids: Vec::new(),
+        }],
+    };
+    assert!(events.build().is_err());
+}
+
+#[test]
+fn full_result_construction_and_json_bytes_reject_zero_observation_success() {
+    let valid = fixture::results();
+    let mut draft = valid.clone().into_builder();
+    draft.observed_frames = 0;
+    assert!(draft.build().is_err());
+    let mut wire = serde_json::to_value(&valid).unwrap();
+    wire["observed_frames"] = serde_json::json!(0);
+    assert!(
+        serde_json::from_slice::<ReasoningResults>(&serde_json::to_vec(&wire).unwrap()).is_err()
+    );
+    let bytes = serde_json::to_vec(&valid).unwrap();
+    let admitted: ReasoningResults = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(serde_json::to_vec(&admitted).unwrap(), bytes);
 }

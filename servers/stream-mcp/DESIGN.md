@@ -311,6 +311,31 @@ runner. Only the C++ action uses the DeepStream SDK. Its input mount contains th
 runner directory, which lets a Rust edit reuse the native result. Runtime images
 continue to require the NVIDIA GPU resource and the admitted DeepStream plugins.
 
+## Replay Result Admission
+
+`AnalysisResultsBuilder` and `DetectionBuilder` produce immutable `Checked`
+values. Decoding checks source-recording agreement, frame ordering and range,
+frame counts and detector scalars. The executor also checks pixel bounds against
+its private input dimensions. Mutable live session progress keeps its existing
+representation, while each retained detection uses the same portable admission.
+
+Terminal output construction and decoding bind run, pipeline and model identity
+through the results descriptor. Annotation provenance identifies that results
+Artifact and the same recording and snapshot; an optional clip also agrees with
+the decode start and source identity. The producer derives summary counts from
+admitted full results. The terminal envelope cannot verify those counts against
+Artifact bytes it does not contain. Task policy and retained winning-result
+checks still execute in their services.
+Each role names a distinct Artifact occurrence because results, annotations and
+a source clip carry different immutable provenance.
+
+The coordinated producer/consumer cut rejects contradictory retained products
+before use. It preserves result tags, signed indices, provenance JSON and source
+snapshot hash inputs. Such products require correction rather than a compatibility
+reader. Browser admission checks actual live session routes and portable detection
+scalars before changing App state. The UUID adapter uses the pinned `uuid` 14.0.2
+package; the platform URL implementation supplies URI components.
+
 ## Recording Replay
 
 `AnalysisResults` declares `StreamResultsSchema::V1`. Its `validate` method checks

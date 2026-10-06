@@ -3,9 +3,10 @@ pub use task_kind::ReasonTaskKind;
 mod analysis_view;
 mod catalog_views;
 mod output;
+mod output_relationships;
 pub use analysis_view::{AnalysisDetails, AnalysisView};
 pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
-pub use output::{AnalysisOutputSchema, AnalyzeRecordingOutput};
+pub use output::{AnalysisOutputSchema, AnalyzeRecordingOutput, AnalyzeRecordingOutputBuilder};
 pub use veoveo_stream_mcp::contract::StreamArtifactUri;
 
 mod artifact_provenance;
@@ -43,6 +44,10 @@ pub use veoveo_recording_video::contract::{
 };
 
 pub const REASONING_RESULTS_SCHEMA: &str = "veoveo.reason-results/v1";
+
+pub const MAX_EVENT_LABEL_BYTES: usize = 256;
+pub const MAX_EVENT_DESCRIPTION_BYTES: usize = 4_096;
+pub const MAX_TRACK_CITATIONS_PER_EVENT: usize = 64;
 
 pub const MAX_PROMPT_BYTES: usize = 8_192;
 pub const MAX_OBSERVATION_FRAMES: u32 = 1_024;
@@ -226,7 +231,8 @@ pub enum ConfidenceBasis {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct ReasoningResults {
+#[schemars(rename = "ReasoningResults")]
+pub struct ReasoningResultsBuilder {
     pub schema: String,
     pub pipeline_id: PipelineId,
     pub model_id: ModelId,
@@ -333,6 +339,104 @@ fn validate_prompt(name: &str, value: &str) -> Result<()> {
         "{name} contains control characters"
     );
     Ok(())
+}
+
+impl veoveo_types::Check for ReasoningResultsBuilder {
+    type Error = anyhow::Error;
+    fn check(&self) -> Result<()> {
+        ensure!(
+            self.schema == REASONING_RESULTS_SCHEMA,
+            "unsupported Reason result schema"
+        );
+        veoveo_recording_video::contract::RecordingVideoSelection::new(
+            self.recording_uri.clone(),
+            self.entity_path.clone(),
+            self.timeline.clone(),
+            self.requested_range,
+        )?;
+        ensure!(
+            self.source_snapshot.recording_id == self.recording_uri.id(),
+            "Reason result source recording differs"
+        );
+        ensure!(
+            self.observed_frames > 0,
+            "Reason result must contain observed frames"
+        );
+        validate_reasoning_task(&self.task)?;
+        validate_decode(self.decode)?;
+        ensure!(
+            self.task.kind() == self.answer.kind(),
+            "Reason answer differs from its task"
+        );
+        ensure!(
+            !self.prompt_revision.trim().is_empty(),
+            "Reason prompt revision must not be empty"
+        );
+        if let ReasoningAnswer::Description { text } | ReasoningAnswer::Answer { text } =
+            &self.answer
+        {
+            ensure!(!text.trim().is_empty(), "Reason answer must not be empty");
+        }
+        if let ReasoningAnswer::Events { events } = &self.answer {
+            let mut prior_start = None;
+            for event in events {
+                ensure!(
+                    self.requested_range.contains(event.range),
+                    "Reason event is outside its recording range"
+                );
+                ensure!(
+                    event.track_ids.len() <= MAX_TRACK_CITATIONS_PER_EVENT,
+                    "Reason event has too many track citations"
+                );
+                ensure!(
+                    !event.label.trim().is_empty() && event.label.len() <= MAX_EVENT_LABEL_BYTES,
+                    "Reason event label is empty or too long"
+                );
+                ensure!(
+                    !event.description.trim().is_empty()
+                        && event.description.len() <= MAX_EVENT_DESCRIPTION_BYTES,
+                    "Reason event description is empty or too long"
+                );
+                ensure!(
+                    prior_start.is_none_or(|prior| event.range.start >= prior),
+                    "Reason events must be ordered by start index"
+                );
+                prior_start = Some(event.range.start);
+            }
+        }
+        Ok(())
+    }
+}
+impl ReasoningResultsBuilder {
+    pub fn build(self) -> Result<ReasoningResults> {
+        veoveo_types::Checked::new(self).map(ReasoningResults)
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ReasoningResults(veoveo_types::Checked<ReasoningResultsBuilder>);
+impl schemars::JsonSchema for ReasoningResults {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <ReasoningResultsBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <ReasoningResultsBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <ReasoningResultsBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl std::ops::Deref for ReasoningResults {
+    type Target = ReasoningResultsBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl ReasoningResults {
+    pub fn into_builder(self) -> ReasoningResultsBuilder {
+        self.0.into_inner()
+    }
 }
 
 #[cfg(test)]

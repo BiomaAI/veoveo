@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 REQUEST_SCHEMA = "veoveo.reason-runner-request/v3"
 RESPONSE_SCHEMA = "veoveo.reason-runner-response/v1"
@@ -22,8 +22,16 @@ class _Model(BaseModel):
 
 
 class IndexRange(_Model):
+    model_config = ConfigDict(**(_Model.model_config | {"frozen": True}))
+
     start: I64
     end: I64
+
+    @model_validator(mode="after")
+    def ordered(self) -> "IndexRange":
+        if self.start > self.end:
+            raise ValueError("video range must be ordered")
+        return self
 
 
 class Observation(_Model):

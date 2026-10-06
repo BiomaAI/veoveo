@@ -14,12 +14,14 @@ fn producer() -> AnalysisResults {
 
 fn selection() -> RecordingVideoSelection {
     let result = producer();
-    RecordingVideoSelection {
-        recording_uri: result.recording_uri,
-        entity_path: result.entity_path,
-        timeline: result.timeline,
-        range: IndexRange { start: 10, end: 20 },
+    veoveo_recording_video::contract::RecordingVideoSelectionBuilder {
+        recording_uri: result.recording_uri.clone(),
+        entity_path: result.entity_path.clone(),
+        timeline: result.timeline.clone(),
+        range: IndexRange::new(10, 20).unwrap(),
     }
+    .build()
+    .unwrap()
 }
 
 fn source() -> StreamArtifactUri {
@@ -61,7 +63,7 @@ fn stream_producer_contract_flows_into_reason_without_runtime_dependencies() {
 fn grounding_rejects_other_recordings_entities_timelines_and_uncovered_ranges() {
     let bytes = serde_json::to_vec(&producer()).unwrap();
     for field in ["recording", "entity", "timeline", "start", "end"] {
-        let mut selected = selection();
+        let mut selected = selection().into_builder();
         match field {
             "recording" => {
                 selected.recording_uri =
@@ -71,12 +73,12 @@ fn grounding_rejects_other_recordings_entities_timelines_and_uncovered_ranges() 
             }
             "entity" => selected.entity_path = "/camera/back".into(),
             "timeline" => selected.timeline = "other_time".into(),
-            "start" => selected.range.start = -1,
-            "end" => selected.range.end = 31,
+            "start" => selected.range = IndexRange::new(-1, selected.range.end).unwrap(),
+            "end" => selected.range = IndexRange::new(selected.range.start, 31).unwrap(),
             _ => unreachable!(),
         }
         assert!(
-            extract_grounding(&source(), &selected, &bytes).is_err(),
+            extract_grounding(&source(), &selected.build().unwrap(), &bytes).is_err(),
             "{field}"
         );
     }
@@ -123,7 +125,7 @@ fn grounding_cannot_accept_a_partial_or_malformed_stream_document() {
 
 #[test]
 fn grounding_budget_is_checked_before_admitting_track_citations() {
-    let mut result = producer();
+    let mut result = producer().into_builder();
     result.frames.truncate(1);
     let detection = result.frames[0].detections[0].clone();
     result.frames[0].detections = vec![detection; MAX_GROUNDING_DETECTIONS + 1];

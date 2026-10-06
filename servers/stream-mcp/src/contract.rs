@@ -80,7 +80,8 @@ pub struct BoundingBox2D {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct Detection {
+#[schemars(rename = "Detection")]
+pub struct DetectionBuilder {
     pub class_id: u32,
     pub label: String,
     /// Detector confidence. DeepStream does not provide this value for every
@@ -103,7 +104,8 @@ pub struct FrameDetections {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct AnalysisResults {
+#[schemars(rename = "AnalysisResults")]
+pub struct AnalysisResultsBuilder {
     pub schema: StreamResultsSchema,
     pub pipeline_id: PipelineId,
     pub model_id: ModelId,
@@ -209,13 +211,96 @@ pub struct LivePreviewView {
 
 mod catalog_views;
 mod output;
+mod output_relationships;
 mod run_view;
 pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
-pub use output::RunRecordingOutput;
+pub use output::{RunRecordingOutput, RunRecordingOutputBuilder};
 pub use run_view::{RunDetails, RunView};
 
 mod scopes;
 pub use scopes::StreamScope;
+
+impl DetectionBuilder {
+    pub fn validate(&self) -> Result<(), StreamResultsError> {
+        veoveo_types::Check::check(self)
+    }
+    pub fn build(self) -> Result<Detection, StreamResultsError> {
+        veoveo_types::Checked::new(self).map(Detection)
+    }
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct Detection(veoveo_types::Checked<DetectionBuilder>);
+impl schemars::JsonSchema for Detection {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <DetectionBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <DetectionBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <DetectionBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl std::ops::Deref for Detection {
+    type Target = DetectionBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl Detection {
+    pub fn into_builder(self) -> DetectionBuilder {
+        self.0.into_inner()
+    }
+    pub fn validate(&self) -> Result<(), StreamResultsError> {
+        veoveo_types::Check::check(self.0.get())
+    }
+}
+
+impl AnalysisResultsBuilder {
+    pub fn validate(&self) -> Result<(), StreamResultsError> {
+        veoveo_types::Check::check(self)
+    }
+    pub fn build(self) -> Result<AnalysisResults, StreamResultsError> {
+        veoveo_types::Checked::new(self).map(AnalysisResults)
+    }
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct AnalysisResults(veoveo_types::Checked<AnalysisResultsBuilder>);
+impl schemars::JsonSchema for AnalysisResults {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        <AnalysisResultsBuilder as schemars::JsonSchema>::schema_name()
+    }
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        <AnalysisResultsBuilder as schemars::JsonSchema>::schema_id()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        <AnalysisResultsBuilder as schemars::JsonSchema>::json_schema(generator)
+    }
+}
+
+impl std::ops::Deref for AnalysisResults {
+    type Target = AnalysisResultsBuilder;
+    fn deref(&self) -> &Self::Target {
+        self.0.get()
+    }
+}
+impl AnalysisResults {
+    pub fn into_builder(self) -> AnalysisResultsBuilder {
+        self.0.into_inner()
+    }
+    pub fn validate(&self) -> Result<(), StreamResultsError> {
+        veoveo_types::Check::check(self.0.get())
+    }
+}
+
+mod artifact_provenance;
+pub use artifact_provenance::{StreamArtifactMetadata, StreamArtifactProvenance};
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;
 
 #[cfg(test)]
 mod strict_runner_product_tests {
@@ -237,6 +322,3 @@ mod strict_runner_product_tests {
         }
     }
 }
-
-/// Schemas consumed by the server-owned browser App.
-pub mod app_schema;

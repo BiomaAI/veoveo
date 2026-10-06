@@ -45,6 +45,8 @@ pub(super) fn current_output(id: TaskId) -> Value {
     value["run_uri"] = serde_json::to_value(veoveo_stream_mcp::contract::RunUri::new(id)).unwrap();
     value["result_uri"] =
         serde_json::to_value(veoveo_stream_mcp::contract::RunResultsUri::new(id)).unwrap();
+    value["results_artifact"]["metadata"]["provenance"]["run_id"] = id.to_string().into();
+    value["annotations_artifact"]["metadata"]["provenance"]["run_id"] = id.to_string().into();
     value
 }
 
