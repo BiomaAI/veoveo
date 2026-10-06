@@ -1906,8 +1906,9 @@ JWT claim parsing keeps its separate normalization step.
 The controlled-input batch has completed source review and native qualification.
 The remaining source work is grouped into three batches. Browser generation covers
 installation, Task, Artifact/grant, Agent and policy projections and upload SSE.
-Agent built-in tools derive their schemas from owner types, coordinated with the
-memory interface change. MCP App consumers adopt owner contracts for results,
+Agent built-in tools derive their schemas from their implemented owner types.
+The separate memory plan owns the behavioral replacement described below.
+MCP App consumers adopt owner contracts for results,
 continuations and errors. The already-qualified private protocol graphs require
 their image and hardware checks in Phase 10, rather than another source migration.
 
@@ -1916,7 +1917,7 @@ their image and hardware checks in Phase 10, rather than another source migratio
 | Console and Workspace | New schema bundles in `tools/xtask/src/commands/client_types/mod.rs` for every hand-mirrored contract; hand-written interfaces become imports from `src/generated`; `npm run build` then type-checks every field access |
 | Python peers of the Map helper, cuOpt executor, reason and speech runners and the UAV runtime | pydantic models with `extra="forbid"`; one test per protocol compares the model's JSON Schema with the Rust schema snapshot |
 | MCP App assets (View, Stream, Timeseries, UAV, Map and shared workbench) | Use owner-generated contracts and runtime admission for controlled results, continuations and errors. Keep shared workbench domain payloads open. Qualify Charts against its pinned upstream packaged contract rather than inventing a Rust owner; phase 8’s literal scanner supplements runtime behavior checks |
-| Agent kernel built-in tools | Derive controlled schemas from owner types and qualify the invoking clients. The [agent memory plan](AGENT_MEMORY_PLAN.md) replaces `memory_query` and `memory_write` with `memory_sql` |
+| Agent kernel built-in tools | Derive controlled schemas from owner types and qualify the invoking clients for the implemented `memory_query`, `memory_write`, `timeline_query` and `resource_read` tools. The separate [agent memory plan](AGENT_MEMORY_PLAN.md) owns their later memory-interface replacement |
 | SDKs, templates and cross-server clients | Complete the wider owner-local types and builders in the F-register, including catalog continuation and current-format result consumers |
 
 | Gate | Pass condition |
@@ -1924,6 +1925,13 @@ their image and hardware checks in Phase 10, rather than another source migratio
 | Client types | `cargo xtask release client-types --check` |
 | Console and Workspace | Both clients run `npm test` and `npm run build`; Console also runs `npm run lint` (Workspace has no lint script) |
 | Python | Protocol schema comparison tests and each package's suite |
+
+Kernel schema generation preserves the current tool behavior and removes the
+handwritten copies of their argument schemas. It qualifies defaults, tagged write
+variants, unknown-field rejection and explicitly open SQL rows. The agent memory
+plan separately delivers `memory_sql`, agent-owned tables, memory outlines and context
+views. Its replacement tool must derive its schema through the same owner mechanism;
+this plan does not declare those behavioral changes delivered by typing today's tools.
 
 ## Phase 7: Embedding Profiles And Identity
 
@@ -2140,6 +2148,30 @@ checks, rather than becoming the sole proof of compliance.
 | Shared harness mechanics | Reuse `hosting::testing` for applicable HTTP/signing fixtures. A shared smoke support library may own process cleanup, bounded readiness, redaction and declared GPU/browser prerequisites; it imports no domain implementation and does not replace maintained framework behavior |
 | Typed deployment relationships | Preserve route, mount, scheme, policy, source, image, artifact, recording and GPU validation across the selected installation. Support the qualified replica semantics; do not restore the retired blanket singleton assumption |
 | Onboarding and module responsibility | Required owner documents, standards sections, package naming and isolated contracts are checked. Split mixed responsibilities when needed; neither file length nor deletion of the top-level `testing/` directory is a completion criterion |
+
+The reviewed catalog design puts a closed requirement vocabulary and exhaustive
+metadata in `mcp/contract`. Each owner supplies one complete checked compliance
+profile. Construction and decoding reject missing, duplicate or unknown requirements
+and empty explanations. A new catalog requirement forces every owner to declare its
+status; profiles cannot silently inherit `met`. `not_applicable` is admitted only
+for a catalog-defined condition, and conformance compares that condition with
+discovery. A server declaring Knowledge cannot use it to bypass C32.
+
+The contract resource and the marked compliance section in each owner's manual
+derive from that profile. Generate the checked-in manual before embedding it, and
+check for stale output. The embedded bytes and their content digest stay identical
+to the served document; runtime rendering does not replace `embedded_document!`.
+Python and Node profiles validate against a revision-bound generated catalog, with
+unsupported revisions rejected. The permissive Markdown parser stops being the
+source of declaration authority.
+
+Checklist IDs and runtime check IDs identify different things. Preserve the current
+`VV-MCP-*` check names and map them to typed checklist requirements; Knowledge owns
+its K-series checks. A declared `met` status and a report containing skipped checks
+do not establish runtime qualification. Acceptance covers complete-profile rejection,
+C32 applicability, language parity, generated-section and embedded-digest agreement,
+and onboarding the independent server without a new core registry entry. C33 joins
+the catalog with the implemented naming cut in phase 8.
 
 The scenario descriptor/result contract identifies hardware, network, credentials,
 billed operations, timeouts and cleanup. Keep assertions in one harness. Reuse
