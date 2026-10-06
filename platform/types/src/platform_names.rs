@@ -2,7 +2,7 @@
 use crate::IdentifierError;
 
 #[doc = "Canonical hosted MCP server id used in manifests, profiles, and gateway routes."]
-#[veoveo_types::id(text(crate::identifier_syntax::PathIdProfile))]
+#[veoveo_types::id(text(ServerSlugs))]
 pub struct ServerSlug(String);
 #[doc = "Veoveo profile id exposed under `/mcp/{profile}`."]
 #[veoveo_types::id(text(crate::identifier_syntax::PathIdProfile))]
@@ -86,4 +86,17 @@ impl crate::IdProfile for TaskRouteIds {
     type Error = IdentifierError;
     const PROFILE: crate::IdProfileSpec<Self::Error> =
         crate::IdProfileSpec::text(validate_task_route);
+}
+
+#[doc(hidden)]
+pub struct ServerSlugs;
+impl crate::IdProfile for ServerSlugs {
+    type Error = IdentifierError;
+    const PROFILE: crate::IdProfileSpec<Self::Error> =
+        <crate::identifier_syntax::PathIdProfile as crate::IdProfile>::PROFILE;
+    fn naming_profile(_: crate::IdMetadata) -> Option<crate::ScalarNaming> {
+        Some(crate::ScalarNaming::builtin(
+            crate::ScalarGrammar::ServerSlug,
+        ))
+    }
 }

@@ -1,3 +1,5 @@
+#[path = "support/naming.rs"]
+mod naming_baseline;
 fn capture_schema<T: schemars::JsonSchema>(
     schemas: &mut serde_json::Map<String, serde_json::Value>,
     name: &str,
@@ -227,7 +229,10 @@ fn identity_schemas_match_the_pre_extraction_contract() {
     capture_schema::<AccessSubject>(&mut schemas, stringify!(AccessSubject));
     capture_schema::<InvocationMode>(&mut schemas, stringify!(InvocationMode));
     capture_schema::<InvocationProvenance>(&mut schemas, stringify!(InvocationProvenance));
-    assert_eq!(Value::Object(schemas), expected);
+    assert_eq!(
+        naming_baseline::constraints(Value::Object(schemas)),
+        expected
+    );
 }
 
 #[test]

@@ -382,7 +382,7 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
         impl ::schemars::JsonSchema for #name {
             fn schema_name()->::std::borrow::Cow<'static,str>{stringify!(#name).into()}
             fn inline_schema()->bool{<#profile as ::veoveo_types::ResourceProfile>::SCHEMA.expect("owner schema profile").inline}
-            fn json_schema(generator:&mut ::schemars::SchemaGenerator)->::schemars::Schema{(<#profile as ::veoveo_types::ResourceProfile>::SCHEMA.expect("owner schema profile").schema)(stringify!(#name),generator)}
+            fn json_schema(generator:&mut ::schemars::SchemaGenerator)->::schemars::Schema{let schema = (<#profile as ::veoveo_types::ResourceProfile>::SCHEMA.expect("owner schema profile").schema)(stringify!(#name),generator); ::veoveo_types::naming::static_resource_schema(schema, <#profile as ::veoveo_types::ResourceProfile>::naming_profile(stringify!(#name)), module_path!(), stringify!(#name), generator)}
         })
     } else {
         let mut helper = schema_input;
@@ -394,7 +394,7 @@ pub fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<TokenStr
                 fn schema_name()->::std::borrow::Cow<'static,str>{<__AddressSchema as ::schemars::JsonSchema>::schema_name()}
                 fn schema_id()->::std::borrow::Cow<'static,str>{<__AddressSchema as ::schemars::JsonSchema>::schema_id()}
                 fn inline_schema()->bool{<__AddressSchema as ::schemars::JsonSchema>::inline_schema()}
-                fn json_schema(generator:&mut ::schemars::SchemaGenerator)->::schemars::Schema{<__AddressSchema as ::schemars::JsonSchema>::json_schema(generator)}
+                fn json_schema(generator:&mut ::schemars::SchemaGenerator)->::schemars::Schema{let schema = <__AddressSchema as ::schemars::JsonSchema>::json_schema(generator); ::veoveo_types::naming::static_resource_schema(schema, <#profile as ::veoveo_types::ResourceProfile>::naming_profile(stringify!(#name)), module_path!(), stringify!(#name), generator)}
             }
         };)
     };

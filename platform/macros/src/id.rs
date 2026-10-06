@@ -190,7 +190,8 @@ pub(super) fn emit(input: &DeriveInput, config: Expansion) -> proc_macro2::Token
                 fn schema_name() -> ::std::borrow::Cow<'static, str> { stringify!(#name).into() }
                 fn inline_schema() -> bool { #schema_inline }
                 fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema {
-                    (#schema)(generator)
+                    let schema = (#schema)(generator);
+                    ::veoveo_types::naming::static_identity_schema(schema, None, module_path!(), stringify!(#name), generator)
                 }
             }
         }

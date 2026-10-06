@@ -18,9 +18,7 @@ use crate::{ResourceScheme, ResourceUri, ResourceUriError, ResourceUriParts};
 /// fn read_concrete(_: ResourceUri) {}
 /// read_concrete(ResourceTemplateUri::new("example://items/{id}").unwrap());
 /// ```
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ResourceTemplateUri(String);
 
@@ -162,3 +160,42 @@ impl Error for ResourceTemplateError {
         }
     }
 }
+
+const _: () = {
+    /// An ASCII RFC 6570 template with a literal lowercase resource scheme and `://` prefix.
+    /// Validation preserves spelling and does not establish route ownership or policy.
+    /// A literal-only template is valid under RFC 6570.
+    /// ```compile_fail
+    /// use veoveo_types::{ResourceTemplateUri, ResourceUri};
+    /// fn read_concrete(_: ResourceUri) {}
+    /// read_concrete(ResourceTemplateUri::new("example://items/{id}").unwrap());
+    /// ```
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    #[schemars(rename = "ResourceTemplateUri")]
+    #[serde(try_from = "String", into = "String")]
+    struct __NamingWire(String);
+    impl JsonSchema for ResourceTemplateUri {
+        fn schema_name() -> std::borrow::Cow<'static, str> {
+            <__NamingWire as JsonSchema>::schema_name()
+        }
+        fn schema_id() -> std::borrow::Cow<'static, str> {
+            concat!(module_path!(), "::ResourceTemplateUri").into()
+        }
+        fn inline_schema() -> bool {
+            <__NamingWire as JsonSchema>::inline_schema()
+        }
+        fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+            let schema = <__NamingWire as JsonSchema>::json_schema(generator);
+            crate::naming::static_identity_schema(
+                schema,
+                Some(crate::ScalarNaming::builtin(
+                    crate::ScalarGrammar::ResourceTemplate,
+                )),
+                module_path!(),
+                "ResourceTemplateUri",
+                generator,
+            )
+        }
+    }
+};

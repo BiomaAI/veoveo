@@ -14,11 +14,67 @@
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
 | thiserror 2.0.21 | Static owner errors preserve their messages and error traits through the workspace-qualified derive; contextual admission errors keep owner formatting and redaction |
+| `ai.veoveo/naming-profile` revision 1 | Local JSON Schema declarations distinguish scalar grammars, dictionary keys, JWT, frozen and external object subtrees. Admission checks metadata and the selected node form; declarations confer no authority or attestation. |
 | Rust extension interfaces | Public `Identity`, `AccessGrant`, `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
 | Task operation names | Veoveo names contain 1–128 ASCII bytes: a lowercase initial letter followed by lowercase letters, digits, dots, underscores or hyphens. Validation establishes syntax, not implementation or authority. |
 | Registered action names | `ActionName` admits 1–128 ASCII bytes with the same lexical rules as Task operation names. Action registration binds an owner's closed vocabulary to one registry; the name alone cannot establish that binding. |
 | SHA-256 provenance strings | `Sha256Digest` serializes as `sha256:` followed by 64 lowercase hexadecimal digits. Explicit `sha256_hex` Serde adapters serve fields whose owner declares bare lowercase hex. The type validates supplied digests and performs no hashing. |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
+
+## Schema Naming Profiles
+
+[`src/naming.rs`](src/naming.rs) owns the admitted `NamingProfile` model and the
+ordinary public schema decorators. Revision and role are closed values. Built-in
+scalar grammars delegate to the existing foundational admission APIs, including
+the distinct dynamic `ScopeName` and OAuth `ScopeToken` profiles. The format-tag
+syntax accepts hierarchical `veoveo.ai/` names ending in a positive `/v<N>`;
+syntax alone does not establish that an owner supports the declared version.
+
+`IdProfile` and `ResourceProfile` can select a scalar naming declaration through
+an ordinary trait method. Their defaults identify the declaring owner and type;
+independent libraries need no central registry. Explicit owner and standard
+profiles carry admitted references, version and applicability notes. These
+references describe source ownership. They do not implement another grammar or
+prove runtime validation. `check_spelling` reports that distinction to callers.
+Dynamic constructors return errors for invalid declarations.
+
+The decorators preserve the complete original schema. Scalar forms may be inline,
+local references, nullable type arrays or compositions whose instance kinds are
+string and optionally null. Local reference targets and sibling constraints both
+participate in admission. Compatible existing classifications survive callbacks;
+a conflicting selection, unresolved reference or wrong node kind fails. Structured
+address schemas keep their object shape without a scalar exemption.
+
+`dictionary_schema` explicitly requests its key type through the supplied live
+`SchemaGenerator` and delegates to `dictionary_schema_with_key`. Inline or uncached callbacks
+may run during that request, and an uncached nominal key definition may be added
+for the annotation. Owners with callback-sensitive keys pass their
+already-produced key schema to the pure decorator; it reads existing definitions
+and the configured definitions path without generating types or running transforms.
+
+[`src/naming/dictionary.rs`](src/naming/dictionary.rs) checks the supported local
+object/key association. Finite keys must match the property set without additional
+pattern routes. Pattern keys must match the actual typed pattern route. Open maps
+must expose mapped values, including the maintained String-to-Value true schema.
+Local refs with compatible siblings and Draft7 allOf wrappers preserve their
+constraints. Malformed, unresolved, conflicting and unsupported forms refuse.
+
+The keySchema declaration preserves the actual key and mapped-value graph. The
+maintained map encoder carries key patterns without copying separate length bounds
+into propertyNames; this helper adds neither constraint. Route association is source
+metadata, not arbitrary schema implication or regex-equivalence proof. Owner decoding
+and runtime naming admission keep their responsibilities. JWT, frozen and external
+roles apply to the declared object subtree and do not exempt surrounding fields,
+siblings or mapped values. Dynamic and recursive reference mechanisms are outside
+this local profile and reject without fetching schemas. The future conformance
+traversal owns whole-graph naming checks and runtime context.
+
+Schema classification changes emitted schemas and downstream document hashes.
+It preserves instance spelling, Serde profiles, identity admission, bounds and
+schema identities. Ordinary `Vocabulary` values keep implicit snake_case naming;
+exceptional owner vocabularies use the public decorator at their actual schema
+emitter. The maintained tests compare complete constraint graphs after admitting
+and removing only the naming metadata, and exercise independent owner callbacks.
 
 ## Ownership And Dependencies
 
@@ -476,3 +532,9 @@ Generic Debug output contains names only. `wire()` returns a serialization copy;
 owner policy reads use typed keys. `UniqueJsonValue` rejects duplicate object fields
 at every depth before open JSON maps can discard them. The registry has no module
 catalog, transport dependencies or built-in owner claim names.
+
+The local naming helper accepts an export-root schema identity. It refuses nested `$id`/legacy `id` resource scopes and scoped references instead of resolving a fragment against a different resource. Supported unrebased local references and Draft 7 composition keep their generated constraints.
+
+### Naming Schema Context
+
+`NamingSchemaContext` borrows the exported schema and its admitted definitions location. Standard `$defs` and `definitions` name maps are recognized directly. An owner with an OpenAPI or configured definitions path supplies that exact local pointer through the context builder. Generator decoration supplies `SchemaSettings::definitions_path` without generating another type or executing transforms. Entries named `id` or `$id` are ordinary definition names; nested schema resource identities still require a resolver outside this supported profile and are refused. URI fragments are admitted with the maintained URI parser and percent-decoded before strict JSON Pointer escape admission and lookup. Generator paths remove one optional trailing separator; empty pointer segments are unsupported and refuse decoration. The context does not fetch external resources or prove general schema implication.

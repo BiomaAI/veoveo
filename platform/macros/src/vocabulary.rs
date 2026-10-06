@@ -148,6 +148,11 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             }
         }
     });
+    let naming_schema = if task_type {
+        quote! { ::veoveo_types::naming::static_identity_schema(schema, Some(::veoveo_types::ScalarNaming::builtin(::veoveo_types::ScalarGrammar::TaskTypeName)), module_path!(), #name_text, generator) }
+    } else {
+        quote!(schema)
+    };
     let (parse, wire) = if scope {
         (
             quote! { Self::try_from(&::veoveo_types::ScopeName::parse(value)?) },
@@ -196,7 +201,7 @@ fn generate(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                     impl ::schemars::JsonSchema for #name {
                         fn schema_name() -> ::std::borrow::Cow<'static, str> { <Wire as ::schemars::JsonSchema>::schema_name() }
                         fn schema_id() -> ::std::borrow::Cow<'static, str> { <Wire as ::schemars::JsonSchema>::schema_id() }
-                        fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema { <Wire as ::schemars::JsonSchema>::json_schema(generator) }
+                        fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema { let schema = <Wire as ::schemars::JsonSchema>::json_schema(generator); #naming_schema }
                         fn inline_schema() -> bool { <Wire as ::schemars::JsonSchema>::inline_schema() }
                     }
                 };

@@ -57,7 +57,7 @@ dependency. Metal is an unqualified proposed profile, not an implemented capabil
 | 5 — Inbound strictness | The 447-case matrix across 112 families and sixteen Rust servers passes schemas, decoders and owning hosted checks | Preserve coverage through the naming cut and installed process qualification |
 | 6 — Generated consumers | The implemented Console, Kernel and MCP App batch passes owning native and browser checks, isolation, strict lint and generation | Complete wider owner DTO relationships and required installed consumers in the F-register |
 | 7 — Embedding identity | Profiles, producer receipts, reclamation and search races pass source qualification | Measure the NVIDIA runtime bundle, then qualify its full production workload before installation selection |
-| 8 — Installation and naming cut | Required work is specified; implementation has not started | Update the full producer/consumer closure, drain incompatible writers and prepare fresh reference state |
+| 8 — Installation and naming cut | Foundational naming declarations are integrated; focused compiler and behavior checks pass | Qualify generated artifacts, implement C33 and the full producer/consumer cut, drain incompatible writers and prepare fresh reference state |
 | 9 — Conformance and enforcement | The typed catalog, complete profiles and generated declarations pass independent Rust, Python and Node checks across 22 owners | Complete the protected shared-host fixture gate, then finish generic conformance and component/scenario discovery |
 | 10 — Installed acceptance | Foundations has accepted installed checkpoints; the consolidated cut is unqualified | Publish the affected image closure and pass every required installed and hardware gate |
 

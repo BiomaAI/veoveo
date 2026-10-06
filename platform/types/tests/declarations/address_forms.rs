@@ -1,4 +1,6 @@
 //! Positive address declarations exercise the same native test harness as ID forms.
+#[path = "../support/naming.rs"]
+mod naming_baseline;
 use veoveo_types::{
     IdProfile, IdProfileSpec, ResourceAddress, ResourceProfile, ResourceProfileSpec,
     ResourceRouteError, ResourceSchema, ResourceUri, ResourceUriError,
@@ -185,9 +187,20 @@ fn owner_schema_and_derived_metadata_keep_their_explicit_profiles() {
     assert!(Routes::inline_schema());
     assert_eq!(Routes::schema_name(), "Routes");
     assert_eq!(Routes::schema_id(), "Routes");
+    let annotated = Routes::json_schema(&mut schemars::SchemaGenerator::default());
+    assert!(
+        veoveo_types::naming_profile(
+            &annotated,
+            veoveo_types::NamingSchemaContext::new(&annotated)
+        )
+        .unwrap()
+        .is_some()
+    );
     assert_eq!(
-        Routes::json_schema(&mut schemars::SchemaGenerator::default()),
+        naming_baseline::constraints(annotated.as_value().clone()),
         <String as JsonSchema>::json_schema(&mut schemars::SchemaGenerator::default())
+            .as_value()
+            .clone()
     );
     let schema = Checked::json_schema(&mut schemars::SchemaGenerator::default());
     assert_eq!(
@@ -251,4 +264,34 @@ fn optional_scalar_codec_and_borrowed_accessor_are_independent_of_query_role() {
     }
     assert_eq!(construct(None).to_uri().as_str(), "example://optional/none");
     assert!(OptionalScalar::parse("example://optional/").is_err());
+}
+
+#[test]
+fn every_generated_address_schema_mode_preserves_local_scalar_or_structured_roles() {
+    use schemars::JsonSchema;
+    fn actual<T: JsonSchema>() {
+        let root = schemars::schema_for!(T);
+        let profile =
+            veoveo_types::naming_profile(&root, veoveo_types::NamingSchemaContext::new(&root))
+                .unwrap();
+        match root.get("type").and_then(serde_json::Value::as_str) {
+            Some("string") => assert!(profile.is_some()),
+            Some("object" | "array") => assert!(profile.is_none()),
+            _ => {
+                // Nullable and referenced scalar forms keep their actual graph.
+                // The parser admits every local marker against that complete graph.
+            }
+        }
+        let _ = naming_baseline::constraints(root.as_value().clone());
+    }
+    actual::<Checked>();
+    actual::<Cached>();
+    actual::<Index>();
+    actual::<Component>();
+    actual::<Pair>();
+    actual::<Routes>();
+    actual::<CopyComponent>();
+    actual::<Admitted>();
+    actual::<OptionalScalar>();
+    actual::<CopiedGetter>();
 }

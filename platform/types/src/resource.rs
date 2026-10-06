@@ -5,9 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ResourceUri(String);
 
@@ -91,3 +89,34 @@ pub trait ResourceAddress: Sized {
 pub trait TaskResourceAddress: ResourceAddress {
     fn task_id(&self) -> crate::TaskId;
 }
+
+const _: () = {
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    #[schemars(rename = "ResourceUri")]
+    #[serde(try_from = "String", into = "String")]
+    struct __NamingWire(String);
+    impl JsonSchema for ResourceUri {
+        fn schema_name() -> std::borrow::Cow<'static, str> {
+            <__NamingWire as JsonSchema>::schema_name()
+        }
+        fn schema_id() -> std::borrow::Cow<'static, str> {
+            concat!(module_path!(), "::ResourceUri").into()
+        }
+        fn inline_schema() -> bool {
+            <__NamingWire as JsonSchema>::inline_schema()
+        }
+        fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+            let schema = <__NamingWire as JsonSchema>::json_schema(generator);
+            crate::naming::static_identity_schema(
+                schema,
+                Some(crate::ScalarNaming::builtin(
+                    crate::ScalarGrammar::ResourceUri,
+                )),
+                module_path!(),
+                "ResourceUri",
+                generator,
+            )
+        }
+    }
+};

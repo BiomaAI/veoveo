@@ -84,7 +84,7 @@ pub(super) fn generate(declaration: &Declaration<'_>) -> Expansion {
         impl ::schemars::JsonSchema for #name {
             fn schema_name() -> ::std::borrow::Cow<'static, str> { stringify!(#name).into() }
             fn inline_schema() -> bool { #schema_inline }
-            fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema { (#function)(generator) }
+            fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema { let schema = (#function)(generator); ::veoveo_types::naming::static_resource_schema(schema, None, module_path!(), stringify!(#name), generator) }
         }
     });
     let tokens = quote! {

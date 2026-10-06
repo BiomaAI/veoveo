@@ -2,6 +2,10 @@
 use uuid::{Uuid, Variant};
 
 pub trait IdProfile: Sized {
+    /// Optional explicit scalar naming selection. Absence preserves an admitted owner callback declaration.
+    fn naming_profile(_: IdMetadata) -> Option<crate::ScalarNaming> {
+        None
+    }
     type Error;
     const PROFILE: IdProfileSpec<Self::Error>;
 }

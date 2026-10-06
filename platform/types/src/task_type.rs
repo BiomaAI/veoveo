@@ -8,9 +8,7 @@ use crate::IdentifierError;
 
 /// A Task operation name: 1–128 ASCII bytes, starting with a lowercase letter,
 /// followed by lowercase letters, digits, dots, underscores or hyphens.
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct TaskTypeName(Cow<'static, str>);
 
@@ -168,3 +166,36 @@ mod tests {
         assert!(TaskTypeName::new("a".repeat(129)).is_err());
     }
 }
+
+const _: () = {
+    /// A Task operation name: 1–128 ASCII bytes, starting with a lowercase letter,
+    /// followed by lowercase letters, digits, dots, underscores or hyphens.
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    #[schemars(rename = "TaskTypeName")]
+    #[serde(try_from = "String", into = "String")]
+    struct __NamingWire(Cow<'static, str>);
+    impl JsonSchema for TaskTypeName {
+        fn schema_name() -> std::borrow::Cow<'static, str> {
+            <__NamingWire as JsonSchema>::schema_name()
+        }
+        fn schema_id() -> std::borrow::Cow<'static, str> {
+            concat!(module_path!(), "::TaskTypeName").into()
+        }
+        fn inline_schema() -> bool {
+            <__NamingWire as JsonSchema>::inline_schema()
+        }
+        fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+            let schema = <__NamingWire as JsonSchema>::json_schema(generator);
+            crate::naming::static_identity_schema(
+                schema,
+                Some(crate::ScalarNaming::builtin(
+                    crate::ScalarGrammar::TaskTypeName,
+                )),
+                module_path!(),
+                "TaskTypeName",
+                generator,
+            )
+        }
+    }
+};

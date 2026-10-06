@@ -14,9 +14,29 @@ that their generated code implements. Each consuming library owns its domain dec
 | RFC 3986 and WHATWG URL resource components | Resource routes delegate concrete parsing and encoding to the foundational URI profile; network adapters keep their own profiles |
 | RFC 6570 URI Templates | Resource declarations support literal scheme/authority, literal or scalar path segments, one final `{+tail}`, and a final optional `{?query,...}` expression; the attribute does not implement all template operators |
 | OAuth 2.0, RFC 6749 section 3.3 | Code-owned scope-token syntax; dynamic installation scopes keep `ScopeName` admission |
+| `ai.veoveo/naming-profile` revision 1 | Scope and Task hooks and identity/resource schema emitters delegate local classification to public foundational helpers; instance serialization is unchanged. |
 | Veoveo Task operation names | The `TaskTypeName` lexical profile, with distinct spellings |
 | SurrealDB Rust SDK 3.3.0 | Optional consumer-only `SurrealValue` delegation preserves the owner's literal-string mapping |
 | SHA-256, FIPS 180-4 | Digest of the embedded document's original UTF-8 bytes |
+
+## Naming Metadata Delegation
+
+The existing declarations emit naming metadata through ordinary helpers in
+`veoveo-types`. Scope vocabularies select the OAuth scope-token grammar; Task
+vocabularies select the Task operation grammar. Ordinary vocabularies retain their
+implicit naming profile. Identity and resource emitters pass the actual owner
+schema, including custom callbacks and local references, to the foundational
+helper. An owner may select a compatible profile through its existing profile
+trait without adding a declaration macro or registering domain values in core.
+
+The helpers preserve callback schema identities, inline decisions, descriptions
+and constraints. They classify string and nullable string forms using the real
+generator definitions; structured address schemas stay structured. Existing
+compatible classifications survive, while conflicting declarations and unsupported
+forms fail at generation. Static declaration failures are source errors; public
+dynamic metadata APIs return admitted values or errors. This delegation changes
+schema artifacts and their document hashes without changing Serde spellings,
+binary profiles, ID admission or vocabulary ordinals.
 
 ## Id
 

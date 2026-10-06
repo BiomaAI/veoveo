@@ -1,3 +1,5 @@
+#[path = "support/naming.rs"]
+mod naming_baseline;
 use uuid::Uuid;
 use veoveo_types::*;
 
@@ -156,3 +158,22 @@ fn generation_admits_its_owned_value_once() {
 
 #[path = "declarations/address_forms.rs"]
 mod address_forms;
+
+#[test]
+fn every_identity_schema_mode_keeps_admission_and_adds_local_classification() {
+    use schemars::JsonSchema;
+    fn actual<T: JsonSchema>() {
+        let root = schemars::schema_for!(T);
+        assert!(
+            naming_profile(&root, veoveo_types::NamingSchemaContext::new(&root))
+                .unwrap()
+                .is_some()
+        );
+        let _ = naming_baseline::constraints(root.as_value().clone());
+    }
+    actual::<Name>();
+    actual::<Secret>();
+    actual::<DatasetId>();
+    actual::<RequestId>();
+    actual::<Digest>();
+}

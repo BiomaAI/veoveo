@@ -107,7 +107,8 @@
           "mode",
           "initiator"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       },
       {
         "properties": {
@@ -127,7 +128,8 @@
           "initiator",
           "delegation_id"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       },
       {
         "properties": {
@@ -139,7 +141,8 @@
         "required": [
           "mode"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       }
     ],
     "title": "InvocationProvenance"

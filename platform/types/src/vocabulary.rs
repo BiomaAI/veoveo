@@ -97,9 +97,13 @@ pub fn scope_vocabulary_schema<T: Vocabulary>() -> schemars::Schema {
     if T::ALL.is_empty() {
         false.into()
     } else {
-        schemars::json_schema!({
-            "type": "string",
-            "enum": T::ALL.iter().map(|value| value.as_str()).collect::<Vec<_>>()
-        })
+        crate::scalar_schema(
+            schemars::json_schema!({
+                "type": "string",
+                "enum": T::ALL.iter().map(|value| value.as_str()).collect::<Vec<_>>()
+            }),
+            crate::ScalarNaming::builtin(crate::ScalarGrammar::ScopeToken),
+        )
+        .expect("scope vocabulary declarations admit OAuth scope tokens")
     }
 }

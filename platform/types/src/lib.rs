@@ -23,6 +23,13 @@
 extern crate self as veoveo_types;
 pub use id::Identity;
 pub use veoveo_macros::{Vocabulary, embedded_document, id, resource_address};
+pub mod naming;
+pub use naming::{
+    NAMING_PROFILE_KEY, NamingAuthority, NamingDeclaration, NamingLabel, NamingProfile,
+    NamingProfileError, NamingRole, NamingSchemaContext, ScalarGrammar, ScalarNaming,
+    dictionary_schema, dictionary_schema_with_key, naming_profile, scalar_schema,
+    with_naming_profile,
+};
 mod id_profile;
 pub use id_profile::*;
 mod resource_profile;

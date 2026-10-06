@@ -492,6 +492,9 @@ and server library features.
 `src/https_url.rs` owns canonical network URL parsing and redacted diagnostics; download
 policies own DNS and access checks.
 `src/vocabulary.rs` owns the public closed-spelling trait and scope-token/schema helpers.
+`src/naming.rs` owns the protocol-independent naming profiles, explicit schema context
+and local classification. `src/naming/dictionary.rs` checks captured key and map schemas
+against existing generator definitions without applying generator transforms.
 `src/id.rs` owns the open `Identity` admission and text-exposure trait.
 `src/id_profile.rs` owns public admission, generation and wire/schema profiles.
 `platform/macros/src/id_frontend.rs` parses the re-exported `id` attribute and selects

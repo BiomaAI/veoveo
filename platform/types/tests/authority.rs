@@ -1,3 +1,5 @@
+#[path = "support/naming.rs"]
+mod naming_baseline;
 use schemars::schema_for;
 use serde_json::{Value, json};
 use veoveo_types::{
@@ -16,7 +18,7 @@ fn authority_schemas_match_the_shared_wire_contract() {
         "WorkContextOutputPolicy": schema_for!(WorkContextOutputPolicy),
         "InvocationAuthority": schema_for!(InvocationAuthority),
     });
-    assert_eq!(actual, expected);
+    assert_eq!(naming_baseline::constraints(actual), expected);
 }
 
 fn authority() -> Value {

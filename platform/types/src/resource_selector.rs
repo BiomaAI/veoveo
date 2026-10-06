@@ -16,7 +16,7 @@ pub enum ResourceSelector {
     Template { uri_template: ResourceUriTemplate },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ResourceUriPrefix(String);
 
@@ -58,7 +58,7 @@ impl From<ResourceUriPrefix> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct ResourceUriTemplate(String);
 
@@ -315,3 +315,65 @@ impl ResourceSelection {
                 .any(|selector| selector.matches_uri(uri))
     }
 }
+
+const _: () = {
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    #[schemars(rename = "ResourceUriPrefix")]
+    #[serde(try_from = "String", into = "String")]
+    struct __NamingWire(String);
+    impl JsonSchema for ResourceUriPrefix {
+        fn schema_name() -> std::borrow::Cow<'static, str> {
+            <__NamingWire as JsonSchema>::schema_name()
+        }
+        fn schema_id() -> std::borrow::Cow<'static, str> {
+            concat!(module_path!(), "::ResourceUriPrefix").into()
+        }
+        fn inline_schema() -> bool {
+            <__NamingWire as JsonSchema>::inline_schema()
+        }
+        fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+            let schema = <__NamingWire as JsonSchema>::json_schema(generator);
+            crate::naming::static_identity_schema(
+                schema,
+                Some(crate::ScalarNaming::builtin(
+                    crate::ScalarGrammar::ResourcePrefix,
+                )),
+                module_path!(),
+                "ResourceUriPrefix",
+                generator,
+            )
+        }
+    }
+};
+
+const _: () = {
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    #[schemars(rename = "ResourceUriTemplate")]
+    #[serde(try_from = "String", into = "String")]
+    struct __NamingWire(String);
+    impl JsonSchema for ResourceUriTemplate {
+        fn schema_name() -> std::borrow::Cow<'static, str> {
+            <__NamingWire as JsonSchema>::schema_name()
+        }
+        fn schema_id() -> std::borrow::Cow<'static, str> {
+            concat!(module_path!(), "::ResourceUriTemplate").into()
+        }
+        fn inline_schema() -> bool {
+            <__NamingWire as JsonSchema>::inline_schema()
+        }
+        fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+            let schema = <__NamingWire as JsonSchema>::json_schema(generator);
+            crate::naming::static_identity_schema(
+                schema,
+                Some(crate::ScalarNaming::builtin(
+                    crate::ScalarGrammar::ResourceSelectorTemplate,
+                )),
+                module_path!(),
+                "ResourceUriTemplate",
+                generator,
+            )
+        }
+    }
+};

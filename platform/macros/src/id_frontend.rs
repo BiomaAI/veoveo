@@ -359,13 +359,13 @@ pub(super) fn expand(arguments: TokenStream, item: TokenStream) -> syn::Result<T
                 fn schema_name() -> ::std::borrow::Cow<'static,str> { match #policy.schema { ::veoveo_types::IdSchema::DerivedString => <__DerivedString as ::schemars::JsonSchema>::schema_name(), ::veoveo_types::IdSchema::DerivedUuid => <#uuid_type as ::schemars::JsonSchema>::schema_name(), _ => stringify!(#name).into() } }
                 fn schema_id() -> ::std::borrow::Cow<'static,str> { if let Some(id) = #policy.schema_id { return id(#metadata); } match #policy.schema { ::veoveo_types::IdSchema::DerivedString => <__DerivedString as ::schemars::JsonSchema>::schema_id(), ::veoveo_types::IdSchema::DerivedUuid => <#uuid_type as ::schemars::JsonSchema>::schema_id(), _ => Self::schema_name() } }
                 fn inline_schema() -> bool { match #policy.schema { ::veoveo_types::IdSchema::DerivedString => <__DerivedString as ::schemars::JsonSchema>::inline_schema(), ::veoveo_types::IdSchema::DerivedUuid => <#uuid_type as ::schemars::JsonSchema>::inline_schema(), ::veoveo_types::IdSchema::Owner { inline, .. } => inline, _ => false } }
-                fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema { match #policy.schema {
+                fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema { let schema = match #policy.schema {
                     ::veoveo_types::IdSchema::DerivedString => <__DerivedString as ::schemars::JsonSchema>::json_schema(generator),
                     ::veoveo_types::IdSchema::DerivedUuid => <#uuid_type as ::schemars::JsonSchema>::json_schema(generator),
                     ::veoveo_types::IdSchema::Owner { schema, .. } => schema(generator, #metadata),
                     ::veoveo_types::IdSchema::UuidPattern { pattern } => { let mut schema = <#uuid_type as ::schemars::JsonSchema>::json_schema(generator); let object = schema.ensure_object(); object.insert("pattern".into(), pattern.into()); object.insert("minLength".into(),36.into()); object.insert("maxLength".into(),36.into()); schema },
                     ::veoveo_types::IdSchema::Hex { pattern } => { let mut schema = <__DerivedString as ::schemars::JsonSchema>::json_schema(generator); schema.ensure_object().insert("pattern".into(),pattern.into()); schema },
-                } }
+                }; ::veoveo_types::naming::static_identity_schema(schema, <#profile as ::veoveo_types::IdProfile>::naming_profile(#metadata), module_path!(), stringify!(#name), generator) }
             }
         };
     };

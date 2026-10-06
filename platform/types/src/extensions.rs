@@ -17,6 +17,11 @@ pub struct ExtensionName(String);
 #[doc(hidden)]
 pub struct ExtensionNames;
 impl crate::IdProfile for ExtensionNames {
+    fn naming_profile(_: crate::IdMetadata) -> Option<crate::ScalarNaming> {
+        Some(crate::ScalarNaming::builtin(
+            crate::ScalarGrammar::ExtensionName,
+        ))
+    }
     type Error = ExtensionError;
     const PROFILE: crate::IdProfileSpec<Self::Error> =
         crate::IdProfileSpec::text(|value, _| validate_extension_name(value));

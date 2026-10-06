@@ -15,6 +15,9 @@ use crate::{ResourceRouteError, ResourceUriError};
 /// struct Address(#[resource(variable = "id", error = |_| ResourceUriError::DisallowedComponent)] PrincipalId);
 /// ```
 pub trait ResourceProfile {
+    fn naming_profile(_: &'static str) -> Option<crate::ScalarNaming> {
+        None
+    }
     type Error;
     const PROFILE: ResourceProfileSpec<Self::Error>;
     const SCHEMA: Option<ResourceSchema> = None;
