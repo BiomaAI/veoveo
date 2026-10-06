@@ -1202,6 +1202,7 @@ domain vocabulary.
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
 | `servers/optimization-mcp/src/contract/` | isolated contract feature: public solver models, checked usage and collection positions, domain ID admission, typed addresses, exhaustive resource variants, empty domain scope vocabulary and fixed URI declarations |
+| `servers/optimization-mcp/src/composition.rs` and `tests/startup.rs` | read-only revisioned installation identity, committed preparation and Optimization/Tasks history gate before recovery and HTTP readiness |
 | `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |
 | `servers/optimization-mcp/src/verification/` | cuOpt-independent routing feasibility, mathematical feasibility, integrality, and objective checks |
 | `servers/optimization-mcp/src/executor/` | private Unix-socket protocol and Rust client |

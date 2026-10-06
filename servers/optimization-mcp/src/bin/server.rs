@@ -95,8 +95,17 @@ async fn main() -> anyhow::Result<()> {
         format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
     )
     .await?;
-    // TODO(installation): verify the Tasks selection and Optimization catalog lanes
-    // before recovery/readiness when activating the composed fresh-state storage cut.
+    let plan: veoveo_modules::ModulePlanDocument =
+        serde_json::from_slice(&tokio::fs::read(&args.module_plan).await?)?;
+    veoveo_optimization_mcp::composition::RuntimeInstallation {
+        plan: &plan,
+        composition: &args.module_composition,
+        generation: args.installation_generation,
+        credential_revision: &args.credential_revision,
+        runtime_username: &args.surreal_runtime_username,
+    }
+    .require(tasks.platform_store())
+    .await?;
     let tasks = veoveo_optimization_mcp::task_catalog::OptimizationTaskContributions::bind(tasks)?;
     let recovery = tasks.recover().await?;
     let state = Arc::new(AppState {

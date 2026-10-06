@@ -2,6 +2,8 @@
 pub mod artifacts;
 #[cfg(feature = "runtime")]
 pub mod compiler;
+#[cfg(feature = "runtime")]
+pub mod composition;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "runtime")]

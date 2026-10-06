@@ -97,6 +97,9 @@ spec:
         {{- include "veoveo.selectorLabels" $ | nindent 8 }}
         app.kubernetes.io/component: {{ $service.name }}
       annotations:
+        {{- if eq $service.name "optimization-mcp" }}
+        checksum/module-plan: {{ $.Values.moduleInstallation.planJson | sha256sum | quote }}
+        {{- end }}
         {{- include "veoveo.podAnnotations" $ | nindent 8 }}
         {{- include "veoveo.databasePodAnnotations" $ | nindent 8 }}
         {{- if $gpuWorkload }}
@@ -133,6 +136,9 @@ spec:
             - /etc/veoveo/bootstrap/catalog.json
             {{- end }}
           env:
+            {{- if eq $service.name "optimization-mcp" }}
+            {{- include "veoveo.modulePlanEnv" $ | nindent 12 }}
+            {{- end }}
             {{- if or (not (hasKey $service "platformStore")) $service.platformStore }}
             {{- include "veoveo.commonEnv" $ | nindent 12 }}
             {{- else }}
@@ -235,6 +241,11 @@ spec:
             {{- toYaml $serviceResources | nindent 12 }}
             {{- end }}
           volumeMounts:
+            {{- if eq $service.name "optimization-mcp" }}
+            - name: module-plan
+              mountPath: /etc/veoveo/modules
+              readOnly: true
+            {{- end }}
             - name: runtime
               mountPath: /var/lib/veoveo/runtime
             - name: tmp
@@ -306,6 +317,11 @@ spec:
           {{- end }}
         {{- end }}
       volumes:
+        {{- if eq $service.name "optimization-mcp" }}
+        - name: module-plan
+          configMap:
+            name: {{ include "veoveo.modulePlanName" $ }}
+        {{- end }}
         - name: runtime
           emptyDir:
             sizeLimit: 1Gi

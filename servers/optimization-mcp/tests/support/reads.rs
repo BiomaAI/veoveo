@@ -1,7 +1,6 @@
 use serde_json::json;
 use std::collections::BTreeSet;
 use veoveo_optimization_mcp::{contract::*, task_records::OptimizationTaskRequest};
-use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
 
@@ -111,16 +110,4 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
         run,
         solution,
     }
-}
-
-pub async fn update(runtime: &TaskRuntime, task: TaskId, sql: &str) {
-    runtime
-        .platform_store()
-        .client()
-        .query(sql)
-        .bind(("task", task_record_id(task)))
-        .await
-        .unwrap()
-        .check()
-        .unwrap();
 }

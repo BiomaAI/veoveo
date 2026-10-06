@@ -12,13 +12,15 @@ async fn install(db: &store::TestDb) {
     module_lanes::install(&db.a, vec![setup]).await.unwrap();
 }
 
-use fixture::{create, owner, runtime, update};
+use fixture::{create, owner, runtime};
 use std::time::Duration;
 use veoveo_optimization_mcp::{
     contract::{OptimizationCollection, OptimizationCollectionUri},
     reads::OptimizationReads,
 };
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::TaskRuntime;
+use veoveo_types::TaskId;
 
 async fn rejected_task_shape(runtime: &TaskRuntime, task: veoveo_types::TaskId, statement: &str) {
     use surrealdb::types::Value;
@@ -809,4 +811,16 @@ async fn kernel_selection_rejects_partial_context_triplets() {
     })
     .await
     .expect("Task context triplet qualification exceeded 60 seconds");
+}
+
+pub async fn update(runtime: &TaskRuntime, task: TaskId, sql: &str) {
+    runtime
+        .platform_store()
+        .client()
+        .query(sql)
+        .bind(("task", task_record_id(task)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
 }

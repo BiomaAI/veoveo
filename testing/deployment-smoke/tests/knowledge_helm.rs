@@ -241,3 +241,65 @@ fn disabled_gateway_and_knowledge_emit_no_module_plan_or_mount() -> Result<()> {
     ensure!(find(&rendered, "Deployment", "gateway").is_err());
     Ok(())
 }
+
+#[test]
+fn optimization_receives_the_same_revisioned_runtime_plan() -> Result<()> {
+    let values = json!({"installationPreset":"custom", "components":["gateway","platform-store","artifact-service","object-store"], "mcpServers":["optimization"]});
+    let rendered = objects(render(&values)?)?;
+    let deployment = find(&rendered, "Deployment", "optimization-mcp")?;
+    let pod = &deployment["spec"]["template"]["spec"];
+    let server = pod["containers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "optimization-mcp")
+        .unwrap();
+    for name in [
+        "VEOVEO_MODULE_PLAN",
+        "VEOVEO_MODULE_COMPOSITION",
+        "VEOVEO_INSTALLATION_GENERATION",
+        "VEOVEO_CREDENTIAL_REVISION",
+        "VEOVEO_SURREAL_RUNTIME_USERNAME",
+    ] {
+        ensure!(
+            server["env"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|env| env["name"] == name),
+            "missing {name}"
+        );
+    }
+    ensure!(
+        server["volumeMounts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|mount| mount["name"] == "module-plan"
+                && mount["mountPath"] == "/etc/veoveo/modules"
+                && mount["readOnly"] == true)
+    );
+    ensure!(
+        pod["volumes"].as_array().unwrap().iter().any(
+            |volume| volume["name"] == "module-plan" && volume["configMap"]["name"].is_string()
+        )
+    );
+    ensure!(
+        deployment["spec"]["template"]["metadata"]["annotations"]["checksum/module-plan"]
+            .is_string()
+    );
+    ensure!(server["readinessProbe"].is_object());
+    let executor = pod["containers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "cuopt-executor")
+        .context("mandatory cuOpt executor")?;
+    ensure!(
+        matches!(
+            executor["resources"]["limits"]["nvidia.com/gpu"].as_str(),
+            Some("1")
+        ) || executor["resources"]["limits"]["nvidia.com/gpu"] == 1
+    );
+    Ok(())
+}

@@ -60,6 +60,16 @@ pub(super) struct Args {
         value_parser = parse_secret
     )]
     pub(super) surreal_password: SecretString,
+    #[arg(long, env = "VEOVEO_MODULE_PLAN")]
+    pub(super) module_plan: PathBuf,
+    #[arg(long, env = "VEOVEO_MODULE_COMPOSITION")]
+    pub(super) module_composition: veoveo_modules::CompositionIdentity,
+    #[arg(long, env = "VEOVEO_INSTALLATION_GENERATION")]
+    pub(super) installation_generation: veoveo_modules::InstallationGeneration,
+    #[arg(long, env = "VEOVEO_CREDENTIAL_REVISION")]
+    pub(super) credential_revision: veoveo_modules::CredentialRevision,
+    #[arg(long, env = "VEOVEO_SURREAL_RUNTIME_USERNAME")]
+    pub(super) surreal_runtime_username: String,
     /// Public Ed25519 JWKS used to verify gateway identity assertions.
     #[arg(long, env = "VEOVEO_INTERNAL_TRUST_JWKS", hide_env_values = true)]
     pub(super) internal_trust_jwks: String,

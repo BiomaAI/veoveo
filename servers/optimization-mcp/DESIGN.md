@@ -54,6 +54,17 @@ retain the `optimization://` scheme.
 | RFC 6570 | Discovery templates use checked declarations; iri-string 0.7.14 expansion is qualified against each typed resource family. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
+## Installation Prerequisites
+
+The server reads the revisioned module plan and checks its composition, installation
+generation, credential revision and runtime username before binding Task contributions,
+recovery, workers, observation or HTTP readiness. Its runtime composition adapter reads
+committed preparation and the required Optimization and Tasks lane histories through the
+existing database-scoped TaskRuntime connection. Checksums and dependency declarations
+must agree with the owning schema modules. Other optional lanes are outside this check.
+The adapter performs no migration or credential changes. NVIDIA cuOpt GPU health remains
+an independent mandatory startup requirement.
+
 ## Design Position
 
 The server is a decision engine, not a general-purpose modeling language and

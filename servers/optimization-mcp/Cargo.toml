@@ -29,6 +29,10 @@ name = "cuopt_gpu"
 required-features = ["runtime"]
 
 [[test]]
+name = "startup"
+required-features = ["mcp"]
+
+[[test]]
 name = "reads"
 required-features = ["mcp"]
 
@@ -60,6 +64,7 @@ contract = [
     "dep:veoveo-artifact-contract",
 ]
 runtime = [
+    "veoveo-modules/runner",
     "dep:tracing",
     "schema",
     "dep:surrealdb",
