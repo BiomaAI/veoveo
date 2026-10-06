@@ -137,6 +137,49 @@ pub(super) async fn qualify(
         .unwrap()
         .check()
         .unwrap();
+    // Storage admits these native timestamps; owner reads and seal admission
+    // reject the contradiction without repairing or advancing the row.
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/metadata/out_of_order_times.surql"
+        ))
+        .bind(("recording", row.id.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    let before = RecordingRepository::new(db.a.clone())
+        .recording(tenant_id, recording)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(service.recording_view(producer, recording).await.is_err());
+    assert!(
+        service
+            .recording_view(denied, recording)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(service.seal(&sealer, recording).await.is_err());
+    let after = RecordingRepository::new(db.a.clone())
+        .recording(tenant_id, recording)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(before).unwrap(),
+        serde_json::to_value(after).unwrap()
+    );
+    db.a.client()
+        .query(include_str!(
+            "../queries/catalog_queries/metadata/qualify_4.surql"
+        ))
+        .bind(("recording", row.id.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
     for malformed in [
         ArtifactId::from_uuid(uuid::Uuid::new_v4()).record_id(),
         RecordId::new("artifact_occurrence", "untyped-private-reference"),
@@ -155,6 +198,13 @@ pub(super) async fn qualify(
         let error = service.layer_views(producer, recording).await.unwrap_err();
         assert!(!format!("{error:#}").contains("untyped-private-reference"));
         assert!(service.recording_view(producer, recording).await.is_err());
+        assert!(
+            service
+                .recording_view(denied, recording)
+                .await
+                .unwrap()
+                .is_none()
+        );
         assert!(
             service
                 .layer_views(denied, recording)

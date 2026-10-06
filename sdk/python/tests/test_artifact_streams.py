@@ -215,3 +215,30 @@ async def test_convenience_read_returns_exact_small_object():
         assert result.metadata.byte_len == 12
     finally:
         await plane.close()
+
+
+async def test_actual_rust_metadata_is_bound_to_requested_occurrence_before_body_delivery():
+    from pathlib import Path
+    from veoveo_mcp.contract.artifacts import ArtifactId
+
+    metadata = json.loads((Path(__file__).resolve().parents[3] / "platform/artifacts/contract/tests/fixtures/metadata-output.json").read_text())
+    requested = ArtifactId(metadata["artifact_id"])
+    delivered = Chunks([b"x"])
+    foreign = ArtifactId(str(uuid7()))
+
+    def respond(request):
+        if request.url.path.endswith("/meta"):
+            return httpx.Response(200, json=metadata)
+        return httpx.Response(200, headers={"x-artifact-metadata": base64.b64encode(json.dumps(metadata).encode()).decode()}, stream=delivered)
+
+    plane = HttpArtifactPlane("https://plane.example", httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    try:
+        assert (await plane.head(caller(), requested)).artifact_id == requested
+        with pytest.raises(ArtifactTransport, match="another Artifact"):
+            await plane.head(caller(), foreign)
+        with pytest.raises(ArtifactTransport, match="another Artifact"):
+            await plane.get(caller(), foreign)
+        assert delivered.delivered == 0
+        assert delivered.closed
+    finally:
+        await plane.close()

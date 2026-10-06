@@ -10,7 +10,7 @@ use veoveo_mcp_contract::hosting::plane_caller;
 
 const MAX_INLINE_ARTIFACT_BYTES: u64 = 3 * 1024 * 1024;
 
-use veoveo_media_mcp::contract::{ArtifactArgs, ArtifactOutput};
+use veoveo_media_mcp::contract::{ArtifactArgs, ArtifactOutputValue};
 
 pub(super) async fn artifact_result(
     state: &AppState,
@@ -29,6 +29,12 @@ pub(super) async fn artifact_result(
             McpError::resource_not_found(format!("unknown artifact '{artifact_id}'"), None)
         })?;
 
+    if artifact.metadata.byte_len != artifact.bytes.len() as u64 {
+        return Err(McpError::internal_error(
+            "Artifact bytes disagree with metadata length",
+            None,
+        ));
+    }
     let metadata = artifact.metadata.without_download_url();
     let mime = metadata
         .mime_type
@@ -52,10 +58,14 @@ pub(super) async fn artifact_result(
     }
     let mut result = CallToolResult::success(blocks);
     result.structured_content = Some(
-        serde_json::to_value(ArtifactOutput {
-            artifact: metadata,
-            inlined: can_inline,
-        })
+        serde_json::to_value(
+            ArtifactOutputValue {
+                artifact: metadata,
+                inlined: can_inline,
+            }
+            .build()
+            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
+        )
         .map_err(|err| McpError::internal_error(err.to_string(), None))?,
     );
     Ok(result)
@@ -67,16 +77,19 @@ mod tests {
     use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactReleaseState};
     use veoveo_mcp_contract::now_utc;
 
-    use super::ArtifactOutput;
+    use super::ArtifactOutputValue;
 
     #[test]
     fn artifact_output_redacts_download_url() {
-        let output = ArtifactOutput {
+        let output = ArtifactOutputValue {
             artifact: ArtifactMetadata {
                 byte_len: 1,
                 mime_type: Some("image/png".to_string()),
                 filename: None,
-                artifact_uri: ArtifactId::new().plane_uri(),
+                artifact_uri: veoveo_artifact_contract::ArtifactUri::presented(
+                    &veoveo_media_mcp::uris::SCHEME,
+                    ArtifactId::new(),
+                ),
                 download_url: Some("https://example.com/internal".to_string()),
                 created_at: now_utc(),
                 release_state: ArtifactReleaseState::Private,
@@ -85,7 +98,9 @@ mod tests {
             }
             .without_download_url(),
             inlined: true,
-        };
+        }
+        .build()
+        .unwrap();
 
         let value = serde_json::to_value(output).unwrap();
         assert!(value["artifact"].get("download_url").is_none());

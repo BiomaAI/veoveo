@@ -114,8 +114,8 @@ pub trait RrdIdentityValidator: Send + Sync {
 }
 
 struct RecordingLayerIdentity {
-    dataset_id: uuid::Uuid,
-    recording_id: uuid::Uuid,
+    dataset_id: veoveo_recording_contract::RecordingDatasetId,
+    recording_id: veoveo_recording_contract::RecordingId,
 }
 
 impl RrdIdentityValidator for RecordingLayerIdentity {
@@ -126,7 +126,7 @@ impl RrdIdentityValidator for RecordingLayerIdentity {
             self.recording_id,
         )?;
         ensure!(
-            inspected.byte_len == byte_len && inspected.sha256 == sha256.hex(),
+            inspected.byte_len == byte_len && &inspected.sha256 == sha256,
             "cached layer identity mismatch"
         );
         Ok(())
@@ -240,8 +240,8 @@ impl LayerCache {
         artifact_id: ArtifactId,
         expected_byte_len: u64,
         expected_sha256: &Sha256Digest,
-        dataset_id: uuid::Uuid,
-        recording_id: uuid::Uuid,
+        dataset_id: veoveo_recording_contract::RecordingDatasetId,
+        recording_id: veoveo_recording_contract::RecordingId,
     ) -> Result<CachedLayer> {
         self.materialize_with_validator(
             authority,

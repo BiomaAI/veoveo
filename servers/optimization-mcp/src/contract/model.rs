@@ -111,7 +111,8 @@ pub enum ConvexProblemKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ConvexProblem {
+#[schemars(rename = "ConvexProblem")]
+pub struct ConvexProblemValue {
     pub version: String,
     pub kind: ConvexProblemKind,
     pub variables: Vec<ModelVariable>,
@@ -126,7 +127,7 @@ pub struct ConvexProblem {
     pub initial_dual_solution: Option<Vec<FiniteF64>>,
 }
 
-impl ConvexProblem {
+impl ConvexProblemValue {
     pub fn validate(&self) -> Result<(), OptimizationContractError> {
         validate_model(
             &self.version,
@@ -192,7 +193,8 @@ impl ConvexProblem {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct MilpProblem {
+#[schemars(rename = "MilpProblem")]
+pub struct MilpProblemValue {
     pub version: String,
     pub variables: Vec<ModelVariable>,
     pub objective: ModelObjective,
@@ -202,7 +204,7 @@ pub struct MilpProblem {
     pub mip_start: Option<Vec<FiniteF64>>,
 }
 
-impl MilpProblem {
+impl MilpProblemValue {
     pub fn validate(&self) -> Result<(), OptimizationContractError> {
         validate_model(
             &self.version,
@@ -448,6 +450,98 @@ pub struct VerifySolutionRequest {
     pub relative_tolerance: Option<NonNegativeF64>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "ConvexProblemValue", into = "ConvexProblemValue")]
+pub struct ConvexProblem(veoveo_types::Checked<ConvexProblemValue>);
+impl std::ops::Deref for ConvexProblem {
+    type Target = ConvexProblemValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ConvexProblem {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ConvexProblem".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ConvexProblemValue::json_schema(generator)
+    }
+}
+impl TryFrom<ConvexProblemValue> for ConvexProblem {
+    type Error = super::OptimizationContractError;
+    fn try_from(value: ConvexProblemValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ConvexProblem> for ConvexProblemValue {
+    fn from(value: ConvexProblem) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ConvexProblemValue {
+    pub fn build(self) -> Result<ConvexProblem, super::OptimizationContractError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for ConvexProblemValue {
+    type Error = super::OptimizationContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()?;
+        super::value_admission::validate_mathematical_coefficients(
+            &self.objective,
+            &self.linear_constraints,
+            &self.quadratic_constraints,
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "MilpProblemValue", into = "MilpProblemValue")]
+pub struct MilpProblem(veoveo_types::Checked<MilpProblemValue>);
+impl std::ops::Deref for MilpProblem {
+    type Target = MilpProblemValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for MilpProblem {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "MilpProblem".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        MilpProblemValue::json_schema(generator)
+    }
+}
+impl TryFrom<MilpProblemValue> for MilpProblem {
+    type Error = super::OptimizationContractError;
+    fn try_from(value: MilpProblemValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<MilpProblem> for MilpProblemValue {
+    fn from(value: MilpProblem) -> Self {
+        value.0.into_inner()
+    }
+}
+impl MilpProblemValue {
+    pub fn build(self) -> Result<MilpProblem, super::OptimizationContractError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for MilpProblemValue {
+    type Error = super::OptimizationContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()?;
+        super::value_admission::validate_mathematical_coefficients(
+            &self.objective,
+            &self.constraints,
+            &[],
+        )?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -463,9 +557,97 @@ mod tests {
         }
     }
 
+    fn producer_problem() -> ConvexProblemValue {
+        ConvexProblemValue {
+            version: CONVEX_PROBLEM_VERSION.to_owned(),
+            kind: ConvexProblemKind::LinearProgram,
+            variables: vec![variable("x", VariableKind::Continuous)],
+            objective: ModelObjective {
+                direction: ObjectiveDirection::Minimize,
+                linear_terms: vec![LinearTerm {
+                    variable_id: VariableId::parse("x").unwrap(),
+                    coefficient: FiniteF64::new(2.0).unwrap(),
+                }],
+                quadratic_terms: vec![],
+                offset: FiniteF64::default(),
+            },
+            linear_constraints: vec![LinearConstraint {
+                constraint_id: ConstraintId::parse("bound").unwrap(),
+                terms: vec![LinearTerm {
+                    variable_id: VariableId::parse("x").unwrap(),
+                    coefficient: FiniteF64::new(1.0).unwrap(),
+                }],
+                bounds: VariableBounds {
+                    lower: None,
+                    upper: Some(FiniteF64::new(10.0).unwrap()),
+                },
+            }],
+            quadratic_constraints: vec![],
+            initial_primal_solution: None,
+            initial_dual_solution: None,
+        }
+    }
+
+    #[test]
+    fn merged_coefficients_are_admitted_before_compiler_publication() {
+        let admitted = producer_problem().build().unwrap();
+        assert_eq!(
+            serde_json::from_value::<ConvexProblem>(serde_json::to_value(&admitted).unwrap())
+                .unwrap(),
+            admitted
+        );
+        for target in 0..4 {
+            let mut draft = producer_problem();
+            let terms = vec![
+                LinearTerm {
+                    variable_id: VariableId::parse("x").unwrap(),
+                    coefficient: FiniteF64::new(f64::MAX).unwrap()
+                };
+                2
+            ];
+            match target {
+                0 => draft.objective.linear_terms = terms,
+                1 => draft.linear_constraints[0].terms = terms,
+                2 => {
+                    draft.kind = ConvexProblemKind::QuadraticProgram;
+                    draft.objective.quadratic_terms = vec![
+                        QuadraticTerm {
+                            left_variable_id: VariableId::parse("x").unwrap(),
+                            right_variable_id: VariableId::parse("x").unwrap(),
+                            coefficient: FiniteF64::new(f64::MAX).unwrap()
+                        };
+                        2
+                    ];
+                }
+                _ => {
+                    draft.kind = ConvexProblemKind::QuadraticallyConstrainedProgram;
+                    draft.quadratic_constraints = vec![QuadraticConstraint {
+                        constraint_id: ConstraintId::parse("quadratic").unwrap(),
+                        linear_terms: terms,
+                        quadratic_terms: vec![QuadraticTerm {
+                            left_variable_id: VariableId::parse("x").unwrap(),
+                            right_variable_id: VariableId::parse("x").unwrap(),
+                            coefficient: FiniteF64::new(1.0).unwrap(),
+                        }],
+                        bounds: VariableBounds {
+                            lower: None,
+                            upper: Some(FiniteF64::new(10.0).unwrap()),
+                        },
+                    }];
+                }
+            }
+            let bytes = serde_json::to_vec(&draft).unwrap();
+            assert!(
+                serde_json::from_slice::<ConvexProblem>(&bytes).is_err(),
+                "target {target}"
+            );
+            assert!(draft.build().is_err(), "target {target}");
+        }
+    }
+
     #[test]
     fn linear_program_rejects_integer_variables() {
-        let problem = ConvexProblem {
+        let problem = crate::contract::ConvexProblemValue {
             version: CONVEX_PROBLEM_VERSION.to_owned(),
             kind: ConvexProblemKind::LinearProgram,
             variables: vec![variable("x", VariableKind::Integer)],
@@ -481,11 +663,16 @@ mod tests {
             initial_dual_solution: None,
         };
         assert!(problem.validate().is_err());
+        assert!(
+            serde_json::from_value::<ConvexProblem>(serde_json::to_value(&problem).unwrap())
+                .is_err()
+        );
+        assert!(problem.build().is_err());
     }
 
     #[test]
     fn milp_requires_an_integer_variable() {
-        let problem = MilpProblem {
+        let problem = crate::contract::MilpProblemValue {
             version: MILP_PROBLEM_VERSION.to_owned(),
             variables: vec![variable("x", VariableKind::Continuous)],
             objective: ModelObjective {
@@ -498,5 +685,9 @@ mod tests {
             mip_start: None,
         };
         assert!(problem.validate().is_err());
+        assert!(
+            serde_json::from_value::<MilpProblem>(serde_json::to_value(&problem).unwrap()).is_err()
+        );
+        assert!(problem.build().is_err());
     }
 }

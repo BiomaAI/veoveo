@@ -552,6 +552,37 @@ fn optimization_controlled_input_branches_are_admitted_and_closed() {
             "ArtifactModelFormat.optimization_json_v1",
         ],
     );
+    // Admit the whole positive corpus before exercising every schema/default/negative control.
+    // A failed baseline must not hide later owner relationship failures in this family.
+    let baseline_failures: Vec<_> = cases
+        .iter()
+        .filter_map(|case| {
+            let bytes = serde_json::to_vec(&case.arguments).unwrap();
+            let admission = match case.tool.as_str() {
+                "solve_convex" => serde_json::from_slice::<
+                    veoveo_optimization_mcp::contract::SolveConvexRequest,
+                >(&bytes)
+                .map(|_| ()),
+                "solve_milp" => serde_json::from_slice::<
+                    veoveo_optimization_mcp::contract::SolveMilpRequest,
+                >(&bytes)
+                .map(|_| ()),
+                "optimize_routes" => serde_json::from_slice::<
+                    veoveo_optimization_mcp::contract::OptimizeRoutesRequest,
+                >(&bytes)
+                .map(|_| ()),
+                _ => panic!("unexpected fixture tool"),
+            };
+            admission
+                .err()
+                .map(|error| format!("{} baseline: {error}", case.branch))
+        })
+        .collect();
+    assert!(
+        baseline_failures.is_empty(),
+        "Optimization baseline admission failures:\n{}",
+        baseline_failures.join("\n")
+    );
     for case in cases {
         match case.tool.as_str() {
             "solve_convex" => {

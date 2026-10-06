@@ -85,14 +85,19 @@ async fn confirm(
     Ok((
         StatusCode::CREATED,
         [(header::CACHE_CONTROL, "no-store")],
-        Json(CliPairingResult {
-            computer_id: grant.computer_id,
-            pairing_id,
-            grant_id: grant.grant_id,
-            token: CliPairingToken::new(grant.credential.expose_secret().to_owned()),
-            callback_port: grant.callback_port,
-            expires_at: grant.expires_at,
-        }),
+        Json(
+            veoveo_computers_contract::CliPairingResultValue {
+                computer_id: grant.computer_id,
+                pairing_id,
+                grant_id: grant.grant_id,
+                token: CliPairingToken::new(grant.credential.expose_secret().to_owned())
+                    .map_err(|_| HttpError(ApplicationError::from(ComputerError::Unavailable)))?,
+                callback_port: grant.callback_port,
+                expires_at: grant.expires_at,
+            }
+            .build()
+            .map_err(|_| HttpError(ApplicationError::from(ComputerError::Unavailable)))?,
+        ),
     )
         .into_response())
 }

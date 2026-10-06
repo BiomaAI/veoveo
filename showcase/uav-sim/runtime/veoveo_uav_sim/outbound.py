@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Self, TypeVar
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, model_validator
 
 from .world_config import SimulationWorldBindingWire
+from yarl import URL
 
 
 def _identity(value: str) -> str:
@@ -332,17 +333,64 @@ class SimulationState(Wire):
     recordings: list[RecordingState]
     updated_at: Timestamp
 
+    @model_validator(mode="after")
+    def admitted_children(self) -> Self:
+        vehicles = {v.vehicle_id for v in self.vehicles}
+        live = {c.cameraId for c in self.live_cameras}
+        if len(vehicles) != len(self.vehicles) or len(live) != len(self.live_cameras):
+            raise ValueError("state_duplicate_identity")
+        if len({(c.vehicle_id, c.entity_path) for c in self.cameras}) != len(self.cameras) or any(c.vehicle_id not in vehicles for c in self.cameras):
+            raise ValueError("state_camera_parent")
+        if any(c.sessionId != self.session_id for c in self.live_cameras):
+            raise ValueError("state_camera_session")
+        if len({p.streamProductId for p in self.stream_products}) != len(self.stream_products) or any(r.cameraId not in live for p in self.stream_products for r in p.cameraRegions):
+            raise ValueError("state_product_parent")
+        if len({r.recording_key for r in self.recordings}) != len(self.recordings):
+            raise ValueError("state_recording_identity")
+        return self
+
+
+def acknowledgement_resource(value: str) -> str:
+    uri = URL(value)
+    path = uri.parts[1:]
+    if (uri.scheme != "uav-sim" or uri.raw_authority != "session" or uri.query_string or uri.fragment
+            or str(uri) != value or "%" in value or not path):
+        raise ValueError("acknowledgement_resource")
+    _IDENTITY_ADAPTER.validate_python(path[0])
+    if len(path) == 1 or (len(path) == 2 and path[1] == "world"):
+        return value
+    if len(path) == 3 and path[1] == "vehicle":
+        _IDENTITY_ADAPTER.validate_python(path[2])
+        return value
+    raise ValueError("acknowledgement_resource")
+
+
+_IDENTITY_ADAPTER = TypeAdapter(Identity)
+AcknowledgementResource = Annotated[str, AfterValidator(acknowledgement_resource)]
+
+
+def command_resource(session_id: str, *, vehicle_id: str | None = None, world: bool = False) -> str:
+    session = _IDENTITY_ADAPTER.validate_python(session_id)
+    uri = URL("uav-sim://session") / session
+    if vehicle_id is not None:
+        if world:
+            raise ValueError("acknowledgement_resource")
+        uri = uri / "vehicle" / _IDENTITY_ADAPTER.validate_python(vehicle_id)
+    elif world:
+        uri = uri / "world"
+    return acknowledgement_resource(str(uri))
+
 
 class WorldAcknowledgement(Wire):
     accepted: bool
     world: WorldBinding
-    resource_uri: str
+    resource_uri: AcknowledgementResource
 
 
 class CommandAcknowledgement(Wire):
     accepted: bool
     detail: str
-    resource_uri: str
+    resource_uri: AcknowledgementResource
 
 
 class ScenarioOutput(Wire):

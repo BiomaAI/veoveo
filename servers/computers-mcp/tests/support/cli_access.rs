@@ -16,7 +16,7 @@ use tokio::{
     process::Command,
 };
 use uuid::Uuid;
-use veoveo_computers::{ComputerActor, ComputersStore, api::CliPairingInput};
+use veoveo_computers::{ComputerActor, ComputersStore};
 use veoveo_computers_runtime::{DevelopmentTemplate, OpenShellRuntime};
 
 struct Cli {
@@ -151,11 +151,13 @@ async fn run(
         .build()
         .unwrap();
     let pairing_url = format!("{}/computers/{computer}/cli-pairings", a.base);
-    let input = CliPairingInput {
+    let input = veoveo_computers_contract::CliPairingInputValue {
         name: "Native CLI fixture".into(),
         code: "ABC-2345".into(),
         callback_port: 49152,
-    };
+    }
+    .build()
+    .unwrap();
     for origin in [None, Some("null"), Some("https://foreign.invalid")] {
         let mut request = http.post(&pairing_url).bearer_auth(&auth).json(&input);
         if let Some(origin) = origin {
@@ -222,7 +224,8 @@ async fn run(
         &gateway.join("edge_token"),
         grant.token.expose_secret().as_bytes(),
     );
-    drop(grant.token);
+    let grant_id = grant.grant_id;
+    drop(grant);
     let stderr = fs::File::create(directory.join("stock-cli.log")).unwrap();
     let mut child = command(&binary, &directory)
         .args([
@@ -269,7 +272,7 @@ async fn run(
     let fresh =
         ComputerActor::from_verified(&support::browser::identity(db, "alice").await).unwrap();
     other
-        .revoke_access(&fresh, computer, grant.grant_id)
+        .revoke_access(&fresh, computer, grant_id)
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(5), async {

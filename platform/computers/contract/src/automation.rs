@@ -31,7 +31,8 @@ pub enum AutomationInterruption {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct AutomationExecutionLimits {
+#[schemars(rename = "AutomationExecutionLimits")]
+pub struct AutomationExecutionLimitsValue {
     #[schemars(range(min = 1, max = 7200))]
     pub maximum_seconds: u32,
     #[schemars(range(min = 1, max = 67108864))]
@@ -43,7 +44,14 @@ pub struct AutomationExecutionLimits {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct IssueAutomationGrantInput {
+#[schemars(rename = "IssueAutomationGrantInput")]
+/// Computer and request identities have separate admission and API roles.
+/// ```compile_fail
+/// use veoveo_computers_contract::{ComputerId, RequestId};
+/// fn requires_computer(_: ComputerId) {}
+/// requires_computer(RequestId::new());
+/// ```
+pub struct IssueAutomationGrantInputValue {
     pub computer_id: crate::ComputerId,
     pub request_id: crate::RequestId,
     #[schemars(length(min = 1, max = 2048))]
@@ -61,7 +69,8 @@ pub struct IssueAutomationGrantInput {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct AutomationGrantView {
+#[schemars(rename = "AutomationGrantView")]
+pub struct AutomationGrantViewValue {
     pub computer_id: crate::ComputerId,
     pub grant_id: crate::AutomationGrantId,
     pub principal_id: PrincipalId,
@@ -77,7 +86,8 @@ pub struct AutomationGrantView {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct AutomationGrantCollection {
+#[schemars(rename = "AutomationGrantCollection")]
+pub struct AutomationGrantCollectionValue {
     pub computer_id: crate::ComputerId,
     pub can_grant: bool,
     pub can_revoke: bool,
@@ -105,7 +115,8 @@ pub struct AutomationClientChoice {
 /// Current usable action scope on a Computer already authorized for Read.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ComputerGrantedAccess {
+#[schemars(rename = "ComputerGrantedAccess")]
+pub struct ComputerGrantedAccessValue {
     pub grant_id: crate::AutomationGrantId,
     pub name: String,
     #[serde(deserialize_with = "unique_permissions")]
@@ -211,13 +222,274 @@ fn unique_permissions<'de, D: serde::Deserializer<'de>>(
     deserializer.deserialize_seq(Permissions)
 }
 
+/// Admitted AutomationExecutionLimits; callers assemble its value and build before use.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "AutomationExecutionLimitsValue",
+    into = "AutomationExecutionLimitsValue"
+)]
+pub struct AutomationExecutionLimits(veoveo_types::Checked<AutomationExecutionLimitsValue>);
+impl std::ops::Deref for AutomationExecutionLimits {
+    type Target = AutomationExecutionLimitsValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for AutomationExecutionLimits {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AutomationExecutionLimits".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        AutomationExecutionLimitsValue::json_schema(generator)
+    }
+}
+impl TryFrom<AutomationExecutionLimitsValue> for AutomationExecutionLimits {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: AutomationExecutionLimitsValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<AutomationExecutionLimits> for AutomationExecutionLimitsValue {
+    fn from(value: AutomationExecutionLimits) -> Self {
+        value.0.into_inner()
+    }
+}
+impl AutomationExecutionLimitsValue {
+    pub fn build(self) -> Result<AutomationExecutionLimits, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for AutomationExecutionLimitsValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if !(1..=7200).contains(&self.maximum_seconds)
+            || !(1..=67108864).contains(&self.maximum_output_bytes)
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
+/// Admitted IssueAutomationGrantInput; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "IssueAutomationGrantInputValue",
+    into = "IssueAutomationGrantInputValue"
+)]
+pub struct IssueAutomationGrantInput(veoveo_types::Checked<IssueAutomationGrantInputValue>);
+impl std::ops::Deref for IssueAutomationGrantInput {
+    type Target = IssueAutomationGrantInputValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for IssueAutomationGrantInput {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "IssueAutomationGrantInput".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        IssueAutomationGrantInputValue::json_schema(generator)
+    }
+}
+impl TryFrom<IssueAutomationGrantInputValue> for IssueAutomationGrantInput {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: IssueAutomationGrantInputValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<IssueAutomationGrantInput> for IssueAutomationGrantInputValue {
+    fn from(value: IssueAutomationGrantInput) -> Self {
+        value.0.into_inner()
+    }
+}
+impl IssueAutomationGrantInputValue {
+    pub fn build(self) -> Result<IssueAutomationGrantInput, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for IssueAutomationGrantInputValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        crate::value_admission::grant_scope(&self.name, &self.permissions, self.execution_limits)?;
+        if self.principal_id.as_str().len() > 2048 || self.oauth_client_id.as_str().len() > 256 {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
+/// Admitted AutomationGrantView; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "AutomationGrantViewValue",
+    into = "AutomationGrantViewValue"
+)]
+pub struct AutomationGrantView(veoveo_types::Checked<AutomationGrantViewValue>);
+impl std::ops::Deref for AutomationGrantView {
+    type Target = AutomationGrantViewValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for AutomationGrantView {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AutomationGrantView".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        AutomationGrantViewValue::json_schema(generator)
+    }
+}
+impl TryFrom<AutomationGrantViewValue> for AutomationGrantView {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: AutomationGrantViewValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<AutomationGrantView> for AutomationGrantViewValue {
+    fn from(value: AutomationGrantView) -> Self {
+        value.0.into_inner()
+    }
+}
+impl AutomationGrantViewValue {
+    pub fn build(self) -> Result<AutomationGrantView, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for AutomationGrantViewValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        crate::value_admission::grant_scope(&self.name, &self.permissions, self.execution_limits)?;
+        if self.principal_id.as_str().len() > 2048
+            || self.oauth_client_id.as_str().len() > 256
+            || self.expires_at <= self.issued_at
+            || self.revoked_at.is_some_and(|at| at < self.issued_at)
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
+/// Admitted ComputerGrantedAccess; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "ComputerGrantedAccessValue",
+    into = "ComputerGrantedAccessValue"
+)]
+pub struct ComputerGrantedAccess(veoveo_types::Checked<ComputerGrantedAccessValue>);
+impl std::ops::Deref for ComputerGrantedAccess {
+    type Target = ComputerGrantedAccessValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ComputerGrantedAccess {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ComputerGrantedAccess".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ComputerGrantedAccessValue::json_schema(generator)
+    }
+}
+impl TryFrom<ComputerGrantedAccessValue> for ComputerGrantedAccess {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: ComputerGrantedAccessValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ComputerGrantedAccess> for ComputerGrantedAccessValue {
+    fn from(value: ComputerGrantedAccess) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ComputerGrantedAccessValue {
+    pub fn build(self) -> Result<ComputerGrantedAccess, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for ComputerGrantedAccessValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        crate::value_admission::grant_scope(&self.name, &self.permissions, self.execution_limits)?;
+        Ok(())
+    }
+}
+
+/// Admitted AutomationGrantCollection; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "AutomationGrantCollectionValue",
+    into = "AutomationGrantCollectionValue"
+)]
+pub struct AutomationGrantCollection(veoveo_types::Checked<AutomationGrantCollectionValue>);
+impl std::ops::Deref for AutomationGrantCollection {
+    type Target = AutomationGrantCollectionValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for AutomationGrantCollection {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "AutomationGrantCollection".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        AutomationGrantCollectionValue::json_schema(generator)
+    }
+}
+impl TryFrom<AutomationGrantCollectionValue> for AutomationGrantCollection {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: AutomationGrantCollectionValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<AutomationGrantCollection> for AutomationGrantCollectionValue {
+    fn from(value: AutomationGrantCollection) -> Self {
+        value.0.into_inner()
+    }
+}
+impl AutomationGrantCollectionValue {
+    pub fn build(self) -> Result<AutomationGrantCollection, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for AutomationGrantCollectionValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.grants.len() > 64
+            || self.client_choices.len() > 128
+            || self
+                .grants
+                .iter()
+                .any(|grant| grant.computer_id != self.computer_id)
+            || self
+                .grants
+                .iter()
+                .map(|grant| grant.grant_id)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != self.grants.len()
+            || self
+                .client_choices
+                .iter()
+                .map(|client| &client.oauth_client_id)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != self.client_choices.len()
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn result() -> AutomationGrantResult {
         let now = "2026-10-04T00:00:00Z".parse::<DateTime<Utc>>().unwrap();
-        AutomationGrantView {
+        crate::AutomationGrantViewValue {
             computer_id: crate::ComputerId::new(),
             grant_id: crate::AutomationGrantId::new(),
             principal_id: PrincipalId::parse("https://issuer.test#agent").unwrap(),
@@ -229,6 +501,8 @@ mod tests {
             expires_at: now + chrono::TimeDelta::minutes(10),
             revoked_at: None,
         }
+        .build()
+        .unwrap()
         .into()
     }
 

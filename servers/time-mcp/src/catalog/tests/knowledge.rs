@@ -12,7 +12,7 @@ async fn observations_use_stored_authority_and_versioned_members() {
         let mut peer = scope(&db.a, "time-knowledge", "reader").await;
         peer.work_context = "reader-context".parse().unwrap();
         let foreign = scope(&db.a, "foreign", "creator").await;
-        let calendar = OperationalCalendar {
+        let calendar = crate::OperationalCalendarValue {
             calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000010")
                 .unwrap(),
             version: TimeVersion::FIRST,
@@ -20,7 +20,9 @@ async fn observations_use_stored_authority_and_versioned_members() {
             zone_id: "UTC".into(),
             windows: vec![],
             excluded_dates: vec![],
-        };
+        }
+        .build()
+        .unwrap();
         catalog
             .create_calendar(&owner, calendar.clone())
             .await
@@ -48,10 +50,15 @@ async fn observations_use_stored_authority_and_versioned_members() {
             Some(&ModifiedBy::Principal("creator".parse().unwrap()))
         );
         assert!(observation.modified_at().is_some());
-        let mut oversized = calendar.clone();
+        let mut oversized = crate::OperationalCalendarValue::from(calendar.clone());
         oversized.version = TimeVersion::new(2).unwrap();
         oversized.excluded_dates = vec!["2026-10-01".into(); 6_000];
-        assert!(catalog.create_calendar(&owner, oversized).await.is_err());
+        assert!(
+            catalog
+                .create_calendar(&owner, oversized.build().unwrap())
+                .await
+                .is_err()
+        );
         assert!(
             catalog
                 .calendar(&owner, &calendar.calendar_id, TimeVersion::new(2).unwrap())

@@ -29,11 +29,13 @@ pub fn payload(value: &str, seconds: u32) -> CommandPayload {
             b"private-command-stdin-fixture".to_vec(),
         )
         .unwrap(),
-        AutomationExecutionLimits {
+        veoveo_computers_contract::AutomationExecutionLimitsValue {
             maximum_seconds: seconds,
             maximum_output_bytes: 1024,
             on_interruption: AutomationInterruption::StopComputer,
-        },
+        }
+        .build()
+        .unwrap(),
     )
     .unwrap()
 }

@@ -55,6 +55,7 @@ pub(super) async fn create_source(
     Extension(identity): Extension<GatewayInternalIdentity>,
     Json(request): Json<CreateSourceRequest>,
 ) -> ApiResult<TimeSource> {
+    let request = crate::CreateSourceRequestValue::from(request);
     if request.idempotency_key.trim().is_empty() {
         return Err(ApiError::bad_request(
             "source creation requires an idempotency key",
@@ -112,6 +113,7 @@ pub(super) async fn create_acquisition(
     Extension(identity): Extension<GatewayInternalIdentity>,
     Json(request): Json<CreateAcquisitionRequest>,
 ) -> ApiResult<TimeAcquisition> {
+    let request = crate::CreateAcquisitionRequestValue::from(request);
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
     let source = state
         .catalog
@@ -234,6 +236,7 @@ pub(super) async fn create_calendar(
     Extension(identity): Extension<GatewayInternalIdentity>,
     Json(request): Json<CreateCalendarRequest>,
 ) -> ApiResult<crate::contract::OperationalCalendar> {
+    let request = crate::CreateCalendarRequestValue::from(request);
     if request.idempotency_key.trim().is_empty() {
         return Err(ApiError::bad_request(
             "calendar idempotency key must not be empty",
@@ -279,6 +282,7 @@ pub(super) async fn create_epoch(
     Extension(identity): Extension<GatewayInternalIdentity>,
     Json(request): Json<UpsertMissionEpochRequest>,
 ) -> ApiResult<MissionEpoch> {
+    let request = crate::UpsertMissionEpochRequestValue::from(request);
     if request.idempotency_key.trim().is_empty() {
         return Err(ApiError::bad_request(
             "epoch idempotency key must not be empty",

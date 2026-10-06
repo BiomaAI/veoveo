@@ -40,6 +40,12 @@ A missing grant denies access to its receipt. This joint expiry owns cleanup wit
 a reference cascade; retained recordings and their published products have separate
 lifetimes.
 
+Layer staging accepts the shared SHA-256 type for content and optional schema digests.
+The repository converts to bare lowercase hexadecimal at query binding, preserving the
+database profile, compare-and-set transaction and full idempotent readback comparison.
+Native recording revisions permit zero; sealed properties admission uses the same
+nonnegative profile.
+
 ## Qualification
 
 The `recording_catalog`, `recording_grants` and `recording_projections` integration

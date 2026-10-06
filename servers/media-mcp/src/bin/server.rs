@@ -45,7 +45,6 @@ use rmcp::{
     tool_router,
 };
 use secrecy::ExposeSecret;
-use serde_json::{Value, json};
 use tokio::sync::RwLock;
 use veoveo_artifact_contract::IssueArtifactWriteCapabilityRequest;
 use veoveo_mcp_contract::{
@@ -60,7 +59,6 @@ use veoveo_mcp_contract::{
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
     contract::MediaGenerationResult,
-    contract::{MediaModelUri, ModelEntry},
     provider::{Prediction, ProviderClient},
     state::MediaState,
     uris, webhook,
@@ -240,25 +238,6 @@ impl MediaMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         artifact_tools::artifact_result(&self.state, args, &context).await
-    }
-}
-
-impl MediaMcp {
-    fn models_index_json(models: &[ModelEntry]) -> Value {
-        Value::Array(
-            models
-                .iter()
-                .map(|m| {
-                    json!({
-                        "model_id": m.model_id,
-                        "type": m.model_type,
-                        "description": m.description,
-                        "base_price": m.base_price,
-                        "schema_uri": MediaModelUri::new(m.model_id.clone()),
-                    })
-                })
-                .collect(),
-        )
     }
 }
 
@@ -534,6 +513,8 @@ async fn main() -> anyhow::Result<()> {
         public_endpoint: public_endpoint.clone(),
         webhook_secret: args.provider_webhook_secret()?,
         registry: RwLock::new(None),
+        #[cfg(test)]
+        registry_install_attempts: Default::default(),
         tasks,
         durable,
         artifacts,
@@ -603,6 +584,10 @@ async fn main() -> anyhow::Result<()> {
         .serve(SocketAddr::from(([0, 0, 0, 0], args.port)))
         .await
 }
+
+#[cfg(test)]
+#[path = "server/tool_input_tests.rs"]
+mod tool_input_tests;
 
 #[cfg(test)]
 mod well_known_tests {
@@ -679,6 +664,3 @@ mod tests {
         assert_eq!(annotations.open_world_hint, Some(true));
     }
 }
-#[cfg(test)]
-#[path = "server/tool_input_tests.rs"]
-mod tool_input_tests;

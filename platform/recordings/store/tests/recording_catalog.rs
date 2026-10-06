@@ -134,9 +134,9 @@ async fn qualify_recording_catalog(platform: &PlatformStore, read_platform: &Pla
                 first_id,
                 128,
                 10,
-                &"c".repeat(64),
+                &veoveo_types::Sha256Digest::from_hex("c".repeat(64)).unwrap(),
                 Some("0.38.1"),
-                Some(&"a".repeat(64)),
+                Some(&veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap()),
                 Some(Utc::now())
             )
             .await
@@ -150,9 +150,9 @@ async fn qualify_recording_catalog(platform: &PlatformStore, read_platform: &Pla
             second_id,
             128,
             20,
-            &"d".repeat(64),
+            &veoveo_types::Sha256Digest::from_hex("d".repeat(64)).unwrap(),
             Some("0.38.1"),
-            Some(&"b".repeat(64)),
+            Some(&veoveo_types::Sha256Digest::from_hex("b".repeat(64)).unwrap()),
             Some(Utc::now()),
         )
         .await
@@ -243,9 +243,9 @@ async fn qualify_recording_catalog(platform: &PlatformStore, read_platform: &Pla
             properties_id,
             128,
             1,
-            &"f".repeat(64),
+            &veoveo_types::Sha256Digest::from_hex("f".repeat(64)).unwrap(),
             Some("0.38.1"),
-            Some(&"9".repeat(64)),
+            Some(&veoveo_types::Sha256Digest::from_hex("9".repeat(64)).unwrap()),
             None,
         )
         .await

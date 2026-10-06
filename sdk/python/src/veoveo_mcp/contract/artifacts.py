@@ -9,11 +9,11 @@ write capabilities issued while a live identity was present.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
+from enum import Enum
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
-from veoveo_mcp.types import CheckedText, ResourceScheme, ResourceUriBuilder, UriAuthority, UriSegment
+from pydantic import AwareDatetime, AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from veoveo_mcp.types import CheckedText, ResourceUri, ResourceScheme, ResourceUriBuilder, UriAuthority, UriSegment
 
 
 def _uuid_v7_str(value: str) -> str:
@@ -28,6 +28,48 @@ class ArtifactId(CheckedText):
     def _validate(cls, value: str) -> None:
         if _uuid_v7_str(value) != value:
             raise ValueError("artifact identifiers require canonical UUIDv7 spelling")
+
+
+class ArtifactTaskId(CheckedText):
+    def __new__(cls, value: str):
+        if not isinstance(value, str):
+            raise TypeError("Artifact Task identity requires text")
+        return super().__new__(cls, _uuid_v7_str(value))
+
+    @classmethod
+    def _validate(cls, value: str) -> None:
+        _uuid_v7_str(value)
+
+
+class ArtifactUri(ResourceUri):
+    @classmethod
+    def _validate(cls, value: str) -> None:
+        super()._validate(value)
+        parts = ResourceUri(value).components()
+        if parts.query or "%" in value:
+            raise ValueError("Artifact address forbids query and escapes")
+        if parts.scheme == "artifact" and not parts.segments:
+            ArtifactId(parts.authority)
+        elif parts.authority == "artifact" and len(parts.segments) == 1:
+            ArtifactId(parts.segments[0])
+        else:
+            raise ValueError("invalid Artifact occurrence address")
+
+    @property
+    def artifact_id(self) -> ArtifactId:
+        parts = self.components()
+        return ArtifactId(parts.segments[0] if parts.segments else parts.authority)
+
+    @property
+    def is_plane(self) -> bool:
+        parts = self.components()
+        return parts.scheme == "artifact" and not parts.segments
+
+
+class ArtifactReleaseState(str, Enum):
+    PRIVATE = "private"
+    RELEASABLE = "releasable"
+    RELEASED = "released"
 
 
 ArtifactWriteCapabilityId = Annotated[str, AfterValidator(_uuid_v7_str)]
@@ -64,40 +106,84 @@ def _secret(value: str) -> str:
 ArtifactWriteCapabilitySecret = Annotated[str, AfterValidator(_secret)]
 
 
-class ComplianceMetadata(BaseModel):
-    model_config = ConfigDict(extra="allow")
+from .identity import (
+    AccessSubject, DataLabelId, TenantId, WorkContextId, PrincipalId,
+    PolicyVersion, DelegationId,
+)
 
-    classification: str | None = None
-    data_labels: set[str] = Field(default_factory=set)
-    retention_expires_at: datetime | None = None
+
+class ArtifactProvenance(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    producer: PrincipalId
+    invocation_mode: Literal["direct", "delegated", "automated"]
+    initiator: PrincipalId | None = None
+    delegation_id: DelegationId | None = None
+    policy_revision: PolicyVersion
+
+    @model_validator(mode="after")
+    def _admit(self):
+        if self.invocation_mode == "direct":
+            valid = self.initiator is not None and self.delegation_id is None
+        elif self.invocation_mode == "delegated":
+            valid = self.initiator is not None and self.delegation_id is not None
+        else:
+            valid = self.initiator is None and self.delegation_id is None
+        if not valid:
+            raise ValueError("Artifact provenance identities contradict invocation mode")
+        return self
+
+
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **(update or {})})
+
+class ComplianceMetadata(BaseModel):
+    model_config = ConfigDict(extra="allow", frozen=True)
+
+    classification: DataLabelId | None = None
+    tenant_id: TenantId | None = None
+    owner: AccessSubject | None = None
+    work_context: WorkContextId | None = None
+    provenance: ArtifactProvenance | None = None
+    data_labels: frozenset[DataLabelId] = Field(default_factory=frozenset)
+    retention_expires_at: AwareDatetime | None = None
+
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **(update or {})})
 
 
 class ArtifactMetadata(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", frozen=True)
 
     artifact_id: ArtifactId
-    byte_len: int
+    byte_len: int = Field(strict=True, ge=0, le=2**64 - 1)
     mime_type: str | None = None
     filename: str | None = None
-    artifact_uri: str
+    artifact_uri: ArtifactUri
     download_url: str | None = None
-    created_at: datetime
-    release_state: str = "private"
+    created_at: AwareDatetime
+    release_state: ArtifactReleaseState = ArtifactReleaseState.PRIVATE
     compliance: ComplianceMetadata = Field(default_factory=ComplianceMetadata)
     metadata: Any = None
 
+    @model_validator(mode="after")
+    def _admit(self):
+        if self.artifact_id != self.artifact_uri.artifact_id:
+            raise ValueError("Artifact metadata ID and URI identify different occurrences")
+        return self
+
+    def model_copy(self, *, update=None, deep=False):
+        # Pydantic's standard copy bypasses admission of updates.
+        return type(self).model_validate({**self.model_dump(), **(update or {})})
+
     def without_download_url(self) -> "ArtifactMetadata":
-        clone = self.model_copy()
-        clone.download_url = None
-        return clone
+        return self.model_copy(update={"download_url": None})
 
     def presented_under_scheme(self, scheme: str) -> "ArtifactMetadata":
-        """Rewrite `artifact_uri` into `{scheme}://artifact/{artifact_id}`."""
-        clone = self.model_copy()
-        clone.artifact_uri = ResourceUriBuilder(ResourceScheme(scheme), UriAuthority("artifact")).segment(
+        uri = ResourceUriBuilder(ResourceScheme(scheme), UriAuthority("artifact")).segment(
             UriSegment(self.artifact_id)
         ).build()
-        return clone
+        return self.model_copy(update={"artifact_uri": uri})
 
 
 class ArtifactObject(BaseModel):
@@ -110,9 +196,9 @@ class ArtifactObject(BaseModel):
 class PutArtifactRequest(BaseModel):
     mime_type: str | None = None
     filename: str | None = None
-    classification: str | None = None
-    data_labels: set[str] = Field(default_factory=set)
-    retention_expires_at: datetime | None = None
+    classification: DataLabelId | None = None
+    data_labels: set[DataLabelId] = Field(default_factory=set)
+    retention_expires_at: AwareDatetime | None = None
     metadata: Any = None
 
     def wire(self) -> dict[str, Any]:
@@ -135,18 +221,18 @@ class PutArtifactRequest(BaseModel):
 class IssueArtifactWriteCapabilityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    task_id: str
-    expires_at: datetime
-    max_artifact_count: int = Field(gt=0)
-    max_total_bytes: int = Field(gt=0)
-    required_data_labels: set[str] = Field(default_factory=set, max_length=256)
+    task_id: ArtifactTaskId
+    expires_at: AwareDatetime
+    max_artifact_count: int = Field(strict=True, gt=0, le=2**32 - 1)
+    max_total_bytes: int = Field(strict=True, gt=0, le=2**64 - 1)
+    required_data_labels: frozenset[DataLabelId] = Field(default_factory=frozenset, max_length=256)
 
 
 class IssuedArtifactWriteCapability(BaseModel):
     capability_id: ArtifactWriteCapabilityId
     secret: ArtifactWriteCapabilitySecret
-    task_id: str
-    expires_at: datetime
+    task_id: ArtifactTaskId
+    expires_at: AwareDatetime
 
     def __repr__(self) -> str:  # never leak the secret
         return (
@@ -157,7 +243,7 @@ class IssuedArtifactWriteCapability(BaseModel):
 
 class RedeemArtifactWriteCapabilityRequest(BaseModel):
     capability_id: ArtifactWriteCapabilityId
-    task_id: str
+    task_id: ArtifactTaskId
     idempotency_key: ArtifactWriteIdempotencyKey
     artifact: PutArtifactRequest
 

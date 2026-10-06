@@ -21,25 +21,30 @@ fn instant(index: usize) -> Result<TimeInstant> {
     })
 }
 pub(super) fn add(builder: &mut Builder, s: &Scenario, index: usize) -> Result<Scheduled> {
-    let calendar = OperationalCalendar {
+    let calendar = OperationalCalendarValue {
         calendar_id: id(format!("calendar-{}", s.key))?,
         version: TimeVersion::FIRST,
         name: s.title.clone(),
         zone_id: "America/El_Salvador".into(),
-        windows: vec![CalendarWindow {
-            start_local: "2026-10-02T08:00:00".into(),
-            end_local: "2026-10-02T16:00:00".into(),
-            recurrence: RecurrenceRule {
-                frequency: RecurrenceFrequency::Weekly,
-                interval: 1,
-                weekdays: vec![Weekday::Friday],
-                count: Some(4),
-                until: None,
-            },
-            labels: vec![s.action.clone()],
-        }],
+        windows: vec![
+            CalendarWindowValue {
+                start_local: "2026-10-02T08:00:00".into(),
+                end_local: "2026-10-02T16:00:00".into(),
+                recurrence: RecurrenceRuleValue {
+                    frequency: RecurrenceFrequency::Weekly,
+                    interval: 1,
+                    weekdays: vec![Weekday::Friday],
+                    count: Some(4),
+                    until: None,
+                }
+                .build()?,
+                labels: vec![s.action.clone()],
+            }
+            .build()?,
+        ],
         excluded_dates: vec!["2026-10-16".into()],
-    };
+    }
+    .build()?;
     let epoch = MissionEpoch {
         epoch_id: id(format!("epoch-{}", s.key))?,
         name: format!("{} mission reference", s.title),

@@ -23,6 +23,11 @@ export type DictationStatus = "listening" | "flushing" | "completed" | "cancelle
  */
 export type ArtifactUri = string;
 /**
+ * This interface was referenced by `SchemaBundle`'s JSON-Schema
+ * via the `definition` "UploadSha256".
+ */
+export type UploadSha256 = string;
+/**
  * Canonical identity of one logical artifact occurrence. Every put creates a
  * fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.
  *
@@ -202,7 +207,7 @@ export interface TranscriptDocument {
   model_revision: string;
   schema: string;
   source_artifact_uri: ArtifactUri;
-  source_sha256: string;
+  source_sha256: UploadSha256;
   transcript: Transcript;
 }
 /**

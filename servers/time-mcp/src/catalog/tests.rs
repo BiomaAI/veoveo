@@ -250,7 +250,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             catalog
                 .create_calendar(
                     &owner,
-                    OperationalCalendar {
+                    crate::OperationalCalendarValue {
                         calendar_id: CalendarId::parse(
                             "calendar-00000000-0000-7000-8000-000000000001",
                         )
@@ -260,7 +260,9 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                         zone_id: "UTC".into(),
                         windows: Vec::new(),
                         excluded_dates: Vec::new(),
-                    },
+                    }
+                    .build()
+                    .unwrap(),
                 )
                 .await
                 .unwrap();
@@ -268,7 +270,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         catalog
             .create_calendar(
                 &owner,
-                OperationalCalendar {
+                crate::OperationalCalendarValue {
                     calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000002")
                         .unwrap(),
                     version: crate::TimeVersion::new(42).unwrap(),
@@ -276,7 +278,9 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                     zone_id: "UTC".into(),
                     windows: Vec::new(),
                     excluded_dates: Vec::new(),
-                },
+                }
+                .build()
+                .unwrap(),
             )
             .await
             .unwrap();
@@ -392,7 +396,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             catalog
                 .create_calendar(
                     &owner,
-                    OperationalCalendar {
+                    crate::OperationalCalendarValue {
                         calendar_id: CalendarId::parse(
                             "calendar-00000000-0000-7000-8000-000000000001",
                         )
@@ -402,7 +406,9 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                         zone_id: "UTC".into(),
                         windows: Vec::new(),
                         excluded_dates: Vec::new(),
-                    },
+                    }
+                    .build()
+                    .unwrap(),
                 )
                 .await
                 .unwrap();

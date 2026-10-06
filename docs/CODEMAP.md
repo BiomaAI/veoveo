@@ -282,6 +282,7 @@ designs above.
 | `apps/console/bff/src/computers/` | Computer HTTP/WebSocket routes, Console cookie/CSRF and Origin checks, ticket endpoint and shared relay; installed evidence is recorded in the Computers plan |
 | `apps/console/bff/src/mcp_client/resources.rs` | shared App/native resource subscriptions, acknowledgment, capacity limits, cancellation cleanup and source-loss retirement |
 | `platform/computers/contract/` | provider-independent public Computer DTOs, collection and access inventory/revocation schemas, and terminal controls shared by the Console and MCP surfaces |
+| `platform/computers/contract/src/value_admission.rs` | portable grant-name and permission checks shared by public contract decoding, native hydration and service admission |
 | `platform/computers/src/task_references.rs` and `platform/computers/queries/` | closed domain Task payloads shared by admission and workers; SQL admission for private journal, retry-receipt and Task-link recovery reads |
 | `platform/computers/contract/src/ids.rs`, `resources.rs`, `scopes.rs` | distinct resource, request and provider IDs; checked template names in `template_id.rs`; the complete resource vocabulary and builders; the empty domain scope vocabulary exposed by the MCP library |
 | `servers/computers-mcp/src/protocol/setup.rs` | checked hosted capabilities, fixed discovery, templates and embedded documents composed from the Computers public contract |
@@ -954,6 +955,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/speech-mcp/src/dictation/audit.rs` | private dictation open, denial and terminal counts with verified request attribution |
 | `servers/speech-mcp/contract/src/identity.rs`, `resources.rs`, `dictation.rs` | distinct transcription/dictation identities, typed resource families and checked receipt identity shared by Speech, Gateway and Console |
 | `servers/speech-mcp/src/server/setup.rs`, `mcp.rs` | checked hosted declarations and typed resource read/subscription admission; application code owns source/session authorization |
+| `servers/speech-mcp/src/server/tool_input_tests.rs`, `tests/support/context.rs` | hosted argument admission and transcript listener delivery/cancellation controls, with the Work Context fixture shared by the owning native Task tests |
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |
 | `servers/stream-mcp` | isolated `contract` feature for replay and live-session models; `runtime` and `mcp` enable admitted GStreamer execution, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
@@ -1223,6 +1225,7 @@ domain vocabulary.
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
 | `servers/optimization-mcp/src/contract/` | isolated contract feature: public solver models, checked usage and collection positions, domain ID admission, typed addresses, exhaustive resource variants, empty domain scope vocabulary and fixed URI declarations |
+| `servers/optimization-mcp/src/contract/value_admission.rs` | portable family, dimension, resource and digest relationships checked before compilation and publication; owner hash preimages stay explicit |
 | `servers/optimization-mcp/src/composition.rs` and `tests/startup.rs` | read-only revisioned installation identity, committed preparation and Optimization/Tasks history gate before recovery and HTTP readiness |
 | `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |
 | `servers/optimization-mcp/src/verification/` | cuOpt-independent routing feasibility, mathematical feasibility, integrality, and objective checks |
@@ -1248,6 +1251,7 @@ domain vocabulary.
 |---|---|
 | `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
 | `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types and `TimeScope`; `resource.rs` owns all resource variants and shared URI construction, while `resource/` owns typed cursors, address components, and release-only provenance; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
+| `servers/time-mcp/src/contract/admission.rs` | portable temporal syntax and metadata checks reused by public value construction and the persistence adapter |
 | `servers/time-mcp/src/mcp/setup.rs` | Time's MCP associations, typed static resource descriptors and checked setup for startup, discovery and scope membership |
 | `servers/time-mcp/src/mcp/resources.rs` | resource reads through the server's typed address contract; static documentation and App reads precede state access |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
@@ -1277,6 +1281,7 @@ Media-specific ownership:
 | Path | Responsibility |
 |---|---|
 | `servers/media-mcp/src/contract/` | isolated contract feature: typed model/prediction identities, public requests and responses, complete resource vocabulary, empty scopes, checked generation results, output attribution, collection cursors and pages |
+| `servers/media-mcp/src/contract/model_catalog.rs` | shared tool/resource model pages, typed index addresses and continuations bound to filters, page limits and registry contents |
 | `servers/media-mcp/src/storage.rs` | Media-owned driver records, record IDs and usage vocabulary for private Task context and the usage ledger |
 | `servers/media-mcp/src/storage/prediction.rs` | typed prediction envelope inside the provider journal; strict stored fields with open provider input and timing data |
 | `servers/media-mcp/src/task_lookup.rs` | Media-owned Task identity, dispatch, provider association and settlement contributions; the shared runtime executes their transactions |
@@ -1387,6 +1392,8 @@ separate ingest/publication permissions used by machine producers. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
 owns grants. `views.rs`, `layers.rs` and `sealing.rs` own immutable public metadata
 with checked Artifact references, integrity digests and lifecycle relationships.
+`properties.rs` owns immutable sealed-property admission with distinct dataset and
+recording identities, original timestamp text and bare manifest digests for RRD producers.
 Projection requests and results use the Frames owner’s revision-scoped `WorldFrameUri`.
 `projection/result.rs` owns checked result handles and typed integrity fields.
 `redap.rs` owns public-origin, dataset-entry and segment-address construction and admission,
@@ -1470,7 +1477,9 @@ catalog grant and Arrow projection models from the shared domain crate. The isol
 MCP, Store, async or Rerun implementations; the gateway's Recording adapter imports
 that profile directly. `runtime`, `mcp` and `redap` enable their service dependencies.
 `service.rs` resolves authorized MCP and playback plans and publishes
-properties layers. `service/projection.rs` owns projection receipts, result construction
+properties layers. `tests/catalog_queries/seal_recovery.rs` exercises public seal
+restart, retained properties and reserved Artifact publication through the native
+catalog harness. `service/projection.rs` owns projection receipts, result construction
 and Arrow downloads. `service/projection/scratch.rs` owns concurrency, scratch accounting,
 bounded metadata and restart integrity. `platform/recordings/reader/src/cache.rs` owns verified
 Artifact-to-PVC materialization and eviction. `blueprint_cache.rs` supplies

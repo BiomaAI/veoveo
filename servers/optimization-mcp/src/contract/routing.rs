@@ -211,7 +211,8 @@ pub struct RouteObjective {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RoutingProblem {
+#[schemars(rename = "RoutingProblem")]
+pub struct RoutingProblemValue {
     pub version: String,
     pub time_basis: TimeBasis,
     pub locations: Vec<RouteLocation>,
@@ -221,7 +222,7 @@ pub struct RoutingProblem {
     pub objectives: Vec<RouteObjective>,
 }
 
-impl RoutingProblem {
+impl RoutingProblemValue {
     pub fn validate(&self) -> Result<(), OptimizationContractError> {
         if self.version != ROUTING_PROBLEM_VERSION {
             return Err(OptimizationContractError::InvalidProblem(format!(
@@ -524,14 +525,15 @@ pub struct RouteScenario {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OptimizeRouteScenariosRequest {
+#[schemars(rename = "OptimizeRouteScenariosRequest")]
+pub struct OptimizeRouteScenariosRequestValue {
     pub cases: Vec<RouteScenario>,
     pub policy: SolverPolicyRef,
     #[serde(default)]
     pub output: RouteOutputPolicy,
 }
 
-impl OptimizeRouteScenariosRequest {
+impl OptimizeRouteScenariosRequestValue {
     pub fn validate(&self) -> Result<(), OptimizationContractError> {
         require_collection("route cases", self.cases.len(), 2, MAX_ROUTE_CASES)?;
         if self
@@ -546,6 +548,91 @@ impl OptimizeRouteScenariosRequest {
                 "route case ids must be unique".to_owned(),
             ));
         }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "RoutingProblemValue", into = "RoutingProblemValue")]
+pub struct RoutingProblem(veoveo_types::Checked<RoutingProblemValue>);
+impl std::ops::Deref for RoutingProblem {
+    type Target = RoutingProblemValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for RoutingProblem {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RoutingProblem".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RoutingProblemValue::json_schema(generator)
+    }
+}
+impl TryFrom<RoutingProblemValue> for RoutingProblem {
+    type Error = super::OptimizationContractError;
+    fn try_from(value: RoutingProblemValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<RoutingProblem> for RoutingProblemValue {
+    fn from(value: RoutingProblem) -> Self {
+        value.0.into_inner()
+    }
+}
+impl RoutingProblemValue {
+    pub fn build(self) -> Result<RoutingProblem, super::OptimizationContractError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for RoutingProblemValue {
+    type Error = super::OptimizationContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(
+    try_from = "OptimizeRouteScenariosRequestValue",
+    into = "OptimizeRouteScenariosRequestValue"
+)]
+pub struct OptimizeRouteScenariosRequest(veoveo_types::Checked<OptimizeRouteScenariosRequestValue>);
+impl std::ops::Deref for OptimizeRouteScenariosRequest {
+    type Target = OptimizeRouteScenariosRequestValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for OptimizeRouteScenariosRequest {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "OptimizeRouteScenariosRequest".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        OptimizeRouteScenariosRequestValue::json_schema(generator)
+    }
+}
+impl TryFrom<OptimizeRouteScenariosRequestValue> for OptimizeRouteScenariosRequest {
+    type Error = super::OptimizationContractError;
+    fn try_from(value: OptimizeRouteScenariosRequestValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<OptimizeRouteScenariosRequest> for OptimizeRouteScenariosRequestValue {
+    fn from(value: OptimizeRouteScenariosRequest) -> Self {
+        value.0.into_inner()
+    }
+}
+impl OptimizeRouteScenariosRequestValue {
+    pub fn build(self) -> Result<OptimizeRouteScenariosRequest, super::OptimizationContractError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for OptimizeRouteScenariosRequestValue {
+    type Error = super::OptimizationContractError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()?;
         Ok(())
     }
 }
@@ -566,7 +653,7 @@ mod tests {
     fn problem() -> RoutingProblem {
         let location_a: LocationId = id("a");
         let location_b: LocationId = id("b");
-        RoutingProblem {
+        crate::contract::RoutingProblemValue {
             version: ROUTING_PROBLEM_VERSION.to_owned(),
             time_basis: TimeBasis {
                 origin: Utc::now(),
@@ -633,6 +720,8 @@ mod tests {
                 weight: NonNegativeF64::new(1.0).unwrap(),
             }],
         }
+        .build()
+        .unwrap()
     }
 
     #[test]
@@ -642,14 +731,14 @@ mod tests {
 
     #[test]
     fn optional_order_requires_penalty() {
-        let mut problem = problem();
+        let mut problem = RoutingProblemValue::from(problem());
         problem.orders[0].service_policy = RouteServicePolicy::Optional;
         assert!(problem.validate().is_err());
     }
 
     #[test]
     fn inline_matrix_shape_is_checked() {
-        let mut problem = problem();
+        let mut problem = RoutingProblemValue::from(problem());
         let TravelModelSource::Inline { model } = &mut problem.travel_model else {
             unreachable!()
         };
@@ -659,7 +748,7 @@ mod tests {
 
     #[test]
     fn routing_inputs_close_nested_shapes_but_keep_typed_capacity_maps() {
-        let mut original = problem();
+        let mut original = RoutingProblemValue::from(problem());
         original.orders[0].demand.insert(id("weight"), 2);
         original.fleet.vehicles[0].capacity.insert(id("weight"), 3);
         let wire = serde_json::to_value(&original).unwrap();

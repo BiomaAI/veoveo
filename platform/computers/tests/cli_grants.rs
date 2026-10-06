@@ -15,12 +15,14 @@ use veoveo_mcp_contract::PolicyEffect;
 use veoveo_platform_store::RecordId;
 use veoveo_types::WorkContextMembershipLevel;
 
-fn request(code: &str) -> veoveo_computers::api::CliPairingInput {
-    veoveo_computers::api::CliPairingInput {
+fn request(code: &str) -> veoveo_computers_contract::CliPairingInput {
+    veoveo_computers_contract::CliPairingInputValue {
         name: "Development laptop".into(),
         code: code.into(),
         callback_port: 49152,
     }
+    .build()
+    .unwrap()
 }
 fn record(table: &str, id: Uuid) -> RecordId {
     RecordId::new(table, surrealdb::types::Uuid::from(id))
@@ -51,15 +53,18 @@ fn stock_pairing_accepts_only_the_qualified_code_and_loopback_port_profile() {
         "ABO-2345",
         "ABC-2345?token=secret",
     ] {
-        assert!(!request(code).is_valid());
+        let mut input = veoveo_computers_contract::CliPairingInputValue::from(request("ABC-2345"));
+        input.code = code.into();
+        assert!(!input.is_valid());
+        assert!(input.build().is_err());
     }
     for port in [0, 22, 443, 1023] {
-        let mut input = request("ABC-2345");
+        let mut input = veoveo_computers_contract::CliPairingInputValue::from(request("ABC-2345"));
         input.callback_port = port;
         assert!(!input.is_valid());
     }
     for name in ["", " laptop", "laptop\n", "x\u{1b}[0m"] {
-        let mut input = request("ABC-2345");
+        let mut input = veoveo_computers_contract::CliPairingInputValue::from(request("ABC-2345"));
         input.name = name.into();
         assert!(!input.is_valid());
     }

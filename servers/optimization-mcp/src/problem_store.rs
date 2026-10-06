@@ -62,7 +62,7 @@ impl PreparedProblem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PreparedProblemRef {
     pub path: String,
-    pub digest_sha256: String,
+    pub digest_sha256: veoveo_artifact_contract::UploadSha256,
     pub bytes: u64,
 }
 
@@ -118,9 +118,21 @@ impl ProblemStore {
         tokio::fs::rename(&temporary_path, &final_path).await?;
         Ok(PreparedProblemRef {
             path: final_path.to_string_lossy().into_owned(),
-            digest_sha256,
+            digest_sha256: veoveo_artifact_contract::UploadSha256::parse(digest_sha256)?,
             bytes: length,
         })
+    }
+
+    /// Bind an admitted stored product to the Task selected by SQL policy.
+    pub async fn load_selected(
+        &self,
+        reference: &PreparedProblemRef,
+        problem_id: &crate::contract::ProblemId,
+        family: crate::contract::ProblemFamily,
+    ) -> anyhow::Result<PreparedProblem> {
+        let prepared = self.load(reference).await?;
+        admit_prepared_product(&prepared, problem_id, family)?;
+        Ok(prepared)
     }
 
     pub async fn load(&self, reference: &PreparedProblemRef) -> anyhow::Result<PreparedProblem> {
@@ -138,11 +150,37 @@ impl ProblemStore {
         }
         let bytes = tokio::fs::read(&canonical).await?;
         let digest = hex::encode(Sha256::digest(&bytes));
-        if digest != reference.digest_sha256 {
+        if digest != reference.digest_sha256.as_str() {
             anyhow::bail!("prepared problem digest does not match its durable reference");
         }
         Ok(serde_json::from_slice(&bytes)?)
     }
+}
+
+/// Check selected context and the producer's duplicate resource definition.
+pub fn admit_prepared_product(
+    prepared: &PreparedProblem,
+    problem_id: &crate::contract::ProblemId,
+    family: crate::contract::ProblemFamily,
+) -> anyhow::Result<()> {
+    let resource = prepared.resource();
+    anyhow::ensure!(
+        &resource.record.problem_id == problem_id && resource.record.family == family,
+        "prepared product disagrees with its selected Task parents"
+    );
+    use crate::contract::{OptimizationProblemDefinition as Definition, RoutingProblemSource};
+    let agrees = match (prepared, &resource.definition) {
+            (PreparedProblem::Routing { problem, .. }, Definition::Routing { problem: original }) => problem == original,
+            (PreparedProblem::Convex { problem, .. }, Definition::Convex { problem: original }) => problem == original,
+            (PreparedProblem::Milp { problem, .. }, Definition::Milp { problem: original }) => problem == original,
+            (PreparedProblem::RouteScenarios { cases, .. }, Definition::RouteScenarios { cases: original }) => cases.len() == original.len() && cases.iter().zip(original).all(|(case, original)| case.case_id == original.case_id && matches!(&original.problem, RoutingProblemSource::Inline { problem } if problem == &case.problem)),
+            _ => false,
+        };
+    anyhow::ensure!(
+        agrees,
+        "prepared product definition disagrees with its selected resource"
+    );
+    Ok(())
 }
 
 #[cfg(test)]
@@ -152,12 +190,113 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn actual_prepared_load_binds_selected_parents_and_duplicate_definition() {
+        use crate::contract::*;
+        let fixtures: serde_json::Value =
+            serde_json::from_str(include_str!("../testdata/controlled-inputs.json")).unwrap();
+        let problem: ConvexProblem =
+            serde_json::from_value(fixtures[0]["arguments"]["problem"]["problem"].clone()).unwrap();
+        let compiled = crate::compiler::compile_convex_problem(&problem).unwrap();
+        let definition = OptimizationProblemDefinition::Convex {
+            problem: problem.clone(),
+        };
+        let id = ProblemId::new();
+        let now = chrono::Utc::now();
+        let resource = OptimizationProblemResourceValue {
+            record: OptimizationProblemRecordValue {
+                problem_id: id.clone(),
+                problem_uri: OptimizationProblemUri::new(id.clone()).unwrap(),
+                family: ProblemFamily::Convex,
+                schema_version: problem.version.clone(),
+                digest_sha256: definition_digest(&definition).unwrap(),
+                dimensions: ProblemDimensions {
+                    variables: Some(1),
+                    constraints: Some(0),
+                    nonzeros: Some(0),
+                    ..Default::default()
+                },
+                authority: OptimizationAuthority {
+                    principal_id: "fixture#actor".parse().unwrap(),
+                    work_context: None,
+                    policy_revision: "fixture".parse().unwrap(),
+                    submitted_at: now,
+                },
+                created_at: now,
+            }
+            .build()
+            .unwrap(),
+            definition,
+        }
+        .build()
+        .unwrap();
+        let prepared = PreparedProblem::Convex {
+            resource,
+            problem: problem.clone(),
+            compiled,
+        };
+        let temporary = TempDir::new().unwrap();
+        let store = ProblemStore::open(temporary.path(), 1024 * 1024).unwrap();
+        let reference = store.stage(TaskId::new(), &prepared).await.unwrap();
+        let before = tokio::fs::read(&reference.path).await.unwrap();
+        assert!(
+            store
+                .load_selected(&reference, &id, ProblemFamily::Convex)
+                .await
+                .is_ok()
+        );
+        assert!(
+            store
+                .load_selected(&reference, &ProblemId::new(), ProblemFamily::Convex)
+                .await
+                .is_err()
+        );
+        assert!(
+            store
+                .load_selected(&reference, &id, ProblemFamily::Milp)
+                .await
+                .is_err()
+        );
+        let mut foreign = prepared.clone();
+        if let PreparedProblem::Convex { resource, .. } = &mut foreign {
+            let mut value = OptimizationProblemResourceValue::from(resource.clone());
+            let mut record = OptimizationProblemRecordValue::from(value.record);
+            record.problem_id = ProblemId::new();
+            record.problem_uri = OptimizationProblemUri::new(record.problem_id.clone()).unwrap();
+            value.record = record.build().unwrap();
+            *resource = value.build().unwrap();
+        }
+        let foreign_reference = store.stage(TaskId::new(), &foreign).await.unwrap();
+        assert!(store.load(&foreign_reference).await.is_ok());
+        assert!(
+            store
+                .load_selected(&foreign_reference, &id, ProblemFamily::Convex)
+                .await
+                .is_err()
+        );
+        let mut detached = prepared.clone();
+        if let PreparedProblem::Convex { problem, .. } = &mut detached {
+            let mut draft = ConvexProblemValue::from(problem.clone());
+            draft.objective.linear_terms[0].coefficient = FiniteF64::new(2.0).unwrap();
+            *problem = draft.build().unwrap();
+        }
+        let corrupted = store.stage(TaskId::new(), &detached).await.unwrap();
+        assert!(store.load(&corrupted).await.is_ok());
+        assert!(
+            store
+                .load_selected(&corrupted, &id, ProblemFamily::Convex)
+                .await
+                .is_err()
+        );
+        assert_eq!(tokio::fs::read(&reference.path).await.unwrap(), before);
+    }
+
+    #[tokio::test]
     async fn rejects_a_tampered_prepared_problem() {
         let temporary = TempDir::new().unwrap();
         let store = ProblemStore::open(temporary.path(), 1_024).unwrap();
         let reference = PreparedProblemRef {
             path: temporary.path().join("outside.json").display().to_string(),
-            digest_sha256: "00".repeat(32),
+            digest_sha256: veoveo_artifact_contract::UploadSha256::parse("00".repeat(32)).unwrap(),
             bytes: 1,
         };
         tokio::fs::write(&reference.path, b"x").await.unwrap();

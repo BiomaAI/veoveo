@@ -11,8 +11,9 @@ async fn grant(
     store: &ComputersStore,
     owner: &ComputerActor,
     computer: veoveo_computers_contract::ComputerId,
-) -> AutomationGrantView {
-    let mut input = support::automation::input(computer);
+) -> veoveo_computers_contract::AutomationGrantView {
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer).into();
     input.permissions = [
         AutomationPermission::Read,
         AutomationPermission::Start,
@@ -20,7 +21,10 @@ async fn grant(
     ]
     .into();
     input.execution_limits = None;
-    store.issue_automation_grant(owner, &input).await.unwrap()
+    store
+        .issue_automation_grant(owner, &input.clone().build().unwrap())
+        .await
+        .unwrap()
 }
 
 async fn queue(
@@ -141,12 +145,16 @@ async fn owner_operation_reconnect_preserves_identity_without_inventing_delegati
 async fn an_owner_cannot_turn_a_granted_retry_into_an_ungranted_request() {
     let db = support::database().await;
     let (store, _, owner, _, computer) = support::automation::setup(&db).await;
-    let mut input = support::automation::input(computer);
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer).into();
     input.principal_id = owner.owner().principal_key.clone().try_into().unwrap();
     input.oauth_client_id = "console".parse().unwrap();
     input.permissions = [AutomationPermission::Stop].into();
     input.execution_limits = None;
-    let granted = store.issue_automation_grant(&owner, &input).await.unwrap();
+    let granted = store
+        .issue_automation_grant(&owner, &input.clone().build().unwrap())
+        .await
+        .unwrap();
     let request = veoveo_computers::api::RequestId::new();
     queue(
         &store,

@@ -487,7 +487,6 @@
       "type": "object"
     },
     "CliPairingToken": {
-      "description": "Only serialize into the one-use no-store response and local callback body.\n\n```compile_fail\nuse veoveo_computers_contract::CliPairingToken;\nfn cannot_log(token: CliPairingToken) { let _ = format!(\"{token:?}\"); }\n```",
       "maxLength": 107,
       "minLength": 107,
       "type": "string"
@@ -1196,6 +1195,7 @@
     },
     "IssueAutomationGrantInput": {
       "additionalProperties": false,
+      "description": "Computer and request identities have separate admission and API roles.\n```compile_fail\nuse veoveo_computers_contract::{ComputerId, RequestId};\nfn requires_computer(_: ComputerId) {}\nrequires_computer(RequestId::new());\n```",
       "properties": {
         "computerId": {
           "$ref": "#/$defs/ComputerId"

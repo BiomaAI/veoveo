@@ -8,10 +8,14 @@ use veoveo_computers::{ComputerActor, ComputersStore, api::*, commands::CommandT
 async fn command_tasks_keep_source_client_authority_and_owner_control_separate() {
     let db = support::database().await;
     let (a, b, owner, agent, computer) = support::automation::setup(&db).await;
-    let mut input = support::automation::input(computer);
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer).into();
     // Execute carries progress/cancellation for its own Task without broader Read.
     input.permissions = [AutomationPermission::Execute].into();
-    let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
+    let grant = a
+        .issue_automation_grant(&owner, &input.clone().build().unwrap())
+        .await
+        .unwrap();
     let claim = command_support::queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
     let execution =
         veoveo_computers_contract::ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
@@ -149,10 +153,14 @@ async fn a_current_human_token_from_another_client_cannot_read_a_command_task() 
     .await
     .unwrap();
     let actor = support::authenticated(&human);
-    let mut input = support::automation::input(computer);
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer).into();
     input.principal_id = human.principal_key.clone().try_into().unwrap();
     input.oauth_client_id = "console".parse().unwrap();
-    let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
+    let grant = a
+        .issue_automation_grant(&owner, &input.clone().build().unwrap())
+        .await
+        .unwrap();
     let claim = command_support::queue_claim(&db, &a, &actor, computer, grant.grant_id).await;
     let execution =
         veoveo_computers_contract::ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();

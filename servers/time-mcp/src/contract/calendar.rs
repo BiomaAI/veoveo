@@ -24,7 +24,8 @@ pub enum RecurrenceFrequency {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RecurrenceRule {
+#[schemars(rename = "RecurrenceRule")]
+pub struct RecurrenceRuleValue {
     pub frequency: RecurrenceFrequency,
     #[serde(default = "one")]
     pub interval: u32,
@@ -40,7 +41,8 @@ const fn one() -> u32 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct CalendarWindow {
+#[schemars(rename = "CalendarWindow")]
+pub struct CalendarWindowValue {
     pub start_local: String,
     pub end_local: String,
     pub recurrence: RecurrenceRule,
@@ -50,7 +52,8 @@ pub struct CalendarWindow {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct OperationalCalendar {
+#[schemars(rename = "OperationalCalendar")]
+pub struct OperationalCalendarValue {
     pub calendar_id: CalendarId,
     pub version: super::TimeVersion,
     pub name: String,
@@ -135,7 +138,8 @@ pub struct TimelineConstraint {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ValidateTimelineRequest {
+#[schemars(rename = "ValidateTimelineRequest")]
+pub struct ValidateTimelineRequestValue {
     pub points: Vec<TimelinePoint>,
     pub constraints: Vec<TimelineConstraint>,
 }
@@ -147,7 +151,8 @@ pub struct TimelineViolation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ValidateTimelineOutput {
+#[schemars(rename = "ValidateTimelineOutput")]
+pub struct ValidateTimelineOutputValue {
     pub valid: bool,
     pub violations: Vec<TimelineViolation>,
 }
@@ -198,4 +203,260 @@ pub struct CollectionPage<T, C> {
     pub items: Vec<T>,
     pub limit: usize,
     pub next_cursor: Option<C>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "RecurrenceRuleValue", into = "RecurrenceRuleValue")]
+pub struct RecurrenceRule(veoveo_types::Checked<RecurrenceRuleValue>);
+impl std::ops::Deref for RecurrenceRule {
+    type Target = RecurrenceRuleValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for RecurrenceRule {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RecurrenceRule".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RecurrenceRuleValue::json_schema(generator)
+    }
+}
+impl TryFrom<RecurrenceRuleValue> for RecurrenceRule {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: RecurrenceRuleValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<RecurrenceRule> for RecurrenceRuleValue {
+    fn from(value: RecurrenceRule) -> Self {
+        value.0.into_inner()
+    }
+}
+impl RecurrenceRuleValue {
+    pub fn build(self) -> Result<RecurrenceRule, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for RecurrenceRuleValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.interval == 0 || self.count == Some(0) {
+            return Err(super::admission::TimeValueError(
+                "recurrence interval and count must be positive",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "CalendarWindowValue", into = "CalendarWindowValue")]
+pub struct CalendarWindow(veoveo_types::Checked<CalendarWindowValue>);
+impl std::ops::Deref for CalendarWindow {
+    type Target = CalendarWindowValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for CalendarWindow {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "CalendarWindow".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        CalendarWindowValue::json_schema(generator)
+    }
+}
+impl TryFrom<CalendarWindowValue> for CalendarWindow {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: CalendarWindowValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<CalendarWindow> for CalendarWindowValue {
+    fn from(value: CalendarWindow) -> Self {
+        value.0.into_inner()
+    }
+}
+impl CalendarWindowValue {
+    pub fn build(self) -> Result<CalendarWindow, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for CalendarWindowValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if super::admission::local(&self.end_local)? <= super::admission::local(&self.start_local)?
+        {
+            return Err(super::admission::TimeValueError(
+                "calendar end must follow its start",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "OperationalCalendarValue",
+    into = "OperationalCalendarValue"
+)]
+pub struct OperationalCalendar(veoveo_types::Checked<OperationalCalendarValue>);
+impl std::ops::Deref for OperationalCalendar {
+    type Target = OperationalCalendarValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for OperationalCalendar {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "OperationalCalendar".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        OperationalCalendarValue::json_schema(generator)
+    }
+}
+impl TryFrom<OperationalCalendarValue> for OperationalCalendar {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: OperationalCalendarValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<OperationalCalendar> for OperationalCalendarValue {
+    fn from(value: OperationalCalendar) -> Self {
+        value.0.into_inner()
+    }
+}
+impl OperationalCalendarValue {
+    pub fn build(self) -> Result<OperationalCalendar, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for OperationalCalendarValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        super::admission::zone(&self.zone_id)?;
+        for date in &self.excluded_dates {
+            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| {
+                super::admission::TimeValueError("excluded date requires YYYY-MM-DD")
+            })?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(
+    try_from = "ValidateTimelineRequestValue",
+    into = "ValidateTimelineRequestValue"
+)]
+pub struct ValidateTimelineRequest(veoveo_types::Checked<ValidateTimelineRequestValue>);
+impl std::ops::Deref for ValidateTimelineRequest {
+    type Target = ValidateTimelineRequestValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ValidateTimelineRequest {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ValidateTimelineRequest".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ValidateTimelineRequestValue::json_schema(generator)
+    }
+}
+impl TryFrom<ValidateTimelineRequestValue> for ValidateTimelineRequest {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: ValidateTimelineRequestValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ValidateTimelineRequest> for ValidateTimelineRequestValue {
+    fn from(value: ValidateTimelineRequest) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ValidateTimelineRequestValue {
+    pub fn build(self) -> Result<ValidateTimelineRequest, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for ValidateTimelineRequestValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.points.len() > 100_000 || self.constraints.len() > 1_000_000 {
+            return Err(super::admission::TimeValueError(
+                "timeline exceeds point or constraint limit",
+            ));
+        }
+        let mut names = std::collections::BTreeSet::new();
+        for point in &self.points {
+            if point.name.trim().is_empty() || !names.insert(&point.name) {
+                return Err(super::admission::TimeValueError(
+                    "timeline point names must be nonempty and unique",
+                ));
+            }
+        }
+        for constraint in &self.constraints {
+            if !names.contains(&constraint.predecessor)
+                || !names.contains(&constraint.successor)
+                || constraint
+                    .maximum_separation_nanoseconds
+                    .is_some_and(|max| max < constraint.minimum_separation_nanoseconds)
+            {
+                return Err(super::admission::TimeValueError(
+                    "invalid timeline constraint references or separation",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    try_from = "ValidateTimelineOutputValue",
+    into = "ValidateTimelineOutputValue"
+)]
+pub struct ValidateTimelineOutput(veoveo_types::Checked<ValidateTimelineOutputValue>);
+impl std::ops::Deref for ValidateTimelineOutput {
+    type Target = ValidateTimelineOutputValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ValidateTimelineOutput {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ValidateTimelineOutput".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ValidateTimelineOutputValue::json_schema(generator)
+    }
+}
+impl TryFrom<ValidateTimelineOutputValue> for ValidateTimelineOutput {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: ValidateTimelineOutputValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ValidateTimelineOutput> for ValidateTimelineOutputValue {
+    fn from(value: ValidateTimelineOutput) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ValidateTimelineOutputValue {
+    pub fn build(self) -> Result<ValidateTimelineOutput, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for ValidateTimelineOutputValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.valid != self.violations.is_empty() {
+            return Err(super::admission::TimeValueError(
+                "timeline outcome contradicts violations",
+            ));
+        }
+        Ok(())
+    }
 }

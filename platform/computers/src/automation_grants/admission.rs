@@ -250,7 +250,7 @@ impl ComputersStore {
             let policy = self.stored_automation_policy().await?.checked()?;
             let management = self.automation_management(actor, computer_id).await?;
             control.require_read(Some(computer_id))?;
-            Ok(AutomationGrantCollection {
+            veoveo_computers_contract::AutomationGrantCollectionValue {
                 computer_id,
                 can_grant: management.can_grant && grants.len() < policy.max_grants as usize,
                 can_revoke: management.can_revoke,
@@ -264,7 +264,9 @@ impl ComputersStore {
                     maximum_output_bytes: policy.maximum_output_bytes,
                 },
                 grants,
-            })
+            }
+            .build()
+            .map_err(|_| crate::ComputerError::Unavailable)
         })
         .await
         .map_err(|_| ComputerError::Unavailable)?

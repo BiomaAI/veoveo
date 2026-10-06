@@ -26,6 +26,8 @@ mod artifact_uri;
 pub use artifact_uri::*;
 mod model_entry;
 pub use model_entry::ModelEntry;
+mod model_catalog;
+pub use model_catalog::*;
 mod model_tools;
 pub use model_tools::*;
 mod requests;

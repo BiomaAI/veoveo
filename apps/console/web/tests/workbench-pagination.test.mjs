@@ -7,6 +7,10 @@ import {chromium} from 'playwright';
 const tasks = JSON.parse(await readFile(new URL('../../../../mcp/apps-extension/testdata/final-tasks.json', import.meta.url), 'utf8'));
 const template = await readFile(new URL('../../../../mcp/apps-extension/src/workbench.html', import.meta.url), 'utf8');
 const taskId = index => `0195dabe-7777-7abc-8def-${index.toString(16).padStart(12, '0')}`;
+const modelCatalog = {
+  models: [{model_id: 'test/image', name: 'Fixture image', type: 'text-to-image', description: 'Pagination fixture', schema_uri: 'media://model/test/image'}],
+  returned: 1, total_available: 1, limit: 20, next_cursor: null,
+};
 const cases = [
   {domain: 'artifact', title: 'Library', collection: 'artifact://index', label: 'Artifact index',
     other: 'artifact://docs', otherLabel: 'Documentation', otherValue: {items: [{uri: 'artifact://docs/design', title: 'Design'}]},
@@ -23,11 +27,11 @@ const cases = [
     entry: index => ({task_id: taskId(index), usage_uri: `duckdb://usage/task/${taskId(index)}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://usage', after: taskId(99)})).toString('base64url')},
   {domain: 'media-usage', title: 'Studio', collection: 'media://usage', label: 'Usage ledger',
-    other: 'media://models', otherLabel: 'Model catalog', otherValue: [{model_id: 'test/image'}],
+    other: 'media://models', otherLabel: 'Model catalog', otherValue: modelCatalog,
     entry: index => ({task_id: taskId(index), usage_uri: `media://usage/task/${taskId(index)}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'media://usage', after: taskId(99)})).toString('base64url')},
   {domain: 'media-predictions', title: 'Studio', collection: 'media://predictions', label: 'Predictions',
-    other: 'media://models', otherLabel: 'Model catalog', otherValue: [{model_id: 'test/image'}],
+    other: 'media://models', otherLabel: 'Model catalog', otherValue: modelCatalog,
     entry: index => ({id: `prediction-${index}`, prediction_uri: `media://prediction/prediction-${index}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'media://predictions', after: 'prediction-99'})).toString('base64url')},
 ];
@@ -124,7 +128,13 @@ for (const fixture of cases) {
       release();
       await page.waitForFunction(() => window.latePageReceived);
       assert.equal(await page.locator('#resource-title').textContent(), fixture.otherLabel);
-      assert.equal(await page.locator('#pager').isHidden(), !Array.isArray(fixture.otherValue.items));
+      const otherIsPage = Array.isArray(fixture.otherValue.items) || Array.isArray(fixture.otherValue.models);
+      assert.equal(await page.locator('#pager').isHidden(), !otherIsPage);
+      if (otherIsPage) {
+        assert.equal(await page.locator('#page-number').textContent(), 'Page 1');
+        assert.equal(await page.locator('#page-previous').isDisabled(), true);
+        assert.equal(await page.locator('#page-next').isDisabled(), true);
+      }
       assert.deepEqual(JSON.parse(await page.locator('#payload').textContent()), fixture.otherValue);
       await page.getByRole('button', {name: fixture.label, exact: true}).click();
       await page.waitForFunction(() => !document.querySelector('#pager').hidden && document.querySelector('#page-next').disabled === false && document.querySelector('#status').textContent === 'ready');

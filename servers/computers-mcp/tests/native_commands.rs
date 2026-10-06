@@ -54,11 +54,13 @@ fn payload(script: &str, seconds: u32) -> CommandPayload {
             b"native-private-stdin\0\xff".to_vec(),
         )
         .unwrap(),
-        AutomationExecutionLimits {
+        veoveo_computers_contract::AutomationExecutionLimitsValue {
             maximum_seconds: seconds,
             maximum_output_bytes: 1024,
             on_interruption: AutomationInterruption::StopComputer,
-        },
+        }
+        .build()
+        .unwrap(),
     )
     .unwrap()
 }
@@ -430,7 +432,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         arguments: vec!["/bin/sh".into(), "-c".into(), "printf native-stdout; printf native-stderr >&2; printf x >> invocation-count; cat > received-stdin; printf '%s' \"$PRIVATE_TOKEN\" > received-env; exit 7".into()],
         directory: ".".into(), environment: BTreeMap::from([("PRIVATE_TOKEN".into(), "native-private-command-value".into())]),
         stdin: base64::engine::general_purpose::STANDARD.encode(b"native-private-stdin\0\xff"),
-        limits: AutomationExecutionLimits { maximum_seconds: 30, maximum_output_bytes: 1024, on_interruption: AutomationInterruption::StopComputer },
+        limits: veoveo_computers_contract::AutomationExecutionLimitsValue { maximum_seconds: 30, maximum_output_bytes: 1024, on_interruption: AutomationInterruption::StopComputer }.build().unwrap(),
     };
     let rmcp::model::CallToolResponse::Task(created) = agent_peer
         .call_tool_once(projection::call("execute", &input))

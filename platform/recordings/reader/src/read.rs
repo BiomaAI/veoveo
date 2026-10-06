@@ -233,15 +233,19 @@ impl RecordingReadPlan {
                             kind: RecordingReadSourceKind::LiveIngestPart,
                             part_sequence: Some(sequence),
                             byte_len: inspection.byte_len,
-                            sha256: Sha256Digest::from_hex(inspection.sha256)?,
+                            sha256: inspection.sha256,
                             path,
                         });
                         // Normalize only the task-local copy; the snapshot keeps
                         // the original producer bytes and digest.
                         veoveo_rrd::recording_layer::normalize_recording_layer(
                             &destination,
-                            self.dataset_id.as_uuid(),
-                            self.recording_id.as_uuid(),
+                            veoveo_recording_contract::RecordingDatasetId::try_from(
+                                self.dataset_id.as_uuid(),
+                            )?,
+                            veoveo_recording_contract::RecordingId::try_from(
+                                self.recording_id.as_uuid(),
+                            )?,
                         )?;
                         paths.push(destination);
                     }
@@ -474,8 +478,14 @@ impl RecordingReader {
             .await?
             .context("recording dataset is missing")?;
         let cache = &self.layer_cache;
-        let dataset_uuid = record_uuid(&dataset.id, "recording_dataset")?;
-        let recording_uuid = record_uuid(&recording.id, "recording")?;
+        let dataset_uuid = veoveo_recording_contract::RecordingDatasetId::try_from(record_uuid(
+            &dataset.id,
+            "recording_dataset",
+        )?)?;
+        let recording_uuid = veoveo_recording_contract::RecordingId::try_from(record_uuid(
+            &recording.id,
+            "recording",
+        )?)?;
         let catalog_layers = self
             .recordings
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
@@ -641,8 +651,9 @@ mod tests {
             std::fs::copy(&part, &live_layer).unwrap();
             veoveo_rrd::recording_layer::normalize_recording_layer(
                 &live_layer,
-                dataset_id.as_uuid(),
-                recording_id.as_uuid(),
+                veoveo_recording_contract::RecordingDatasetId::try_from(dataset_id.as_uuid())
+                    .unwrap(),
+                veoveo_recording_contract::RecordingId::try_from(recording_id.as_uuid()).unwrap(),
             )
             .unwrap();
         }
@@ -706,7 +717,7 @@ mod tests {
         let source = &materialized.snapshot.sources[0];
         assert_eq!(source.part_sequence, Some(42));
         assert_eq!(source.byte_len, original.byte_len);
-        assert_eq!(source.sha256.hex(), original.sha256);
+        assert_eq!(source.sha256, original.sha256);
         assert_eq!(inspect_segment(&part).unwrap().sha256, original.sha256);
         let normalized = inspect_segment(&materialized.paths()[0]).unwrap();
         assert_eq!(normalized.application_id, dataset_id.to_string());

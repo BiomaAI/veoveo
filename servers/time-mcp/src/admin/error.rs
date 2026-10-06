@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::contract::AdminError;
+use crate::contract::{AdminError, AdminErrorCode, TimeCorrelationId};
 
 #[derive(Debug)]
 pub(super) struct ApiError {
@@ -16,7 +16,7 @@ impl ApiError {
     pub fn bad_request(message: impl std::fmt::Display) -> Self {
         Self::new(
             StatusCode::BAD_REQUEST,
-            "invalid_request",
+            AdminErrorCode::InvalidRequest,
             message.to_string(),
             false,
         )
@@ -24,7 +24,7 @@ impl ApiError {
     pub fn not_found(message: impl std::fmt::Display) -> Self {
         Self::new(
             StatusCode::NOT_FOUND,
-            "not_found",
+            AdminErrorCode::NotFound,
             message.to_string(),
             false,
         )
@@ -32,7 +32,7 @@ impl ApiError {
     pub fn conflict(message: impl std::fmt::Display) -> Self {
         Self::new(
             StatusCode::CONFLICT,
-            "version_conflict",
+            AdminErrorCode::VersionConflict,
             message.to_string(),
             false,
         )
@@ -41,19 +41,24 @@ impl ApiError {
         tracing::error!("Time administrative operation failed: {error}");
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
+            AdminErrorCode::InternalError,
             "Time administrative operation failed",
             true,
         )
     }
-    fn new(status: StatusCode, code: &str, message: impl Into<String>, retryable: bool) -> Self {
+    fn new(
+        status: StatusCode,
+        code: AdminErrorCode,
+        message: impl Into<String>,
+        retryable: bool,
+    ) -> Self {
         Self {
             status,
             body: AdminError {
-                code: code.to_owned(),
+                code,
                 message: message.into(),
                 retryable,
-                trace_id: uuid::Uuid::now_v7().to_string(),
+                trace_id: TimeCorrelationId::new(),
             },
         }
     }

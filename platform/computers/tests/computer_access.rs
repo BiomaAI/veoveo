@@ -6,13 +6,17 @@ async fn grant(
     owner: &ComputerActor,
     computer: veoveo_computers_contract::ComputerId,
     permissions: &[AutomationPermission],
-) -> AutomationGrantView {
-    let mut input = support::automation::input(computer);
+) -> veoveo_computers_contract::AutomationGrantView {
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer).into();
     input.permissions = permissions.iter().copied().collect();
     if !input.permissions.contains(&AutomationPermission::Execute) {
         input.execution_limits = None;
     }
-    store.issue_automation_grant(owner, &input).await.unwrap()
+    store
+        .issue_automation_grant(owner, &input.clone().build().unwrap())
+        .await
+        .unwrap()
 }
 
 #[tokio::test]

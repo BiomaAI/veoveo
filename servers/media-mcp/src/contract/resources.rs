@@ -37,7 +37,7 @@ impl MediaDocument {
 #[serde(try_from = "String", into = "String")]
 #[schemars(with = "String")]
 pub enum MediaResource {
-    Models,
+    Models(super::MediaModelIndexUri),
     Model(MediaModelUri),
     Predictions(MediaPredictionIndexUri),
     Prediction(MediaPredictionUri),
@@ -80,7 +80,9 @@ impl MediaResource {
             ("media", "model", _) => {
                 Self::Model(MediaModelUri::parse(value).map_err(|_| MediaResourceError)?)
             }
-            ("media", "models", []) if !parts.has_query() => Self::Models,
+            ("media", "models", []) => Self::Models(
+                super::MediaModelIndexUri::parse(value).map_err(|_| MediaResourceError)?,
+            ),
             _ if parts.has_query() => return Err(MediaResourceError),
             ("media", "artifact", [_]) => {
                 Self::Artifact(MediaArtifactUri::parse(value).map_err(|_| MediaResourceError)?)
@@ -104,9 +106,7 @@ impl ResourceAddress for MediaResource {
     }
     fn to_uri(&self) -> Result<ResourceUri, Self::Error> {
         match self {
-            Self::Models => {
-                ResourceUri::new(crate::uris::MODELS_URI).map_err(|_| MediaResourceError)
-            }
+            Self::Models(uri) => uri.to_uri().map_err(|_| MediaResourceError),
             Self::Model(uri) => uri.to_uri().map_err(|_| MediaResourceError),
             Self::Predictions(uri) => uri.to_uri().map_err(|_| MediaResourceError),
             Self::Prediction(uri) => uri.to_uri().map_err(|_| MediaResourceError),

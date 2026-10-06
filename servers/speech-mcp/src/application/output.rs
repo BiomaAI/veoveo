@@ -10,7 +10,7 @@ use veoveo_artifact_contract::{
 };
 use veoveo_speech_contract::transcript::Transcript;
 use veoveo_speech_contract::{
-    TranscriptDocument, TranscriptionId, TranscriptionOutput, TranscriptionUri,
+    TranscriptDocumentValue, TranscriptionId, TranscriptionOutputValue, TranscriptionUri,
 };
 
 #[derive(Serialize)]
@@ -33,14 +33,15 @@ impl SpeechService {
     ) -> Result<CallToolResult> {
         let captions = transcript.webvtt()?.into_bytes();
         let duration_seconds = transcript.duration_seconds;
-        let document = TranscriptDocument {
+        let document = TranscriptDocumentValue {
             schema: "veoveo.speech-transcript/v1".into(),
             source_artifact_uri: source.artifact_uri.clone(),
-            source_sha256: digest.clone(),
+            source_sha256: veoveo_artifact_contract::UploadSha256::parse(&digest)?,
             model: MODEL.into(),
             model_revision: MODEL_REVISION.into(),
             transcript,
-        };
+        }
+        .build()?;
         let metadata = serde_json::to_value(Provenance {
             source_artifact_uri: &source.artifact_uri,
             source_sha256: &digest,
@@ -79,13 +80,14 @@ impl SpeechService {
                     .presented_under_scheme(&veoveo_speech_contract::ARTIFACT_SCHEME),
             );
         }
-        let output = TranscriptionOutput {
+        let output = TranscriptionOutputValue {
             result_uri: TranscriptionUri::new(task),
             source_artifact_uri: source.artifact_uri,
             transcript: artifacts.remove(0),
             captions: artifacts.remove(0),
             duration_seconds,
-        };
+        }
+        .build()?;
         let mut result = CallToolResult::success(vec![
             ContentBlock::text("Transcript ready."),
             ContentBlock::ResourceLink(

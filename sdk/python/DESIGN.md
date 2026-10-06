@@ -166,3 +166,22 @@ its full precision alongside the Task identity. Equivalent RFC3339 offsets and
 fractional spellings compare by exact seconds and nanoseconds. The private fields
 are not added to the public snapshot. Driver rows must carry both tokens; missing
 or invalid tokens fail decoding.
+
+## Artifact And Usage Value Admission
+
+Artifact metadata admits canonical UUIDv7 identities, matching neutral or domain
+presentation addresses, unsigned 64-bit byte lengths and the Artifact owner's
+release vocabulary and timezone-aware timestamps. Known compliance fields use the identity and invocation
+profiles shared with the gateway. Unknown metadata extensions remain admitted.
+Metadata and compliance values are immutable; presentation and download-location
+removal reconstruct admitted values. The stream client parses the neutral owner
+address before opening a connection. Head and object reads compare the returned
+occurrence with the requested identity before exposing metadata or delivering bytes. Capability Tasks use a distinct UUIDv7 type
+with RFC variant admission and canonical alias output, matching the Rust owner.
+
+Usage records admit finite quantities and amounts without constraining their sign.
+Reports check every record's Task parent and the actual-over-estimate selection,
+common currency and sum used by their builder. Generic MCP Task IDs remain opaque;
+the native owner query checks its selected UUIDv7 parent separately. Usage models
+do not establish caller permission, provider billing accuracy or an owner's
+resource route. SQL selection and the template's typed address own those checks.

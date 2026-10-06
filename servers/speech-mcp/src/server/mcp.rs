@@ -228,6 +228,26 @@ pub(super) struct SpeechListener {
     pub(super) state: Arc<SpeechService>,
 }
 
+impl SpeechListener {
+    pub(super) async fn authorize_update(
+        &self,
+        caller: &veoveo_mcp_contract::PlaneCaller,
+        update: &veoveo_task_runtime::TaskResourceUpdate,
+    ) -> Result<(), McpError> {
+        let task = if let Some(task) = &update.task {
+            super::tasks::transcription_id(&task.task.task_id)?
+        } else if let Some(uri) = update.resources.first() {
+            TranscriptionUri::parse(uri.as_str())
+                .map_err(|_| denied())?
+                .id()
+        } else {
+            return Err(McpError::internal_error("empty transcription update", None));
+        };
+        self.state.authorize(caller, task, true).await?;
+        Ok(())
+    }
+}
+
 impl DurableListener<SpeechTasks> for SpeechListener {
     fn accepted_subscription_filter(
         &self,
@@ -244,50 +264,37 @@ impl DurableListener<SpeechTasks> for SpeechListener {
         context: SubscriptionContext,
     ) -> Result<(), McpError> {
         use futures::StreamExt;
-        use veoveo_task_runtime::DurableTaskService;
+        use veoveo_task_runtime::TaskResourceSubscriptions;
         let caller = caller(context.request_context())?;
-        let requested = context.accepted().clone();
-        let tasks = requested
-            .task_ids
-            .unwrap_or_default()
-            .iter()
-            .map(|id| super::tasks::transcription_id(id))
-            .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
-        let mut observed = tasks.clone();
-        let mut resources =
-            std::collections::BTreeMap::<TranscriptionId, Vec<TranscriptionUri>>::new();
-        for uri in requested.resource_subscriptions.unwrap_or_default() {
-            let address = TranscriptionUri::parse(&uri)
-                .map_err(|_| McpError::invalid_params("resource is not subscribable", None))?;
-            self.state.authorize(&caller, address.id(), true).await?;
-            let id = address.id();
-            observed.insert(id);
-            resources.entry(id).or_default().push(address);
+        let selection =
+            TaskResourceSubscriptions::from_filter::<TranscriptionUri>(context.accepted())?;
+        for task in selection.resource_task_ids() {
+            self.state
+                .authorize(
+                    &caller,
+                    TranscriptionId::try_from(task).map_err(|_| denied())?,
+                    true,
+                )
+                .await?;
         }
-
-        let mut subscription = service
-            .subscribe_tasks(&caller, observed.iter().map(ToString::to_string).collect())
-            .await?;
+        let mut subscription = selection.subscribe(service, &caller).await?;
         loop {
             let update = tokio::select! {
                 () = context.cancelled() => return Ok(()),
-                update = subscription.updates.next() => match update { Some(update) => update?, None => return Ok(()) },
+                update = subscription.next() => match update { Some(update) => update?, None => return Ok(()) },
             };
-            let id = super::tasks::transcription_id(&update.task.task_id)?;
-            self.state.authorize(&caller, id, true).await?;
-            if let Some(uris) = resources.get(&id) {
-                for uri in uris {
-                    context
-                        .sink()
-                        .notify_resource_updated(uri.to_string())
-                        .await
-                        .map_err(|_| McpError::internal_error("subscription closed", None))?;
-                }
-            }
-            if tasks.contains(&id) {
+            self.authorize_update(&caller, &update).await?;
+            for uri in update.resources {
                 context
                     .sink()
-                    .notify_task_status(update)
+                    .notify_resource_updated(uri.to_string())
+                    .await
+                    .map_err(|_| McpError::internal_error("subscription closed", None))?;
+            }
+            if let Some(task) = update.task {
+                context
+                    .sink()
+                    .notify_task_status(task)
                     .await
                     .map_err(|_| McpError::internal_error("subscription closed", None))?;
             }
@@ -305,6 +312,45 @@ fn text_artifact_resource(
     Ok(ReadResourceResult::new(vec![
         ResourceContents::text(text, uri).with_mime_type(mime_type.unwrap_or("text/plain")),
     ]))
+}
+
+#[derive(serde::Serialize)]
+struct Capabilities {
+    model: &'static str,
+    revision: &'static str,
+    languages: u8,
+    max_recording_seconds: u32,
+    max_dictation_seconds: u32,
+    timestamps: &'static str,
+    translation: bool,
+    speaker_identification: bool,
+}
+
+#[derive(serde::Serialize)]
+struct TranscriptionView<'a> {
+    task_id: TranscriptionId,
+    status: veoveo_platform_store::TaskStatus,
+    message: Option<&'a str>,
+    output: Option<TranscriptionOutput>,
+}
+
+fn denied() -> McpError {
+    McpError::invalid_params("artifact access is unavailable", None)
+}
+
+fn dictation_result(result: anyhow::Result<DictationSnapshot>) -> Result<CallToolResult, McpError> {
+    let snapshot = result.map_err(|_| {
+        McpError::invalid_params(
+            "Dictation is unavailable or expired for this browser session.",
+            None,
+        )
+    })?;
+    let mut result = CallToolResult::success(vec![]);
+    result.structured_content = Some(
+        serde_json::to_value(snapshot)
+            .map_err(|_| McpError::internal_error("invalid dictation output", None))?,
+    );
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -362,43 +408,4 @@ mod resource_tests {
         }
         assert!(text_artifact_resource("speech://artifact/test", vec![0xff], None).is_err());
     }
-}
-
-#[derive(serde::Serialize)]
-struct Capabilities {
-    model: &'static str,
-    revision: &'static str,
-    languages: u8,
-    max_recording_seconds: u32,
-    max_dictation_seconds: u32,
-    timestamps: &'static str,
-    translation: bool,
-    speaker_identification: bool,
-}
-
-#[derive(serde::Serialize)]
-struct TranscriptionView<'a> {
-    task_id: TranscriptionId,
-    status: veoveo_platform_store::TaskStatus,
-    message: Option<&'a str>,
-    output: Option<TranscriptionOutput>,
-}
-
-fn denied() -> McpError {
-    McpError::invalid_params("artifact access is unavailable", None)
-}
-
-fn dictation_result(result: anyhow::Result<DictationSnapshot>) -> Result<CallToolResult, McpError> {
-    let snapshot = result.map_err(|_| {
-        McpError::invalid_params(
-            "Dictation is unavailable or expired for this browser session.",
-            None,
-        )
-    })?;
-    let mut result = CallToolResult::success(vec![]);
-    result.structured_content = Some(
-        serde_json::to_value(snapshot)
-            .map_err(|_| McpError::internal_error("invalid dictation output", None))?,
-    );
-    Ok(result)
 }

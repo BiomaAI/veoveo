@@ -51,19 +51,27 @@ pub async fn setup(
     let agent = super::authenticated(&service);
     (a, b, owner, agent, computer)
 }
-pub fn input(computer: veoveo_computers_contract::ComputerId) -> IssueAutomationGrantInput {
-    IssueAutomationGrantInput {
+pub fn input(
+    computer: veoveo_computers_contract::ComputerId,
+) -> veoveo_computers_contract::IssueAutomationGrantInput {
+    veoveo_computers_contract::IssueAutomationGrantInputValue {
         computer_id: computer,
         request_id: veoveo_computers::api::RequestId::new(),
         principal_id: "https://computers.test#service".parse().unwrap(),
         oauth_client_id: "service".parse().unwrap(),
         name: "Build agent".into(),
         permissions: [AutomationPermission::Read, AutomationPermission::Execute].into(),
-        execution_limits: Some(AutomationExecutionLimits {
-            maximum_seconds: 30,
-            maximum_output_bytes: 1024,
-            on_interruption: AutomationInterruption::StopComputer,
-        }),
+        execution_limits: Some(
+            veoveo_computers_contract::AutomationExecutionLimitsValue {
+                maximum_seconds: 30,
+                maximum_output_bytes: 1024,
+                on_interruption: AutomationInterruption::StopComputer,
+            }
+            .build()
+            .unwrap(),
+        ),
         expires_at: Utc::now() + TimeDelta::minutes(30),
     }
+    .build()
+    .unwrap()
 }

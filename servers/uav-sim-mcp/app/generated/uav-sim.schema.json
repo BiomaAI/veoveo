@@ -927,7 +927,7 @@
       "type": "object"
     },
     "SessionId": {
-      "description": "Stable identity of one isolated simulation world.",
+      "description": "Distinct vehicle and session identities cannot be mixed in commands.\n```compile_fail\nuse veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};\nSessionRequest { session_id: VehicleId::parse(\"vehicle\").unwrap() };\n```\nStable identity of one isolated simulation world.",
       "type": "string"
     },
     "SessionSummary": {
@@ -973,7 +973,7 @@
               "$ref": "#/$defs/WorldFrameUri"
             },
             "spec_sha256": {
-              "type": "string"
+              "$ref": "#/$defs/UploadSha256"
             }
           },
           "required": [
@@ -1022,6 +1022,10 @@
         "refreshing",
         "degraded"
       ],
+      "type": "string"
+    },
+    "UploadSha256": {
+      "pattern": "^[0-9a-f]{64}$",
       "type": "string"
     },
     "Wgs84Position": {

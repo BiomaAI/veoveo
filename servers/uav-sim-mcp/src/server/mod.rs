@@ -30,6 +30,6 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod catalog_tests;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 mod tool_input_tests;

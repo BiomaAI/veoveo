@@ -24,6 +24,7 @@ required-features = ["mcp"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-artifact-contract",
     "dep:veoveo-recording-contract",
     "dep:chrono",
     "dep:hex",
@@ -74,6 +75,7 @@ veoveo-agent-runtime = { workspace = true, default-features = false, features = 
 veoveo-modules = { workspace = true, default-features = false, optional = true }
 veoveo-audit = { workspace = true, optional = true }
 veoveo-recording-contract = { workspace = true, optional = true }
+veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-frames-mcp = { path = "../frames-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-types = { workspace = true, optional = true }

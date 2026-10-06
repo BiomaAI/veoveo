@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn compiler_merges_duplicate_terms_into_stable_csr() {
         let x = VariableId::parse("x").unwrap();
-        let problem = ConvexProblem {
+        let problem = crate::contract::ConvexProblemValue {
             version: CONVEX_PROBLEM_VERSION.to_owned(),
             kind: ConvexProblemKind::LinearProgram,
             variables: vec![ModelVariable {
@@ -317,7 +317,9 @@ mod tests {
             quadratic_constraints: vec![],
             initial_primal_solution: None,
             initial_dual_solution: None,
-        };
+        }
+        .build()
+        .unwrap();
 
         let compiled = compile_convex_problem(&problem).unwrap();
         assert_eq!(compiled.constraint_matrix.offsets, vec![0, 1]);

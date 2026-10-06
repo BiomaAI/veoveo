@@ -1033,7 +1033,7 @@ impl RecordingIngestService {
         ensure!(
             inspection.application_id == stream.application_id
                 && inspection.recording_key == stream.recording_key
-                && inspection.sha256 == hex::encode(&batch.sha256),
+                && inspection.sha256.hex() == hex::encode(&batch.sha256),
             "materialized ingest part identity or digest changed"
         );
         let stream = self
@@ -1200,8 +1200,8 @@ impl RecordingIngestService {
                 prepare_segment_freeze(&freeze_path, &freeze_parts_directory, recording_id)?;
             let inspection = veoveo_rrd::recording_layer::normalize_recording_layer(
                 &freeze_path,
-                dataset_id.as_uuid(),
-                recording_id.as_uuid(),
+                veoveo_recording_contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
+                veoveo_recording_contract::RecordingId::try_from(recording_id.as_uuid())?,
             )?;
             Ok((ended_at, inspection))
         })
@@ -1234,7 +1234,7 @@ impl RecordingIngestService {
                         "recording_id": recording_id.to_string(),
                         "dataset_id": dataset_id.to_string(),
                         "layer_kind": "capture",
-                        "schema_digest": inspection.schema_digest,
+                        "schema_digest": inspection.schema_digest.hex(),
                     }),
                 },
                 path,

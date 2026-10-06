@@ -65,6 +65,9 @@ impl MediaGenerationResult {
         if task_id.as_uuid().get_version_num() != 7
             || task_id.as_uuid().get_variant() != uuid::Variant::RFC4122
             || prediction.status != "completed"
+            || prediction
+                .execution_ms
+                .is_some_and(|time| !time.is_finite())
             || prediction.output_count != artifacts.len()
         {
             return Err(MediaGenerationError);

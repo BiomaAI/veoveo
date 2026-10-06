@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use veoveo_map_mcp::contract::MapTravelModelUri;
 
 use chrono::Utc;
-use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_optimization_mcp::{
     compiler::{
@@ -11,15 +10,13 @@ use veoveo_optimization_mcp::{
     },
     contract::{
         ArtifactModelFormat, ConvexProblem, ConvexProblemSource, MilpProblem, MilpProblemSource,
-        OptimizationAuthority, OptimizationProblemDefinition, OptimizationProblemRecord,
-        OptimizationProblemResource, OptimizationProblemUri, OptimizationSolution,
-        OptimizationSolutionUri, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
-        ProblemDimensions, ProblemFamily, ProblemId, RouteScenario, RoutingProblem,
-        RoutingProblemSource, SolveConvexRequest, SolveMilpRequest, TRAVEL_MODEL_ARTIFACT_VERSION,
-        TravelModelArtifact, TravelModelSource,
+        OptimizationAuthority, OptimizationProblemDefinition, OptimizationProblemResource,
+        OptimizationProblemUri, OptimizationSolution, OptimizationSolutionUri,
+        OptimizeRouteScenariosRequest, OptimizeRoutesRequest, ProblemDimensions, ProblemFamily,
+        ProblemId, RouteScenario, RoutingProblem, RoutingProblemSource, SolveConvexRequest,
+        SolveMilpRequest, TRAVEL_MODEL_ARTIFACT_VERSION, TravelModelArtifact, TravelModelSource,
     },
     problem_store::{PreparedProblem, PreparedRouteCase},
-    solution_builder::verify_solution_digest,
 };
 
 use super::{app_state::AppState, ownership::runtime_owner};
@@ -127,7 +124,9 @@ pub(super) async fn prepare_milp(
     caller: &PlaneCaller,
     input: &SolveMilpRequest,
 ) -> anyhow::Result<PreparedProblem> {
-    let mut problem = materialize_milp_source(state, identity, caller, &input.problem).await?;
+    let mut problem = veoveo_optimization_mcp::contract::MilpProblemValue::from(
+        materialize_milp_source(state, identity, caller, &input.problem).await?,
+    );
     if let Some(solution_uri) = &input.initial_solution {
         let solution = load_solution(state, identity, caller, solution_uri).await?;
         let values = solution_variable_map(&solution)?;
@@ -143,6 +142,7 @@ pub(super) async fn prepare_milp(
                 .collect::<anyhow::Result<Vec<_>>>()?,
         );
     }
+    let problem = problem.build()?;
     let compiled = compile_milp_problem(&problem)?;
     let definition = OptimizationProblemDefinition::Milp {
         problem: problem.clone(),
@@ -174,6 +174,10 @@ pub(super) async fn load_solution(
     let output = task
         .output
         .ok_or_else(|| anyhow::anyhow!("solution task has no terminal output"))?;
+    anyhow::ensure!(
+        &output.result_uri == solution_uri,
+        "selected output disagrees with requested solution"
+    );
     let artifact_id = match output.solution_artifact.artifact_uri.address() {
         veoveo_artifact_contract::ArtifactAddress::Presented {
             scheme,
@@ -186,12 +190,13 @@ pub(super) async fn load_solution(
         .get(caller, &artifact_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("solution artifact is unavailable"))?;
-    let solution: OptimizationSolution = serde_json::from_slice(&artifact.bytes)?;
-    if &solution.solution_uri != solution_uri {
-        anyhow::bail!("solution artifact identity does not match its resource");
-    }
-    verify_solution_digest(&solution)?;
-    Ok(solution)
+    veoveo_optimization_mcp::solution_builder::admit_solution_bytes(
+        &artifact.bytes,
+        solution_uri,
+        output.run_uri.id(),
+        &output.problem_uri,
+        output.family,
+    )
 }
 
 pub(super) async fn load_prepared_problem_by_uri(
@@ -207,7 +212,14 @@ pub(super) async fn load_prepared_problem_by_uri(
         .request
         .common()
         .ok_or_else(|| anyhow::anyhow!("problem task is not a solve task"))?;
-    state.problem_store.load(&common.prepared).await
+    anyhow::ensure!(
+        &common.problem_id == problem_uri.id(),
+        "selected Task disagrees with requested problem"
+    );
+    state
+        .problem_store
+        .load_selected(&common.prepared, &common.problem_id, common.family)
+        .await
 }
 
 async fn materialize_routing_source(
@@ -216,7 +228,7 @@ async fn materialize_routing_source(
     caller: &PlaneCaller,
     source: &RoutingProblemSource,
 ) -> anyhow::Result<RoutingProblem> {
-    let mut problem = match source {
+    let problem = match source {
         RoutingProblemSource::Inline { problem } => problem.clone(),
         RoutingProblemSource::Resource { uri } => {
             let prepared = load_prepared_problem_by_uri(state, identity, uri).await?;
@@ -229,15 +241,16 @@ async fn materialize_routing_source(
             read_json_artifact(state, caller, manifest_uri).await?
         }
     };
+    let mut problem = veoveo_optimization_mcp::contract::RoutingProblemValue::from(problem);
     materialize_travel_model(state, caller, &mut problem).await?;
     problem.validate()?;
-    Ok(problem)
+    Ok(problem.build()?)
 }
 
 async fn materialize_travel_model(
     state: &AppState,
     caller: &PlaneCaller,
-    problem: &mut RoutingProblem,
+    problem: &mut veoveo_optimization_mcp::contract::RoutingProblemValue,
 ) -> anyhow::Result<()> {
     let (artifact_uri, expected_map_uri): (
         &veoveo_artifact_contract::ArtifactUri,
@@ -342,26 +355,30 @@ fn problem_resource(
 ) -> anyhow::Result<OptimizationProblemResource> {
     let problem_id = ProblemId::new();
     let problem_uri = OptimizationProblemUri::new(problem_id.clone())?;
-    let digest_sha256 = hex::encode(Sha256::digest(serde_json::to_vec(&definition)?));
+    let digest_sha256 = veoveo_optimization_mcp::contract::definition_digest(&definition)?;
     let created_at = Utc::now();
-    Ok(OptimizationProblemResource {
-        record: OptimizationProblemRecord {
-            problem_id,
-            problem_uri,
-            family,
-            schema_version,
-            digest_sha256,
-            dimensions,
-            authority: OptimizationAuthority {
-                principal_id: identity.actor.id.clone(),
-                work_context: Some(identity.authority.work_context.clone()),
-                policy_revision: identity.authority.policy_revision.clone(),
-                submitted_at: created_at,
-            },
-            created_at,
-        },
-        definition,
-    })
+    Ok(
+        veoveo_optimization_mcp::contract::OptimizationProblemResourceValue {
+            record: veoveo_optimization_mcp::contract::OptimizationProblemRecordValue {
+                problem_id,
+                problem_uri,
+                family,
+                schema_version,
+                digest_sha256,
+                dimensions,
+                authority: OptimizationAuthority {
+                    principal_id: identity.actor.id.clone(),
+                    work_context: Some(identity.authority.work_context.clone()),
+                    policy_revision: identity.authority.policy_revision.clone(),
+                    submitted_at: created_at,
+                },
+                created_at,
+            }
+            .build()?,
+            definition,
+        }
+        .build()?,
+    )
 }
 
 fn routing_dimensions(

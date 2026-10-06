@@ -79,6 +79,9 @@ fn artifact_metadata_preserves_nested_identity_and_attribution() {
         "metadata": {"producer_annotation": [1, "open metadata"]}
     });
     let value: ArtifactMetadata = serde_json::from_value(wire.clone()).unwrap();
+    let shared: Value =
+        serde_json::from_str(include_str!("fixtures/metadata-output.json")).unwrap();
+    assert_eq!(serde_json::to_value(&value).unwrap(), shared);
     assert_eq!(serde_json::to_value(&value).unwrap(), wire);
     let without_url = value.without_download_url();
     assert!(

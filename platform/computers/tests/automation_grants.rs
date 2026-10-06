@@ -21,10 +21,12 @@ async fn concurrent_grants_are_idempotent_bounded_and_revocation_never_reissues_
     );
     let first = left.unwrap();
     assert_eq!(first, right.unwrap());
-    let changed = IssueAutomationGrantInput {
+    let changed = veoveo_computers_contract::IssueAutomationGrantInputValue {
         name: "Changed".into(),
-        ..request.clone()
-    };
+        ..request.clone().into()
+    }
+    .build()
+    .unwrap();
     assert_eq!(
         a.issue_automation_grant(&owner, &changed).await,
         Err(ComputerError::RequestConflict)
@@ -226,9 +228,11 @@ async fn a_user_principal_can_receive_a_grant_but_cannot_change_its_oauth_client
     .unwrap();
     let mut identity = support::identity(&bob);
     let actor = ComputerActor::from_verified(&identity).unwrap();
-    let mut request = input(computer);
+    let mut request: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        input(computer).into();
     request.principal_id = bob.principal_key.try_into().unwrap();
     request.oauth_client_id = "console".parse().unwrap();
+    let request = request.build().unwrap();
     let grant = a.issue_automation_grant(&owner, &request).await.unwrap();
     assert!(
         a.authorize_automation_grant(
@@ -368,11 +372,15 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
         .unwrap();
     assert_eq!(
         authority.execution_limits().unwrap(),
-        Some(AutomationExecutionLimits {
-            maximum_seconds: 5,
-            maximum_output_bytes: 8,
-            on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
-        })
+        Some(
+            veoveo_computers_contract::AutomationExecutionLimitsValue {
+                maximum_seconds: 5,
+                maximum_output_bytes: 8,
+                on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
+            }
+            .build()
+            .unwrap()
+        )
     );
     b.install_automation_grant_policy(
         Some(smaller),
@@ -401,46 +409,65 @@ async fn invalid_bounds_unknown_principals_and_foreign_owners_create_no_grants()
     let db = support::database().await;
     let (a, _, owner, agent, computer) = setup(&db).await;
     let original = input(computer);
-    let mut missing = original.clone();
+    let mut missing: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        original.clone().into();
     missing.principal_id = "https://computers.test#missing".parse().unwrap();
     assert_eq!(
-        a.issue_automation_grant(&owner, &missing).await,
+        a.issue_automation_grant(&owner, &missing.build().unwrap())
+            .await,
         Err(ComputerError::NotFound)
     );
-    let mut mismatched = original.clone();
+    let mut mismatched: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        original.clone().into();
     mismatched.principal_id = owner.owner().principal_key.clone().try_into().unwrap();
     assert_eq!(
-        a.issue_automation_grant(&owner, &mismatched).await,
+        a.issue_automation_grant(&owner, &mismatched.clone().build().unwrap())
+            .await,
         Err(ComputerError::InvalidInput)
     );
-    let mut unknown_client = original.clone();
+    let mut unknown_client: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        original.clone().into();
     unknown_client.oauth_client_id = "unknown-client".parse().unwrap();
     assert_eq!(
-        a.issue_automation_grant(&owner, &unknown_client).await,
+        a.issue_automation_grant(&owner, &unknown_client.clone().build().unwrap())
+            .await,
         Err(ComputerError::InvalidInput)
     );
     assert_eq!(
         a.issue_automation_grant(&agent, &original).await,
         Err(ComputerError::NotFound)
     );
-    for mode in 0..6 {
-        let mut request = original.clone();
+    // Portable invalid permission/limit combinations fail before a domain call.
+    let mut empty =
+        veoveo_computers_contract::IssueAutomationGrantInputValue::from(original.clone());
+    empty.permissions.clear();
+    assert!(empty.build().is_err());
+    let mut missing =
+        veoveo_computers_contract::IssueAutomationGrantInputValue::from(original.clone());
+    missing.execution_limits = None;
+    assert!(missing.build().is_err());
+    let mut limits = veoveo_computers_contract::AutomationExecutionLimitsValue::from(
+        original.execution_limits.unwrap(),
+    );
+    limits.maximum_output_bytes = 0;
+    assert!(limits.build().is_err());
+    for mode in 3..6 {
+        let mut request =
+            veoveo_computers_contract::IssueAutomationGrantInputValue::from(original.clone());
         match mode {
-            0 => request.permissions.clear(),
-            1 => request.execution_limits = None,
-            2 => {
-                request
-                    .execution_limits
-                    .as_mut()
-                    .unwrap()
-                    .maximum_output_bytes = 0
-            }
             3 => request.expires_at = Utc::now() - TimeDelta::seconds(1),
             4 => request.expires_at = Utc::now() + TimeDelta::days(2),
-            _ => request.execution_limits.as_mut().unwrap().maximum_seconds = 61,
+            _ => {
+                let mut limits = veoveo_computers_contract::AutomationExecutionLimitsValue::from(
+                    request.execution_limits.unwrap(),
+                );
+                limits.maximum_seconds = 61;
+                request.execution_limits = Some(limits.build().unwrap());
+            }
         }
         assert_eq!(
-            a.issue_automation_grant(&owner, &request).await,
+            a.issue_automation_grant(&owner, &request.build().unwrap())
+                .await,
             Err(ComputerError::InvalidInput),
             "mode {mode}"
         );
@@ -518,10 +545,12 @@ async fn owner_grant_choices_follow_current_permissions_and_registration_scope()
             .iter()
             .any(|client| client.oauth_client_id.as_str() == "secondary-service")
     );
-    let mut secondary_request = input(computer);
+    let mut secondary_request: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        input(computer).into();
     secondary_request.oauth_client_id = "secondary-service".parse().unwrap();
     assert_eq!(
-        a.issue_automation_grant(&owner, &secondary_request).await,
+        a.issue_automation_grant(&owner, &secondary_request.build().unwrap())
+            .await,
         Err(ComputerError::InvalidInput)
     );
 

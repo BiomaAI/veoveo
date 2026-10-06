@@ -2,6 +2,10 @@
 
 from .artifacts import (
     ArtifactId,
+    ArtifactTaskId,
+    ArtifactUri,
+    ArtifactReleaseState,
+    ArtifactProvenance,
     ArtifactMetadata,
     ArtifactObject,
     ArtifactWriteCapabilityId,

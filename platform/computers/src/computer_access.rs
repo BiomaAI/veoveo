@@ -338,14 +338,18 @@ impl ComputersStore {
                 file_transfer |= can_transfer_files;
                 expiry = expiry.min(authority.valid_until());
                 let current = authority.current_view()?;
-                grants.push(ComputerGrantedAccess {
-                    grant_id: current.grant_id,
-                    name: current.name.clone(),
-                    permissions: current.permissions.clone(),
-                    execution_limits: current.execution_limits,
-                    can_transfer_files,
-                    expires_at: current.expires_at,
-                });
+                grants.push(
+                    veoveo_computers_contract::ComputerGrantedAccessValue {
+                        grant_id: current.grant_id,
+                        name: current.name.clone(),
+                        permissions: current.permissions.clone(),
+                        execution_limits: current.execution_limits,
+                        can_transfer_files,
+                        expires_at: current.expires_at,
+                    }
+                    .build()
+                    .map_err(|_| crate::ComputerError::Unavailable)?,
+                );
             }
             grants.sort_by_key(|grant| grant.grant_id);
             if !grants

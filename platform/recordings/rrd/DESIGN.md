@@ -43,6 +43,34 @@ row and sample counts and the byte writer enforce the admitted limits; cancellat
 failure removes partial output. Its summary carries typed SHA-256 values and a nonzero
 byte length into the Recording result builder. `video.rs` owns encoded access-unit inspection.
 
+## Canonical Layers And Sealed Properties
+
+Normalization accepts distinct public dataset and recording IDs, converting them to
+Rerun application/recording text only when constructing the Store ID. Producer names
+stay open. Byte and schema digests use the shared digest type; the schema hash inputs,
+compressed encoder settings and field order are unchanged. A guarded staging file is
+synced and inspected before atomic replacement. Decoder failures, multiple stores and
+interruption before replacement leave source bytes intact and remove staging. A
+post-rename directory-sync failure reports an uncertain installation; retry inspection
+can recognize the complete installed file.
+
+Properties consume the pure contract's checked model. Their deterministic RRD JSON
+preserves timestamp spelling, omitted empty maps and bare digest values. The properties
+producer writes the complete RRD 0.38.1 footer through the maintained manifest builder,
+sorting its Sorbet schema fields with Arrow's ordering. Message order, compression,
+JSON encoding and schema-hash inputs stay fixed. Sorting footer fields stabilizes the
+whole-file hash; an arbitrary footer field order produces different whole-file bytes.
+The Recording producer profile requires this deterministic footer and a fresh installation
+cut. Retained files with different bytes fail admission rather than being rewritten or
+normalized. The private writer records the encoder's actual chunk span and uncompressed
+length, validates the complete manifest and checks the existing schema digest before
+emitting its custom footer. Before reusing
+an existing Writing-layer file, the builder compares its complete bytes and Store ID
+with the deterministic admitted properties. New files are inspected and installed by
+rename. The preparation callback admits complete expected stage facts before any final
+file is reused or installed; every pre-install failure removes the owned partial. The caller still owns
+current authorization, publication fencing and retention.
+
 ## Verification
 
 `cargo test -p veoveo-rrd --lib` exercises the file contracts. Hub integration tests cover

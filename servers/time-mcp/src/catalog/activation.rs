@@ -62,14 +62,16 @@ impl TimeCatalog {
         draft: ActivationDraft,
     ) -> Result<AuthorityRelease> {
         let ActivationDraft {
-            mut release,
+            release,
             candidate,
             snapshot,
             expected_release,
             expected_pointer,
         } = draft;
+        let mut release = crate::AuthorityReleaseValue::from(release);
         release.state = AuthorityReleaseState::Active;
         release.record_version = expected_release.checked_next()?;
+        let release = release.build()?;
         let canonical_json = serde_json::to_string(&release)?;
         let record = self
             .persistence

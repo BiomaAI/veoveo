@@ -17,16 +17,8 @@ pub(super) fn scope(
     permissions: &BTreeSet<AutomationPermission>,
     limits: Option<AutomationExecutionLimits>,
 ) -> Result<()> {
-    if permissions.is_empty()
-        || permissions.len() > 4
-        || permissions.contains(&AutomationPermission::Execute) != limits.is_some()
-        || limits.is_some_and(|limits| {
-            !(1..=7200).contains(&limits.maximum_seconds)
-                || !(1..=67108864).contains(&limits.maximum_output_bytes)
-        })
-    {
-        return Err(ComputerError::InvalidInput);
-    }
+    veoveo_computers_contract::value_admission::permissions(permissions, limits)
+        .map_err(|_| ComputerError::InvalidInput)?;
     Ok(())
 }
 pub(super) fn validate(input: &IssueAutomationGrantInput) -> Result<()> {
@@ -45,13 +37,9 @@ fn validate_fields(
     permissions: &BTreeSet<AutomationPermission>,
     limits: Option<AutomationExecutionLimits>,
 ) -> Result<()> {
-    if name.trim() != name
-        || name.is_empty()
-        || name.len() > 64
-        || name.chars().any(char::is_control)
-        || principal_id.as_str().len() > 2048
-        || oauth_client_id.as_str().len() > 256
-    {
+    veoveo_computers_contract::value_admission::name(name)
+        .map_err(|_| ComputerError::InvalidInput)?;
+    if principal_id.as_str().len() > 2048 || oauth_client_id.as_str().len() > 256 {
         return Err(ComputerError::InvalidInput);
     }
     scope(permissions, limits)
@@ -154,7 +142,7 @@ impl TryFrom<Record> for Grant {
             return Err(ComputerError::Unavailable);
         }
         Ok(Self {
-            view: AutomationGrantView {
+            view: veoveo_computers_contract::AutomationGrantViewValue {
                 computer_id,
                 grant_id,
                 principal_id,
@@ -165,7 +153,9 @@ impl TryFrom<Record> for Grant {
                 issued_at: row.issued_at,
                 expires_at: row.expires_at,
                 revoked_at: row.revoked_at,
-            },
+            }
+            .build()
+            .map_err(|_| crate::ComputerError::Unavailable)?,
             owner_key: row.owner_key,
             provider: crate::api::ProviderInstanceId::try_from(row.provider_instance_id)
                 .map_err(|_| ComputerError::Unavailable)?,

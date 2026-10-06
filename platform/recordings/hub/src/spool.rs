@@ -59,7 +59,7 @@ pub struct FrozenSegment {
     pub path: PathBuf,
     pub byte_len: u64,
     pub message_count: u64,
-    pub sha256: String,
+    pub sha256: veoveo_types::Sha256Digest,
     pub ended_at: DateTime<Utc>,
 }
 
@@ -71,7 +71,7 @@ pub struct PublishedBlueprint {
     pub revision: u64,
     pub byte_len: u64,
     pub message_count: u64,
-    pub sha256: String,
+    pub sha256: veoveo_types::Sha256Digest,
 }
 
 #[derive(Default)]
@@ -450,7 +450,7 @@ impl Spooler {
             revision,
             byte_len: bytes.len() as u64,
             message_count: pending.messages.len() as u64,
-            sha256: hex::encode(Sha256::digest(&bytes)),
+            sha256: veoveo_types::Sha256Digest::from_bytes(Sha256::digest(&bytes).into()),
         };
         self.catalog.blueprint_published(&published)?;
         self.counters.blueprints_published += 1;

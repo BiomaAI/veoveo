@@ -9,17 +9,24 @@ use anyhow::{Context as _, Result, ensure};
 use re_log_encoding::rrd::{CrateVersion, Decoder, Encoder, EncodingOptions};
 use re_log_types::{ApplicationId, LogMsg, StoreId};
 use sha2::{Digest as _, Sha256};
-use uuid::Uuid;
+use veoveo_recording_contract::{RecordingDatasetId, RecordingId};
+use veoveo_types::Sha256Digest;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CanonicalRecordingLayer {
     pub byte_len: u64,
     pub message_count: u64,
-    pub sha256: String,
-    pub schema_digest: String,
+    pub sha256: Sha256Digest,
+    pub schema_digest: Sha256Digest,
     pub rrd_version: String,
 }
 
+/// Dataset and recording identities cannot be interchanged.
+/// ```compile_fail
+/// use veoveo_recording_contract::{RecordingDatasetId, RecordingId};
+/// use veoveo_rrd::recording_layer::normalize_recording_layer;
+/// normalize_recording_layer(std::path::Path::new("recording.rrd"), RecordingId::new(), RecordingDatasetId::new()).unwrap();
+/// ```
 /// Rewrite one producer-authored recording RRD to the only catalog identity:
 /// dataset UUID as application ID and recording UUID as recording ID.
 ///
@@ -28,17 +35,18 @@ pub struct CanonicalRecordingLayer {
 /// untouched.
 pub fn normalize_recording_layer(
     path: &Path,
-    dataset_id: Uuid,
-    recording_id: Uuid,
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
 ) -> Result<CanonicalRecordingLayer> {
-    ensure!(
-        dataset_id.get_version_num() == 7,
-        "dataset identity must be UUIDv7"
-    );
-    ensure!(
-        recording_id.get_version_num() == 7,
-        "recording identity must be UUIDv7"
-    );
+    normalize_before_install(path, dataset_id, recording_id, || Ok(()))
+}
+
+fn normalize_before_install(
+    path: &Path,
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
+    before_install: impl FnOnce() -> Result<()>,
+) -> Result<CanonicalRecordingLayer> {
     if let Ok(existing) = inspect_canonical_recording_layer(path, dataset_id, recording_id) {
         return Ok(existing);
     }
@@ -58,9 +66,10 @@ pub fn normalize_recording_layer(
         .write(true)
         .open(&partial)
         .with_context(|| format!("creating recording layer partial {}", partial.display()))?;
+    let _partial_cleanup = PartialCleanup(partial.clone());
     let canonical_id = canonical_store_id(dataset_id, recording_id)?;
     let result = normalize_messages(source, output, &canonical_id);
-    let mut normalized = match result {
+    let (message_count, schema_digest) = match result {
         Ok(normalized) => normalized,
         Err(error) => {
             let _ = std::fs::remove_file(&partial);
@@ -68,8 +77,19 @@ pub fn normalize_recording_layer(
         }
     };
     let (byte_len, sha256) = hash_file(&partial)?;
-    normalized.byte_len = byte_len;
-    normalized.sha256 = sha256;
+    let normalized = CanonicalRecordingLayer {
+        byte_len,
+        message_count,
+        sha256,
+        schema_digest,
+        rrd_version: CrateVersion::LOCAL.to_string(),
+    };
+    let inspected = inspect_canonical_recording_layer(&partial, dataset_id, recording_id)?;
+    ensure!(
+        inspected == normalized,
+        "staged recording layer differs from normalized bytes"
+    );
+    before_install()?;
     std::fs::rename(&partial, path).with_context(|| {
         format!(
             "atomically installing normalized recording layer {}",
@@ -87,8 +107,8 @@ pub fn normalize_recording_layer(
 
 pub fn inspect_canonical_recording_layer(
     path: &Path,
-    dataset_id: Uuid,
-    recording_id: Uuid,
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
 ) -> Result<CanonicalRecordingLayer> {
     let expected = canonical_store_id(dataset_id, recording_id)?;
     let file = File::open(path)
@@ -114,7 +134,7 @@ pub fn inspect_canonical_recording_layer(
         byte_len,
         message_count,
         sha256,
-        schema_digest: hex::encode(schemas.finalize()),
+        schema_digest: Sha256Digest::from_bytes(schemas.finalize().into()),
         rrd_version: CrateVersion::LOCAL.to_string(),
     })
 }
@@ -123,7 +143,7 @@ fn normalize_messages(
     source: File,
     output: File,
     canonical_id: &StoreId,
-) -> Result<CanonicalRecordingLayer> {
+) -> Result<(u64, Sha256Digest)> {
     let decoder = Decoder::<LogMsg>::decode_eager(BufReader::new(source))
         .context("decoding producer recording layer")?;
     let mut encoder = Encoder::new_eager(
@@ -165,18 +185,11 @@ fn normalize_messages(
     output
         .sync_all()
         .context("syncing canonical recording layer")?;
-    let path_len = output
-        .metadata()
-        .context("reading canonical recording layer metadata")?
-        .len();
     drop(output);
-    Ok(CanonicalRecordingLayer {
-        byte_len: path_len,
+    Ok((
         message_count,
-        sha256: String::new(),
-        schema_digest: hex::encode(schemas.finalize()),
-        rrd_version: CrateVersion::LOCAL.to_string(),
-    })
+        Sha256Digest::from_bytes(schemas.finalize().into()),
+    ))
 }
 
 fn hash_schema(message: &LogMsg, digest: &mut Sha256) -> Result<()> {
@@ -207,13 +220,16 @@ fn hash_schema(message: &LogMsg, digest: &mut Sha256) -> Result<()> {
     Ok(())
 }
 
-fn canonical_store_id(dataset_id: Uuid, recording_id: Uuid) -> Result<StoreId> {
+fn canonical_store_id(
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
+) -> Result<StoreId> {
     let application_id = ApplicationId::try_new(dataset_id.to_string())
         .context("dataset UUID is not a valid Rerun application ID")?;
     Ok(StoreId::recording(application_id, recording_id.to_string()))
 }
 
-fn hash_file(path: &Path) -> Result<(u64, String)> {
+fn hash_file(path: &Path) -> Result<(u64, Sha256Digest)> {
     let mut file =
         File::open(path).with_context(|| format!("opening {} for hash", path.display()))?;
     let byte_len = file.metadata()?.len();
@@ -226,7 +242,15 @@ fn hash_file(path: &Path) -> Result<(u64, String)> {
         }
         digest.update(&buffer[..read]);
     }
-    Ok((byte_len, hex::encode(digest.finalize())))
+    Ok((byte_len, Sha256Digest::from_bytes(digest.finalize().into())))
+}
+
+/// Owned staging files are removed on decoder, hash, validation and rename failures.
+pub(crate) struct PartialCleanup(pub(crate) PathBuf);
+impl Drop for PartialCleanup {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 fn normalization_partial_path(path: &Path) -> Result<PathBuf> {
@@ -276,13 +300,94 @@ mod tests {
             encoder.append(message).unwrap();
         }
         encoder.finish().unwrap();
-        let dataset_id = Uuid::now_v7();
-        let recording_id = Uuid::now_v7();
+        let dataset_id = RecordingDatasetId::new();
+        let recording_id = RecordingId::new();
         let first_result = normalize_recording_layer(&first, dataset_id, recording_id).unwrap();
         let normalized_bytes = std::fs::read(&first).unwrap();
+        assert_eq!(
+            first_result.sha256,
+            Sha256Digest::from_bytes(Sha256::digest(&normalized_bytes).into())
+        );
+        let mut schema = Sha256::new();
+        for message in &messages {
+            hash_schema(message, &mut schema).unwrap();
+        }
+        assert_eq!(
+            first_result.schema_digest,
+            Sha256Digest::from_bytes(schema.finalize().into())
+        );
+        assert_eq!(
+            first_result.message_count,
+            u64::try_from(messages.len()).unwrap()
+        );
         let second_result = normalize_recording_layer(&first, dataset_id, recording_id).unwrap();
         assert_eq!(first_result, second_result);
         assert_eq!(normalized_bytes, std::fs::read(&first).unwrap());
-        assert!(!first_result.sha256.is_empty());
+        assert_eq!(first_result.sha256.hex().len(), 64);
+    }
+    fn producer_file(path: &Path, names: &[&str]) {
+        let mut encoder = Encoder::new_eager(
+            CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            File::create(path).unwrap(),
+        )
+        .unwrap();
+        for name in names {
+            let (recording, storage) = RecordingStreamBuilder::new("upstream-open-name")
+                .recording_id(*name)
+                .memory()
+                .unwrap();
+            recording
+                .log("sensor/value", &Scalars::single(42.0))
+                .unwrap();
+            drop(recording);
+            for message in storage.take() {
+                encoder.append(&message).unwrap();
+            }
+        }
+        encoder.finish().unwrap();
+    }
+
+    #[test]
+    fn interruption_before_install_preserves_source_and_removes_partial() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("producer.rrd");
+        producer_file(&path, &["producer-recording"]);
+        let original = std::fs::read(&path).unwrap();
+        let dataset = RecordingDatasetId::new();
+        let recording = RecordingId::new();
+        assert!(
+            normalize_before_install(&path, dataset, recording, || anyhow::bail!(
+                "interrupted before install"
+            ))
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+        assert!(!normalization_partial_path(&path).unwrap().exists());
+        normalize_recording_layer(&path, dataset, recording).unwrap();
+        assert!(
+            inspect_canonical_recording_layer(&path, RecordingDatasetId::new(), recording).is_err()
+        );
+        assert!(inspect_canonical_recording_layer(&path, dataset, RecordingId::new()).is_err());
+    }
+
+    #[test]
+    fn malformed_and_multiple_stores_leave_source_unchanged_without_partial() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("producer.rrd");
+        for multiple in [false, true] {
+            if multiple {
+                producer_file(&path, &["producer-a", "producer-b"]);
+            } else {
+                std::fs::write(&path, b"not an RRD").unwrap();
+            }
+            let original = std::fs::read(&path).unwrap();
+            assert!(
+                normalize_recording_layer(&path, RecordingDatasetId::new(), RecordingId::new())
+                    .is_err()
+            );
+            assert_eq!(std::fs::read(&path).unwrap(), original);
+            assert!(!normalization_partial_path(&path).unwrap().exists());
+        }
     }
 }

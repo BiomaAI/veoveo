@@ -16,11 +16,12 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
         )
         .await;
         let canonical = release.source_digest_sha256.canonical().clone();
-        let mut uppercase = release.clone();
+        let mut uppercase = crate::AuthorityReleaseValue::from(release.clone());
         uppercase.source_digest_sha256 = AuthoritySourceDigest::parse(
             release.source_digest_sha256.as_hex().to_ascii_uppercase(),
         )
         .unwrap();
+        let uppercase = uppercase.build().unwrap();
         let record = RecordId::new("time_authority_release", release.release_id.to_string());
         set(
             &db.a,

@@ -141,7 +141,11 @@ impl UavSimMcp {
             .map_err(invalid)?;
         self.state
             .subscribers
-            .notify_resource_updated(result.resource_uri.clone())
+            .notify_resource_updated(
+                veoveo_types::ResourceAddress::to_uri(&result.resource_uri)
+                    .map_err(invalid)?
+                    .to_string(),
+            )
             .await;
         let session_id = command_session(&command);
         self.state
@@ -891,19 +895,23 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             maximum_native_update_ms: 0.0,
             maximum_render_cycle_ms: 0.0,
         },
-        world: Some(crate::contract::SimulationWorldBinding {
-            revision_uri: revision_uri.clone(),
-            spec_sha256: "a".repeat(64),
-            simulation_frame_uri: veoveo_frames_mcp::contract::WorldFrameUri::new(
-                &revision_uri,
-                &veoveo_frames_mcp::contract::FrameId::parse("isaac-world")?,
-            ),
-            georeference_origin: Wgs84Position {
-                latitude_degrees: 13.6929,
-                longitude_degrees: -89.2182,
-                ellipsoid_height_m: 700.0,
-            },
-        }),
+        world: Some(
+            crate::contract::SimulationWorldBindingValue {
+                revision_uri: revision_uri.clone(),
+                spec_sha256: veoveo_artifact_contract::UploadSha256::parse("a".repeat(64)).unwrap(),
+                simulation_frame_uri: veoveo_frames_mcp::contract::WorldFrameUri::new(
+                    &revision_uri,
+                    &veoveo_frames_mcp::contract::FrameId::parse("isaac-world")?,
+                ),
+                georeference_origin: Wgs84Position {
+                    latitude_degrees: 13.6929,
+                    longitude_degrees: -89.2182,
+                    ellipsoid_height_m: 700.0,
+                },
+            }
+            .build()
+            .unwrap(),
+        ),
         tiles: TileState {
             lifecycle: TileLifecycle::Ready,
             source: "google_photorealistic_3d_tiles".to_owned(),

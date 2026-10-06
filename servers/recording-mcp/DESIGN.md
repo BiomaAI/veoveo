@@ -353,6 +353,32 @@ durable capture bytes are not modified by this browser adapter.
 | `live_stream.rs` | authenticated framed RRD transport |
 | `bin/server.rs` | thin HTTP, gRPC-Web, readiness, diagnostics, and MCP composition |
 
+## Sealed Properties Admission
+
+Sealing admits the retained catalog lifecycle and timestamp relationships before
+advancing state. The properties builder admits complete native producer metadata before
+creating its layer or writing files. Schema-admitted time corruption fails without
+repair; SQL-denied callers are excluded before owner admission. Properties use native
+nonnegative revisions, preserve RFC3339 text and manifest hash inputs, and impose no
+ordering between seal time and another producer clock. A Writing-layer properties file
+must equal the admitted deterministic RRD before publication.
+
+Public retry admits an owned Writing or Staged properties layer only while the
+recording is Sealing. Every source layer must be committed and admitted before effects.
+Both properties states verify deterministic file equality; Staged also matches the
+complete native stage facts and seal time before installing even an absent destination.
+Matching Staged facts permit deterministic missing-file recovery. Other unfinished, failed or contradictory
+layers fail without repair.
+
+Opening properties leaves the Sealing recording's revision and timestamp unchanged;
+staging updates those fields only for Live recordings, and commitment updates the layer
+and dataset. The source properties snapshot therefore stays stable through publication
+retry. Layer UUID reserves the same Artifact occurrence on every attempt. Artifact
+streaming returns an existing occurrence only when tenant, producer, complete authority,
+labels, digest, length and immutable metadata agree. An unknown response leaves that
+reserved identity fenced; retry does not allocate another occurrence or conclude that
+the previous mutation failed. Current authorization is checked again on each public call.
+
 ## Validation
 
 The native `tests/catalog_queries.rs` fixture proves pagination beyond 500 records,

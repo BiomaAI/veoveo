@@ -121,7 +121,7 @@ async fn live_receiver_survives_the_gap_between_capture_layers() {
                     layer_id,
                     128,
                     1,
-                    &"a".repeat(64),
+                    &veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
                     Some("0.38.1"),
                     None,
                     Some(Utc::now()),

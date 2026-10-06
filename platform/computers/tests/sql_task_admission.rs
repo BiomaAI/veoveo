@@ -73,10 +73,10 @@ async fn operation_policy_and_participant_checks_precede_private_state_decoding(
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = support::database().await;
         let (store, _, owner, agent, computer) = support::automation::setup(&db).await;
-        let mut input = support::automation::input(computer);
+        let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue = support::automation::input(computer).into();
         input.permissions = [AutomationPermission::Stop].into();
         input.execution_limits = None;
-        let grant = store.issue_automation_grant(&owner, &input).await.unwrap();
+        let grant = store.issue_automation_grant(&owner, &input.clone().build().unwrap()).await.unwrap();
         let authority = store.authorize_automation_grant(&agent, computer, grant.grant_id, AutomationPermission::Stop).await.unwrap();
         let operation = store.queue_automation_operation(&agent, authority, veoveo_computers::api::RequestId::new(), Action::Stop).await.unwrap();
         store.authorize_operation_task(&owner, operation.operation_id, false).await.unwrap();
@@ -379,11 +379,11 @@ async fn cli_grants_filter_credentials_parent_provider_and_connection_before_dec
             .begin_cli_pairing(
                 &actor,
                 computer,
-                &CliPairingInput {
+                &veoveo_computers_contract::CliPairingInputValue {
                     name: "SQL fixture".into(),
                     code: "ABC-2345".into(),
                     callback_port: 49152,
-                },
+                }.build().unwrap(),
             )
             .await
             .unwrap();
@@ -473,11 +473,11 @@ async fn cli_pairing_matches_parent_and_session_before_decoding_callback() {
             .begin_cli_pairing(
                 &actor,
                 computer,
-                &CliPairingInput {
+                &veoveo_computers_contract::CliPairingInputValue {
                     name: "SQL fixture".into(),
                     code: "ABC-2345".into(),
                     callback_port: 49152,
-                },
+                }.build().unwrap(),
             )
             .await
             .unwrap();

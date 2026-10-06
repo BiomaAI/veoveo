@@ -301,8 +301,8 @@ impl PlatformCatalog {
         let inspection = tokio::task::spawn_blocking(move || {
             veoveo_rrd::recording_layer::normalize_recording_layer(
                 &normalization_path,
-                dataset_id.as_uuid(),
-                recording_id.as_uuid(),
+                veoveo_recording_contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
+                veoveo_recording_contract::RecordingId::try_from(recording_id.as_uuid())?,
             )
         })
         .await
@@ -334,7 +334,7 @@ impl PlatformCatalog {
                         "recording_id": recording_id.to_string(),
                         "dataset_id": dataset_id.to_string(),
                         "layer_kind": "capture",
-                        "schema_digest": inspection.schema_digest,
+                        "schema_digest": inspection.schema_digest.hex(),
                     }),
                 },
                 path.as_path(),
@@ -449,7 +449,7 @@ impl SegmentCatalog for PlatformCatalog {
                         blueprint_id: blueprint.store_id.recording_id().as_str().to_owned(),
                         revision: blueprint.revision,
                         relative_path: relative_path(&this.spool_root, &blueprint.path)?,
-                        sha256: blueprint.sha256,
+                        sha256: blueprint.sha256.hex().to_owned(),
                         byte_len: blueprint.byte_len,
                         message_count: blueprint.message_count,
                         maximum_revisions: this.policy.maximum_blueprint_revisions,

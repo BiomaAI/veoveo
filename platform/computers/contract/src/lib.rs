@@ -13,6 +13,7 @@ pub use task_kind::ComputerTaskKind;
 mod access;
 pub use access::*;
 mod automation;
+pub mod value_admission;
 pub use automation::*;
 mod execution;
 pub use execution::*;
@@ -92,7 +93,8 @@ pub struct ComputerLimits {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ComputerSnapshot {
+#[schemars(rename = "ComputerSnapshot")]
+pub struct ComputerSnapshotValue {
     pub availability: CapacityAvailability,
     pub template: Option<TemplateView>,
     pub limits: Option<ComputerLimits>,
@@ -114,7 +116,8 @@ pub enum CapacityAvailability {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ComputerView {
+#[schemars(rename = "ComputerView")]
+pub struct ComputerViewValue {
     pub computer_id: crate::ComputerId,
     pub access_mode: ComputerAccessMode,
     /// Current named grants available to this grantee; owners manage their grant
@@ -557,6 +560,113 @@ pub fn schema_bundle() -> schemars::Schema {
     schemars::schema_for!(SchemaBundle)
 }
 
+mod audit;
+pub use audit::{ComputerAuditTarget, register_audit_target};
+
+/// Admitted ComputerView; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "ComputerViewValue", into = "ComputerViewValue")]
+pub struct ComputerView(veoveo_types::Checked<ComputerViewValue>);
+impl std::ops::Deref for ComputerView {
+    type Target = ComputerViewValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ComputerView {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ComputerView".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ComputerViewValue::json_schema(generator)
+    }
+}
+impl TryFrom<ComputerViewValue> for ComputerView {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: ComputerViewValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ComputerView> for ComputerViewValue {
+    fn from(value: ComputerView) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ComputerViewValue {
+    pub fn build(self) -> Result<ComputerView, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for ComputerViewValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.updated_at < self.created_at
+            || self.granted_access.len() > 64
+            || self
+                .granted_access
+                .iter()
+                .map(|grant| grant.grant_id)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != self.granted_access.len()
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
+/// Admitted ComputerSnapshot; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "ComputerSnapshotValue", into = "ComputerSnapshotValue")]
+pub struct ComputerSnapshot(veoveo_types::Checked<ComputerSnapshotValue>);
+impl std::ops::Deref for ComputerSnapshot {
+    type Target = ComputerSnapshotValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for ComputerSnapshot {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "ComputerSnapshot".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        ComputerSnapshotValue::json_schema(generator)
+    }
+}
+impl TryFrom<ComputerSnapshotValue> for ComputerSnapshot {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: ComputerSnapshotValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<ComputerSnapshot> for ComputerSnapshotValue {
+    fn from(value: ComputerSnapshot) -> Self {
+        value.0.into_inner()
+    }
+}
+impl ComputerSnapshotValue {
+    pub fn build(self) -> Result<ComputerSnapshot, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for ComputerSnapshotValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self
+            .computers
+            .iter()
+            .map(|computer| computer.computer_id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != self.computers.len()
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,6 +782,3 @@ mod tests {
         }
     }
 }
-
-mod audit;
-pub use audit::{ComputerAuditTarget, register_audit_target};

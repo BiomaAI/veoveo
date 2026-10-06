@@ -154,7 +154,8 @@ async fn named_start_and_stop_share_public_discovery_retry_and_owner_recovery() 
         let owner_token = signing.identity(support::identity(owner.owner()), "computers", expires);
         let agent_token = signing.identity(support::identity(agent.owner()), "computers", expires);
         let client = client();
-        let mut grant_input = support::automation::input(computer);
+        let mut grant_input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+            support::automation::input(computer).into();
         grant_input.permissions = [
             AutomationPermission::Read,
             AutomationPermission::Start,

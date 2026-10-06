@@ -89,6 +89,34 @@ convention makes adjacent shifts,
 reservations, and routing windows compose without double-counting their shared
 boundary.
 
+## Portable Value Admission
+
+Expression, projection, calendar, timeline, source and release construction and
+JSON decoding share portable checks. GPS seconds are finite in [0,604800), Julian
+and scale values are finite, and optional GPS week/seconds occur together. Local
+calendar syntax, positive recurrence counts and intervals, point-name references
+and separation bounds are checked without resolving a loaded authority. Expression
+zone names keep their 128-byte profile; resource zone names keep their distinct
+1024-byte profile. Fold, gap, leap and active-zone interpretation stay in the engine.
+
+Source metadata shares its existing bounded printable fields and HTTPS profile
+without credentials or fragments. Release paths use the existing absolute-path
+profile and validation cannot precede retrieval. These checks confer no network or
+file authority. Clock assessments agree with their violations; observation syntax
+is portable while freshness, node trust and quorum are evaluated by the clock service.
+
+Acquisition progress has a mutable representation. Its status, phase, staged-release
+presence and creation/update order are checked on decoding, before catalog writes
+and after selected lifecycle columns are applied. Queued work has no staged release;
+running download/validation and cancellation retain their documented phases; only
+successful completion claims a staged release. Failure and cancellation preserve
+uncertain external outcomes according to the acquisition service. Current source
+ownership and selected release existence are checked at use time.
+
+Administrative error codes use an owner vocabulary. Their `trace_id` is a canonical
+UUIDv7 correlation value rather than a W3C trace identifier. Existing HTTP status,
+retry and redaction behavior stays with the administration adapter.
+
 ## Architecture
 
 ### Library Features

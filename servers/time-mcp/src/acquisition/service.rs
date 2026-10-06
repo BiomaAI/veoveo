@@ -20,9 +20,8 @@ use crate::{
     authority::LeapSecondTable,
     catalog::{TimeAccessContext, TimeCatalog},
     contract::{
-        AuthorityDatasetKind, AuthorityRelease, AuthorityReleaseId, AuthorityReleaseState,
-        AuthoritySourceDigest, TimeAcquisition, TimeAcquisitionId, TimeAcquisitionStatus,
-        TimeSource,
+        AuthorityDatasetKind, AuthorityReleaseId, AuthorityReleaseState, AuthoritySourceDigest,
+        TimeAcquisition, TimeAcquisitionId, TimeAcquisitionStatus, TimeSource,
     },
 };
 
@@ -41,7 +40,7 @@ pub struct AcquisitionService {
     config: AcquisitionServiceConfig,
     catalog: TimeCatalog,
     client: Client,
-    cancellation: Arc<tokio::sync::Mutex<BTreeMap<String, CancellationToken>>>,
+    cancellation: Arc<tokio::sync::Mutex<BTreeMap<TimeAcquisitionId, CancellationToken>>>,
 }
 
 impl AcquisitionService {
@@ -116,7 +115,7 @@ impl AcquisitionService {
         self.cancellation
             .lock()
             .await
-            .insert(acquisition.acquisition_id.to_string(), cancellation.clone());
+            .insert(acquisition.acquisition_id.clone(), cancellation.clone());
         let service = self.clone();
         let acquisition_id = acquisition.acquisition_id.clone();
         tokio::spawn(async move {
@@ -163,11 +162,7 @@ impl AcquisitionService {
                 service.config.scratch_root.join(acquisition_id.as_str()),
             )
             .await;
-            service
-                .cancellation
-                .lock()
-                .await
-                .remove(acquisition_id.as_str());
+            service.cancellation.lock().await.remove(&acquisition_id);
         });
         Ok(acquisition)
     }
@@ -192,7 +187,7 @@ impl AcquisitionService {
             acquisition.phase = crate::TimeAcquisitionPhase::Cancelling;
             acquisition.message = "cancellation requested".to_owned();
             acquisition = self.catalog.update_acquisition(scope, acquisition).await?;
-            if let Some(token) = self.cancellation.lock().await.get(id.as_str()) {
+            if let Some(token) = self.cancellation.lock().await.get(id) {
                 token.cancel();
             }
         }
@@ -258,7 +253,8 @@ impl AcquisitionService {
         };
         tokio::fs::rename(&product, &final_path).await?;
         let now = Utc::now();
-        let release = AuthorityRelease {
+        let source = crate::TimeSourceValue::from(source);
+        let release = crate::AuthorityReleaseValue {
             release_id: release_id.clone(),
             source_id: source.source_id,
             dataset_kind: source.dataset_kind,
@@ -270,7 +266,8 @@ impl AcquisitionService {
             retrieved_at: now,
             validated_at: now,
             record_version: crate::TimeVersion::new(1).unwrap(),
-        };
+        }
+        .build()?;
         self.catalog.create_release(&scope, release).await?;
         self.progress(
             &scope,

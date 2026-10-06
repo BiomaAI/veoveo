@@ -191,7 +191,7 @@ fn resolution() -> ResolveTimeOutput {
         TimeInstant::from_total_nanoseconds(63_072_010_000_000_000, 7, authority.binding())
             .unwrap(),
         authority,
-        TimeProjection {
+        veoveo_time_mcp::TimeProjectionValue {
             utc_rfc3339: "1972-01-01T00:00:00Z".into(),
             utc_is_leap_second: false,
             military_dtg: "010000ZJAN72".into(),
@@ -199,7 +199,9 @@ fn resolution() -> ResolveTimeOutput {
             gps_week: None,
             gps_seconds_of_week: None,
             julian_day_tai: 2_441_317.500_115_740_6,
-        },
+        }
+        .build()
+        .unwrap(),
     )
     .unwrap()
 }

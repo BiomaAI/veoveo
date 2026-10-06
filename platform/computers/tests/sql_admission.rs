@@ -60,11 +60,15 @@ async fn read_grant(
     store: &ComputersStore,
     owner: &ComputerActor,
     id: ComputerId,
-) -> AutomationGrantView {
-    let mut input = support::automation::input(id);
+) -> veoveo_computers_contract::AutomationGrantView {
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(id).into();
     input.permissions = [AutomationPermission::Read].into();
     input.execution_limits = None;
-    store.issue_automation_grant(owner, &input).await.unwrap()
+    store
+        .issue_automation_grant(owner, &input.clone().build().unwrap())
+        .await
+        .unwrap()
 }
 
 #[tokio::test]

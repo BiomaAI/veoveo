@@ -10,7 +10,9 @@ fn complete_resource_vocabulary_round_trips() {
     let usage_cursor = MediaUsageCursor::new(task).unwrap();
     let prediction_cursor = MediaPredictionCursor::new(prediction.clone()).unwrap();
     for resource in [
-        MediaResource::Models,
+        MediaResource::Models(veoveo_media_mcp::contract::MediaModelIndexUri::new(
+            None, None, None, None,
+        )),
         MediaResource::Model(MediaModelUri::new(
             "openai/gpt-image-2/edit".parse().unwrap(),
         )),

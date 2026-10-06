@@ -166,7 +166,8 @@ impl TimeMcp {
                 .map(|value| value.0)
                 .unwrap_or_else(default_clock_policy),
         };
-        let output = assess_clock(self.state.clock.quality().await.map_err(internal)?, policy);
+        let output = assess_clock(self.state.clock.quality().await.map_err(internal)?, policy)
+            .map_err(internal)?;
         structured_result(format!("clock acceptable: {}", output.acceptable), &output)
     }
 

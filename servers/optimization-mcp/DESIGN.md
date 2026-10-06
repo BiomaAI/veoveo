@@ -737,3 +737,22 @@ cursor payload encoding remains a separate checked owner contract.
 ## Cursor Admission
 
 Usage and index continuation codecs retain their existing base64url JSON profiles: usage has version and Task ID, while index binds its owner collection enum. Private OpaqueCursor storage preserves admitted aliases and typed position access. Wire relationship checks precede existing page field projections.
+
+## Portable Problem And Result Admission
+
+Immutable problem builders and decoding share the existing collection, matrix,
+member-reference and bound checks. Completed resources compare their family,
+schema version, dimensions and definition digest with their contained definition.
+Solutions retain lowercase bare SHA-256; their digest hashes the original serialized
+struct with its digest field replaced by an empty string, preserving field order.
+Verification reports require verified to agree with the absence of Error findings.
+
+Tool results admit family/summary agreement and Optimization-presented Artifact
+metadata without download URLs. The producer compares its selected problem and
+solution before publishing bytes. Feasibility, current authority, external Artifact
+resolution and mandatory NVIDIA cuOpt health remain service and verifier checks.
+Run progress keeps its mutable representation, with shared portable identity/time
+checks during construction and retained decoding. Unsupported retained relationships
+fail rather than being normalized or repaired.
+
+Retained product loaders bind decoded solution run, problem and detail family to the selected Task/output before reuse. Prepared products bind their resource problem and family to the selected Task and compare the duplicated prepared definition with the resource definition. A valid content digest establishes byte integrity; these adapters separately establish the selected parent relationships before compilation or publication.

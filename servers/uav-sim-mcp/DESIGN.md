@@ -1055,3 +1055,18 @@ The package build produces the self-contained HTML asset at its existing path,
 with a 2 MiB limit. Schema URLs describe formats and never fetch executable code.
 Behavioral contract tests qualify rejection before rendering or decoding; they
 make no hardware or visual acceptance claim.
+
+## Portable State And Adapter Replies
+
+State admission checks finite telemetry, battery ranges, timing frequency bounds,
+unique vehicle/camera/product identities and child references to the enclosing session.
+Simulation time may be negative. Quaternions do not acquire a normalization policy.
+World bindings carry the existing lowercase bare SHA-256 and require their frame to
+belong to the published revision. Loaded frame geometry remains an adapter check.
+
+The HTTP adapter compares every command acknowledgement with the dispatched command:
+pause, resume and reset name the session; step names its world; vehicle commands name
+the requested vehicle. World replies must match the complete requested binding and
+session world address. Rejected acknowledgements stop success notifications and startup
+continuation without retrying the mutation. Python output admission applies the same
+portable route and state checks before JSON or NDJSON transmission.

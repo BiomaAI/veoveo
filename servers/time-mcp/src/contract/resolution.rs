@@ -9,13 +9,14 @@ pub struct ResolutionAuthorityMismatch;
 
 /// Representations computed by the temporal engine from its loaded authority data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct TimeProjection {
+#[schemars(rename = "TimeProjection")]
+pub struct TimeProjectionValue {
     pub utc_rfc3339: String,
     pub utc_is_leap_second: bool,
     pub military_dtg: String,
     pub unix_seconds: i64,
     pub gps_week: Option<u32>,
-    pub gps_seconds_of_week: Option<f64>,
+    pub gps_seconds_of_week: Option<super::admission::GpsSecondsOfWeek>,
     pub julian_day_tai: f64,
 }
 
@@ -96,5 +97,55 @@ impl TryFrom<ResolutionWire> for ResolveTimeOutput {
 impl From<ResolveTimeOutput> for ResolutionWire {
     fn from(value: ResolveTimeOutput) -> Self {
         value.0.into_inner()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "TimeProjectionValue", into = "TimeProjectionValue")]
+pub struct TimeProjection(veoveo_types::Checked<TimeProjectionValue>);
+impl std::ops::Deref for TimeProjection {
+    type Target = TimeProjectionValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for TimeProjection {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "TimeProjection".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        TimeProjectionValue::json_schema(generator)
+    }
+}
+impl TryFrom<TimeProjectionValue> for TimeProjection {
+    type Error = super::admission::TimeValueError;
+    fn try_from(value: TimeProjectionValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<TimeProjection> for TimeProjectionValue {
+    fn from(value: TimeProjection) -> Self {
+        value.0.into_inner()
+    }
+}
+impl TimeProjectionValue {
+    pub fn build(self) -> Result<TimeProjection, super::admission::TimeValueError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for TimeProjectionValue {
+    type Error = super::admission::TimeValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if !self.julian_day_tai.is_finite()
+            || self.gps_week.is_some() != self.gps_seconds_of_week.is_some()
+        {
+            return Err(super::admission::TimeValueError(
+                "inconsistent temporal projection",
+            ));
+        }
+        if let Some(seconds) = self.gps_seconds_of_week {
+            super::admission::gps(seconds.get())?;
+        }
+        Ok(())
     }
 }

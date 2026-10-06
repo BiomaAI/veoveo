@@ -50,3 +50,23 @@ def test_profile_product_schema_decoder_and_completion_agree():
     for value, content in [(inline, []), (product, [{"type": "resource_link", "uri": artifact.artifact_uri, "name": "report"}])]:
         transition = mcp_task_completion("profile complete", {"content": content, "structuredContent": value})
         assert transition.result_uri() == (ResourceUri(artifact.artifact_uri) if content else None)
+
+
+def test_actual_rust_artifact_metadata_survives_template_product_and_completion():
+    from pathlib import Path
+    import json
+    import pytest
+    from pydantic import ValidationError
+    from datasheet_mcp.contract import DatasetProfile, ProfileDatasetOutput
+    from veoveo_mcp.contract import ArtifactMetadata
+    from veoveo_mcp.tasks import mcp_task_completion
+    from veoveo_mcp.types import ResourceUri
+
+    source = Path(__file__).resolve().parents[3] / "platform/artifacts/contract/tests/fixtures/metadata-output.json"
+    artifact = ArtifactMetadata.model_validate_json(source.read_bytes()).presented_under_scheme("datasheet").without_download_url()
+    output = ProfileDatasetOutput(profile=DatasetProfile(row_count=1, column_count=0, columns=[], correlations=[]), artifact=artifact, result_uri=ResourceUri(artifact.artifact_uri))
+    envelope = {"content": [{"type": "resource_link", "uri": artifact.artifact_uri, "name": "profile"}], "structuredContent": json.loads(output.model_dump_json(exclude_none=True))}
+    assert mcp_task_completion("profile complete", envelope).result_uri() == ResourceUri(artifact.artifact_uri)
+    corrupt = {**envelope["structuredContent"], "artifact": {**artifact.model_dump(mode="json"), "byte_len": -1}}
+    with pytest.raises(ValidationError):
+        ProfileDatasetOutput.model_validate(corrupt)

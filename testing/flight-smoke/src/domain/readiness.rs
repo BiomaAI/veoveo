@@ -32,13 +32,7 @@ pub(super) fn world_readiness(
     );
     if let Some(world) = &state.world {
         ensure!(
-            &world.revision_uri == revision
-                && &world.simulation_frame_uri == frame
-                && world.spec_sha256.len() == 64
-                && world
-                    .spec_sha256
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit()),
+            &world.revision_uri == revision && &world.simulation_frame_uri == frame,
             "UAV session uses the wrong immutable Frames world"
         );
     } else {
@@ -173,11 +167,10 @@ mod tests {
     fn warmup_does_not_hide_wrong_world_or_failed_hardware_products() {
         let (good, scenario) = observed();
         let binding = good.world.clone().unwrap();
-        for index in 0..6 {
+        for index in 1..6 {
             let mut state = good.clone();
             state.tiles.lifecycle = TileLifecycle::Streaming;
             match index {
-                0 => state.world.as_mut().unwrap().spec_sha256 = "invalid".into(),
                 1 => state.lifecycle = SimulationLifecycle::Failed,
                 2 => state.tiles.lifecycle = TileLifecycle::Degraded,
                 3 => state.cameras[0].lifecycle = CameraLifecycle::Failed,
@@ -194,6 +187,9 @@ mod tests {
                 .is_err()
             );
         }
+        let mut invalid_world = serde_json::to_value(&good).unwrap();
+        invalid_world["world"]["spec_sha256"] = "not-a-digest".into();
+        assert!(serde_json::from_value::<SimulationState>(invalid_world).is_err());
         let mut wire = serde_json::to_value(good).unwrap();
         wire["cameras"][0]["encoder"] = "software".into();
         assert!(serde_json::from_value::<SimulationState>(wire).is_err());

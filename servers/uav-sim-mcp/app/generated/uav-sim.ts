@@ -215,6 +215,11 @@ export type LiveViewerInstanceId = string;
 export type SimulationLifecycle =
   "unconfigured" | "starting" | "ready" | "running" | "paused" | "stopping" | "stopped" | "failed";
 /**
+ * Distinct vehicle and session identities cannot be mixed in commands.
+ * ```compile_fail
+ * use veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};
+ * SessionRequest { session_id: VehicleId::parse("vehicle").unwrap() };
+ * ```
  * Stable identity of one isolated simulation world.
  *
  * This interface was referenced by `AppContracts`'s JSON-Schema
@@ -236,6 +241,11 @@ export type FrameWorldRevisionUri = string;
  * via the `definition` "WorldFrameUri".
  */
 export type WorldFrameUri = string;
+/**
+ * This interface was referenced by `AppContracts`'s JSON-Schema
+ * via the `definition` "UploadSha256".
+ */
+export type UploadSha256 = string;
 
 export interface AppContracts {
   cameras: LiveCameraDescriptor[];
@@ -410,7 +420,7 @@ export interface SessionSummary {
     georeference_origin: Wgs84Position;
     revision_uri: FrameWorldRevisionUri;
     simulation_frame_uri: WorldFrameUri;
-    spec_sha256: string;
+    spec_sha256: UploadSha256;
   };
 }
 /**

@@ -46,7 +46,7 @@ pub(crate) fn report(
     let verified = !findings
         .iter()
         .any(|finding| finding.severity == crate::contract::VerificationSeverity::Error);
-    VerificationReport {
+    crate::contract::VerificationReportValue {
         verification_id: crate::contract::VerificationId::new(),
         verified,
         findings,
@@ -57,6 +57,8 @@ pub(crate) fn report(
         maximum_bound_violation: maximum_bound_violation.map(non_negative),
         verified_at: chrono::Utc::now(),
     }
+    .build()
+    .expect("derived findings and verified agree")
 }
 
 pub fn empty_report(tolerance: VerificationTolerance) -> VerificationReport {

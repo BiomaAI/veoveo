@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn verifier_rejects_constraint_and_bound_violations() {
         let x = VariableId::parse("x").unwrap();
-        let problem = ConvexProblem {
+        let problem = crate::contract::ConvexProblemValue {
             version: CONVEX_PROBLEM_VERSION.to_owned(),
             kind: ConvexProblemKind::LinearProgram,
             variables: vec![ModelVariable {
@@ -424,7 +424,9 @@ mod tests {
             quadratic_constraints: vec![],
             initial_primal_solution: None,
             initial_dual_solution: None,
-        };
+        }
+        .build()
+        .unwrap();
         let candidate = vec![VariableValue {
             variable_id: x,
             value: FiniteF64::new(-1.0).unwrap(),

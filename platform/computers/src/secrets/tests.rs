@@ -1,5 +1,5 @@
 use super::*;
-use crate::{ComputerError, api::AutomationExecutionLimits};
+use crate::ComputerError;
 use serde_json::json;
 use std::collections::BTreeMap;
 use uuid::Uuid;
@@ -47,11 +47,13 @@ fn command(value: &str, seconds: u32, bytes: u32) -> CommandPayload {
             b"private-stdin-fixture\0\xff".to_vec(),
         )
         .unwrap(),
-        AutomationExecutionLimits {
+        veoveo_computers_contract::AutomationExecutionLimitsValue {
             maximum_seconds: seconds,
             maximum_output_bytes: bytes,
             on_interruption: veoveo_computers_contract::AutomationInterruption::StopComputer,
-        },
+        }
+        .build()
+        .unwrap(),
     )
     .unwrap()
 }

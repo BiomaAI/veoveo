@@ -60,13 +60,6 @@ export type CliPairingId = string;
  */
 export type CliPairingConfirmBody = Record<string, never>;
 /**
- * Only serialize into the one-use no-store response and local callback body.
- *
- * ```compile_fail
- * use veoveo_computers_contract::CliPairingToken;
- * fn cannot_log(token: CliPairingToken) { let _ = format!("{token:?}"); }
- * ```
- *
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "CliPairingToken".
  */
@@ -712,6 +705,13 @@ export interface FileTransferView {
   updatedAt: string;
 }
 /**
+ * Computer and request identities have separate admission and API roles.
+ * ```compile_fail
+ * use veoveo_computers_contract::{ComputerId, RequestId};
+ * fn requires_computer(_: ComputerId) {}
+ * requires_computer(RequestId::new());
+ * ```
+ *
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "IssueAutomationGrantInput".
  */

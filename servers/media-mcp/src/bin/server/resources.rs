@@ -79,13 +79,17 @@ impl MediaMcp {
                     veoveo_mcp_apps_extension::app_html_contents(uri, &html),
                 ]))
             }
-            MediaResource::Models => {
+            MediaResource::Models(page) => {
                 let models = self
                     .state
                     .registry()
                     .await
                     .map_err(|e| McpError::internal_error(e, None))?;
-                json_read(uri, &Self::models_index_json(&models))
+                json_read(
+                    uri,
+                    &veoveo_media_mcp::contract::model_catalog_page(&models, page.arguments())
+                        .map_err(|error| McpError::invalid_params(error.to_string(), None))?,
+                )
             }
             MediaResource::Usage(index) => json_read(
                 uri,

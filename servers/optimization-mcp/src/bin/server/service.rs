@@ -439,11 +439,14 @@ impl OptimizationMcp {
                                 task.output
                                     .expect("reader admits successful solution Tasks")
                             })
-                            .map(|output| SolutionIndexEntry {
+                            .map(|output| {
+                                let output = veoveo_optimization_mcp::contract::OptimizationToolOutputValue::from(output);
+                                SolutionIndexEntry {
                                 result_uri: output.result_uri,
                                 family: output.family,
                                 feasibility: output.feasibility,
                                 termination: output.termination,
+                            }
                             })
                             .collect();
                         json_read(
@@ -505,6 +508,8 @@ impl OptimizationMcp {
                 let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
                     .await
                     .map_err(not_found_error)?;
+                let solution =
+                    veoveo_optimization_mcp::contract::OptimizationSolutionValue::from(solution);
                 let SolutionDetail::Routing { routes, .. } = solution.detail else {
                     return Err(McpError::invalid_params(
                         "solution is not a routing solution",
@@ -519,6 +524,8 @@ impl OptimizationMcp {
                 let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
                     .await
                     .map_err(not_found_error)?;
+                let solution =
+                    veoveo_optimization_mcp::contract::OptimizationSolutionValue::from(solution);
                 let variables = match solution.detail {
                     SolutionDetail::Convex { variables, .. }
                     | SolutionDetail::Milp { variables, .. } => variables,
@@ -699,14 +706,16 @@ fn run_record(
         SolutionDetail::Milp { incumbents, .. } => incumbents.last().cloned(),
         _ => None,
     });
-    Ok(OptimizationRunRecord {
+    OptimizationRunRecord {
         run_id: common.run_id.clone(),
         run_uri: OptimizationRunUri::new(common.run_id.clone()).map_err(internal)?,
         problem_uri: OptimizationProblemUri::new(common.problem_id.clone()).map_err(internal)?,
         family: common.family,
         phase: run_phase(snapshot),
         incumbent,
-        solution_uri: output.map(|output| output.result_uri),
+        solution_uri: output.map(|output| {
+            veoveo_optimization_mcp::contract::OptimizationToolOutputValue::from(output).result_uri
+        }),
         engine: solution.map_or_else(
             || EngineProvenance {
                 name: "NVIDIA cuOpt".to_owned(),
@@ -730,7 +739,9 @@ fn run_record(
         },
         created_at: snapshot.created_at,
         updated_at: snapshot.updated_at,
-    })
+    }
+    .build()
+    .map_err(internal)
 }
 
 fn run_phase(snapshot: &TaskSnapshot) -> RunPhase {

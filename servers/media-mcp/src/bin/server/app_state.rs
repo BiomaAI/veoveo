@@ -34,12 +34,40 @@ pub(super) struct RegistryCache {
     by_id: HashMap<MediaModelId, usize>,
 }
 
+impl RegistryCache {
+    pub(super) fn find_model(&self, model_id: &MediaModelId) -> Option<ModelEntry> {
+        self.by_id
+            .get(model_id)
+            .map(|index| self.models[*index].clone())
+    }
+    #[cfg(test)]
+    pub(super) fn models_for_test(&self) -> &[ModelEntry] {
+        &self.models
+    }
+    pub(super) fn admit(models: Vec<ModelEntry>) -> Result<Arc<Self>, String> {
+        veoveo_media_mcp::contract::validate_model_registry(&models)
+            .map_err(|error| error.to_string())?;
+        let by_id = models
+            .iter()
+            .enumerate()
+            .map(|(index, model)| (model.model_id.clone(), index))
+            .collect();
+        Ok(Arc::new(Self {
+            fetched_at: std::time::Instant::now(),
+            models: Arc::new(models),
+            by_id,
+        }))
+    }
+}
+
 pub(super) struct AppState {
     pub(super) provider: ProviderClient,
     pub(super) http: reqwest::Client,
     pub(super) public_endpoint: ServerPublicEndpoint,
     pub(super) webhook_secret: SecretString,
-    pub(super) registry: RwLock<Option<RegistryCache>>,
+    pub(super) registry: RwLock<Option<Arc<RegistryCache>>>,
+    #[cfg(test)]
+    pub(super) registry_install_attempts: std::sync::atomic::AtomicUsize,
     pub(super) tasks: TaskRuntime,
     pub(super) durable: MediaState,
     pub(super) artifacts: ArtifactRepository,
@@ -59,12 +87,15 @@ impl std::fmt::Debug for AppState {
 
 impl AppState {
     pub(super) async fn registry(&self) -> Result<Arc<Vec<ModelEntry>>, String> {
+        Ok(self.registry_snapshot().await?.models.clone())
+    }
+    pub(super) async fn registry_snapshot(&self) -> Result<Arc<RegistryCache>, String> {
         {
             let guard = self.registry.read().await;
             if let Some(cache) = guard.as_ref()
                 && cache.fetched_at.elapsed() < REGISTRY_TTL
             {
-                return Ok(cache.models.clone());
+                return Ok(cache.clone());
             }
         }
         let models = self
@@ -72,33 +103,20 @@ impl AppState {
             .list_models()
             .await
             .map_err(|error| format!("failed to fetch media model registry: {error}"))?;
-        let models = Arc::new(models);
-        let by_id = models
-            .iter()
-            .enumerate()
-            .map(|(index, model)| (model.model_id.clone(), index))
-            .collect();
-        *self.registry.write().await = Some(RegistryCache {
-            fetched_at: std::time::Instant::now(),
-            models: models.clone(),
-            by_id,
-        });
-        Ok(models)
+        let cache = RegistryCache::admit(models)?;
+        #[cfg(test)]
+        self.registry_install_attempts
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        *self.registry.write().await = Some(cache.clone());
+        Ok(cache)
     }
 
     pub(super) async fn find_model(
         &self,
         model_id: &MediaModelId,
     ) -> Result<Option<ModelEntry>, String> {
-        let models = self.registry().await?;
-        let guard = self.registry.read().await;
-        let Some(cache) = guard.as_ref() else {
-            return Ok(None);
-        };
-        Ok(cache
-            .by_id
-            .get(model_id)
-            .map(|index| models[*index].clone()))
+        let cache = self.registry_snapshot().await?;
+        Ok(cache.find_model(model_id))
     }
 
     pub(super) async fn receive_webhook(

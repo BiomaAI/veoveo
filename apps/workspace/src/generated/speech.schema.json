@@ -489,7 +489,7 @@
           "$ref": "#/$defs/ArtifactUri"
         },
         "source_sha256": {
-          "type": "string"
+          "$ref": "#/$defs/UploadSha256"
         },
         "transcript": {
           "$ref": "#/$defs/Transcript"
@@ -536,6 +536,10 @@
     },
     "TranscriptionUri": {
       "pattern": "^speech://transcript/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?![\\s\\S])",
+      "type": "string"
+    },
+    "UploadSha256": {
+      "pattern": "^[0-9a-f]{64}$",
       "type": "string"
     },
     "Word": {

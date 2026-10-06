@@ -51,7 +51,8 @@ pub enum MaintenanceRecoveryReason {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct MaintenanceView {
+#[schemars(rename = "MaintenanceView")]
+pub struct MaintenanceViewValue {
     pub computer_id: crate::ComputerId,
     pub task_id: veoveo_types::TaskId,
     pub source_template_id: crate::TemplateId,
@@ -66,9 +67,114 @@ pub struct MaintenanceView {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct MaintenanceState {
+#[schemars(rename = "MaintenanceState")]
+pub struct MaintenanceStateValue {
     pub computer_id: crate::ComputerId,
     pub targets: Vec<TemplateView>,
     pub can_update: bool,
     pub active: Option<MaintenanceView>,
+}
+
+/// Admitted MaintenanceView; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "MaintenanceViewValue", into = "MaintenanceViewValue")]
+pub struct MaintenanceView(veoveo_types::Checked<MaintenanceViewValue>);
+impl std::ops::Deref for MaintenanceView {
+    type Target = MaintenanceViewValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for MaintenanceView {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "MaintenanceView".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        MaintenanceViewValue::json_schema(generator)
+    }
+}
+impl TryFrom<MaintenanceViewValue> for MaintenanceView {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: MaintenanceViewValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<MaintenanceView> for MaintenanceViewValue {
+    fn from(value: MaintenanceView) -> Self {
+        value.0.into_inner()
+    }
+}
+impl MaintenanceViewValue {
+    pub fn build(self) -> Result<MaintenanceView, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for MaintenanceViewValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.updated_at < self.created_at
+            || (self.phase == MaintenancePhase::RecoveryRequired) != self.recovery.is_some()
+            || self.can_resume && self.phase != MaintenancePhase::RecoveryRequired
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
+}
+
+/// Admitted MaintenanceState; callers assemble its value and build before use.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "MaintenanceStateValue", into = "MaintenanceStateValue")]
+pub struct MaintenanceState(veoveo_types::Checked<MaintenanceStateValue>);
+impl std::ops::Deref for MaintenanceState {
+    type Target = MaintenanceStateValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for MaintenanceState {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "MaintenanceState".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        MaintenanceStateValue::json_schema(generator)
+    }
+}
+impl TryFrom<MaintenanceStateValue> for MaintenanceState {
+    type Error = crate::ComputerResultError;
+    fn try_from(value: MaintenanceStateValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<MaintenanceState> for MaintenanceStateValue {
+    fn from(value: MaintenanceState) -> Self {
+        value.0.into_inner()
+    }
+}
+impl MaintenanceStateValue {
+    pub fn build(self) -> Result<MaintenanceState, crate::ComputerResultError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for MaintenanceStateValue {
+    type Error = crate::ComputerResultError;
+    fn check(&self) -> Result<(), Self::Error> {
+        if self.targets.len() > 64
+            || self
+                .targets
+                .iter()
+                .map(|target| &target.template_id)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != self.targets.len()
+            || self
+                .active
+                .as_ref()
+                .is_some_and(|view| view.computer_id != self.computer_id)
+            || self.can_update && (self.targets.is_empty() || self.active.is_some())
+        {
+            return Err(crate::ComputerResultError);
+        }
+        Ok(())
+    }
 }

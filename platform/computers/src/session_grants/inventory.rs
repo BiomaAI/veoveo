@@ -46,7 +46,7 @@ impl ComputersStore {
                     if row.owner_key != owner || row.computer_id != computer_id.as_uuid() {
                         return Err(ComputerError::Unavailable);
                     }
-                    Ok(AccessGrantView {
+                    veoveo_computers_contract::AccessGrantViewValue {
                         grant_id: crate::api::AccessGrantId::try_from(row.grant_id)
                             .map_err(|_| ComputerError::Unavailable)?,
                         kind: AccessGrantKind::Browser,
@@ -58,33 +58,42 @@ impl ComputersStore {
                         issued_at: row.issued_at,
                         expires_at: row.expires_at,
                         last_activity_at: row.last_activity_at,
-                    })
+                    }
+                    .build()
+                    .map_err(|_| crate::ComputerError::Unavailable)
                 })
                 .collect::<Result<Vec<_>>>()?;
             grants.extend(
                 self.cli_access_grants(actor, computer_id)
                     .await?
                     .into_iter()
-                    .map(|row| AccessGrantView {
-                        grant_id: row.grant_id,
-                        kind: AccessGrantKind::Cli,
-                        name: row.name,
-                        redeemed: true,
-                        current_session: row.current_session,
-                        issued_at: row.issued_at,
-                        expires_at: row.expires_at,
-                        last_activity_at: row.last_activity_at,
-                    }),
+                    .map(|row| {
+                        veoveo_computers_contract::AccessGrantViewValue {
+                            grant_id: row.grant_id,
+                            kind: AccessGrantKind::Cli,
+                            name: row.name,
+                            redeemed: true,
+                            current_session: row.current_session,
+                            issued_at: row.issued_at,
+                            expires_at: row.expires_at,
+                            last_activity_at: row.last_activity_at,
+                        }
+                        .build()
+                        .map_err(|_| crate::ComputerError::Unavailable)
+                    })
+                    .collect::<Result<Vec<_>>>()?,
             );
             if grants.len() > 128 {
                 return Err(ComputerError::Unavailable);
             }
             grants.sort_by_key(|grant| std::cmp::Reverse(grant.grant_id));
             control.require_read(Some(computer_id))?;
-            Ok(AccessGrantCollection {
+            veoveo_computers_contract::AccessGrantCollectionValue {
                 computer_id,
                 grants,
-            })
+            }
+            .build()
+            .map_err(|_| crate::ComputerError::Unavailable)
         })
         .await
         .map_err(|_| ComputerError::Unavailable)?

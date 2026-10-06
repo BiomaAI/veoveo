@@ -400,14 +400,15 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         BTreeSet::from([selected.fingerprint()]),
     )
     .unwrap();
-    let mut grant_input = support::automation::input(computer.computer_id);
-    grant_input
-        .execution_limits
-        .as_mut()
-        .unwrap()
-        .maximum_output_bytes = 2 * 1024 * 1024;
+    let mut grant_input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer.computer_id).into();
+    let mut limits = veoveo_computers_contract::AutomationExecutionLimitsValue::from(
+        grant_input.execution_limits.unwrap(),
+    );
+    limits.maximum_output_bytes = 2 * 1024 * 1024;
+    grant_input.execution_limits = Some(limits.build().unwrap());
     let grant = a
-        .issue_automation_grant(&owner, &grant_input)
+        .issue_automation_grant(&owner, &grant_input.clone().build().unwrap())
         .await
         .unwrap();
     let bytes: Vec<u8> = (0..1_000_003).map(|i| (i % 251) as u8).collect();

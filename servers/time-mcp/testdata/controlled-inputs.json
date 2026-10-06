@@ -484,8 +484,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "daily"
             }
@@ -535,8 +535,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly"
             }
@@ -586,8 +586,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [
@@ -636,8 +636,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [
@@ -686,8 +686,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [
@@ -736,8 +736,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [
@@ -786,8 +786,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [
@@ -836,8 +836,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [
@@ -886,8 +886,8 @@
         "zone_id": "UTC",
         "windows": [
           {
-            "start_local": "09:00:00",
-            "end_local": "10:00:00",
+            "start_local": "2026-01-01T09:00:00",
+            "end_local": "2026-01-01T10:00:00",
             "recurrence": {
               "frequency": "weekly",
               "weekdays": [

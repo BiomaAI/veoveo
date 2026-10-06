@@ -158,6 +158,37 @@ class AdapterOutputTests(unittest.TestCase):
                 admit_output(SimulationState, state)
             self.assertNotIn("distinctive-secret", str(failure.exception))
 
+    def test_world_and_state_child_relationships_are_admitted_before_encoding(self) -> None:
+        for target in ["vehicles", "cameras", "live_cameras", "stream_products", "recordings"]:
+            state = outputs()["state"]
+            if not state[target]:
+                continue
+            state[target].append(copy.deepcopy(state[target][0]))
+            with self.subTest(target=target), self.assertRaises(OutputContractError):
+                admit_output(SimulationState, state)
+        for path, value in [
+            (("cameras", 0, "vehicle_id"), "foreign"),
+            (("live_cameras", 0, "sessionId"), "foreign"),
+            (("stream_products", 0, "cameraRegions", 0, "cameraId"), "foreign"),
+            (("world", "spec_sha256"), "A" * 64),
+            (("world", "spec_sha256"), "a" * 63),
+            (("world", "spec_sha256"), "a" * 65),
+            (("world", "spec_sha256"), "sha256:" + "a" * 64),
+            (("world", "simulation_frame_uri"), "frames://world/foreign/revision/other/frame/isaac-world"),
+        ]:
+            state = outputs()["state"]
+            parent = state
+            for segment in path[:-1]:
+                parent = parent[segment]
+            parent[path[-1]] = value
+            with self.subTest(path=path), self.assertRaises(OutputContractError):
+                admit_output(SimulationState, state)
+        for uri in ["uav-sim://session/../world", "uav-sim://session/session-alpha/world?query=1", "https://example.test/session", "uav-sim://session/session-alpha/world/extra"]:
+            value = outputs()["world"]
+            value["resource_uri"] = uri
+            with self.subTest(uri=uri), self.assertRaises(OutputContractError):
+                admit_output(WorldAcknowledgement, value)
+
     def test_timestamp_parser_preserves_rust_accepted_case_and_offset_spellings(self) -> None:
         for stamp in ["2026-10-04t12:00:00z", "2026-10-04T12:00:00+03:30"]:
             state = outputs()["state"]
@@ -223,21 +254,38 @@ class AdapterOutputTests(unittest.TestCase):
 class AdapterOutputHttpTests(unittest.IsolatedAsyncioTestCase):
     async def test_preconfiguration_and_active_state_validate_before_wire(self) -> None:
         fixture = outputs()
+        from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
+        camera = fixture["state"]["live_cameras"][0]
+        operator_config = OperatorLiveViewRuntimeConfig.from_json(
+            json.dumps([{
+                "cameraId": camera["cameraId"],
+                "revision": camera["revision"],
+                "rig": camera["rig"],
+                "optics": {
+                    "widthPx": camera["widthPx"],
+                    "heightPx": camera["heightPx"],
+                    "frameRateHz": camera["frameRateMillihertz"] // 1000,
+                    "verticalFovDegrees": camera["verticalFovDegrees"],
+                    "nearClipM": camera["nearClipM"],
+                    "farClipM": camera["farClipM"],
+                },
+                "streamPolicy": camera["streamPolicy"],
+            }]),
+            rtsp_port_base=8554,
+        )
         preconfig = object.__new__(PreconfigurationApplication)
         preconfig._config = SimpleNamespace(
             session_id="session-alpha", physics_hz=60, rendering_hz=30,
-            cesium_ion_asset_id=2275207,
-            operator_live_view=SimpleNamespace(cameras=[]),
+            cesium_ion_asset_id=2275207, operator_live_view=operator_config,
         )
         preconfig._world_slot = WorldConfigurationSlot()
-        # The existing layout requires configured streamable cameras. Reuse its
-        # admitted product fixture without constructing a renderer.
-        from unittest.mock import patch
-        with patch("veoveo_uav_sim.server.initial_operator_atlas_state", return_value=fixture["state"]["stream_products"][0]):
-            response = await preconfig._get_state(None)
+        # Real camera and atlas descriptors require no renderer or simulator.
+        response = await preconfig._get_state(None)
         body = json.loads(response.body)
         self.assertEqual(body["lifecycle"], "unconfigured")
         self.assertIsNone(body["world"])
+        self.assertEqual(body["live_cameras"][0]["cameraId"], camera["cameraId"])
+        self.assertEqual(body["stream_products"][0]["cameraRegions"][0]["cameraId"], camera["cameraId"])
         self.assertEqual(admit_output(SimulationState, body), body)
 
         active = object.__new__(AdapterApplication)

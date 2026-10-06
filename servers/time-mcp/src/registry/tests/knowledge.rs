@@ -45,11 +45,14 @@ async fn authority_observations_and_pages_preserve_stored_tenant_provenance() {
         );
 
         for index in 0..101 {
-            let mut copy = release.clone();
+            let mut copy = crate::AuthorityReleaseValue::from(release.clone());
             copy.source_digest_sha256 = format!("{index:064x}").parse().unwrap();
             copy.release_id =
                 AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7())).unwrap();
-            catalog.create_release(&owner, copy).await.unwrap();
+            catalog
+                .create_release(&owner, copy.build().unwrap())
+                .await
+                .unwrap();
         }
         let page = catalog.releases_page(&reader, None).await.unwrap();
         assert_eq!(page.items.len(), 100);

@@ -95,6 +95,7 @@ impl TimeMcp {
                 json_read(
                     uri,
                     &Page::from_page(page, |calendar| {
+                        let calendar = crate::contract::OperationalCalendarValue::from(calendar);
                         Entry::new(
                             TimeResource::Calendar {
                                 id: calendar.calendar_id,
@@ -153,6 +154,7 @@ impl TimeMcp {
                 json_read(
                     uri,
                     &Page::from_page(page, |release| {
+                        let release = crate::contract::AuthorityReleaseValue::from(release);
                         Entry::new(
                             TimeResource::AuthorityRelease(release.release_id),
                             release.version_label,
@@ -228,9 +230,11 @@ impl TimeMcp {
                 let engine = self.state.engine(&scope).await.map_err(internal)?;
                 let now = engine
                     .resolve(&ResolveTimeRequest {
-                        expression: crate::contract::TimeExpression::Rfc3339 {
+                        expression: crate::TimeExpressionValue::Rfc3339 {
                             value: chrono::Utc::now().to_rfc3339(),
-                        },
+                        }
+                        .build()
+                        .map_err(invalid_params)?,
                         additional_uncertainty_nanoseconds: 0,
                     })
                     .map_err(invalid_params)?;
@@ -306,9 +310,11 @@ impl TimeMcp {
                     .unwrap_or_else(default_clock_policy);
                 let time = engine
                     .resolve(&ResolveTimeRequest {
-                        expression: crate::contract::TimeExpression::Rfc3339 {
+                        expression: crate::TimeExpressionValue::Rfc3339 {
                             value: chrono::Utc::now().to_rfc3339(),
-                        },
+                        }
+                        .build()
+                        .map_err(invalid_params)?,
                         additional_uncertainty_nanoseconds: quality.error_bound_nanoseconds,
                     })
                     .map_err(invalid_params)?;

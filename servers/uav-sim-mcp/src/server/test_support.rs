@@ -66,7 +66,7 @@ pub(super) fn identity(
 }
 
 #[path = "../../../../testing/fixtures/store.rs"]
-pub(super) mod fixture;
+pub(crate) mod fixture;
 
 /// Native protocol fixtures share the hosted composition without simulator startup.
 pub(super) fn state(

@@ -15,6 +15,14 @@
 | Veoveo Recording policy | Six closed actions, producer/stream targets and the `recording_ingest_resources` JSON-array catalog section. Registration requires no MCP transport. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
 
+`properties.rs` owns immutable sealed RRD properties. Its builder and decoders admit
+RFC UUIDv7 dataset and recording identities, the sealed lifecycle state, nonnegative
+native revisions, RFC3339 timestamps with end at or after start, and bounded open
+producer revision maps. Timestamp strings preserve the producer's spelling; seal time
+has no inferred ordering against another clock. The manifest digest uses bare lowercase
+SHA-256. Properties retain UUID bytes in binary Serde and a string lifecycle field;
+these field adapters do not change the public IDs' string-only binary profile.
+
 ## Ownership And Dependencies
 
 This crate owns Recording's public IDs, resource addresses, cursors, permissions and data models.

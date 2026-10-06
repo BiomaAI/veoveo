@@ -32,7 +32,7 @@ async fn release(
     let source = catalog
         .create_source(
             scope,
-            crate::NewTimeSource {
+            crate::NewTimeSourceValue {
                 source_id: TimeSourceId::parse(format!("time-source-{}", Uuid::now_v7())).unwrap(),
                 name: "source".into(),
                 dataset_kind: kind,
@@ -40,7 +40,9 @@ async fn release(
                 expected_content_type: "text/plain".into(),
                 enabled: true,
                 record_version: crate::SourceCreationVersion,
-            },
+            }
+            .build()
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -48,20 +50,22 @@ async fn release(
     catalog
         .create_release(
             scope,
-            AuthorityRelease {
+            crate::AuthorityReleaseValue {
                 release_id: AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7()))
                     .unwrap(),
-                source_id: source.source_id,
+                source_id: source.source_id.clone(),
                 dataset_kind: kind,
                 state: AuthorityReleaseState::Staged,
                 version_label: "test".into(),
-                source_url: source.url,
+                source_url: source.url.clone(),
                 source_digest_sha256: "a".repeat(64).parse().unwrap(),
                 artifact_path: "/tmp/time-authority-test".into(),
                 retrieved_at: now,
                 validated_at: now,
                 record_version: crate::TimeVersion::new(1).unwrap(),
-            },
+            }
+            .build()
+            .unwrap(),
         )
         .await
         .unwrap()

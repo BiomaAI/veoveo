@@ -1,5 +1,4 @@
 use super::*;
-use url::Url;
 use uuid::Uuid;
 
 const MAX_CANONICAL_JSON_BYTES: usize = 2 * 1024 * 1024;
@@ -71,13 +70,12 @@ pub(super) fn validate_text(
     value: &str,
     max: usize,
 ) -> Result<(), PersistenceError> {
-    if value.is_empty() || value.len() > max || value.chars().any(char::is_control) {
-        return Err(invalid(
+    crate::contract::admission::text(value, max).map_err(|_| {
+        invalid(
             field,
             "must be non-empty, bounded, and contain no control characters",
-        ));
-    }
-    Ok(())
+        )
+    })
 }
 
 pub(super) fn validate_positive(field: &'static str, value: i64) -> Result<(), PersistenceError> {
@@ -88,43 +86,25 @@ pub(super) fn validate_positive(field: &'static str, value: i64) -> Result<(), P
 }
 
 pub(super) fn validate_zone_id(value: &str) -> Result<(), PersistenceError> {
-    if value.is_empty()
-        || value.len() > 128
-        || value.starts_with('/')
-        || value.contains("..")
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'+'))
-    {
-        return Err(invalid("zone_id", "must be a bounded IANA zone identifier"));
-    }
-    Ok(())
+    crate::contract::admission::zone(value)
+        .map_err(|_| invalid("zone_id", "must be a bounded IANA zone identifier"))
 }
 
 pub(super) fn validate_https_url(field: &'static str, value: &str) -> Result<(), PersistenceError> {
-    let url = Url::parse(value).map_err(|_| invalid(field, "must be an absolute HTTPS URL"))?;
-    if url.scheme() != "https"
-        || url.host_str().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.fragment().is_some()
-    {
-        return Err(invalid(
+    crate::contract::admission::https(value).map_err(|_| {
+        invalid(
             field,
             "must be an absolute HTTPS URL without credentials or a fragment",
-        ));
-    }
-    Ok(())
+        )
+    })
 }
 
 pub(super) fn validate_absolute_path(
     field: &'static str,
     value: &str,
 ) -> Result<(), PersistenceError> {
-    if !value.starts_with('/') || value.contains("/../") || value.chars().any(char::is_control) {
-        return Err(invalid(field, "must be a confined absolute path"));
-    }
-    Ok(())
+    crate::contract::admission::absolute_path(value)
+        .map_err(|_| invalid(field, "must be a confined absolute path"))
 }
 
 pub(super) fn validate_json(value: &str) -> Result<(), PersistenceError> {

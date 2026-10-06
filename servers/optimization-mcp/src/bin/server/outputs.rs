@@ -9,8 +9,8 @@ use veoveo_mcp_contract::now_utc;
 use veoveo_optimization_mcp::{
     contract::{
         ConvexOutputPolicy, MilpOutputPolicy, OptimizationProblemResource, OptimizationSolution,
-        OptimizationToolOutput, OptimizationToolSummary, ProblemFamily, RouteOutputPolicy,
-        SolutionDetail, VerificationReport, VerifySolutionOutput,
+        OptimizationToolSummary, ProblemFamily, RouteOutputPolicy, SolutionDetail,
+        VerificationReport,
     },
     problem_store::PreparedProblem,
     state::TaskOwner,
@@ -36,6 +36,19 @@ pub(super) async fn solution_result(
     requested: RequestedArtifacts<'_>,
 ) -> anyhow::Result<CallToolResult> {
     let problem = prepared.resource();
+    if problem.record.problem_uri != solution.problem_uri
+        || !matches!(
+            (problem.record.family, &solution.detail),
+            (
+                ProblemFamily::Routing | ProblemFamily::RouteScenarios,
+                SolutionDetail::Routing { .. }
+            ) | (ProblemFamily::Convex, SolutionDetail::Convex { .. })
+                | (ProblemFamily::Milp, SolutionDetail::Milp { .. })
+        )
+    {
+        anyhow::bail!("selected Optimization problem and solution disagree before publication");
+    }
+    veoveo_optimization_mcp::solution_builder::verify_solution_digest(&solution)?;
     let problem_artifact = store_json_artifact(
         state,
         capability,
@@ -134,7 +147,7 @@ pub(super) async fn solution_result(
             quality: quality.clone(),
         },
     };
-    let output = OptimizationToolOutput {
+    let output = veoveo_optimization_mcp::contract::OptimizationToolOutputValue {
         run_uri: veoveo_optimization_mcp::contract::OptimizationRunUri::new(
             solution.run_id.clone(),
         )?,
@@ -147,7 +160,8 @@ pub(super) async fn solution_result(
         problem_artifact,
         solution_artifact,
         artifacts,
-    };
+    }
+    .build()?;
     record_usage(state, task_id, problem, &solution).await?;
 
     let content = vec![
@@ -185,11 +199,12 @@ pub(super) async fn verification_result(
         "verification_report",
     )
     .await?;
-    let output = VerifySolutionOutput {
+    let output = veoveo_optimization_mcp::contract::VerifySolutionOutputValue {
         solution_uri: solution.solution_uri.clone(),
         report: report.clone(),
         report_artifact: Some(report_artifact.clone()),
-    };
+    }
+    .build()?;
     let mut result = CallToolResult::success(vec![ContentBlock::text(verification_status(
         report.verified,
         report.findings.len(),

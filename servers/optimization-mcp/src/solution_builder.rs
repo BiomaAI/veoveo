@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use sha2::{Digest, Sha256};
 
 use crate::{
     contract::{
@@ -83,8 +82,9 @@ fn build_route_cases(
             executor.status,
             ExecutorRoutingStatus::Success | ExecutorRoutingStatus::Timeout
         ) {
-            verified.report.verified = false;
-            verified.report.findings.push(VerificationFinding {
+            let mut report = crate::contract::VerificationReportValue::from(verified.report);
+            report.verified = false;
+            report.findings.push(VerificationFinding {
                 code: VerificationCode::SolverReportedFailure,
                 severity: VerificationSeverity::Error,
                 message: format!(
@@ -96,6 +96,7 @@ fn build_route_cases(
                 order_id: None,
                 vehicle_id: None,
             });
+            verified.report = report.build()?;
         }
         for route in &mut verified.routes {
             route.case_id = case_id.clone();
@@ -317,10 +318,12 @@ fn combine_termination(current: SolverTermination, next: SolverTermination) -> S
 
 fn merge_reports(reports: Vec<VerificationReport>) -> VerificationReport {
     let mut reports = reports.into_iter();
-    let Some(mut merged) = reports.next() else {
+    let Some(merged) = reports.next() else {
         return crate::verification::empty_report(VerificationTolerance::default());
     };
+    let mut merged = crate::contract::VerificationReportValue::from(merged);
     for report in reports {
+        let report = crate::contract::VerificationReportValue::from(report);
         merged.verified &= report.verified;
         merged.findings.extend(report.findings);
         merged.maximum_constraint_violation = maximum(
@@ -340,6 +343,8 @@ fn merge_reports(reports: Vec<VerificationReport>) -> VerificationReport {
         }
     }
     merged
+        .build()
+        .expect("merged verified flag derives from the merged findings")
 }
 
 fn maximum(left: Option<NonNegativeF64>, right: Option<NonNegativeF64>) -> Option<NonNegativeF64> {
@@ -364,7 +369,7 @@ fn finish_solution(
 ) -> anyhow::Result<OptimizationSolution> {
     let solution_id = SolutionId::new();
     let solution_uri = OptimizationSolutionUri::new(solution_id.clone())?;
-    let mut solution = OptimizationSolution {
+    let mut solution = crate::contract::OptimizationSolutionValue {
         solution_id,
         solution_uri,
         run_id: context.run_id,
@@ -375,11 +380,11 @@ fn finish_solution(
         verification,
         engine: context.engine,
         timings: context.timings,
-        digest_sha256: String::new(),
+        digest_sha256: veoveo_artifact_contract::UploadSha256::parse("0".repeat(64))?,
         authority: context.authority,
         created_at: context.created_at,
     };
-    solution.digest_sha256 = calculate_solution_digest(&solution)?;
+    solution.digest_sha256 = crate::contract::solution_digest(&solution)?;
     debug_assert!(matches!(
         family,
         ProblemFamily::Routing
@@ -387,20 +392,182 @@ fn finish_solution(
             | ProblemFamily::Convex
             | ProblemFamily::Milp
     ));
-    Ok(solution)
+    Ok(solution.build()?)
 }
 
 pub fn calculate_solution_digest(solution: &OptimizationSolution) -> anyhow::Result<String> {
-    let mut canonical = solution.clone();
-    canonical.digest_sha256.clear();
-    let bytes = serde_json::to_vec(&canonical)?;
-    Ok(hex::encode(Sha256::digest(bytes)))
+    Ok(
+        crate::contract::solution_digest(&crate::contract::OptimizationSolutionValue::from(
+            solution.clone(),
+        ))?
+        .as_str()
+        .to_owned(),
+    )
 }
 
 pub fn verify_solution_digest(solution: &OptimizationSolution) -> anyhow::Result<()> {
     let expected = calculate_solution_digest(solution)?;
-    if solution.digest_sha256 != expected {
+    if solution.digest_sha256.as_str() != expected {
         anyhow::bail!("solution digest does not match its canonical contents");
     }
     Ok(())
+}
+
+/// Admit retained product bytes against the selected Task/output, before reuse.
+pub fn admit_solution_bytes(
+    bytes: &[u8],
+    solution_uri: &OptimizationSolutionUri,
+    run_id: &RunId,
+    problem_uri: &OptimizationProblemUri,
+    family: ProblemFamily,
+) -> anyhow::Result<OptimizationSolution> {
+    let solution: OptimizationSolution = serde_json::from_slice(bytes)?;
+    let detail_matches = matches!(
+        (family, &solution.detail),
+        (
+            ProblemFamily::Routing | ProblemFamily::RouteScenarios,
+            SolutionDetail::Routing { .. }
+        ) | (ProblemFamily::Convex, SolutionDetail::Convex { .. })
+            | (ProblemFamily::Milp, SolutionDetail::Milp { .. })
+    );
+    anyhow::ensure!(
+        &solution.solution_uri == solution_uri
+            && &solution.run_id == run_id
+            && &solution.problem_uri == problem_uri
+            && detail_matches,
+        "solution artifact disagrees with its selected Task parents"
+    );
+    verify_solution_digest(&solution)?;
+    Ok(solution)
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+
+    fn produced_solution() -> OptimizationSolution {
+        let now = chrono::Utc::now();
+        finish_solution(
+            ProblemFamily::Routing,
+            SolutionFeasibility::Feasible,
+            SolverTermination::Completed,
+            SolutionDetail::Routing {
+                summaries: vec![],
+                routes: vec![],
+            },
+            crate::verification::empty_report(VerificationTolerance::default()),
+            SolutionContext {
+                run_id: RunId::new(),
+                problem_uri: OptimizationProblemUri::new(crate::contract::ProblemId::new())
+                    .unwrap(),
+                engine: EngineProvenance {
+                    name: "non-provider serializer fixture".into(),
+                    version: "fixture".into(),
+                    container_digest: "fixture".into(),
+                    executor_protocol: "fixture".into(),
+                    gpu_name: None,
+                    gpu_uuid: None,
+                    compute_capability: None,
+                    solver_profile_uri: crate::contract::OptimizationProfileUri::parse(
+                        "optimization://profile/balanced",
+                    )
+                    .unwrap(),
+                },
+                timings: RunTimings::default(),
+                authority: OptimizationAuthority {
+                    principal_id: "fixture#actor".parse().unwrap(),
+                    work_context: None,
+                    policy_revision: "fixture".parse().unwrap(),
+                    submitted_at: now,
+                },
+                created_at: now,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn selected_solution_load_rejects_digest_valid_detached_parents() {
+        let solution = produced_solution();
+        let admit = |value: &OptimizationSolution| {
+            admit_solution_bytes(
+                &serde_json::to_vec(value).unwrap(),
+                &solution.solution_uri,
+                &solution.run_id,
+                &solution.problem_uri,
+                ProblemFamily::Routing,
+            )
+        };
+        assert!(admit(&solution).is_ok());
+        for detached in 0..3 {
+            let mut draft = crate::contract::OptimizationSolutionValue::from(solution.clone());
+            match detached {
+                0 => draft.run_id = RunId::new(),
+                1 => {
+                    draft.problem_uri =
+                        OptimizationProblemUri::new(crate::contract::ProblemId::new()).unwrap()
+                }
+                _ => {
+                    draft.detail = SolutionDetail::Convex {
+                        quality: serde_json::from_value(
+                            serde_json::json!({"proven_optimal":false}),
+                        )
+                        .unwrap(),
+                        variables: vec![],
+                        constraints: vec![],
+                    }
+                }
+            }
+            draft.digest_sha256 = crate::contract::solution_digest(&draft).unwrap();
+            let admitted = draft.build().unwrap();
+            assert!(verify_solution_digest(&admitted).is_ok());
+            assert!(admit(&admitted).is_err());
+        }
+    }
+
+    #[test]
+    fn produced_solution_preserves_original_hash_preimage_and_rejects_modified_identity_or_digest()
+    {
+        let solution = produced_solution();
+        let serialized = serde_json::to_string(&solution).unwrap();
+        let old_preimage = serialized.replacen(
+            &format!("\"digest_sha256\":\"{}\"", solution.digest_sha256.as_str()),
+            "\"digest_sha256\":\"\"",
+            1,
+        );
+        assert_eq!(
+            hex::encode(Sha256::digest(old_preimage.as_bytes())),
+            solution.digest_sha256.as_str()
+        );
+        assert_eq!(
+            serde_json::from_str::<OptimizationSolution>(&serialized).unwrap(),
+            solution
+        );
+        for field in 0..2 {
+            let mut draft = crate::contract::OptimizationSolutionValue::from(solution.clone());
+            match field {
+                0 => draft.solution_id = SolutionId::new(),
+                _ => {
+                    draft.digest_sha256 =
+                        veoveo_artifact_contract::UploadSha256::parse("0".repeat(64)).unwrap()
+                }
+            }
+            assert!(
+                serde_json::from_value::<OptimizationSolution>(
+                    serde_json::to_value(&draft).unwrap()
+                )
+                .is_err()
+            );
+            assert!(draft.build().is_err());
+        }
+        let mut report =
+            crate::contract::VerificationReportValue::from(solution.verification.clone());
+        report.verified = false;
+        assert!(
+            serde_json::from_value::<VerificationReport>(serde_json::to_value(&report).unwrap())
+                .is_err()
+        );
+        assert!(report.build().is_err());
+    }
 }

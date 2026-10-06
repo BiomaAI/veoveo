@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
 from typing import Any
+import math
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
 
 class UsageKind(str, Enum):
@@ -15,7 +15,7 @@ class UsageKind(str, Enum):
 
 
 class UsageRecord(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, frozen=True)
 
     task_id: str
     source_id: str | None = None
@@ -26,19 +26,49 @@ class UsageRecord(BaseModel):
     unit: str | None = None
     amount: float | None = None
     currency: str | None = None
-    recorded_at: datetime
+    recorded_at: AwareDatetime
     metadata: Any = None
 
 
+    @model_validator(mode="after")
+    def _admit(self):
+        for value in (self.quantity, self.amount):
+            if value is not None and not math.isfinite(value):
+                raise ValueError("usage quantities and amounts must be finite")
+        return self
+
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **(update or {})})
+
+
 class UsageReport(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, frozen=True)
 
     task_id: str
     usage_uri: str
-    records: list[UsageRecord] = []
+    records: tuple[UsageRecord, ...] = ()
     total_amount: float | None = None
     currency: str | None = None
     total_kind: UsageKind | None = None
+
+    @model_validator(mode="after")
+    def _admit(self):
+        if any(record.task_id != self.task_id for record in self.records):
+            raise ValueError("usage record belongs to another Task")
+        kinds = {UsageKind(record.kind) for record in self.records}
+        kind = (UsageKind.ACTUAL if UsageKind.ACTUAL in kinds else
+                UsageKind.ESTIMATE if UsageKind.ESTIMATE in kinds else None)
+        selected = [record for record in self.records if UsageKind(record.kind) == kind]
+        currency = _common_currency(selected)
+        amount = _sum_amounts(selected, currency) if currency else None
+        if amount is not None and not math.isfinite(amount):
+            raise ValueError("usage total must be finite")
+        if (self.total_kind, self.currency, self.total_amount) != (kind, currency, amount):
+            raise ValueError("usage totals disagree with selected records")
+        return self
+
+    def model_copy(self, *, update=None, deep=False):
+        return type(self).model_validate({**self.model_dump(), **(update or {})})
 
     @classmethod
     def build(

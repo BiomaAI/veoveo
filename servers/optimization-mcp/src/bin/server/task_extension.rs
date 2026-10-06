@@ -535,7 +535,10 @@ async fn execute_task(
     let owner = task_owner_from_runtime(task_id, runtime_owner).map_err(anyhow::Error::msg)?;
     match request {
         OptimizationTaskRequest::OptimizeRoutes { common, input } => {
-            let prepared = state.problem_store.load(&common.prepared).await?;
+            let prepared = state
+                .problem_store
+                .load_selected(&common.prepared, &common.problem_id, common.family)
+                .await?;
             let PreparedProblem::Routing {
                 resource, compiled, ..
             } = &prepared
@@ -589,7 +592,10 @@ async fn execute_task(
             .await
         }
         OptimizationTaskRequest::OptimizeRouteScenarios { common, input } => {
-            let prepared = state.problem_store.load(&common.prepared).await?;
+            let prepared = state
+                .problem_store
+                .load_selected(&common.prepared, &common.problem_id, common.family)
+                .await?;
             let PreparedProblem::RouteScenarios { resource, cases } = &prepared else {
                 anyhow::bail!("prepared problem is not a route-scenario batch");
             };
@@ -652,7 +658,10 @@ async fn execute_task(
             .await
         }
         OptimizationTaskRequest::SolveConvex { common, input } => {
-            let prepared = state.problem_store.load(&common.prepared).await?;
+            let prepared = state
+                .problem_store
+                .load_selected(&common.prepared, &common.problem_id, common.family)
+                .await?;
             let PreparedProblem::Convex {
                 resource,
                 problem,
@@ -709,7 +718,10 @@ async fn execute_task(
             .await
         }
         OptimizationTaskRequest::SolveMilp { common, input } => {
-            let prepared = state.problem_store.load(&common.prepared).await?;
+            let prepared = state
+                .problem_store
+                .load_selected(&common.prepared, &common.problem_id, common.family)
+                .await?;
             let PreparedProblem::Milp {
                 resource,
                 problem,
@@ -771,6 +783,26 @@ async fn execute_task(
         }
         OptimizationTaskRequest::VerifySolution { request } => {
             let prepared = state.problem_store.load(&request.prepared).await?;
+            anyhow::ensure!(
+                request.solution.solution_uri == request.input.solution_uri,
+                "retained verification request disagrees with its solution"
+            );
+            veoveo_optimization_mcp::problem_store::admit_prepared_product(
+                &prepared,
+                request.solution.problem_uri.id(),
+                prepared.resource().record.family,
+            )?;
+            anyhow::ensure!(
+                matches!(
+                    (prepared.resource().record.family, &request.solution.detail),
+                    (
+                        ProblemFamily::Routing | ProblemFamily::RouteScenarios,
+                        SolutionDetail::Routing { .. }
+                    ) | (ProblemFamily::Convex, SolutionDetail::Convex { .. })
+                        | (ProblemFamily::Milp, SolutionDetail::Milp { .. })
+                ),
+                "retained verification solution and prepared family disagree"
+            );
             let tolerance = VerificationTolerance::new(
                 request
                     .input
@@ -903,7 +935,7 @@ fn reverify_solution(
                 let raw = routing_candidate(&case.compiled, summary, routes, Some(&case.case_id))?;
                 reports.push(verify_routing_solution(&case.compiled, &raw, tolerance).report);
             }
-            Ok(merge_verification_reports(reports, tolerance))
+            merge_verification_reports(reports, tolerance)
         }
         (
             PreparedProblem::Convex { problem, .. },
@@ -1030,9 +1062,12 @@ fn location_index(
 fn merge_verification_reports(
     reports: Vec<veoveo_optimization_mcp::contract::VerificationReport>,
     tolerance: VerificationTolerance,
-) -> veoveo_optimization_mcp::contract::VerificationReport {
-    let mut merged = veoveo_optimization_mcp::verification::empty_report(tolerance);
+) -> anyhow::Result<veoveo_optimization_mcp::contract::VerificationReport> {
+    let mut merged = veoveo_optimization_mcp::contract::VerificationReportValue::from(
+        veoveo_optimization_mcp::verification::empty_report(tolerance),
+    );
     for report in reports {
+        let report = veoveo_optimization_mcp::contract::VerificationReportValue::from(report);
         merged.verified &= report.verified;
         merged.findings.extend(report.findings);
         merged.maximum_constraint_violation = maximum(
@@ -1048,7 +1083,7 @@ fn merge_verification_reports(
             report.maximum_bound_violation,
         );
     }
-    merged
+    Ok(merged.build()?)
 }
 
 fn maximum(left: Option<NonNegativeF64>, right: Option<NonNegativeF64>) -> Option<NonNegativeF64> {

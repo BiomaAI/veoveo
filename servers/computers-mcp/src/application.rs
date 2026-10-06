@@ -141,7 +141,7 @@ impl Application {
             })
             .collect::<Result<Vec<_>>>()?;
         authority.require_read(None)?;
-        Ok(ComputerSnapshot {
+        veoveo_computers_contract::ComputerSnapshotValue {
             availability: if self.availability() == CapacityAvailability::Available && !room {
                 CapacityAvailability::Exhausted
             } else {
@@ -155,7 +155,9 @@ impl Application {
                 && authority.allows_action(Action::Create),
             computers,
             next_cursor: page.next_cursor,
-        })
+        }
+        .build()
+        .map_err(|_| ApplicationError::Unavailable)
     }
     pub async fn computer(
         &self,
@@ -231,14 +233,14 @@ impl Application {
         authority: &ControlAuthority,
         access: bool,
         execution: Option<ComputerExecution>,
-    ) -> ComputerView {
+    ) -> veoveo_computers_contract::ComputerViewValue {
         let unfenced = computer.active_operation.is_none();
         let template = computer.provider_instance_id == self.store.provider_instance_id()
             && self
                 .templates
                 .contains(&computer.template_id, &computer.template_fingerprint);
         let admitted = |a| template && unfenced && self.admits(a) && authority.allows_action(a);
-        ComputerView {
+        veoveo_computers_contract::ComputerViewValue {
             computer_id: computer.computer_id,
             access_mode: ComputerAccessMode::Owner,
             granted_access: Vec::new(),
@@ -298,7 +300,7 @@ impl Application {
             view.can_delete = false;
             view.can_connect = false;
         }
-        Ok(view)
+        view.build().map_err(|_| ApplicationError::Unavailable)
     }
     pub async fn create(&self, actor: ComputerActor, request: CreateInput) -> Result<Operation> {
         if let Some(computer_id) = request.computer_id {

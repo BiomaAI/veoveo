@@ -47,3 +47,17 @@ Generated Workspace schemas and types consume this contract.
 ## Value Admission
 
 DictationSnapshot implements `Check` for its private session-ID/result-address agreement. Construction and decoding reuse that admission. Its public progress fields retain their existing runtime mutation API, so this model uses an explicit representation exception instead of immutable whole-model Checked storage. Progress updates cannot mutate either identity field.
+
+Transcript construction and decoding share interval, ordering, finite duration and
+size admission, including the 0.1-second rounding allowance. The recording ceiling
+is portable; the smaller dictation ceiling is checked by the session service.
+Immutable transcript documents admit their owned schema tag and bare lowercase
+SHA-256 source digest. Transcription outputs admit distinct JSON and WebVTT
+occurrences, Speech presentation, no download locations and finite duration.
+Retained reads additionally bind the source and result Task to the selected request.
+
+Speech maps transcript subscriptions through the shared Task resource watch. It
+authorizes source access before subscribing and again before every notification,
+including resource-only updates. Independent dictation state is not a Task watch.
+
+Hosted transcript listeners deliver through the maintained subscription context and filter-enforcing sink. Each native Task update rechecks current source access before resource or Task notifications. Context cancellation and a dropped client subscription end the listener and release its native observation stream; reconnect establishes a newly authorized baseline.

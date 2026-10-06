@@ -56,12 +56,14 @@ impl Application {
                 .await?
             && authority.require_update_template().is_ok();
         authority.require_read(Some(computer_id))?;
-        Ok(MaintenanceState {
+        veoveo_computers_contract::MaintenanceStateValue {
             computer_id,
             targets,
             can_update,
             active,
-        })
+        }
+        .build()
+        .map_err(|_| ApplicationError::Unavailable)
     }
 
     pub async fn maintenance_operation(
@@ -164,7 +166,7 @@ impl Application {
                 && self.supports_maintenance(operation)
                 && authority.require_resume_update().is_ok();
         }
-        Ok(view)
+        view.build().map_err(|_| ApplicationError::Unavailable)
     }
 
     pub async fn update_template(
@@ -252,8 +254,10 @@ impl Application {
     }
 }
 
-pub(crate) fn view(operation: &MaintenanceOperation) -> MaintenanceView {
-    MaintenanceView {
+pub(crate) fn view(
+    operation: &MaintenanceOperation,
+) -> veoveo_computers_contract::MaintenanceViewValue {
+    veoveo_computers_contract::MaintenanceViewValue {
         computer_id: operation.computer_id,
         task_id: operation.operation_id,
         source_template_id: operation.source_template_id.clone(),

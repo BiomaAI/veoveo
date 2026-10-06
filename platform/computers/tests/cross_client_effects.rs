@@ -295,11 +295,13 @@ async fn cli_pairing_keeps_its_profile_and_can_be_revoked_from_another_client() 
         .begin_cli_pairing(
             &workspace,
             computer,
-            &CliPairingInput {
+            &veoveo_computers_contract::CliPairingInputValue {
                 name: "Cross-client fixture".into(),
                 code: "ABC-2345".into(),
                 callback_port: 49152,
-            },
+            }
+            .build()
+            .unwrap(),
         )
         .await
         .unwrap();

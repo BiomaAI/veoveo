@@ -30,6 +30,17 @@ Hub also consumes its `RecordingProducerScope`: ingest checks the caller's grant
 names against `Ingest`, and Artifact publication requests `Publish` through the
 typed producer OAuth client. MCP sealing uses the separate `RecordingScope` enum.
 
+## Immutable Layer Publication
+
+Hub carries distinct dataset/recording identities into RRD normalization and typed
+SHA-256 values into layer staging and Artifact streaming requests. The layer UUID maps
+directly to the Artifact occurrence UUID. Publication admits the returned neutral
+Artifact URI, expected occurrence and length, and absence of a download location before
+catalog commitment. ArtifactMetadata supplies no declared content digest; the streaming
+request's checked digest and Artifact service verification establish content integrity.
+Hub does not infer a digest from opaque metadata. Producer Rerun application and recording
+names keep their upstream profile.
+
 ## Archive Materialization
 
 Hub applies Rerun's `OBJECT_STORE` chunk-compaction profile to a complete archive

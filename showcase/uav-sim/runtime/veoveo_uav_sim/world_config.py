@@ -3,10 +3,12 @@ from __future__ import annotations
 import copy
 import json
 import threading
+import re
+from yarl import URL
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from .contracts import validation_diagnostic
 
 
@@ -51,6 +53,25 @@ def _number(value: Any, field: str, minimum: float, maximum: float) -> float:
     return result
 
 
+def _frame_address(value: str, *, frame: bool) -> tuple[str, ...]:
+    # Frames coordinate identities permit colon, unlike UAV session identities.
+    if not value.isascii() or any(character.isspace() for character in value) or re.search(r"%(?![0-9A-Fa-f]{2})", value):
+        raise WorldConfigurationError("invalid escaped Frames address")
+    try:
+        address = URL(value, encoded=True)
+        parts = address.parts
+        expected = 6 if frame else 4
+        if address.scheme != "frames" or address.raw_host != "world" or address.user is not None or address.port is not None or address.query_string or address.fragment or len(parts) != expected or parts[0] != "/" or parts[2] != "revision" or (frame and parts[4] != "frame"):
+            raise WorldConfigurationError("invalid Frames world address")
+        identities = [parts[1], parts[3]] + ([parts[5]] if frame else [])
+        for identity in identities:
+            if identity in {".", ".."} or not 1 <= len(identity) <= 128 or not all(character.isascii() and (character.isalnum() or character in "_-.:") for character in identity):
+                raise WorldConfigurationError("invalid Frames coordinate identity")
+        return parts
+    except (ValueError, UnicodeError) as error:
+        raise WorldConfigurationError("invalid Frames world address") from error
+
+
 class GeoreferenceOriginWire(BaseModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
     latitude_degrees: float
@@ -61,9 +82,14 @@ class GeoreferenceOriginWire(BaseModel):
 class SimulationWorldBindingWire(BaseModel):
     model_config = ConfigDict(hide_input_in_errors=True, extra="forbid", strict=True)
     revision_uri: str
-    spec_sha256: str
+    spec_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     simulation_frame_uri: str
     georeference_origin: GeoreferenceOriginWire
+
+    @model_validator(mode="after")
+    def admitted_binding(self):
+        WorldConfiguration.from_request({"session_id": "portable", "world": self.model_dump()}, "portable")
+        return self
 
 
 class ConfigureWorldWire(BaseModel):
@@ -107,10 +133,6 @@ class WorldConfiguration:
     def from_request(
         cls, payload: Any, expected_session_id: str
     ) -> "WorldConfiguration":
-        try:
-            ConfigureWorldWire.model_validate(payload)
-        except ValidationError as error:
-            raise WorldConfigurationError(validation_diagnostic(error)) from error
         request = _object(payload, "world configuration")
         _exact_fields(request, {"session_id", "world"}, "world configuration")
         if request["session_id"] != expected_session_id:
@@ -129,22 +151,11 @@ class WorldConfiguration:
             "world",
         )
         revision_uri = _string(world["revision_uri"], "revision_uri")
-        if (
-            not revision_uri.startswith("frames://world/")
-            or "/revision/" not in revision_uri
-            or revision_uri.endswith("/revision/")
-        ):
-            raise WorldConfigurationError(
-                "revision_uri must use "
-                "frames://world/{world_id}/revision/{revision_id}"
-            )
-        simulation_frame_uri = _string(
-            world["simulation_frame_uri"], "simulation_frame_uri"
-        )
-        if not simulation_frame_uri.startswith(f"{revision_uri}/frame/"):
-            raise WorldConfigurationError(
-                "simulation_frame_uri must identify a frame in revision_uri"
-            )
+        revision = _frame_address(revision_uri, frame=False)
+        simulation_frame_uri = _string(world["simulation_frame_uri"], "simulation_frame_uri")
+        simulation_frame = _frame_address(simulation_frame_uri, frame=True)
+        if simulation_frame[:4] != revision:
+            raise WorldConfigurationError("simulation_frame_uri must identify a frame in revision_uri")
         spec_sha256 = _string(world["spec_sha256"], "spec_sha256", 64)
         if len(spec_sha256) != 64 or any(
             character not in "0123456789abcdef" for character in spec_sha256

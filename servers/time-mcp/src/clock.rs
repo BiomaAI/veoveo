@@ -72,7 +72,7 @@ impl ClockMonitor {
 
     pub async fn quality(&self) -> Result<ClockQuality> {
         match &self.source {
-            ClockSource::System => Ok(ClockQuality {
+            ClockSource::System => Ok(crate::ClockQualityValue {
                 synchronized: false,
                 estimated_offset_nanoseconds: 0,
                 error_bound_nanoseconds: u64::MAX,
@@ -81,7 +81,8 @@ impl ClockMonitor {
                 source_diversity: 0,
                 traceability: vec!["system_clock_unmeasured".to_owned()],
                 observed_at: Utc::now().to_rfc3339(),
-            }),
+            }
+            .build()?),
             ClockSource::NtpdRs { observation_socket } => {
                 let stream = tokio::time::timeout(
                     self.timeout,
@@ -103,13 +104,13 @@ impl ClockMonitor {
                 }
                 let observation: NtpdObservation =
                     serde_json::from_slice(&bytes).context("decoding ntpd-rs observation")?;
-                Ok(project_ntpd(observation))
+                project_ntpd(observation)
             }
         }
     }
 }
 
-fn project_ntpd(observation: NtpdObservation) -> ClockQuality {
+fn project_ntpd(observation: NtpdObservation) -> Result<ClockQuality> {
     let usable: Vec<_> = observation
         .sources
         .iter()
@@ -141,7 +142,7 @@ fn project_ntpd(observation: NtpdObservation) -> ClockQuality {
     if usable.iter().any(|source| source.nts_cookies.is_some()) {
         traceability.push("nts".to_owned());
     }
-    ClockQuality {
+    crate::ClockQualityValue {
         synchronized: observation.system.stratum < 16
             && !usable.is_empty()
             && !matches!(
@@ -156,6 +157,8 @@ fn project_ntpd(observation: NtpdObservation) -> ClockQuality {
         traceability,
         observed_at: Utc::now().to_rfc3339(),
     }
+    .build()
+    .map_err(Into::into)
 }
 
 fn seconds_to_i64_nanoseconds(seconds: f64) -> i64 {
@@ -180,7 +183,7 @@ fn seconds_to_u64_nanoseconds(seconds: f64) -> u64 {
         .clamp(0.0, u64::MAX as f64) as u64
 }
 
-pub fn assess_clock(quality: ClockQuality, policy: ClockQualityPolicy) -> ClockAssessment {
+pub fn assess_clock(quality: ClockQuality, policy: ClockQualityPolicy) -> Result<ClockAssessment> {
     let mut violations = Vec::new();
     if !quality.synchronized {
         violations.push("clock is not synchronized".to_owned());
@@ -200,12 +203,14 @@ pub fn assess_clock(quality: ClockQuality, policy: ClockQualityPolicy) -> ClockA
     {
         violations.push("clock holdover age exceeds policy".to_owned());
     }
-    ClockAssessment {
+    crate::ClockAssessmentValue {
         acceptable: violations.is_empty(),
         quality,
         policy,
         violations,
     }
+    .build()
+    .map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -232,7 +237,7 @@ mod tests {
             }]
         }))
         .unwrap();
-        let quality = project_ntpd(observation);
+        let quality = project_ntpd(observation).unwrap();
         assert!(quality.synchronized);
         assert_eq!(quality.estimated_offset_nanoseconds, 200_000);
         assert_eq!(quality.source_diversity, 1);
@@ -246,7 +251,16 @@ mod tests {
                 .maximum_holdover_seconds(60)
                 .build()
                 .expect("valid built-in Time clock policy"),
-        );
+        )
+        .unwrap();
         assert!(assessment.acceptable);
+        let bytes = serde_json::to_value(&assessment).unwrap();
+        assert!(serde_json::from_value::<ClockAssessment>(bytes.clone()).is_ok());
+        let mut contradictory = bytes;
+        contradictory["acceptable"] = serde_json::json!(false);
+        assert!(serde_json::from_value::<ClockAssessment>(contradictory).is_err());
+        let mut draft = crate::contract::ClockAssessmentValue::from(assessment);
+        draft.acceptable = false;
+        assert!(draft.build().is_err());
     }
 }

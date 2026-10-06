@@ -18,11 +18,13 @@ function reportSize(){requestAnimationFrame(()=>bridge.notify("ui/notifications/
 function applyTheme(context){const theme=context?.theme;document.documentElement.dataset.theme=theme==="light"?"light":"dark"}
 async function read(uri){const result=resourceEnvelope(await bridge.request("resources/read",{uri})),content=result.contents.find(item=>item.uri===uri);if(!content)throw new Error(`${uri} returned no content`);if("text" in content && typeof content.text==="string"){try{return JSON.parse(content.text)}catch{return content.text}}return content}
 function cursorPage(value){
- if(!value||!Array.isArray(value.items))return null;
+ if(!value)return null;
+ const items=Array.isArray(value.items)?value.items:Array.isArray(value.models)?value.models:null;
+ if(!items)return null;
  if(Object.hasOwn(value,"limit")){
-  return Number.isSafeInteger(value.limit)&&value.limit>0&&value.items.length<=value.limit&&(value.next_cursor===null||(typeof value.next_cursor==="string"&&value.next_cursor.length>0))?{next:value.next_cursor}:null;
+  return Number.isSafeInteger(value.limit)&&value.limit>0&&items.length<=value.limit&&(value.next_cursor===null||(typeof value.next_cursor==="string"&&value.next_cursor.length>0))?{next:value.next_cursor}:null;
  }
- return value.items.length<=100&&value.items.every(item=>item&&typeof item.uri==="string")&&(value.nextCursor===undefined||(typeof value.nextCursor==="string"&&value.nextCursor.length>0))?{next:value.nextCursor??null}:null;
+ return items.length<=100&&items.every(item=>item&&typeof item.uri==="string")&&(value.nextCursor===undefined||(typeof value.nextCursor==="string"&&value.nextCursor.length>0))?{next:value.nextCursor??null}:null;
 }
 function updatePager(loading=false){const paged=cursorPage(activeValue);$("pager").hidden=!paged&&!pageHistory.length&&!activeCursor;$("page-previous").disabled=loading||!pageHistory.length;$("page-next").disabled=loading||!paged||!paged.next;$("page-number").textContent=`Page ${pageHistory.length+1}`}
 async function selectResource(resource,cursor=null,history=[]){const generation=++resourceGeneration;activeResource=resource.uri;activeCursor=cursor;pageHistory=history;updatePager(true);document.querySelectorAll(".resource").forEach(node=>node.classList.toggle("active",node instanceof HTMLElement && node.dataset.uri===resource.uri));$("resource-title").textContent=resource.label;$("payload").textContent="Loading…";setStatus("reading");let uri=resource.uri;try{if(cursor!==null){const next=new URL(uri);next.searchParams.set("cursor",cursor);uri=next.href}const value=await read(uri);if(generation!==resourceGeneration||closed)return;activeValue=value;$("payload").textContent=resultText(value);setStatus("ready","good")}catch(error){if(generation!==resourceGeneration||closed)return;$("payload").textContent=`${uri}\n\n${error.message}`;setStatus("resource unavailable","bad")}updatePager();reportSize()}

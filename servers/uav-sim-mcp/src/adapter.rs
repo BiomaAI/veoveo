@@ -172,7 +172,7 @@ impl HttpAdapter {
                 started_at: recording.started_at,
             });
         }
-        Ok(SimulationState {
+        SimulationState {
             session_id: state.session_id,
             lifecycle: state.lifecycle,
             simulation_time_s: state.simulation_time_s,
@@ -186,7 +186,9 @@ impl HttpAdapter {
             vehicles: state.vehicles,
             recordings,
             updated_at: state.updated_at,
-        })
+        }
+        .build()
+        .map_err(|error| AdapterError::InvalidState(error.to_string()))
     }
 
     pub async fn configure_world(
@@ -207,15 +209,23 @@ impl HttpAdapter {
         session_id: &SessionId,
         world: &SimulationWorldBinding,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        self.post("v1/world", &AdapterWorldRequest { session_id, world })
-            .await
+        world
+            .validate()
+            .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        let output: ConfigureWorldOutput = self
+            .post("v1/world", &AdapterWorldRequest { session_id, world })
+            .await?;
+        admit_world_reply(session_id, world, &output)?;
+        Ok(output)
     }
 
     pub async fn command(
         &self,
         command: &SimulationCommand,
     ) -> Result<CommandAcknowledgement, AdapterError> {
-        self.post("v1/commands", command).await
+        let output: CommandAcknowledgement = self.post("v1/commands", command).await?;
+        admit_command_reply(command, &output)?;
+        Ok(output)
     }
 
     pub async fn execute(
@@ -412,7 +422,7 @@ impl FakeAdapter {
                 return Ok(ConfigureWorldOutput {
                     accepted: true,
                     world: world.clone(),
-                    resource_uri: uris::world(session_id).into(),
+                    resource_uri: crate::contract::UavResource::World(session_id.clone()),
                 });
             }
             return Err(AdapterError::InvalidState(
@@ -425,7 +435,7 @@ impl FakeAdapter {
         Ok(ConfigureWorldOutput {
             accepted: true,
             world: world.clone(),
-            resource_uri: uris::world(session_id).into(),
+            resource_uri: crate::contract::UavResource::World(session_id.clone()),
         })
     }
 
@@ -511,7 +521,8 @@ impl FakeAdapter {
         Ok(CommandAcknowledgement {
             accepted: true,
             detail,
-            resource_uri: resource_uri.into(),
+            resource_uri: crate::contract::UavResource::parse(resource_uri.as_str())
+                .map_err(|error| AdapterError::InvalidState(error.to_string()))?,
         })
     }
 
@@ -624,10 +635,17 @@ impl Adapter {
         &self,
         request: &ConfigureWorldRequest,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        match self {
+        let output = match self {
             Self::Http(adapter) => adapter.configure_world(request).await,
             Self::Fake(adapter) => adapter.lock().await.configure_world(request),
-        }
+        }?;
+        let world = SimulationWorldBinding::from_revision(
+            &request.world_revision,
+            &request.simulation_frame_uri,
+        )
+        .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        admit_world_reply(&request.session_id, &world, &output)?;
+        Ok(output)
     }
 
     pub async fn configure_world_binding(
@@ -635,19 +653,26 @@ impl Adapter {
         session_id: &SessionId,
         world: &SimulationWorldBinding,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        match self {
+        let output = match self {
             Self::Http(adapter) => adapter.configure_world_binding(session_id, world).await,
             Self::Fake(adapter) => adapter
                 .lock()
                 .await
                 .configure_world_binding(session_id, world),
-        }
+        }?;
+        admit_world_reply(session_id, world, &output)?;
+        Ok(output)
     }
 
     pub async fn state(&self) -> Result<SimulationState, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.state().await,
-            Self::Fake(adapter) => Ok(adapter.lock().await.state()),
+            Self::Fake(adapter) => adapter
+                .lock()
+                .await
+                .state()
+                .build()
+                .map_err(|error| AdapterError::InvalidState(error.to_string())),
         }
     }
 
@@ -655,10 +680,12 @@ impl Adapter {
         &self,
         command: &SimulationCommand,
     ) -> Result<CommandAcknowledgement, AdapterError> {
-        match self {
+        let output = match self {
             Self::Http(adapter) => adapter.command(command).await,
             Self::Fake(adapter) => adapter.lock().await.command(command),
-        }
+        }?;
+        admit_command_reply(command, &output)?;
+        Ok(output)
     }
 
     pub async fn execute(
@@ -737,6 +764,51 @@ pub(crate) fn private_protocol_schemas() -> serde_json::Map<String, serde_json::
     .clone()
 }
 
+#[cfg(all(test, feature = "mcp"))]
+use crate::server::test_support::fixture;
+
+fn admit_world_reply(
+    session: &SessionId,
+    world: &SimulationWorldBinding,
+    output: &ConfigureWorldOutput,
+) -> Result<(), AdapterError> {
+    if !output.accepted
+        || &output.world != world
+        || output.resource_uri != crate::contract::UavResource::World(session.clone())
+    {
+        return Err(AdapterError::InvalidState(
+            "simulator rejected or mismatched the requested world binding".into(),
+        ));
+    }
+    Ok(())
+}
+fn admit_command_reply(
+    command: &SimulationCommand,
+    output: &CommandAcknowledgement,
+) -> Result<(), AdapterError> {
+    use crate::contract::UavResource;
+    let expected = match command {
+        SimulationCommand::Pause(r)
+        | SimulationCommand::Resume(r)
+        | SimulationCommand::Reset(r) => UavResource::Session(r.session_id.clone()),
+        SimulationCommand::Step(r) => UavResource::World(r.session_id.clone()),
+        SimulationCommand::Arm(r) | SimulationCommand::Land(r) => UavResource::Vehicle {
+            session: r.session_id.clone(),
+            vehicle: r.vehicle_id.clone(),
+        },
+        SimulationCommand::Takeoff(r) => UavResource::Vehicle {
+            session: r.session_id.clone(),
+            vehicle: r.vehicle_id.clone(),
+        },
+    };
+    if !output.accepted || output.resource_uri != expected {
+        return Err(AdapterError::InvalidState(
+            "simulator rejected or mismatched the requested command".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
@@ -751,14 +823,57 @@ mod tests {
         FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
     };
 
+    #[cfg(feature = "mcp")]
+    #[tokio::test]
+    async fn actual_http_acknowledgements_reject_foreign_parents_and_failed_worlds() {
+        use axum::{Json, Router, extract::State, routing::post};
+        use std::future::IntoFuture;
+        tokio::time::timeout(Duration::from_secs(120), async {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            let db = super::fixture::TestDb::new().await;
+            let response = Arc::new(Mutex::new(serde_json::json!({"accepted": true, "detail": "paused", "resource_uri": "uav-sim://session/session-alpha"})));
+            async fn reply(State(value): State<Arc<Mutex<serde_json::Value>>>, Json(_request): Json<serde_json::Value>) -> Json<serde_json::Value> { Json(value.lock().await.clone()) }
+            let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = Url::parse(&format!("http://{}/", socket.local_addr().unwrap())).unwrap();
+            let server = tokio::spawn(axum::serve(socket, Router::new().route("/v1/commands", post(reply)).route("/v1/world", post(reply)).with_state(response.clone())).into_future());
+            struct Server(tokio::task::JoinHandle<Result<(), std::io::Error>>);
+            impl Drop for Server { fn drop(&mut self) { self.0.abort(); } }
+            let _server = Server(server);
+            let adapter = HttpAdapter::new(url, Duration::from_secs(5), Duration::from_secs(5), SecretString::from("fixture"), db.a.clone(), "test").unwrap();
+            let session = SessionId::parse("session-alpha").unwrap();
+            let command = SimulationCommand::Pause(crate::contract::SessionRequest { session_id: session.clone() });
+            assert!(adapter.command(&command).await.unwrap().accepted);
+            for resource in ["uav-sim://session/other", "uav-sim://session/session-alpha/world", "uav-sim://session/session-alpha/vehicle/uav-1"] {
+                *response.lock().await = serde_json::json!({"accepted": true, "detail": "paused", "resource_uri": resource});
+                assert!(matches!(adapter.command(&command).await, Err(AdapterError::InvalidState(_))));
+            }
+            *response.lock().await = serde_json::json!({"accepted": false, "detail": "command rejected", "resource_uri": "uav-sim://session/session-alpha"});
+            assert!(adapter.command(&command).await.is_err());
+            let world = fake_world();
+            let good = ConfigureWorldOutput { accepted: true, world: world.clone(), resource_uri: crate::contract::UavResource::World(session.clone()) };
+            *response.lock().await = serde_json::to_value(&good).unwrap();
+            assert_eq!(adapter.configure_world_binding(&session, &world).await.unwrap(), good);
+            for field in 0..3 {
+                let mut wire = serde_json::to_value(&good).unwrap();
+                match field {
+                    0 => wire["accepted"] = false.into(),
+                    1 => wire["resource_uri"] = "uav-sim://session/other/world".into(),
+                    _ => wire["world"]["spec_sha256"] = "b".repeat(64).into(),
+                }
+                *response.lock().await = wire;
+                assert!(adapter.configure_world_binding(&session, &world).await.is_err());
+            }
+        }).await.expect("UAV acknowledgement HTTP controls exceeded 120 seconds");
+    }
+
     fn fake_world() -> SimulationWorldBinding {
         let revision_uri = FrameWorldRevisionUri::new(
             &FrameWorldId::parse("test-world").unwrap(),
             &FrameWorldRevisionId::parse("revision-1").unwrap(),
         );
-        SimulationWorldBinding {
+        crate::contract::SimulationWorldBindingValue {
             revision_uri: revision_uri.clone(),
-            spec_sha256: "a".repeat(64),
+            spec_sha256: veoveo_artifact_contract::UploadSha256::parse("a".repeat(64)).unwrap(),
             simulation_frame_uri: WorldFrameUri::new(
                 &revision_uri,
                 &FrameId::parse("isaac-world").unwrap(),
@@ -769,6 +884,8 @@ mod tests {
                 ellipsoid_height_m: 700.0,
             },
         }
+        .build()
+        .unwrap()
     }
 
     fn fake_state() -> SimulationState {

@@ -98,9 +98,9 @@ impl GatewayLayerPublisher {
         artifact: PutArtifactRequest,
         path: &Path,
         expected_byte_len: u64,
-        expected_sha256: &str,
+        expected_sha256: &veoveo_types::Sha256Digest,
     ) -> Result<ArtifactMetadata> {
-        let artifact_id = ArtifactId::parse(layer_id.to_string())
+        let artifact_id = ArtifactId::try_from(layer_id.as_uuid())
             .context("recording layer ID is not a valid Artifact occurrence ID")?;
         self.publish_artifact(
             artifact_id,
@@ -118,13 +118,13 @@ impl GatewayLayerPublisher {
         artifact: PutArtifactRequest,
         path: &Path,
         expected_byte_len: u64,
-        expected_sha256: &str,
+        expected_sha256: &veoveo_types::Sha256Digest,
     ) -> Result<ArtifactMetadata> {
         let request = StreamArtifactRequest {
             artifact_id,
             artifact,
             expected_byte_len,
-            expected_sha256: veoveo_artifact_contract::UploadSha256::parse(expected_sha256)?,
+            expected_sha256: veoveo_artifact_contract::UploadSha256::parse(expected_sha256.hex())?,
         };
         let descriptor = serde_json::to_string(&request)?;
         ensure!(
@@ -157,12 +157,7 @@ impl GatewayLayerPublisher {
             .json::<ArtifactMetadata>()
             .await
             .context("decoding recording layer Artifact metadata")?;
-        ensure!(
-            metadata.artifact_id() == artifact_id
-                && metadata.byte_len == expected_byte_len
-                && metadata.download_url.is_none(),
-            "Artifact service returned mismatched recording layer metadata"
-        );
+        admit_publication_response(&metadata, artifact_id, expected_byte_len)?;
         Ok(metadata)
     }
 
@@ -192,6 +187,20 @@ impl GatewayLayerPublisher {
             .await
             .context("streaming recording layer through Gateway")
     }
+}
+
+fn admit_publication_response(
+    metadata: &ArtifactMetadata,
+    artifact_id: ArtifactId,
+    expected_byte_len: u64,
+) -> Result<()> {
+    ensure!(
+        metadata.artifact_uri == artifact_id.plane_uri()
+            && metadata.byte_len == expected_byte_len
+            && metadata.download_url.is_none(),
+        "Artifact service returned mismatched recording layer metadata"
+    );
+    Ok(())
 }
 
 fn validate_origin(url: &Url, label: &str) -> Result<()> {
@@ -264,5 +273,35 @@ mod tests {
             transport.as_str(),
             "http://mcp-gateway:8788/recordings/operator/layers"
         );
+    }
+    #[test]
+    fn publication_response_admits_only_expected_occurrence_length_and_plane_location() {
+        let id = ArtifactId::new();
+        let metadata = ArtifactMetadata {
+            byte_len: 3,
+            mime_type: None,
+            filename: None,
+            artifact_uri: id.plane_uri(),
+            download_url: None,
+            created_at: chrono::Utc::now(),
+            release_state: Default::default(),
+            compliance: Default::default(),
+            metadata: serde_json::json!({}),
+        };
+        // The real response supplies no declared digest; integrity is checked
+        // by the Artifact streaming request, not an invented metadata field.
+        admit_publication_response(&metadata, id, 3).unwrap();
+        let mut wrong = metadata.clone();
+        wrong.artifact_uri = ArtifactId::new().plane_uri();
+        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        let mut wrong = metadata.clone();
+        wrong.byte_len = 4;
+        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        let mut wrong = metadata.clone();
+        wrong.download_url = Some("https://unexpected.example/file".into());
+        assert!(admit_publication_response(&wrong, id, 3).is_err());
+        let wrong = metadata
+            .presented_under_scheme(&veoveo_types::ResourceScheme::parse("recording").unwrap());
+        assert!(admit_publication_response(&wrong, id, 3).is_err());
     }
 }

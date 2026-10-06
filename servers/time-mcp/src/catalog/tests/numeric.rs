@@ -109,7 +109,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
         let source = catalog
             .create_source(
                 &owner,
-                crate::NewTimeSource {
+                crate::NewTimeSourceValue {
                     source_id: TimeSourceId::parse(
                         "time-source-00000000-0000-7000-8000-000000000001",
                     )
@@ -120,7 +120,9 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
                     expected_content_type: "application/gzip".into(),
                     enabled: true,
                     record_version: crate::SourceCreationVersion,
-                },
+                }
+                .build()
+                .unwrap(),
             )
             .await
             .unwrap();
@@ -131,9 +133,14 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
             .await
             .unwrap()
             .unwrap();
-        let mut changed = retained.clone();
+        let mut changed = crate::TimeSourceValue::from(retained.clone());
         changed.enabled = false;
-        assert!(catalog.replace_source(&owner, changed, max).await.is_err());
+        assert!(
+            catalog
+                .replace_source(&owner, changed.build().unwrap(), max)
+                .await
+                .is_err()
+        );
         assert_eq!(
             catalog
                 .source(&owner, &source.source_id)
@@ -152,7 +159,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
                         "time-acquisition-00000000-0000-7000-8000-000000000001",
                     )
                     .unwrap(),
-                    source_id: source.source_id,
+                    source_id: source.source_id.clone(),
                     expected_source_digest_sha256: None,
                     status: TimeAcquisitionStatus::Queued,
                     phase: crate::TimeAcquisitionPhase::Queued,
@@ -176,10 +183,17 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
         for version in [0, i64::MAX as u64, u64::MAX] {
             let mut wire = serde_json::to_value(&retained).unwrap();
             wire["record_version"] = version.into();
+            wire["status"] = "running".into();
             wire["phase"] = "downloading".into();
             match serde_json::from_value::<TimeAcquisition>(wire) {
-                Ok(changed) => assert!(catalog.update_acquisition(&owner, changed).await.is_err()),
-                Err(_) => assert!(crate::TimeVersion::new(version).is_err()),
+                Ok(changed) => {
+                    assert_eq!(version, i64::MAX as u64);
+                    assert!(catalog.update_acquisition(&owner, changed).await.is_err());
+                }
+                Err(error) => assert!(
+                    crate::TimeVersion::new(version).is_err(),
+                    "an admitted exhausted version must reach the update fence: {error}"
+                ),
             }
             assert_eq!(
                 catalog

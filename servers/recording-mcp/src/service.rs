@@ -17,7 +17,9 @@ use veoveo_recording_store::{
     RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
     RecordingRecord, RecordingSeal, RecordingState,
 };
-use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
+use veoveo_rrd::properties_layer::{
+    RecordingPropertiesBuilder, build_properties_layer_with_admission,
+};
 use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName, Sha256Digest};
 
 use crate::contract::{
@@ -330,8 +332,8 @@ impl RecordingService {
                         artifact_id,
                         byte_len,
                         &sha256,
-                        dataset_uuid,
-                        recording_uuid,
+                        veoveo_recording_contract::RecordingDatasetId::try_from(dataset_uuid)?,
+                        veoveo_recording_contract::RecordingId::try_from(recording_uuid)?,
                     )
                     .await?;
                 archive_layers.push(PlaybackArchiveLayerPlan {
@@ -525,6 +527,9 @@ impl RecordingService {
         else {
             anyhow::bail!("recording not found");
         };
+        // Admit retained native lifecycle/timestamps before any seal mutation.
+        self.view(platform_identity.tenant_id, recording.clone())
+            .await?;
         if recording.state == RecordingState::Sealed {
             let dataset_id = RecordingDatasetId::from_uuid(record_uuid(
                 &recording.dataset,
@@ -552,15 +557,29 @@ impl RecordingService {
             .recording_layers(platform_identity.tenant_id, recording_id, MAX_LAYERS)
             .await?;
         ensure!(!layers.is_empty(), "recording has no layers");
+        for layer in &layers {
+            if layer.kind == RecordingLayerKind::Properties
+                && layer.state != RecordingLayerState::Committed
+            {
+                ensure!(
+                    recording.state == RecordingState::Sealing
+                        && matches!(
+                            layer.state,
+                            RecordingLayerState::Writing | RecordingLayerState::Staged
+                        ),
+                    "recording contains a non-resumable properties layer"
+                );
+                layer_view(layer)?;
+            } else {
+                manifest_layer(layer)?;
+            }
+        }
         ensure!(
             layers
                 .iter()
-                .all(|layer| layer.state == RecordingLayerState::Committed),
-            "recording contains a non-committed layer"
+                .any(|layer| layer.kind != RecordingLayerKind::Properties),
+            "recording has no committed source layers"
         );
-        for layer in &layers {
-            manifest_layer(layer)?;
-        }
         if recording.state != RecordingState::Sealing {
             self.recordings
                 .begin_recording_seal(&platform_identity, recording_id, None)
@@ -677,33 +696,14 @@ impl RecordingService {
             .as_ref()
             .context("recording catalog cache is not configured")?;
         let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
-        let relative_path = format!("properties/{recording_id}.rrd");
-        let path = cache_root.join(&relative_path);
-        std::fs::create_dir_all(
-            path.parent()
-                .context("recording properties layer has no parent")?,
-        )?;
-        let mut layer = self
-            .recordings
-            .open_recording_layer(RecordingLayerDraft {
-                identity: identity.clone(),
-                recording_id,
-                layer_name: "properties".to_owned(),
-                kind: RecordingLayerKind::Properties,
-                ordinal: None,
-                staging_path: Some(relative_path),
-                start_time: None,
-            })
-            .await?;
-        if layer.state == RecordingLayerState::Committed {
-            return Ok(());
-        }
-        let properties = RecordingProperties {
-            dataset_id: uuid::Uuid::parse_str(&dataset_id.to_string())?,
-            recording_id: uuid::Uuid::parse_str(&recording_id.to_string())?,
+        let properties = RecordingPropertiesBuilder {
+            dataset_id: veoveo_recording_contract::RecordingDatasetId::try_from(
+                dataset_id.as_uuid(),
+            )?,
+            recording_id: veoveo_recording_contract::RecordingId::try_from(recording_id.as_uuid())?,
             dataset_key: dataset_key.to_owned(),
             producer_recording_key: recording.recording_key.clone(),
-            lifecycle_state: "sealed".to_owned(),
+            lifecycle_state: veoveo_recording_contract::RecordingState::Sealed,
             started_at: recording.started_at.to_rfc3339(),
             ended_at: recording
                 .ended_at
@@ -718,40 +718,95 @@ impl RecordingService {
             ),
             model_revisions: Default::default(),
             environment_revisions: Default::default(),
-        };
-        if layer.state == RecordingLayerState::Writing {
-            let inspection = if path.exists() {
-                veoveo_rrd::recording_layer::inspect_canonical_recording_layer(
-                    &path,
-                    properties.dataset_id,
-                    properties.recording_id,
-                )?
-            } else {
-                build_properties_layer(&path, &properties)?
-            };
-            layer = self
-                .recordings
-                .stage_recording_layer(
-                    identity,
-                    RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?),
-                    i64::try_from(inspection.byte_len)?,
-                    i64::try_from(inspection.message_count)?,
-                    &inspection.sha256,
-                    Some(&inspection.rrd_version),
-                    Some(&inspection.schema_digest),
-                    Some(sealed_at),
-                )
-                .await?;
         }
+        .build()?;
+        let relative_path = format!("properties/{recording_id}.rrd");
+        let path = cache_root.join(&relative_path);
+        std::fs::create_dir_all(
+            path.parent()
+                .context("recording properties layer has no parent")?,
+        )?;
+        let mut layer = self
+            .recordings
+            .open_recording_layer(RecordingLayerDraft {
+                identity: identity.clone(),
+                recording_id,
+                layer_name: "properties".to_owned(),
+                kind: RecordingLayerKind::Properties,
+                ordinal: None,
+                staging_path: Some(relative_path.clone()),
+                start_time: None,
+            })
+            .await?;
+        if layer.state == RecordingLayerState::Committed {
+            return Ok(());
+        }
+        ensure!(
+            matches!(
+                layer.state,
+                RecordingLayerState::Writing | RecordingLayerState::Staged
+            ) && layer.staging_path.as_deref() == Some(relative_path.as_str())
+                && layer.start_time.is_none()
+                && layer.artifact.is_none()
+                && layer.failure_reason.is_none(),
+            "retained properties layer has contradictory publication bindings"
+        );
+        if layer.state == RecordingLayerState::Writing {
+            ensure!(
+                layer.byte_len == 0
+                    && layer.message_count == 0
+                    && layer.sha256.is_none()
+                    && layer.schema_digest.is_none()
+                    && layer.rrd_version.is_none()
+                    && layer.end_time.is_none(),
+                "retained Writing properties layer has contradictory stage facts"
+            );
+        }
+        if layer.state == RecordingLayerState::Staged {
+            ensure!(
+                layer.end_time == Some(sealed_at),
+                "retained Staged properties seal time differs from source snapshot"
+            );
+        }
+        let inspection = build_properties_layer_with_admission(&path, &properties, |expected| {
+            if layer.state == RecordingLayerState::Staged {
+                ensure!(
+                    layer.byte_len == i64::try_from(expected.byte_len)?
+                        && layer.message_count == i64::try_from(expected.message_count)?
+                        && layer.sha256.as_deref() == Some(expected.sha256.hex())
+                        && layer.schema_digest.as_deref() == Some(expected.schema_digest.hex())
+                        && layer.rrd_version.as_deref() == Some(expected.rrd_version.as_str()),
+                    "retained Staged properties facts differ from admitted properties"
+                );
+            }
+            Ok(())
+        })?;
+        // Staged repeats must match the same bytes and complete immutable stage
+        // facts; the repository returns matching repeats without mutation.
+        layer = self
+            .recordings
+            .stage_recording_layer(
+                identity,
+                RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?),
+                i64::try_from(inspection.byte_len)?,
+                i64::try_from(inspection.message_count)?,
+                &inspection.sha256,
+                Some(&inspection.rrd_version),
+                Some(&inspection.schema_digest),
+                Some(sealed_at),
+            )
+            .await?;
         ensure!(
             layer.state == RecordingLayerState::Staged,
             "recording properties layer is not publishable"
         );
         let layer_id = RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
-        let sha256 = layer
-            .sha256
-            .as_deref()
-            .context("staged properties layer has no digest")?;
+        let sha256 = Sha256Digest::from_hex(
+            layer
+                .sha256
+                .as_deref()
+                .context("staged properties layer has no digest")?,
+        )?;
         let byte_len = u64::try_from(layer.byte_len)?;
         let metadata = publisher
             .publish(
@@ -769,18 +824,17 @@ impl RecordingService {
                             "dataset_id": dataset_id,
                             "recording_id": recording_id,
                             "layer_id": layer_id,
-                            "sha256": sha256,
+                            "sha256": sha256.hex(),
                         }
                     }),
                 },
                 &path,
                 byte_len,
-                sha256,
+                &sha256,
             )
             .await?;
         ensure!(
-            metadata.artifact_id().as_uuid() == uuid::Uuid::parse_str(&layer_id.to_string())?
-                && metadata.byte_len == byte_len,
+            metadata.artifact_id().as_uuid() == layer_id.as_uuid() && metadata.byte_len == byte_len,
             "published properties occurrence does not match its reserved layer"
         );
         self.recordings
@@ -872,7 +926,7 @@ impl RecordingService {
                 },
                 &path,
                 byte_len,
-                &blueprint.sha256,
+                &Sha256Digest::from_hex(&blueprint.sha256)?,
             )
             .await?;
         ensure!(
@@ -912,7 +966,7 @@ impl RecordingService {
         std::fs::create_dir_all(&directory)?;
         let path = directory.join(format!("{recording_id}.v9.json"));
         let bytes = serde_json::to_vec_pretty(manifest)?;
-        let sha256 = hex::encode(Sha256::digest(&bytes));
+        let sha256 = Sha256Digest::from_bytes(Sha256::digest(&bytes).into());
         if path.exists() {
             let existing = std::fs::read(&path)?;
             ensure!(
@@ -946,7 +1000,7 @@ impl RecordingService {
                             "recording_id": recording_id,
                             "dataset_id": dataset_id,
                             "catalog_revision": manifest.catalog_revision,
-                            "sha256": sha256,
+                            "sha256": sha256.hex(),
                         }
                     }),
                 },
@@ -1113,7 +1167,7 @@ fn source_layer_manifest_digest(
     dataset_id: RecordingDatasetId,
     recording_id: RecordingId,
     layers: &[RecordingLayerRecord],
-) -> String {
+) -> Sha256Digest {
     let mut digest = Sha256::new();
     digest.update(dataset_id.to_string());
     digest.update([0]);
@@ -1130,7 +1184,7 @@ fn source_layer_manifest_digest(
             digest.update(sha256.as_bytes());
         }
     }
-    hex::encode(digest.finalize())
+    Sha256Digest::from_bytes(digest.finalize().into())
 }
 
 pub(super) fn recording_state(state: RecordingState) -> crate::contract::RecordingState {

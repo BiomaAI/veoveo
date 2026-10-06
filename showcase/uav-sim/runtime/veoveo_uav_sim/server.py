@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .outbound import command_resource
+
 import asyncio
 import concurrent.futures
 from dataclasses import dataclass
@@ -68,7 +70,7 @@ def _world_configuration_response(
     return admit_output(WorldAcknowledgement, {
         "accepted": True,
         "world": world.as_dict(),
-        "resource_uri": f"uav-sim://session/{session_id}/world",
+        "resource_uri": command_resource(session_id, world=True),
     })
 
 
@@ -342,11 +344,11 @@ class AdapterApplication:
         if command.command == "pause":
             self._timeline.pause()
             detail = "simulation paused"
-            resource_uri = f"uav-sim://session/{command.session_id}"
+            resource_uri = command_resource(command.session_id)
         elif command.command == "resume":
             self._timeline.resume()
             detail = "simulation resumed"
-            resource_uri = f"uav-sim://session/{command.session_id}"
+            resource_uri = command_resource(command.session_id)
         elif command.command == "reset":
             snapshot = self._state.snapshot()
             if any(
@@ -356,14 +358,14 @@ class AdapterApplication:
                 raise RuntimeError("all vehicles must be landed before reset")
             self._timeline.reset()
             detail = "simulation reset"
-            resource_uri = f"uav-sim://session/{command.session_id}"
+            resource_uri = command_resource(command.session_id)
         elif command.command == "step":
             assert command.steps is not None
             if self._state.snapshot()["lifecycle"] != "paused":
                 raise RuntimeError("simulation must be paused before stepping")
             self._timeline.step(command.steps)
             detail = f"advanced {command.steps} physics step(s)"
-            resource_uri = f"uav-sim://session/{command.session_id}/world"
+            resource_uri = command_resource(command.session_id, world=True)
         else:
             assert command.vehicle_id is not None
             deadline = CommandDeadline.after(DIRECT_VEHICLE_COMMAND_BUDGET_SECONDS)
@@ -384,7 +386,7 @@ class AdapterApplication:
             else:
                 raise AssertionError("validated command was not handled")
             resource_uri = (
-                f"uav-sim://session/{command.session_id}/vehicle/{command.vehicle_id}"
+                command_resource(command.session_id, vehicle_id=command.vehicle_id)
             )
         return {"accepted": True, "detail": detail, "resource_uri": resource_uri}
 

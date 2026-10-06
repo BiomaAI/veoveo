@@ -52,6 +52,8 @@ required-features = ["contract"]
 default = ["mcp"]
 schema = ["dep:veoveo-modules"]
 contract = [
+    "dep:hex",
+    "dep:sha2",
     "dep:veoveo-map-mcp",
     "dep:base64",
     "dep:chrono",

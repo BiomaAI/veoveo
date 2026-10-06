@@ -75,11 +75,6 @@
       "permissions": [
         "read"
       ],
-      "executionLimits": {
-        "maximumSeconds": 10,
-        "maximumOutputBytes": 1024,
-        "onInterruption": "stop_computer"
-      },
       "expiresAt": "2026-01-02T00:00:00Z"
     },
     "tag": "/permissions/0",
@@ -131,11 +126,6 @@
       "permissions": [
         "start"
       ],
-      "executionLimits": {
-        "maximumSeconds": 10,
-        "maximumOutputBytes": 1024,
-        "onInterruption": "stop_computer"
-      },
       "expiresAt": "2026-01-02T00:00:00Z"
     },
     "tag": "/permissions/0",
@@ -159,11 +149,6 @@
       "permissions": [
         "stop"
       ],
-      "executionLimits": {
-        "maximumSeconds": 10,
-        "maximumOutputBytes": 1024,
-        "onInterruption": "stop_computer"
-      },
       "expiresAt": "2026-01-02T00:00:00Z"
     },
     "tag": "/permissions/0",
@@ -185,7 +170,8 @@
       "oauthClientId": "fixture",
       "name": "Fixture",
       "permissions": [
-        "read"
+        "read",
+        "execute"
       ],
       "executionLimits": {
         "maximumSeconds": 10,

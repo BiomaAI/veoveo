@@ -2,36 +2,14 @@ use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock},
 };
-use veoveo_media_mcp::contract::{
-    MediaModelUri, ModelCatalogItem, ModelCatalogOutput, ModelEntry, ModelSchemaOutput, ModelsArgs,
-};
-
-const DEFAULT_MODEL_LIMIT: usize = 20;
-const MAX_MODEL_LIMIT: usize = 100;
+use veoveo_media_mcp::contract::{MediaModelUri, ModelEntry, ModelSchemaOutputValue, ModelsArgs};
 
 pub(super) fn models_result(
     models: &[ModelEntry],
     args: ModelsArgs,
 ) -> Result<CallToolResult, McpError> {
-    let limit = validated_limit(args.limit)?;
-    let query = normalized_filter(args.query);
-    let model_type = normalized_filter(args.model_type);
-    let mut filtered: Vec<ModelCatalogItem> = models
-        .iter()
-        .filter(|model| matches_type(model, model_type.as_deref()))
-        .filter(|model| matches_query(model, query.as_deref()))
-        .map(catalog_item)
-        .collect();
-    filtered.sort_by(|left, right| left.model_id.cmp(&right.model_id));
-    let total_available = filtered.len();
-    filtered.truncate(limit);
-    let output = ModelCatalogOutput {
-        query,
-        model_type,
-        total_available,
-        returned: filtered.len(),
-        models: filtered,
-    };
+    let output = veoveo_media_mcp::contract::model_catalog_page(models, args)
+        .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
     call_result(
         format!(
             "Found {} matching media model(s), returning {}. Use exact `model_id` values with media__run.",
@@ -43,7 +21,7 @@ pub(super) fn models_result(
 
 pub(super) fn model_schema_result(model: ModelEntry) -> Result<CallToolResult, McpError> {
     let request_schema = model.request_schema().cloned();
-    let output = ModelSchemaOutput {
+    let output = ModelSchemaOutputValue {
         model_id: model.model_id.clone(),
         name: model.name,
         model_type: model.model_type,
@@ -52,7 +30,9 @@ pub(super) fn model_schema_result(model: ModelEntry) -> Result<CallToolResult, M
         formula: model.formula,
         schema_uri: MediaModelUri::new(model.model_id.clone()),
         request_schema,
-    };
+    }
+    .build()
+    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
     call_result(
         format!(
             "Schema for {}. Pass this exact model id as `model` to media__run.",
@@ -70,57 +50,10 @@ fn call_result<T: serde::Serialize>(text: String, output: T) -> Result<CallToolR
     Ok(result)
 }
 
-fn validated_limit(limit: Option<u32>) -> Result<usize, McpError> {
-    let limit = limit
-        .map(usize::try_from)
-        .transpose()
-        .map_err(|_| McpError::invalid_params("limit does not fit this platform", None))?
-        .unwrap_or(DEFAULT_MODEL_LIMIT);
-    if limit == 0 || limit > MAX_MODEL_LIMIT {
-        return Err(McpError::invalid_params(
-            format!("limit must be between 1 and {MAX_MODEL_LIMIT}"),
-            None,
-        ));
-    }
-    Ok(limit)
-}
-
-fn normalized_filter(value: Option<String>) -> Option<String> {
-    value
-        .map(|value| value.trim().to_ascii_lowercase())
-        .filter(|value| !value.is_empty())
-}
-
-fn matches_type(model: &ModelEntry, model_type: Option<&str>) -> bool {
-    model_type
-        .map(|expected| model.model_type.eq_ignore_ascii_case(expected))
-        .unwrap_or(true)
-}
-
-fn matches_query(model: &ModelEntry, query: Option<&str>) -> bool {
-    let Some(query) = query else {
-        return true;
-    };
-    model.model_id.as_str().to_ascii_lowercase().contains(query)
-        || model.name.to_ascii_lowercase().contains(query)
-        || model.model_type.to_ascii_lowercase().contains(query)
-        || model.description.to_ascii_lowercase().contains(query)
-}
-
-fn catalog_item(model: &ModelEntry) -> ModelCatalogItem {
-    ModelCatalogItem {
-        model_id: model.model_id.clone(),
-        name: model.name.clone(),
-        model_type: model.model_type.clone(),
-        description: model.description.clone(),
-        base_price: model.base_price,
-        schema_uri: MediaModelUri::new(model.model_id.clone()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veoveo_media_mcp::contract::{ModelCatalogOutput, ModelSchemaOutput};
 
     fn model(model_id: &str, model_type: &str, description: &str) -> ModelEntry {
         ModelEntry {
@@ -171,6 +104,7 @@ mod tests {
                 query: Some("flux".to_string()),
                 model_type: Some("text-to-image".to_string()),
                 limit: Some(10),
+                cursor: None,
             },
         )
         .unwrap();
@@ -201,5 +135,120 @@ mod tests {
                 .and_then(|schema| schema.get("required"))
                 .is_some()
         );
+    }
+}
+
+#[cfg(test)]
+mod paging_tests {
+    use super::*;
+    use veoveo_media_mcp::contract::{
+        MediaModelIndexUri, MediaResource, ModelCatalogOutput, model_catalog_page,
+    };
+    #[test]
+    fn complete_catalog_traverses_tool_and_resource_pages_and_rejects_refresh() {
+        let models: Vec<_> = (0..237)
+            .map(|n| ModelEntry {
+                model_id: format!("test/model-{n:03}").parse().unwrap(),
+                name: format!("Model {n}"),
+                model_type: "image".into(),
+                description: "Open provider description".into(),
+                base_price: Some(-0.1),
+                formula: None,
+                api_schema: Some(serde_json::json!({"extension": {"provider": true}})),
+            })
+            .collect();
+        let mut cursor = None;
+        let mut seen = std::collections::BTreeSet::new();
+        loop {
+            let args = ModelsArgs {
+                query: Some(" MODEL ".into()),
+                model_type: Some(" IMAGE ".into()),
+                limit: Some(100),
+                cursor: cursor.clone(),
+            };
+            let result = models_result(&models, args.clone()).unwrap();
+            let tool: ModelCatalogOutput =
+                serde_json::from_value(result.structured_content.unwrap()).unwrap();
+            let uri = MediaModelIndexUri::new(
+                args.query.as_ref(),
+                args.model_type.as_ref(),
+                args.limit.as_ref(),
+                args.cursor.as_ref(),
+            );
+            let resource = MediaResource::parse(uri.as_str()).unwrap();
+            let MediaResource::Models(uri) = resource else {
+                panic!("model page")
+            };
+            let page = model_catalog_page(&models, uri.arguments()).unwrap();
+            assert_eq!(
+                serde_json::to_value(&tool).unwrap(),
+                serde_json::to_value(&page).unwrap()
+            );
+            for item in &page.models {
+                assert!(seen.insert(item.model_id.clone()));
+            }
+            cursor = page.next_cursor.clone();
+            if cursor.is_none() {
+                break;
+            }
+        }
+        assert_eq!(seen.len(), 237);
+        let first = model_catalog_page(
+            &models,
+            ModelsArgs {
+                query: None,
+                model_type: None,
+                limit: None,
+                cursor: None,
+            },
+        )
+        .unwrap();
+        let mut args = ModelsArgs {
+            query: None,
+            model_type: None,
+            limit: None,
+            cursor: first.next_cursor.clone(),
+        };
+        let mut refreshed = models.clone();
+        refreshed[0].description.push_str(" refreshed");
+        assert!(model_catalog_page(&refreshed, args.clone()).is_err());
+        args.query = Some("changed".into());
+        assert!(model_catalog_page(&models, args).is_err());
+        let mut duplicate = models.clone();
+        duplicate.push(models[0].clone());
+        assert!(
+            model_catalog_page(
+                &duplicate,
+                ModelsArgs {
+                    query: None,
+                    model_type: None,
+                    limit: None,
+                    cursor: None
+                }
+            )
+            .is_err()
+        );
+        let mut value = serde_json::to_value(&first).unwrap();
+        value["returned"] = serde_json::json!(0);
+        assert!(serde_json::from_value::<ModelCatalogOutput>(value).is_err());
+        let mut value = serde_json::to_value(&first).unwrap();
+        value["models"][0]["schema_uri"] = serde_json::json!("media://model/foreign/model");
+        assert!(serde_json::from_value::<ModelCatalogOutput>(value).is_err());
+        let mut value = serde_json::to_value(&first).unwrap();
+        value.as_object_mut().unwrap().remove("next_cursor");
+        assert!(serde_json::from_value::<ModelCatalogOutput>(value).is_err());
+        assert!(veoveo_media_mcp::contract::MediaModelCursor::parse("not-a-cursor").is_err());
+        let empty = model_catalog_page(
+            &[],
+            ModelsArgs {
+                query: None,
+                model_type: None,
+                limit: None,
+                cursor: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(empty.returned, 0);
+        assert!(empty.next_cursor.is_none());
     }
 }

@@ -129,6 +129,12 @@ fn well_known_resources() -> Vec<Resource> {
 /// `media://contract` capability inventory.
 pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
     vec![
+        ResourceTemplate::new(
+            veoveo_media_mcp::contract::MediaModelIndexUri::TEMPLATE,
+            "model_catalog_page",
+        )
+        .with_title("Media model catalog page")
+        .with_mime_type("application/json"),
         ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
             .with_title("Server document")
             .with_description("Embedded crate document body (contract C18).")
@@ -210,7 +216,7 @@ mod tests {
         };
         let setup = &*SERVER_SETUP;
         assert_eq!(setup.resources().len(), 8);
-        assert_eq!(setup.resource_templates().len(), 8);
+        assert_eq!(setup.resource_templates().len(), 9);
         let capabilities = &setup.server_config().capabilities;
         let resources = capabilities.resources.as_ref().unwrap();
         assert_eq!(resources.subscribe, Some(true));
@@ -267,6 +273,36 @@ mod tests {
                         .unwrap()
                         .as_str()
                         .to_owned()
+                } else if template.template().as_str()
+                    == veoveo_media_mcp::contract::MediaModelIndexUri::TEMPLATE
+                {
+                    let models = ["fixture/a", "fixture/b"]
+                        .into_iter()
+                        .map(|id| veoveo_media_mcp::contract::ModelEntry {
+                            model_id: id.parse().unwrap(),
+                            name: id.into(),
+                            model_type: "image".into(),
+                            description: "fixture".into(),
+                            base_price: None,
+                            formula: None,
+                            api_schema: None,
+                        })
+                        .collect::<Vec<_>>();
+                    veoveo_media_mcp::contract::model_catalog_page(
+                        &models,
+                        veoveo_media_mcp::contract::ModelsArgs {
+                            query: None,
+                            model_type: None,
+                            limit: Some(1),
+                            cursor: None,
+                        },
+                    )
+                    .unwrap()
+                    .next_cursor
+                    .as_ref()
+                    .unwrap()
+                    .as_str()
+                    .to_owned()
                 } else {
                     MediaUsageCursor::new(task).unwrap().as_str().to_owned()
                 };

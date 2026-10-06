@@ -106,7 +106,7 @@ fn record_id(entity: Entity, id: &RecordId, key: String) -> Result<()> {
 
 pub(super) fn source_from_record(record: TimeSourceRecord) -> Result<TimeSource> {
     let kind = Entity::Source;
-    let mut value = body::<TimeSource>(kind, &record.canonical_json)?;
+    let mut value = crate::TimeSourceValue::from(body::<TimeSource>(kind, &record.canonical_json)?);
     value.record_version = version(kind, "record_version", record.record_version)?;
     identity(kind, &record.source_key, value.source_id.as_str())?;
     record_id(kind, &record.id, record.source_key)?;
@@ -123,12 +123,13 @@ pub(super) fn source_from_record(record: TimeSourceRecord) -> Result<TimeSource>
         value.expected_content_type == record.expected_content_type,
     )?;
     check(kind, "enabled", value.enabled == record.enabled)?;
-    Ok(value)
+    Ok(value.build()?)
 }
 
 pub(super) fn release_from_record(record: TimeAuthorityReleaseRecord) -> Result<AuthorityRelease> {
     let kind = Entity::Release;
-    let mut value = body::<AuthorityRelease>(kind, &record.canonical_json)?;
+    let mut value =
+        crate::AuthorityReleaseValue::from(body::<AuthorityRelease>(kind, &record.canonical_json)?);
     value.record_version = version(kind, "record_version", record.record_version)?;
     identity(kind, &record.release_key, value.release_id.as_str())?;
     record_id(kind, &record.id, record.release_key)?;
@@ -172,7 +173,7 @@ pub(super) fn release_from_record(record: TimeAuthorityReleaseRecord) -> Result<
     )?;
     // Retirement changes these columns without rewriting the historical JSON body.
     value.state = release_state_from_store(record.state);
-    Ok(value)
+    Ok(value.build()?)
 }
 
 pub(super) fn acquisition_from_record(record: TimeAcquisitionRecord) -> Result<TimeAcquisition> {
@@ -211,6 +212,7 @@ pub(super) fn acquisition_from_record(record: TimeAcquisitionRecord) -> Result<T
         })
         .transpose()?;
     value.updated_at = record.updated_at;
+    veoveo_types::Check::check(&value)?;
     Ok(value)
 }
 

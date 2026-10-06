@@ -23,7 +23,7 @@ impl MediaSubscriptionResource {
             | MediaResource::Document(_)
             | MediaResource::Contract
             | MediaResource::StudioApp
-            | MediaResource::Models
+            | MediaResource::Models(_)
             | MediaResource::Model(_)
             | MediaResource::Generation(_)
             | MediaResource::Artifact(_) => None,

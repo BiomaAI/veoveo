@@ -73,6 +73,22 @@ Webhook settlement writes the shared `TaskResultRecord` envelope and publishes t
 Task runtime's event schema version in the same transaction. Generation selection
 checks `task.result.payload` before returning domain data.
 
+## Model Catalog Values
+
+Tools and resources return the same admitted model page, ordered by model ID. Each
+request selects 1–100 entries (20 by default). Query and type filters trim surrounding
+space and use ASCII lowercase; blank filters select all entries. Continuations retain
+the normalized filters, page limit, last model ID and SHA-256 of the complete sorted
+registry values. Refreshing unchanged content preserves a continuation. Changed registry
+content refuses it and directs the caller to restart. Duplicate model IDs and nonfinite
+provider prices refuse cache installation. Prices may be negative.
+
+The model resource accepts query, type, limit and cursor parameters through its typed
+address. Every page serializes a nullable next_cursor and admits returned/model-count,
+ordering, bounds and schema-address agreement. Provider descriptions, formulas, input
+schemas and model vocabulary stay open. Artifact tool output admits Media presentation
+and absence of download URLs; the producer checks inlining against the actual bytes.
+
 ## Resource Selection
 
 Discovery declares fixed roots and templates without database enumeration. The
@@ -301,3 +317,5 @@ contexts are allocated before Task admission and expire independently at capabil
 expiry. Usage rows survive Task deletion until billing retention expiry. Native
 retention tests check that Task pruning removes only the owner receipt while
 preserving its independent context and usage rows.
+
+Model lookups retain one immutable registry snapshot containing both the admitted model vector and its index. A refresh replaces that snapshot as a whole; an in-flight lookup continues with its captured snapshot. Schema lookup and provider admission cannot combine a vector with an index from a different refresh.

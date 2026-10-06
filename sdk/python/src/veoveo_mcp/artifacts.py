@@ -20,9 +20,9 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 import httpx
-from pydantic import TypeAdapter
 
 from .contract.artifacts import (
+    ArtifactUri,
     ArtifactId,
     ArtifactMetadata,
     ArtifactObject,
@@ -140,27 +140,33 @@ class HttpArtifactPlane:
         self, caller: PlaneCaller, artifact_id: ArtifactId, level: str = "read",
         *, max_bytes: int = DEFAULT_OBJECT_READ_BYTES,
     ) -> ArtifactObject:
+        artifact_id = ArtifactId(artifact_id)
         return await self._bounded_object(
-            caller, f"/artifacts/{artifact_id}", {"level": level}, max_bytes,
+            caller, f"/artifacts/{artifact_id}", {"level": level}, max_bytes, artifact_id,
         )
 
     async def head(
         self, caller: PlaneCaller, artifact_id: ArtifactId
     ) -> ArtifactMetadata:
+        artifact_id = ArtifactId(artifact_id)
         response = await self._http.get(
             f"{self.base_url}/artifacts/{artifact_id}/meta",
             headers={"authorization": f"Bearer {caller.bearer_token}"},
         )
         _raise_for_status(response)
-        return ArtifactMetadata.model_validate(response.json())
+        metadata = ArtifactMetadata.model_validate(response.json())
+        if metadata.artifact_id != artifact_id:
+            raise ArtifactTransport("metadata identifies another Artifact")
+        return metadata
 
     async def resolve(
         self, caller: PlaneCaller, uri: str, *, max_bytes: int = DEFAULT_OBJECT_READ_BYTES,
     ) -> ArtifactObject:
-        return await self._bounded_object(caller, "/resolve", {"uri": uri}, max_bytes)
+        address = ArtifactUri(uri)
+        return await self._bounded_object(caller, "/resolve", {"uri": str(address)}, max_bytes, address.artifact_id)
 
     async def _bounded_object(
-        self, caller: PlaneCaller, path: str, params: dict[str, str], max_bytes: int,
+        self, caller: PlaneCaller, path: str, params: dict[str, str], max_bytes: int, expected_artifact_id: ArtifactId,
     ) -> ArtifactObject:
         _read_limits(max_bytes, DEFAULT_STREAM_CHUNK_BYTES)
         async with self._http.stream(
@@ -170,6 +176,8 @@ class HttpArtifactPlane:
         ) as response:
             _raise_for_status(response)
             metadata = _read_metadata(response)
+            if metadata.artifact_id != expected_artifact_id:
+                raise ArtifactTransport("metadata identifies another Artifact")
             _metadata_limit(metadata, max_bytes)
             data = bytearray()
             async for chunk in _download_chunks(response, metadata, max_bytes, DEFAULT_STREAM_CHUNK_BYTES, None):
@@ -187,10 +195,11 @@ class HttpArtifactPlane:
         Exiting the context closes the connection, including early exit or cancellation.
         """
         _read_limits(max_bytes, chunk_bytes)
-        if not artifact_uri.startswith("artifact://"):
-            raise ArtifactInvalidRequest("stream requires a canonical artifact:// URI")
         try:
-            artifact_id = TypeAdapter(ArtifactId).validate_python(artifact_uri.removeprefix("artifact://"))
+            address = ArtifactUri(artifact_uri)
+            if not address.is_plane:
+                raise ValueError("stream requires a neutral Artifact address")
+            artifact_id = address.artifact_id
         except ValueError as error:
             raise ArtifactInvalidRequest("invalid Artifact URI") from error
         if expected_sha256 is not None and (

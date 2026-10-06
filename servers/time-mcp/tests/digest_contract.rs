@@ -65,11 +65,13 @@ fn acquisition_requests_keep_optional_digest_fields_and_bare_hex() {
         None,
         Some(AuthoritySourceDigest::parse("aB".repeat(32)).unwrap()),
     ] {
-        let request = CreateAcquisitionRequest {
+        let request = veoveo_time_mcp::CreateAcquisitionRequestValue {
             source_id: TimeSourceId::parse("time-source-fixture").unwrap(),
             expected_source_digest_sha256: digest.clone(),
             idempotency_key: "fixture".into(),
-        };
+        }
+        .build()
+        .unwrap();
         let wire = serde_json::to_value(&request).unwrap();
         assert_eq!(
             wire["expected_source_digest_sha256"],

@@ -361,9 +361,9 @@ impl RecordingRepository {
         layer_id: RecordingLayerId,
         byte_len: i64,
         message_count: i64,
-        sha256: &str,
+        sha256: &veoveo_types::Sha256Digest,
         rrd_version: Option<&str>,
-        schema_digest: Option<&str>,
+        schema_digest: Option<&veoveo_types::Sha256Digest>,
         end_time: Option<DateTime<Utc>>,
     ) -> Result<RecordingLayerRecord, RecordingStoreError> {
         if byte_len < 0 || message_count < 0 {
@@ -372,10 +372,8 @@ impl RecordingRepository {
                 reason: "must be non-negative",
             });
         }
-        validate_sha256("sha256", sha256)?;
-        if let Some(schema_digest) = schema_digest {
-            validate_sha256("schema_digest", schema_digest)?;
-        }
+        let sha256 = sha256.hex();
+        let schema_digest = schema_digest.map(veoveo_types::Sha256Digest::hex);
         if let Some(rrd_version) = rrd_version {
             validate_text("rrd_version", rrd_version, 64)?;
         }
@@ -846,16 +844,6 @@ fn validate_relative_rrd_path(value: &str) -> Result<(), RecordingStoreError> {
         return Err(RecordingStoreError::InvalidRecordingField {
             field: "staging_path",
             reason: "must be a normalized relative .rrd path",
-        });
-    }
-    Ok(())
-}
-
-fn validate_sha256(field: &'static str, value: &str) -> Result<(), RecordingStoreError> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(RecordingStoreError::InvalidRecordingField {
-            field,
-            reason: "must be 64 hexadecimal characters",
         });
     }
     Ok(())

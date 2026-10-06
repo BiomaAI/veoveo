@@ -62,6 +62,11 @@ impl fmt::Display for IdentityError {
 
 impl std::error::Error for IdentityError {}
 
+/// Distinct vehicle and session identities cannot be mixed in commands.
+/// ```compile_fail
+/// use veoveo_uav_sim_mcp::contract::{SessionRequest, VehicleId};
+/// SessionRequest { session_id: VehicleId::parse("vehicle").unwrap() };
+/// ```
 #[doc = "Stable identity of one isolated simulation world."]
 #[veoveo_types::id(text(SimulationIds))]
 pub struct SessionId(String);
@@ -427,7 +432,7 @@ pub struct RuntimeTimingState {
     pub maximum_render_cycle_ms: f64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SimulationState {
     pub session_id: SessionId,
@@ -448,9 +453,10 @@ pub struct SimulationState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct SimulationWorldBinding {
+#[schemars(rename = "SimulationWorldBinding")]
+pub struct SimulationWorldBindingValue {
     pub revision_uri: FrameWorldRevisionUri,
-    pub spec_sha256: String,
+    pub spec_sha256: veoveo_artifact_contract::UploadSha256,
     pub simulation_frame_uri: WorldFrameUri,
     pub georeference_origin: Wgs84Position,
 }
@@ -468,7 +474,7 @@ pub struct ConfigureWorldRequest {
 pub struct ConfigureWorldOutput {
     pub accepted: bool,
     pub world: SimulationWorldBinding,
-    pub resource_uri: String,
+    pub resource_uri: UavResource,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -537,7 +543,7 @@ pub struct TakeoffRequest {
 pub struct CommandAcknowledgement {
     pub accepted: bool,
     pub detail: String,
-    pub resource_uri: String,
+    pub resource_uri: UavResource,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -715,6 +721,227 @@ fn validate_id(value: &str) -> Result<(), IdentityError> {
     }
 }
 
+/// Public session collection row. World is required and nullable on this wire.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SessionSummary {
+    pub session_id: SessionId,
+    pub lifecycle: SimulationLifecycle,
+    #[schemars(required)]
+    pub world: Option<SimulationWorldBinding>,
+    pub tile_lifecycle: TileLifecycle,
+    pub vehicle_count: usize,
+    pub recording_count: usize,
+    pub timing: RuntimeTimingState,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Schemas consumed by the server-owned browser App.
+pub mod app_schema;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(
+    try_from = "SimulationWorldBindingValue",
+    into = "SimulationWorldBindingValue"
+)]
+pub struct SimulationWorldBinding(veoveo_types::Checked<SimulationWorldBindingValue>);
+impl std::ops::Deref for SimulationWorldBinding {
+    type Target = SimulationWorldBindingValue;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl JsonSchema for SimulationWorldBinding {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SimulationWorldBinding".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        SimulationWorldBindingValue::json_schema(generator)
+    }
+}
+impl TryFrom<SimulationWorldBindingValue> for SimulationWorldBinding {
+    type Error = WorldBindingError;
+    fn try_from(value: SimulationWorldBindingValue) -> Result<Self, Self::Error> {
+        veoveo_types::Checked::new(value).map(Self)
+    }
+}
+impl From<SimulationWorldBinding> for SimulationWorldBindingValue {
+    fn from(value: SimulationWorldBinding) -> Self {
+        value.0.into_inner()
+    }
+}
+impl SimulationWorldBindingValue {
+    pub fn build(self) -> Result<SimulationWorldBinding, WorldBindingError> {
+        self.try_into()
+    }
+}
+impl veoveo_types::Check for SimulationWorldBindingValue {
+    type Error = WorldBindingError;
+    fn check(&self) -> Result<(), Self::Error> {
+        self.validate()?;
+        Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SimulationStateWire {
+    session_id: SessionId,
+    lifecycle: SimulationLifecycle,
+    simulation_time_s: f64,
+    physics_step: u64,
+    timing: RuntimeTimingState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    world: Option<SimulationWorldBinding>,
+    tiles: TileState,
+    cameras: Vec<CameraState>,
+    live_cameras: Vec<LiveCameraDescriptor>,
+    stream_products: Vec<LiveStreamProductState>,
+    vehicles: Vec<VehicleState>,
+    recordings: Vec<RecordingState>,
+    updated_at: DateTime<Utc>,
+}
+impl<'de> Deserialize<'de> for SimulationState {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = SimulationStateWire::deserialize(deserializer)?;
+        Self {
+            session_id: value.session_id,
+            lifecycle: value.lifecycle,
+            simulation_time_s: value.simulation_time_s,
+            physics_step: value.physics_step,
+            timing: value.timing,
+            world: value.world,
+            tiles: value.tiles,
+            cameras: value.cameras,
+            live_cameras: value.live_cameras,
+            stream_products: value.stream_products,
+            vehicles: value.vehicles,
+            recordings: value.recordings,
+            updated_at: value.updated_at,
+        }
+        .build()
+        .map_err(serde::de::Error::custom)
+    }
+}
+impl SimulationState {
+    pub fn build(self) -> Result<Self, StateValueError> {
+        veoveo_types::Check::check(&self)?;
+        Ok(self)
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid UAV simulation telemetry or child identity")]
+pub struct StateValueError;
+impl veoveo_types::Check for SimulationState {
+    type Error = StateValueError;
+    fn check(&self) -> Result<(), Self::Error> {
+        let finite = |values: &[f64]| values.iter().all(|v| v.is_finite());
+        let enu = |v: &EnuVector| finite(&[v.east_m, v.north_m, v.up_m]);
+        if !self.simulation_time_s.is_finite()
+            || !(30..=1000).contains(&self.timing.physics_hz)
+            || !(1..=120).contains(&self.timing.native_rendering_hz)
+        {
+            return Err(StateValueError);
+        }
+        let t = &self.timing;
+        if !finite(&[
+            t.refresh_states_wall_seconds,
+            t.vehicle_update_wall_seconds,
+            t.state_update_wall_seconds,
+            t.dynamics_update_wall_seconds,
+            t.sensor_update_wall_seconds,
+            t.backend_state_wall_seconds,
+            t.flush_forces_wall_seconds,
+            t.after_step_wall_seconds,
+            t.native_update_wall_seconds,
+            t.render_cycle_wall_seconds,
+            t.maximum_physics_step_ms,
+            t.maximum_native_update_ms,
+            t.maximum_render_cycle_ms,
+        ]) {
+            return Err(StateValueError);
+        }
+        if let Some(world) = &self.world {
+            world.validate().map_err(|_| StateValueError)?;
+        }
+        let mut vehicles = std::collections::BTreeSet::new();
+        for v in &self.vehicles {
+            if !vehicles.insert(&v.vehicle_id)
+                || !v.battery_percent.is_finite()
+                || !(0.0..=100.0).contains(&v.battery_percent)
+                || !finite(&[
+                    v.wgs84.latitude_degrees,
+                    v.wgs84.longitude_degrees,
+                    v.wgs84.ellipsoid_height_m,
+                    v.ned.north_m,
+                    v.ned.east_m,
+                    v.ned.down_m,
+                    v.attitude_xyzw.x,
+                    v.attitude_xyzw.y,
+                    v.attitude_xyzw.z,
+                    v.attitude_xyzw.w,
+                ])
+                || !(-90.0..=90.0).contains(&v.wgs84.latitude_degrees)
+                || !(-180.0..=180.0).contains(&v.wgs84.longitude_degrees)
+                || !enu(&v.enu)
+                || !enu(&v.linear_velocity_enu_mps)
+            {
+                return Err(StateValueError);
+            }
+        }
+        let mut cameras = std::collections::BTreeSet::new();
+        for c in &self.cameras {
+            if !vehicles.contains(&c.vehicle_id) || !cameras.insert((&c.vehicle_id, &c.entity_path))
+            {
+                return Err(StateValueError);
+            }
+            if let Some(p) = &c.render_pose {
+                let d = &p.rendered_forward_enu;
+                if !p.position_error_m.is_finite()
+                    || p.position_error_m < 0.0
+                    || !p.forward_error_degrees.is_finite()
+                    || !(0.0..=180.0).contains(&p.forward_error_degrees)
+                    || !enu(&p.rendered_position_enu_m)
+                    || ![d.east, d.north, d.up]
+                        .iter()
+                        .all(|v| v.is_finite() && (-1.0..=1.0).contains(v))
+                {
+                    return Err(StateValueError);
+                }
+            }
+        }
+        let mut live = std::collections::BTreeSet::new();
+        for c in &self.live_cameras {
+            if c.session_id.as_str() != self.session_id.as_str()
+                || !live.insert(&c.camera_id)
+                || c.validate().is_err()
+            {
+                return Err(StateValueError);
+            }
+        }
+        let mut products = std::collections::BTreeSet::new();
+        for p in &self.stream_products {
+            if !products.insert(&p.stream_product_id)
+                || !p.validate()
+                || p.camera_regions
+                    .iter()
+                    .any(|r| !live.contains(&r.camera_id))
+            {
+                return Err(StateValueError);
+            }
+        }
+        let mut recordings = std::collections::BTreeSet::new();
+        if self
+            .recordings
+            .iter()
+            .any(|r| !recordings.insert(&r.recording_key))
+        {
+            return Err(StateValueError);
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -794,21 +1021,3 @@ mod tests {
         assert_eq!(request.map_route.mobility_profile_uri(), &profile_uri);
     }
 }
-
-/// Public session collection row. World is required and nullable on this wire.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SessionSummary {
-    pub session_id: SessionId,
-    pub lifecycle: SimulationLifecycle,
-    #[schemars(required)]
-    pub world: Option<SimulationWorldBinding>,
-    pub tile_lifecycle: TileLifecycle,
-    pub vehicle_count: usize,
-    pub recording_count: usize,
-    pub timing: RuntimeTimingState,
-    pub updated_at: DateTime<Utc>,
-}
-
-/// Schemas consumed by the server-owned browser App.
-pub mod app_schema;

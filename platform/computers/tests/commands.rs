@@ -208,10 +208,14 @@ async fn accepted_command_uses_current_grant_limits_after_admission_family_revoc
     let (a, _, owner, _, computer) = support::automation::setup(&db).await;
     let identity = support::browser::identity(&db, "bob").await;
     let bob = ComputerActor::from_verified(&identity).unwrap();
-    let mut input = support::automation::input(computer);
+    let mut input: veoveo_computers_contract::IssueAutomationGrantInputValue =
+        support::automation::input(computer).into();
     input.principal_id = bob.owner().principal_key.clone().try_into().unwrap();
     input.oauth_client_id = "console".parse().unwrap();
-    let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
+    let grant = a
+        .issue_automation_grant(&owner, &input.clone().build().unwrap())
+        .await
+        .unwrap();
     let claim = queue_claim(&db, &a, &bob, computer, grant.grant_id).await;
     let family = identity
         .request_context

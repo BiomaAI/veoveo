@@ -1,0 +1,1 @@
+REMOVE EVENT fixture_refuse_properties_stage ON recording_layer;

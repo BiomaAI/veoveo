@@ -55,14 +55,20 @@ class OwnerTaskUsageQuery:
             self.query._statement(OwnerStatement.USAGE_GET),
             {**self.query.bindings(), "task": task},
         )
-        return tuple(UsageRecord(
-            task_id=str(_task_id(record["task"])), model_id=record["model_id"],
-            kind=record["kind"], source_id=record.get("source_id"),
-            provider_job_id=record.get("provider_job_id"),
-            quantity=record.get("quantity"), unit=record.get("unit"),
-            amount=record.get("amount"), currency=record.get("currency"),
-            recorded_at=record["recorded_at"], metadata=record.get("metadata"),
-        ) for record in rows[0] or [])
+        records = []
+        for record in rows[0] or []:
+            parent = _task_id(record["task"])
+            if parent != native_task_id(task_id):
+                raise InvalidRecord("selected usage belongs to another Task")
+            records.append(UsageRecord(
+                task_id=str(parent), model_id=record["model_id"],
+                kind=record["kind"], source_id=record.get("source_id"),
+                provider_job_id=record.get("provider_job_id"),
+                quantity=record.get("quantity"), unit=record.get("unit"),
+                amount=record.get("amount"), currency=record.get("currency"),
+                recorded_at=record["recorded_at"], metadata=record.get("metadata"),
+            ))
+        return tuple(records)
 
     async def complete(self, prefix: str) -> TaskUsageCompletion:
         if len(prefix) > 36:

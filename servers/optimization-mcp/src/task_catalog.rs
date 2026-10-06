@@ -187,7 +187,10 @@ impl TaskContributions for OptimizationTaskContributions {
         let (status, result_uri) = match settlement {
             TaskSettlement::Succeeded { result } => {
                 let output = solve_output(result, &identity)?;
-                (CatalogTerminal::Succeeded, Some(output.result_uri))
+                (
+                    CatalogTerminal::Succeeded,
+                    Some(crate::contract::OptimizationToolOutputValue::from(output).result_uri),
+                )
             }
             TaskSettlement::Failed { .. } => (CatalogTerminal::Failed, None),
             TaskSettlement::Cancelled => (CatalogTerminal::Cancelled, None),

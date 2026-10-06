@@ -67,3 +67,6 @@ pub use views::{RecordingCatalogPage, RecordingView, RecordingViewBuilder};
 
 #[cfg(feature = "policy")]
 pub mod policy;
+
+mod properties;
+pub use properties::{RecordingProperties, RecordingPropertiesBuilder};

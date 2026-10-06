@@ -95,7 +95,8 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         source: NewTimeSource,
     ) -> Result<TimeSource> {
-        let source = TimeSource {
+        let source = crate::NewTimeSourceValue::from(source);
+        let source = crate::TimeSourceValue {
             source_id: source.source_id,
             name: source.name,
             dataset_kind: source.dataset_kind,
@@ -103,7 +104,8 @@ impl TimeCatalog {
             expected_content_type: source.expected_content_type,
             enabled: source.enabled,
             record_version: crate::TimeVersion::FIRST,
-        };
+        }
+        .build()?;
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
             .persistence
@@ -124,10 +126,12 @@ impl TimeCatalog {
     pub async fn replace_source(
         &self,
         scope: &TimeAccessContext,
-        mut source: TimeSource,
+        source: TimeSource,
         expected: crate::TimeVersion,
     ) -> Result<TimeSource> {
+        let mut source = crate::TimeSourceValue::from(source);
         source.record_version = expected.checked_next()?;
+        let source = source.build()?;
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
             .persistence
@@ -269,6 +273,7 @@ impl TimeCatalog {
         acquisition: TimeAcquisition,
         idempotency_key: String,
     ) -> Result<TimeAcquisition> {
+        veoveo_types::Check::check(&acquisition)?;
         let canonical_json = serde_json::to_string(&acquisition)?;
         let record = self
             .persistence
@@ -344,6 +349,7 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         mut acquisition: TimeAcquisition,
     ) -> Result<TimeAcquisition> {
+        veoveo_types::Check::check(&acquisition)?;
         let expected = acquisition.record_version;
         let next = expected.checked_next()?;
         let current = self

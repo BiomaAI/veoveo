@@ -1,0 +1,1 @@
+DEFINE EVENT fixture_refuse_properties_stage ON recording_layer WHEN $before.state = 'writing' AND $after.state = 'staged' AND $after.kind = 'properties' THEN { THROW 'fixture_refused_properties_stage'; };

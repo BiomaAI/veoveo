@@ -80,7 +80,7 @@ impl CommandPayload {
     pub fn request(&self) -> &ExecutionRequest {
         &self.request
     }
-    pub fn limits(&self) -> AutomationExecutionLimits {
+    pub fn limits(&self) -> veoveo_computers_contract::AutomationExecutionLimits {
         self.limits
     }
 
@@ -111,11 +111,13 @@ impl CommandPayload {
                     .map_err(|_| ComputerError::Unavailable)?,
             ))
         };
-        let limits = AutomationExecutionLimits {
+        let limits = veoveo_computers_contract::AutomationExecutionLimitsValue {
             maximum_seconds: word(0)?,
             maximum_output_bytes: word(4)?,
             on_interruption: crate::api::AutomationInterruption::StopComputer,
-        };
+        }
+        .build()
+        .map_err(|_| crate::ComputerError::Unavailable)?;
         let mut cursor = Cursor::new(&bytes[8..]);
         let request = read_frame(&mut cursor).map_err(|_| ComputerError::Unavailable)?;
         if cursor.position() as usize != bytes.len() - 8 {

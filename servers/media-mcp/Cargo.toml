@@ -40,6 +40,8 @@ required-features = ["mcp"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
+    "dep:hex",
+    "dep:sha2",
     "dep:thiserror",
     "dep:base64",
     "dep:chrono",
@@ -120,6 +122,7 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+jsonschema.workspace = true
 veoveo-modules = { workspace = true, features = ["runner"] }
 veoveo-mcp-contract = { workspace = true, features = ["testing"] }
 tower = { workspace = true, features = ["util"] }

@@ -117,7 +117,7 @@ async fn stage(
     let source = catalog
         .create_source(
             scope,
-            crate::NewTimeSource {
+            crate::NewTimeSourceValue {
                 source_id: TimeSourceId::parse(format!("time-source-{}", Uuid::now_v7())).unwrap(),
                 name: "fixture".into(),
                 dataset_kind: kind,
@@ -125,7 +125,9 @@ async fn stage(
                 expected_content_type: "text/plain".into(),
                 enabled: true,
                 record_version: crate::SourceCreationVersion,
-            },
+            }
+            .build()
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -137,20 +139,22 @@ async fn stage(
     let release = catalog
         .create_release(
             scope,
-            AuthorityRelease {
+            crate::AuthorityReleaseValue {
                 release_id: AuthorityReleaseId::parse(format!("time-release-{}", Uuid::now_v7()))
                     .unwrap(),
                 source_id: source.source_id.clone(),
                 dataset_kind: kind,
                 state: AuthorityReleaseState::Staged,
                 version_label: "fixture".into(),
-                source_url: source.url,
+                source_url: source.url.clone(),
                 source_digest_sha256: hex::encode(Sha256::digest(bytes)).parse().unwrap(),
                 artifact_path: path.to_str().unwrap().into(),
                 retrieved_at: now,
                 validated_at: now,
                 record_version: crate::TimeVersion::new(1).unwrap(),
-            },
+            }
+            .build()
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -163,7 +167,7 @@ async fn stage(
                     Uuid::now_v7()
                 ))
                 .unwrap(),
-                source_id: source.source_id,
+                source_id: source.source_id.clone(),
                 expected_source_digest_sha256: Some(release.source_digest_sha256.clone()),
                 status: TimeAcquisitionStatus::Succeeded,
                 phase: crate::TimeAcquisitionPhase::Complete,
@@ -202,9 +206,11 @@ async fn activate(
 fn resolved(engine: &TemporalEngine) -> TimeInstant {
     engine
         .resolve(&ResolveTimeRequest {
-            expression: TimeExpression::Rfc3339 {
+            expression: crate::TimeExpressionValue::Rfc3339 {
                 value: "2024-01-01T00:00:00Z".into(),
-            },
+            }
+            .build()
+            .unwrap(),
             additional_uncertainty_nanoseconds: 0,
         })
         .unwrap()
@@ -304,10 +310,12 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         assert!(
             isolated
                 .resolve(&ResolveTimeRequest {
-                    expression: TimeExpression::EpochRelative {
+                    expression: crate::TimeExpressionValue::EpochRelative {
                         epoch_id,
                         offset_nanoseconds: 0
-                    },
+                    }
+                    .build()
+                    .unwrap(),
                     additional_uncertainty_nanoseconds: 0
                 })
                 .is_err()
@@ -503,9 +511,11 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
         let engine = registry.authority_engine(&catalog, &owner).await.unwrap();
         let due = engine
             .resolve(&ResolveTimeRequest {
-                expression: TimeExpression::Rfc3339 {
+                expression: crate::TimeExpressionValue::Rfc3339 {
                     value: (Utc::now() + chrono::Duration::hours(1)).to_rfc3339(),
-                },
+                }
+                .build()
+                .unwrap(),
                 additional_uncertainty_nanoseconds: 0,
             })
             .unwrap()

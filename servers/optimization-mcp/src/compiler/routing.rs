@@ -498,7 +498,7 @@ mod tests {
         let depot: LocationId = id("depot");
         let customer: LocationId = id("customer");
         let van: VehicleTypeId = id("van");
-        let problem = RoutingProblem {
+        let problem = crate::contract::RoutingProblemValue {
             version: ROUTING_PROBLEM_VERSION.to_owned(),
             time_basis: TimeBasis {
                 origin: Utc::now(),
@@ -564,7 +564,9 @@ mod tests {
                 metric: RouteObjectiveMetric::Cost,
                 weight: NonNegativeF64::new(1.0).unwrap(),
             }],
-        };
+        }
+        .build()
+        .unwrap();
 
         let compiled = compile_routing_problem(&problem).unwrap();
         assert_eq!(compiled.nodes[0].location_index, 1);

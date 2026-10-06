@@ -369,6 +369,27 @@ fn rewrite_ticket(bytes: &[u8], id: api::ComputerId, profile: &str) -> Result<Ve
 mod tests {
     use super::*;
     #[test]
+    fn contradictory_pairing_grant_is_never_forwarded() {
+        let computer = api::ComputerId::new();
+        let pairing = api::CliPairingId::new();
+        let grant = api::AccessGrantId::new();
+        let result = api::CliPairingResultValue {
+            computer_id: computer,
+            pairing_id: pairing,
+            grant_id: grant,
+            token: api::CliPairingToken::new(format!("vcli1.{grant}.{}", "a".repeat(64))).unwrap(),
+            callback_port: 1024,
+            expires_at: chrono::Utc::now(),
+        }
+        .build()
+        .unwrap();
+        let mut body = serde_json::to_value(result).unwrap();
+        assert!(pairing_result(&serde_json::to_vec(&body).unwrap(), computer, pairing).is_ok());
+        body["grantId"] = serde_json::json!(api::AccessGrantId::new());
+        assert!(pairing_result(&serde_json::to_vec(&body).unwrap(), computer, pairing).is_err());
+    }
+
+    #[test]
     fn rejected_input_does_not_reach_admission() {
         for body in [br#"{"requestId":"00000000-0000-4000-8000-000000000001","owner":"foreign"}"#.as_slice(), br#"{"requestId":"00000000-0000-4000-8000-000000000001","requestId":"00000000-0000-4000-8000-000000000002"}"#, b"null"] {
             assert!(normalize::<api::CreateInput>(body).is_err());

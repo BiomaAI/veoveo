@@ -81,11 +81,20 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
         "byte_len":1,"mime_type":"application/json","created_at":"2026-09-28T00:00:00Z"
     }))
     .unwrap();
+    let solution_artifact_id = veoveo_artifact_contract::ArtifactId::new();
+    let mut solution_metadata = serde_json::to_value(&artifact).unwrap();
+    solution_metadata["artifact_id"] = serde_json::to_value(solution_artifact_id).unwrap();
+    solution_metadata["artifact_uri"] = serde_json::to_value(
+        veoveo_artifact_contract::ArtifactUri::presented(&uris::SCHEME, solution_artifact_id),
+    )
+    .unwrap();
+    let solution_artifact: veoveo_artifact_contract::ArtifactMetadata =
+        serde_json::from_value(solution_metadata).unwrap();
     let output: OptimizationToolOutput = serde_json::from_value(json!({
         "run_uri":OptimizationRunUri::new(run.clone()).unwrap(),"problem_uri":OptimizationProblemUri::new(problem.clone()).unwrap(),"result_uri":solution,
         "family":"convex","feasibility":"feasible","termination":"optimal",
         "summary":{"family":"convex","quality":{"proven_optimal":true}},
-        "problem_artifact":artifact,"solution_artifact":artifact
+        "problem_artifact":artifact,"solution_artifact":solution_artifact
     })).unwrap();
     let result = veoveo_mcp_contract::hosting::product_result(
         "Fixture result ready",

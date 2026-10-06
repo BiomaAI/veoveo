@@ -1,7 +1,7 @@
 use super::{CommandOperation, CommandStage};
 use crate::{
     ComputerError, ComputersStore, Result,
-    api::{AutomationExecutionLimits, AutomationPermission},
+    api::AutomationPermission,
     secrets::{CommandBinding, CommandOutputAccess, CommandPayload, ComputerKeyRing},
 };
 use chrono::{DateTime, Utc};
@@ -84,7 +84,7 @@ impl CommandDispatchTicket {
     pub fn output_access(&self) -> &CommandOutputAccess {
         &self.output_access
     }
-    pub fn limits(&self) -> AutomationExecutionLimits {
+    pub fn limits(&self) -> veoveo_computers_contract::AutomationExecutionLimits {
         self.operation
             .effective_limits
             .expect("validated dispatched limits")
@@ -131,7 +131,7 @@ impl ComputersStore {
             .ok_or(ComputerError::InvalidState)?;
         let output_access = keys.open_output_access(&operation.binding, sealed_output)?;
         let limits = permit.execution_limits()?.ok_or(ComputerError::Forbidden)?;
-        let effective = AutomationExecutionLimits {
+        let effective = veoveo_computers_contract::AutomationExecutionLimitsValue {
             maximum_seconds: payload.limits().maximum_seconds.min(limits.maximum_seconds),
             maximum_output_bytes: payload
                 .limits()
@@ -139,7 +139,9 @@ impl ComputersStore {
                 .min(limits.maximum_output_bytes)
                 .min(output_access.maximum_output_bytes()),
             on_interruption: limits.on_interruption,
-        };
+        }
+        .build()
+        .map_err(|_| crate::ComputerError::Unavailable)?;
         let current = permit.computer()?;
         if current.phase != crate::api::ComputerPhase::Ready {
             return Err(ComputerError::InvalidState);

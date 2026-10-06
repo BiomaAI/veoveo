@@ -7,7 +7,6 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use serde::Deserialize;
-use veoveo_computers_contract::CliPairingInput;
 use veoveo_computers_contract::ComputerId;
 
 #[derive(Deserialize)]
@@ -21,7 +20,7 @@ pub(super) async fn entry(
     Path(_): Path<ComputerId>,
     Query(parameters): Query<Parameters>,
 ) -> Response {
-    if !(CliPairingInput {
+    if !(veoveo_computers_contract::CliPairingInputValue {
         name: "CLI".into(),
         code: parameters.code,
         callback_port: parameters.callback_port,

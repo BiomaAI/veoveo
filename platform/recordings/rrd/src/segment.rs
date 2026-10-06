@@ -14,7 +14,7 @@ pub struct SegmentInspection {
     pub application_id: String,
     pub recording_key: String,
     pub byte_len: u64,
-    pub sha256: String,
+    pub sha256: veoveo_types::Sha256Digest,
 }
 
 pub fn inspect_segment(path: &Path) -> Result<SegmentInspection> {
@@ -39,7 +39,7 @@ pub fn inspect_segment(path: &Path) -> Result<SegmentInspection> {
         }
         hash.update(&buffer[..count]);
     }
-    let sha256 = hex::encode(hash.finalize());
+    let sha256 = veoveo_types::Sha256Digest::from_bytes(hash.finalize().into());
 
     let engines = QueryEngine::from_rrd_filepath(&ChunkStoreConfig::DEFAULT, path)
         .with_context(|| format!("validating RRD segment {}", path.display()))?;

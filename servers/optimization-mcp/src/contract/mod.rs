@@ -16,6 +16,10 @@ mod model;
 mod profile;
 mod routing;
 mod solution;
+mod value_admission;
+pub use value_admission::definition_digest;
+#[cfg(feature = "runtime")]
+pub(crate) use value_admission::solution_digest;
 mod usage;
 
 pub use common::*;

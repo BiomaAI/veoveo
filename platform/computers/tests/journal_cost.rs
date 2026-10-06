@@ -79,11 +79,13 @@ async fn measure(profile: Profile, round: usize, stdin_bytes: usize) -> Measurem
     .unwrap();
     let payload = CommandPayload::new(
         request,
-        AutomationExecutionLimits {
+        veoveo_computers_contract::AutomationExecutionLimitsValue {
             maximum_seconds: 30,
             maximum_output_bytes: 1024,
             on_interruption: AutomationInterruption::StopComputer,
-        },
+        }
+        .build()
+        .unwrap(),
     )
     .unwrap();
     let operation = store

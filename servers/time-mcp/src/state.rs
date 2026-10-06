@@ -102,7 +102,9 @@ impl TimeApplication {
                 index < 100_000,
                 "at most 100000 temporal expressions are supported"
             );
-            if let crate::contract::TimeExpression::EpochRelative { epoch_id, .. } = expression {
+            if let crate::contract::TimeExpressionValue::EpochRelative { epoch_id, .. } =
+                &**expression
+            {
                 keys.insert(epoch_id.clone());
             }
         }
@@ -183,9 +185,10 @@ impl TimeApplication {
     ) -> Result<()> {
         let now = engine
             .resolve(&crate::contract::ResolveTimeRequest {
-                expression: crate::contract::TimeExpression::Rfc3339 {
+                expression: crate::TimeExpressionValue::Rfc3339 {
                     value: chrono::Utc::now().to_rfc3339(),
-                },
+                }
+                .build()?,
                 additional_uncertainty_nanoseconds: 0,
             })?
             .into_instant();

@@ -552,11 +552,18 @@ impl ComputersStore {
         let limits = grant
             .view
             .execution_limits
-            .map(|limits| AutomationExecutionLimits {
-                maximum_seconds: limits.maximum_seconds.min(policy.maximum_execution_seconds),
-                maximum_output_bytes: limits.maximum_output_bytes.min(policy.maximum_output_bytes),
-                on_interruption: limits.on_interruption,
-            });
+            .map(|limits| {
+                veoveo_computers_contract::AutomationExecutionLimitsValue {
+                    maximum_seconds: limits.maximum_seconds.min(policy.maximum_execution_seconds),
+                    maximum_output_bytes: limits
+                        .maximum_output_bytes
+                        .min(policy.maximum_output_bytes),
+                    on_interruption: limits.on_interruption,
+                }
+                .build()
+                .map_err(|_| crate::ComputerError::Unavailable)
+            })
+            .transpose()?;
         let expires_at = grant.view.expires_at.min(
             grant.view.issued_at + TimeDelta::seconds(i64::from(policy.maximum_lifetime_seconds)),
         );
@@ -629,7 +636,7 @@ impl ComputersStore {
         }
         source_snapshot.check_fresh()?;
         owner_snapshot.check_fresh()?;
-        let mut view = grant.view;
+        let mut view = veoveo_computers_contract::AutomationGrantViewValue::from(grant.view);
         view.permissions = permissions;
         view.expires_at = expires_at;
         view.execution_limits = view
@@ -650,7 +657,7 @@ impl ComputersStore {
             policy_fingerprint: stored_policy.fingerprint,
             admission_end,
             family,
-            view,
+            view: view.build().map_err(|_| ComputerError::Unavailable)?,
         })
     }
 }

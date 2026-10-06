@@ -52,6 +52,10 @@ required-features = ["mcp"]
 schema = ["dep:veoveo-modules", "dep:veoveo-types", "dep:serde", "dep:schemars"]
 default = ["mcp"]
 contract = [
+    "dep:anyhow",
+    "dep:jiff",
+    "dep:url",
+    "dep:uuid",
     "dep:thiserror",
     "dep:chrono",
     "dep:hex",

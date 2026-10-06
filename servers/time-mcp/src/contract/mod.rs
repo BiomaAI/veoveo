@@ -1,6 +1,7 @@
 mod task_kind;
 pub use task_kind::TimeTaskKind;
 mod admin;
+pub mod admission;
 mod authority;
 mod calendar;
 mod clock_policy;

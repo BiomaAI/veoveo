@@ -589,6 +589,13 @@
                 "variable_id": "x",
                 "coefficient": 1.0
               }
+            ],
+            "quadratic_terms": [
+              {
+                "left_variable_id": "x",
+                "right_variable_id": "x",
+                "coefficient": 1.0
+              }
             ]
           }
         }
@@ -631,7 +638,22 @@
                 "coefficient": 1.0
               }
             ]
-          }
+          },
+          "quadratic_constraints": [
+            {
+              "constraint_id": "unit-ball",
+              "quadratic_terms": [
+                {
+                  "left_variable_id": "x",
+                  "right_variable_id": "x",
+                  "coefficient": 1.0
+                }
+              ],
+              "bounds": {
+                "upper": 1.0
+              }
+            }
+          ]
         }
       },
       "policy": {
@@ -672,7 +694,22 @@
                 "coefficient": 1.0
               }
             ]
-          }
+          },
+          "quadratic_constraints": [
+            {
+              "constraint_id": "unit-ball",
+              "quadratic_terms": [
+                {
+                  "left_variable_id": "x",
+                  "right_variable_id": "x",
+                  "coefficient": 1.0
+                }
+              ],
+              "bounds": {
+                "upper": 1.0
+              }
+            }
+          ]
         }
       },
       "policy": {
@@ -698,6 +735,14 @@
             {
               "variable_id": "x",
               "kind": "continuous",
+              "bounds": {
+                "lower": 0.0,
+                "upper": 1.0
+              }
+            },
+            {
+              "variable_id": "integer-anchor",
+              "kind": "integer",
               "bounds": {
                 "lower": 0.0,
                 "upper": 1.0
@@ -781,7 +826,7 @@
               "variable_id": "x",
               "kind": "semi_continuous",
               "bounds": {
-                "lower": 0.0,
+                "lower": 0.5,
                 "upper": 1.0
               }
             }
@@ -1295,7 +1340,8 @@
                   "location_id": "depot"
                 }
               },
-              "service_policy": "optional"
+              "service_policy": "optional",
+              "drop_penalty": 1.0
             }
           ],
           "fleet": {

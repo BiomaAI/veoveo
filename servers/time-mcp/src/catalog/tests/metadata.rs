@@ -60,7 +60,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
         let calendar = catalog
             .create_calendar(
                 &owner,
-                OperationalCalendar {
+                crate::OperationalCalendarValue {
                     calendar_id: CalendarId::parse("calendar-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
                     version: crate::TimeVersion::new(1).unwrap(),
@@ -68,7 +68,9 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
                     zone_id: "UTC".into(),
                     windows: vec![],
                     excluded_dates: vec![],
-                },
+                }
+                .build()
+                .unwrap(),
             )
             .await
             .unwrap();
@@ -324,7 +326,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let source = catalog
             .create_source(
                 &owner,
-                crate::NewTimeSource {
+                crate::NewTimeSourceValue {
                     source_id: TimeSourceId::parse(
                         "time-source-00000000-0000-7000-8000-000000000001",
                     )
@@ -335,7 +337,9 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     expected_content_type: "text/plain".into(),
                     enabled: true,
                     record_version: crate::SourceCreationVersion,
-                },
+                }
+                .build()
+                .unwrap(),
             )
             .await
             .unwrap();
@@ -372,7 +376,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let release = catalog
             .create_release(
                 &owner,
-                AuthorityRelease {
+                crate::AuthorityReleaseValue {
                     release_id: AuthorityReleaseId::parse(
                         "time-release-00000000-0000-7000-8000-000000000001",
                     )
@@ -387,7 +391,9 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     retrieved_at: now,
                     validated_at: now,
                     record_version: crate::TimeVersion::new(1).unwrap(),
-                },
+                }
+                .build()
+                .unwrap(),
             )
             .await
             .unwrap();
@@ -402,11 +408,14 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .unwrap();
         let record = RecordId::new("time_authority_release", release.release_id.to_string());
         let active_body = body(&db.a, &record).await;
-        let mut second = release.clone();
+        let mut second = crate::AuthorityReleaseValue::from(release.clone());
         second.release_id =
             AuthorityReleaseId::parse("time-release-00000000-0000-7000-8000-000000000002").unwrap();
         second.source_digest_sha256 = "b".repeat(64).parse().unwrap();
-        let second = catalog.create_release(&owner, second).await.unwrap();
+        let second = catalog
+            .create_release(&owner, second.build().unwrap())
+            .await
+            .unwrap();
         catalog
             .activate_release(
                 &owner,
@@ -463,8 +472,8 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     .unwrap(),
                     source_id: source.source_id.clone(),
                     expected_source_digest_sha256: Some("a".repeat(64).parse().unwrap()),
-                    status: TimeAcquisitionStatus::Queued,
-                    phase: crate::TimeAcquisitionPhase::Queued,
+                    status: TimeAcquisitionStatus::Succeeded,
+                    phase: crate::TimeAcquisitionPhase::Complete,
                     staged_release_id: Some(release.release_id.clone()),
                     message: "".into(),
                     created_at: now,
@@ -552,8 +561,9 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let mut wrong_digest = acquisition.clone();
         wrong_digest.expected_source_digest_sha256 = None;
         let mut wrong_creation = acquisition.clone();
-        wrong_creation.created_at += chrono::Duration::seconds(1);
+        wrong_creation.created_at -= chrono::Duration::seconds(1);
         for wrong in [wrong_source, wrong_digest, wrong_creation] {
+            veoveo_types::Check::check(&wrong).unwrap();
             assert!(catalog.update_acquisition(&owner, wrong).await.is_err());
             assert_eq!(
                 body(&db.a, &record).await,
@@ -568,9 +578,9 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         assert_eq!(updated.record_version.get(), 2);
         let other = TimeCatalog::new(db.a.clone());
         let mut left = updated.clone();
-        left.phase = crate::TimeAcquisitionPhase::Downloading;
+        left.message = "left concurrent update".into();
         let mut right = updated;
-        right.phase = crate::TimeAcquisitionPhase::Validating;
+        right.message = "right concurrent update".into();
         let (left, right) = tokio::join!(
             catalog.update_acquisition(&owner, left),
             other.update_acquisition(&owner, right),
@@ -578,8 +588,24 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         assert_ne!(left.is_ok(), right.is_ok(), "one version fence may advance");
         let winner = left.or(right).unwrap();
         assert_eq!(winner.record_version.get(), 3);
-        // Historical bodies may lag mutable lifecycle columns.
-        set(&db.a, &record, "canonical_json", original).await;
+        assert!(matches!(
+            winner.message.as_str(),
+            "left concurrent update" | "right concurrent update"
+        ));
+        assert_eq!(
+            catalog
+                .acquisition(&owner, &acquisition.acquisition_id)
+                .await
+                .unwrap()
+                .unwrap(),
+            winner
+        );
+        // Mutable lifecycle columns supersede an earlier admitted queued body.
+        let queued_body = corrupt(&original, "status", json!("queued"));
+        let queued_body = corrupt(&queued_body, "phase", json!("queued"));
+        let queued_body = corrupt(&queued_body, "staged_release_id", serde_json::Value::Null);
+        let queued = serde_json::from_str::<TimeAcquisition>(&queued_body).unwrap();
+        set(&db.a, &record, "canonical_json", queued_body.clone()).await;
         let restored = catalog
             .acquisition(&owner, &acquisition.acquisition_id)
             .await
@@ -587,7 +613,16 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .unwrap();
         assert_eq!(restored.status, TimeAcquisitionStatus::Succeeded);
         assert_eq!(restored.phase, winner.phase);
+        assert_eq!(restored.staged_release_id, winner.staged_release_id);
+        assert_eq!(restored.updated_at, winner.updated_at);
+        // Display metadata belongs to canonical_json, unlike the native lifecycle columns.
+        assert_eq!(restored.message, queued.message);
         assert_eq!(restored.record_version.get(), 3);
+        assert_eq!(
+            body(&db.a, &record).await,
+            queued_body,
+            "reading must not rewrite the stale body"
+        );
         set(
             &db.a,
             &record,

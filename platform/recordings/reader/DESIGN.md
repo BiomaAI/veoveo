@@ -92,6 +92,12 @@ caller isolation, revocation, expiry, missing occurrences, mismatched metadata, 
 authority outage. Denied requests do not validate or pin local bytes. The fixture
 accepts only metadata requests and serves no artifact body.
 
+The canonical cache validator takes distinct public dataset and recording identities
+and a typed SHA-256 digest. It verifies the complete Store ID, byte length and digest on
+materialization and cache reuse. Task-local live-part normalization converts native
+repository identities explicitly. Upstream producer names remain open in source
+inspection. These controls check bytes and relationships, not playback or GPU execution.
+
 ## Build Boundary
 
 Stream, Reason and the video materializer depend on this crate. Recording MCP composes

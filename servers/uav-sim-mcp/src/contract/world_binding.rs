@@ -33,12 +33,12 @@ pub enum WorldBindingError {
     InvalidHeight,
 }
 
-impl SimulationWorldBinding {
+impl super::SimulationWorldBindingValue {
     /// Select a static frame from an already validated, immutable Frames publication.
     pub fn from_revision(
         revision: &FrameWorldRevision,
         simulation_frame: &WorldFrameUri,
-    ) -> Result<Self, WorldBindingError> {
+    ) -> Result<SimulationWorldBinding, WorldBindingError> {
         if simulation_frame.revision_uri() != *revision.revision_uri() {
             return Err(WorldBindingError::DifferentRevision);
         }
@@ -76,23 +76,18 @@ impl SimulationWorldBinding {
         };
         let binding = Self {
             revision_uri: revision.revision_uri().clone(),
-            spec_sha256: revision.spec_digest().hex().to_owned(),
+            spec_sha256: veoveo_artifact_contract::UploadSha256::parse(
+                revision.spec_digest().hex(),
+            )
+            .map_err(|_| WorldBindingError::InvalidDigest)?,
             simulation_frame_uri: simulation_frame.clone(),
             georeference_origin,
         };
         binding.validate()?;
-        Ok(binding)
+        binding.build()
     }
 
     pub fn validate(&self) -> Result<(), WorldBindingError> {
-        if self.spec_sha256.len() != 64
-            || !self
-                .spec_sha256
-                .bytes()
-                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-        {
-            return Err(WorldBindingError::InvalidDigest);
-        }
         if self.simulation_frame_uri.revision_uri() != self.revision_uri {
             return Err(WorldBindingError::DifferentRevision);
         }
@@ -163,6 +158,15 @@ impl TryFrom<InstallationWorldBindingWire> for InstallationWorldBinding {
 impl From<InstallationWorldBinding> for InstallationWorldBindingWire {
     fn from(value: InstallationWorldBinding) -> Self {
         value.0.into_inner()
+    }
+}
+
+impl SimulationWorldBinding {
+    pub fn from_revision(
+        revision: &FrameWorldRevision,
+        frame: &WorldFrameUri,
+    ) -> Result<Self, WorldBindingError> {
+        super::SimulationWorldBindingValue::from_revision(revision, frame)
     }
 }
 
@@ -317,11 +321,8 @@ mod tests {
         let mut unknown = document;
         unknown["retry"] = serde_json::json!(true);
         assert!(serde_json::from_value::<InstallationWorldBinding>(unknown).is_err());
-        let mut invalid_world = world;
-        invalid_world.spec_sha256.clear();
-        assert_eq!(
-            InstallationWorldBinding::new(request.session_id, invalid_world),
-            Err(WorldBindingError::InvalidDigest)
-        );
+        let mut invalid_world = serde_json::to_value(world).unwrap();
+        invalid_world["spec_sha256"] = serde_json::json!("");
+        assert!(serde_json::from_value::<SimulationWorldBinding>(invalid_world).is_err());
     }
 }

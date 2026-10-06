@@ -38,6 +38,9 @@ mod playback;
 #[path = "catalog_queries/projections.rs"]
 mod projections;
 
+#[path = "catalog_queries/seal_recovery.rs"]
+mod seal_recovery;
+
 fn identity(tenant: &str, name: &str, labels: &[&str]) -> GatewayInternalIdentity {
     let principal = PrincipalId::parse(name).unwrap();
     let tenant = TenantId::parse(tenant).unwrap();
@@ -412,4 +415,19 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
     })
     .await
     .expect("Recording catalog qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
+async fn public_seal_resumes_retained_properties_without_repair_or_new_occurrence() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let db = fixture::TestDb::with_modules(vec![
+        veoveo_recording_store::schema::module_setup(
+            fixture::module_lanes::execution("recordings").unwrap(),
+        )
+        .unwrap(),
+    ])
+    .await;
+    tokio::time::timeout(Duration::from_secs(90), seal_recovery::qualify(&db))
+        .await
+        .expect("Recording public seal recovery exceeded 90 seconds");
 }
