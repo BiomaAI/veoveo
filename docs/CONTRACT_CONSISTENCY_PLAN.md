@@ -94,7 +94,9 @@ patch is unapplied pending the user's required host-contract approval, and real
 provider generation is unqualified. Computers' previous provider profile passes
 isolated native maintenance upgrade, recovery and rollback, plus its command and
 file journeys. The current source selects OpenShell 0.1.2 with matched provider
-artifacts, typed selectors and a drained private checkpoint cut. Its provider build,
+artifacts, typed selectors and a drained private checkpoint cut. Its source-built
+GCC 16.2 profile passes the C++20 format execution and static C++ runtime probe
+against glibc 2.36. The complete Z3 and provider build,
 affected native suites and installed execution remain unqualified; previous-profile
 results do not qualify this candidate.
 
@@ -293,11 +295,15 @@ exportable Vulkan buffer supplies RGB bytes to CUDA and the explicit nvJPEG GPU
 encoder without full-frame CPU readback. Native process and queue controls qualify
 fatal exit before storage destruction, orderly teardown after completion, queued
 cancellation and server-owned shutdown despite retained Task handles. They do not
-establish hardware execution. The selected CUDA 13.4.1 runtime and nvJPEG 13.2.3.58
-headers and packages have verified upstream hashes. NVIDIA's image constraint
-rejects the current GeForce/R595 combination before startup. The signed native APT
-615.71.09 driver profile passes an isolated package-transition dry run that preserves
-32-bit graphics support; applying it awaits authorization to interrupt the desktop.
+establish hardware execution. View selects CUDA 13.3.1, CUDART 13.3.29 and
+nvJPEG 13.2.1.68 with verified image, signed package and complete header inputs.
+The loaded NVIDIA 610.57.04 driver advertises CUDA 13.3 and satisfies the image's
+vendor admission constraint. Matching cudarc driver bindings, regenerated nvJPEG
+bindings and contract-only compilation pass. Each service keeps its own supported
+CUDA user-space bundle; the shared host driver must satisfy each selected image.
+View owns the exception to the newer upstream CUDA 13.4 profile. Review it by
+2026-11-06; upgrading requires a compatible host driver and complete image and GPU
+qualification. The selected 13.3 profile requires no desktop interruption.
 Hardware warmup, image bytes, installed cancellation and process drain stay open.
 Most module, lookup and consumer mechanisms are implemented. The remaining phase
 gates require final source coverage and composition checks followed by installation
@@ -2352,14 +2358,22 @@ overlap. Native qualification precedes publication; phase 10 qualifies the insta
 ### Lane Re-Baseline
 
 Phase 3 moved definitions into owner lanes; phase 4 qualified their declared fields.
-Freeze one current bootstrap baseline per lane for the installation cut and remove
-superseded catalog definitions. Compare two fresh bootstraps of the intended current
-schema; no old installation is converted or maintained.
+Freeze the current composition of append-only owner lanes for the installation
+cut. Preserve accepted migration identities and known disabled-owner histories.
+Compare two independently fresh bootstraps of the intended current schema;
+no old installation is converted or maintained.
 
 | Gate | Pass condition |
 |---|---|
-| Schema equivalence | Fresh kernel and optional lanes reproduce the current schema qualified in phases 3–4, including declared fields, indexes, references and kernel API functions |
-| Ownership | The ownership validator accepts every baseline |
+| Schema equivalence | Two independent fresh kernel and optional-lane compositions agree on complete table definitions, fields, indexes, references, events, functions and analyzers; sensitivity controls detect changed child definitions |
+| Ownership | Every table, function and analyzer has its declared owner; ownership changes fail comparison |
+
+The current nineteen-owner composition passes both native schema controls and all
+six independent-consumer controls. Its fresh capture contains 173 tables with
+owner assignments, 3,745 fields, 342 indexes, one event, 39 functions and two
+analyzers. Native field and index mutations fail equality; separate controls cover
+event, function, analyzer and ownership changes. These checks qualify fresh source
+composition, while installed lifecycle acceptance stays open.
 
 ### JSON Naming Cut
 
@@ -3077,17 +3091,11 @@ smoke has been extended to interrupt a real capture process, retain its actual
 That hardware restart and installed graceful exit remain unqualified; GPU encoding
 alone cannot close this recovery gate.
 
-View's F65/A10 hardware check also needs the supported NVIDIA driver transition.
-The pinned CUDA 13.4.1 image requires CUDA 13.4 for GeForce; the installed
-595.91.07 driver exposes CUDA 13.2. NVIDIA's authenticated Ubuntu 24.04 package
-index supplies the coherent 615.71.09-2ubuntu1 open-driver set. Its isolated solver
-passes with DKMS 1:3.4.3-1ubuntu1 and matching 32-bit libraries; it replaces the
-older NVIDIA packages without changing a kernel or removing unrelated applications.
-Stopping the
-desktop and RustDesk GPU clients requires explicit user authorization and alternate
-access. A reboot would lose the two running in-memory Store fixtures and is not
-authorized. Preserve the image's vendor check; qualify actual device admission,
-encoder warmup and the existing owning smoke after the supported transition.
+View's selected CUDA 13.3.1 image satisfies the loaded 610.57.04 driver's
+advertised CUDA 13.3 capability. Preserve the vendor check and qualify actual
+device admission, encoder warmup and the existing owning smoke with this profile.
+F65/A10 still require hardware image bytes, cancellation and process drain;
+the compiler and generated-binding checks cannot close those gates.
 
 The real Media generation check is explicitly unqualified under the user's restriction.
 It must appear as such in the final acceptance report; the fake-provider pass cannot
