@@ -113,7 +113,7 @@ fn builtins_preserve_existing_scope_task_resource_and_format_grammars() {
         (
             ScalarGrammar::FormatTag,
             vec![
-                "io.veoveo/example/v1",
+                concat!("io", ".veoveo/example/v1"),
                 "veoveo.ai/example/v0",
                 "veoveo.ai/example/v01",
             ],

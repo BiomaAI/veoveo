@@ -328,7 +328,7 @@ mod current_result_controls {
             IssuedArtifactReadCapability, IssuedArtifactWriteCapability,
         };
         use veoveo_reason_mcp::contract::{
-            AnalyzeRecordingRequest, IndexRange, RecordingVideoSelection, ReasoningTask,
+            AnalyzeRecordingRequest, IndexRange, ReasoningTask, RecordingVideoSelection,
         };
 
         let task_id = "01983da0-0000-7000-8000-000000000001".parse().unwrap();

@@ -190,14 +190,19 @@ mod tests {
         let wire = serde_json::json!({"owner":{"kind":"group","id":"operations"},"initialGrants":[],"dataLabels":["cui"]});
         let config: OutputPolicyConfig = serde_json::from_value(wire.clone()).unwrap();
         let policy: WorkContextOutputPolicy = config.into();
-        assert_eq!(serde_json::to_value(&policy).unwrap(), serde_json::json!({"owner":{"kind":"group","id":"operations"},"data_labels":["cui"]}));
+        assert_eq!(
+            serde_json::to_value(&policy).unwrap(),
+            serde_json::json!({"owner":{"kind":"group","id":"operations"},"data_labels":["cui"]})
+        );
         let encoded = serde_json::to_value(OutputPolicyConfig::from(policy)).unwrap();
-        assert_eq!(encoded, serde_json::json!({"owner":{"kind":"group","id":"operations"},"dataLabels":["cui"]}));
+        assert_eq!(
+            encoded,
+            serde_json::json!({"owner":{"kind":"group","id":"operations"},"dataLabels":["cui"]})
+        );
         for key in ["initial_grants", "data_labels"] {
             let mut obsolete = wire.clone();
             obsolete[key] = serde_json::json!([]);
             assert!(serde_json::from_value::<OutputPolicyConfig>(obsolete).is_err());
         }
     }
-
 }

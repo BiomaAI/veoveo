@@ -195,7 +195,12 @@ mod tests {
                 "lastSuccessAt": null,
             })
         );
-        assert!(wire.as_object().unwrap().keys().all(|key| !key.contains('_')));
+        assert!(
+            wire.as_object()
+                .unwrap()
+                .keys()
+                .all(|key| !key.contains('_'))
+        );
 
         let reservation = diagnostics.reserve_spool(4_096, 1_000_000, 100_000);
         assert_eq!(

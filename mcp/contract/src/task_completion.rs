@@ -14,7 +14,11 @@ pub fn result_uri(result: &CallToolResult) -> Result<Option<ResourceUri>, ErrorD
             None,
         )
     };
-    if result.structured_content.as_ref().is_some_and(|value| value.get("result_uri").is_some()) {
+    if result
+        .structured_content
+        .as_ref()
+        .is_some_and(|value| value.get("result_uri").is_some())
+    {
         return Err(invalid());
     }
     let declared = result
@@ -79,7 +83,8 @@ mod tests {
         assert!(result_uri(&mismatch).is_err());
         mismatch.structured_content = Some(json!({"result_uri":"fixture://items/1"}));
         assert!(result_uri(&mismatch).is_err());
-        mismatch.structured_content = Some(json!({"resultUri":"fixture://items/1", "result_uri":"fixture://items/1"}));
+        mismatch.structured_content =
+            Some(json!({"resultUri":"fixture://items/1", "result_uri":"fixture://items/1"}));
         assert!(result_uri(&mismatch).is_err());
         mismatch = product.clone();
         mismatch.is_error = Some(true);

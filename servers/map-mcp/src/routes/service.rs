@@ -15,9 +15,8 @@ use crate::{
         ReachableAreaId, ReachableAreaRequest, Restriction, RestrictionEffectKind, RouteEndpoint,
         RouteId, RouteMatrix, RouteMatrixCell, RouteMatrixId, RouteMatrixRequest, RouteObjective,
         RouteObjectiveKind, RoutePlan, RouteProvenance, RouteRequest, RouteStatus, RouteValidation,
-        TravelCostMetric, TravelModelArtifact, TravelModelMatrix,
-        TravelModelProfileProvenance, ValidateRouteRequest, ValidationId, Wgs84BoundingBox,
-        Wgs84Position,
+        TravelCostMetric, TravelModelArtifact, TravelModelMatrix, TravelModelProfileProvenance,
+        ValidateRouteRequest, ValidationId, Wgs84BoundingBox, Wgs84Position,
     },
     routes::{PlannerOutput, graph::GraphPlanner, valhalla::ValhallaPlanner, valhalla::sum_cost},
 };

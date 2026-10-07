@@ -142,7 +142,9 @@ impl TaskRuntime {
                 veoveo_platform_store::TaskOwnerRecord::try_from(&snapshot.owner)?,
             ))
             .await?;
-        if let Some(error) = veoveo_platform_store::primary_transaction_error(response.take_errors()) {
+        if let Some(error) =
+            veoveo_platform_store::primary_transaction_error(response.take_errors())
+        {
             if matches!(
                 error.query_details(),
                 Some(surrealdb::types::QueryError::TransactionConflict)

@@ -226,7 +226,8 @@ pub(crate) async fn otel(conformance: &Path, gateway: &Path, control_plane: &Pat
         ],
         [],
         &otlp_log,
-    ).map(ChildGuard::with_owner_scope)?;
+    )
+    .map(ChildGuard::with_owner_scope)?;
     wait_for_file(&otlp_ready).await?;
 
     let auth_private_key = run_checked(
