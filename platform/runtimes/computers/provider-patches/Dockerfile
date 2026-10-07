@@ -169,17 +169,81 @@ RUN test "$(sha256sum /cpp-profile/cxx-profile.json | cut -d' ' -f1)" = "$(jq -r
 WORKDIR /gateway
 # Keep the compiler-independent registry source cache. Scope compiled artifacts to Rust 1.99.
 RUN --mount=type=cache,id=veoveo-openshell-rust195-bookworm-cargo,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked \
-    cargo test --locked --release -p openshell-core --test mtls_user_admission \
+    --mount=type=cache,id=veoveo-openshell-rust199-bookworm-target,target=/provider-target,sharing=locked <<'PROVIDER_ELF'
+set -eu
+cargo metadata --locked --no-deps --format-version=1 > /tmp/provider-packages.json
+cargo test --locked --release -p openshell-core --test mtls_user_admission \
     && provider-control openshell-driver-docker --lib log_limits supervisor_logs retained_volume_no_copy docker_identity_resolution lifecycle_fence start_generation provider_runtime_images veoveo_generated_configs_pass_actual_docker_schema \
     && provider-control openshell-server --lib stop_and_start_follow_durable_state_machine authenticated_start_commits_identity_with_starting_phase request_cancellation_does_not_cancel_start_worker failed_start_reconciles_backend_that_already_started stale_container_exit_queued_before_start_cannot_regress_restart live_container_exit_during_start_still_transitions_to_error start_persisted_sandboxes_supplies_fresh_authentication veoveo_generated_configs_pass_actual_gateway_loader \
-    && cargo build --locked --release --features openshell-server/bundled-z3 -p openshell-server -p openshell-driver-docker \
-    && mkdir /binaries \
-    && cp /provider-target/release/openshell-gateway /provider-target/release/openshell-driver-docker /binaries/ \
-    && readelf -d /binaries/openshell-gateway > /binaries/gateway-dependencies.txt \
-    && ! grep -Eq 'libz3|libstdc\+\+' /binaries/gateway-dependencies.txt \
-    && readelf --version-info /binaries/openshell-gateway > /binaries/gateway-symbol-versions.txt \
-    && python3 -c 'import pathlib,re; versions=[tuple(map(int,m)) for m in re.findall(r"\bGLIBC_(\d+)\.(\d+)", pathlib.Path("/binaries/gateway-symbol-versions.txt").read_text())]; assert versions and max(versions)<=(2,36), "gateway exceeds glibc 2.36 ABI"'
+    && (cargo build --locked --release --message-format=json-render-diagnostics --features openshell-gateway/bundled-z3 -p openshell-gateway -p openshell-driver-docker > /tmp/provider-artifacts.jsonl || { cat /tmp/provider-artifacts.jsonl; exit 1; })
+
+# Admit and copy emitted artifacts while their compiler cache remains mounted.
+python3 - <<'PYTHON'
+import hashlib, json, pathlib, re, shutil, subprocess
+# Cargo's emitted executable owns the copy; a cache pathname alone cannot admit it.
+selected = {'openshell-gateway': None, 'openshell-driver-docker': None}
+profile = json.loads(pathlib.Path('/cpp-profile/manifest.json').read_text())
+packages = json.loads(pathlib.Path('/tmp/provider-packages.json').read_text())['packages']
+expected = {}
+for name in selected:
+    version = profile['gatewayVersion' if name == 'openshell-gateway' else 'driverVersion']
+    owners = [package for package in packages if package['name'] == name
+              and package['version'] == version
+              and pathlib.Path(package['manifest_path']) == pathlib.Path('/gateway/crates') / name / 'Cargo.toml'
+              and any(target['name'] == name and 'bin' in target['kind'] for target in package['targets'])]
+    if len(owners) != 1:
+        raise SystemExit(f'{name}: selected source must declare one executable-owning package at version {version}')
+    expected[name] = owners[0]['id']
+for line in pathlib.Path('/tmp/provider-artifacts.jsonl').read_text().splitlines():
+    event = json.loads(line)
+    if event.get('reason') != 'compiler-artifact':
+        continue
+    target = event['target']
+    if target['name'] in selected and 'bin' in target['kind'] and event.get('executable'):
+        if event['package_id'] != expected[target['name']]:
+            raise SystemExit(f"{target['name']}: Cargo artifact package {event['package_id']} differs from admitted owner {expected[target['name']]}")
+        if selected[target['name']] is not None:
+            raise SystemExit(f"duplicate Cargo executable artifact for {target['name']}")
+        if target['name'] == 'openshell-gateway' and 'bundled-z3' not in event['features']:
+            raise SystemExit('Cargo gateway executable artifact lacks its bundled-z3 feature')
+        selected[target['name']] = event
+missing = [name for name, event in selected.items() if event is None]
+if missing:
+    raise SystemExit(f'Cargo did not emit selected executable artifacts: {missing}')
+pathlib.Path('/binaries').mkdir()
+artifacts = []
+for name, event in selected.items():
+    source = pathlib.Path(event['executable'])
+    destination = pathlib.Path('/binaries') / name
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    shutil.copy2(source, destination)
+    copied_hash = hashlib.sha256(destination.read_bytes()).hexdigest()
+    if source_hash != copied_hash:
+        raise SystemExit(f'{name}: copied artifact SHA-256 differs from Cargo executable')
+    artifact = dict(name=name, packageId=event['package_id'], executable=str(source), sha256=copied_hash)
+    artifacts.append(artifact)
+    print(f'{name}: Cargo artifact {artifact}', flush=True)
+pathlib.Path('/binaries/build-artifacts.txt').write_text(json.dumps(artifacts, indent=2) + '\n')
+failures = []
+for name, receipt in [('openshell-gateway', 'gateway'), ('openshell-driver-docker', 'driver')]:
+    binary = pathlib.Path('/binaries') / name
+    dependencies = subprocess.check_output(['readelf', '-d', str(binary)], text=True)
+    symbols = subprocess.check_output(['readelf', '--version-info', str(binary)], text=True)
+    (binary.parent / f'{receipt}-dependencies.txt').write_text(dependencies)
+    (binary.parent / f'{receipt}-symbol-versions.txt').write_text(symbols)
+    needed = re.findall(r'\(NEEDED\).*?\[([^\]]+)\]', dependencies)
+    versions = [tuple(map(int, match.split('.'))) for match in re.findall(r'\bGLIBC_(\d+\.\d+(?:\.\d+)?)', symbols)]
+    maximum = max(versions, default=None)
+    print(f'{name}: DT_NEEDED={needed}; maximum required GLIBC={maximum}', flush=True)
+    forbidden = [library for library in needed if 'libz3' in library or 'libstdc++' in library]
+    if forbidden:
+        failures.append(f'{name}: dynamic solver/C++ dependencies {forbidden}; build the executable with bundled-z3 and the selected static C++ archive')
+    if maximum is None or maximum + (0,) * (3 - len(maximum)) > (2, 36, 0):
+        failures.append(f'{name}: required GLIBC {maximum} exceeds or cannot establish the Bookworm 2.36 ceiling')
+if failures:
+    raise SystemExit('\n'.join(failures))
+PYTHON
+PROVIDER_ELF
 
 FROM compiler AS supervisor-build
 COPY --from=source /supervisor /supervisor

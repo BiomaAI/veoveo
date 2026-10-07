@@ -85,7 +85,12 @@ BuildKit cache `veoveo-openshell-rust199-bookworm-target` at `/provider-target`;
 artifacts occupy that cache's target subdirectory. Registry sources keep the existing
 compiler-independent cache identity. There is no additional upstream host target.
 
-Gateway compilation selects upstream `openshell-server/bundled-z3`: locked
+The build selects the executable-owning `openshell-gateway` package with its
+`openshell-gateway/bundled-z3` feature and the Docker driver package. The gateway
+feature forwards to `openshell-server/bundled-z3`; the selected server library
+controls use that same feature. The package copies only executable paths emitted
+by that Cargo invocation and verifies the copied SHA-256 against each emitted
+artifact; its receipt records their package identities. Locked
 `z3-src` 501.0.0 builds stable Z3 5.1.0 as a static library. CMake >=3.16 and
 Python3 come from the selected Bookworm compiler snapshot. `cxx-profile.json`
 pins source-built [GCC 16.2.0](https://gcc.gnu.org/releases.html),
@@ -101,8 +106,10 @@ it does not change the Rust 1.99.0 or static-musl sandbox profiles.
 
 The gateway build sets `CXX` to this compiler and uses locked `z3-sys` 0.13.0's
 `CXXSTDLIB=static=stdc++` link hook. Its native search path contains only the
-selected `libstdc++.a`. The gateway ELF check rejects dynamic libz3 and libstdc++
-dependencies and any required GLIBC symbol version above 2.36. The runtime keeps
+selected `libstdc++.a`. Gateway and driver ELF checks record and print each
+executable's DT_NEEDED libraries and maximum required GLIBC symbol version. They
+reject dynamic libz3 and libstdc++ dependencies, missing GLIBC version information,
+and any required GLIBC symbol version above 2.36. The runtime keeps
 its Bookworm libraries for other GNU executables. Ubuntu 24.04's glibc 2.39 can
 satisfy the admitted gateway baseline; the actual native executable suites must
 still qualify the complete provider. The runtime exports the C++ profile,
