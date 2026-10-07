@@ -1,6 +1,7 @@
 //! Owner discovery and deterministic projections of the checked requirement catalog.
 use crate::context::RepositoryContext;
 use anyhow::{Context, Result, ensure};
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -18,6 +19,9 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
     owners.sort();
     owners.dedup();
     ensure!(!owners.is_empty(), "no contract owners discovered");
+    // Admit every owning design before emitting even the first manual. A later
+    // invalid owner must not leave a partially generated repository.
+    validate_owner_designs(&owners)?;
     reconcile_embeddings(root, &owners)?;
     for owner in &owners {
         let profile_path = owner.join("contract-compliance.json");
@@ -39,11 +43,6 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         verify_manual(&updated, &profile)
             .with_context(|| format!("invalid manual projection in {}", manual_path.display()))?;
         emit(&manual_path, updated.as_bytes(), check)?;
-        ensure!(
-            owner.join("DESIGN.md").is_file(),
-            "{} requires its owning design",
-            owner.display()
-        );
     }
     let catalog = veoveo_mcp_contract::docs::catalog::requirement_catalog();
     let mut catalog_bytes = serde_json::to_vec_pretty(&catalog)?;
@@ -104,6 +103,88 @@ pub(crate) fn run(repository: &RepositoryContext, check: bool) -> Result<()> {
         "{} owner compliance profiles and catalog projections {}",
         owners.len(),
         if check { "verified" } else { "generated" }
+    );
+    Ok(())
+}
+
+fn validate_owner_designs(owners: &[PathBuf]) -> Result<()> {
+    for owner in owners {
+        let path = owner.join("DESIGN.md");
+        let design = fs::read_to_string(&path)
+            .with_context(|| format!("{} requires an adjacent UTF-8 DESIGN.md", owner.display()))?;
+        validate_standards_section(&design)
+            .with_context(|| format!("invalid owning design {}", path.display()))?;
+    }
+    Ok(())
+}
+
+struct DesignHeading {
+    level: HeadingLevel,
+    top_level: bool,
+    text: String,
+}
+
+/// CommonMark headings and section content, including GFM table bodies. Parser
+/// events keep code, comments and quoted/list examples out of owner headings.
+fn validate_standards_section(design: &str) -> Result<()> {
+    let mut nesting = Vec::new();
+    let mut heading: Option<DesignHeading> = None;
+    let mut in_section = false;
+    let mut has_content = false;
+    for event in Parser::new_ext(design, Options::ENABLE_TABLES) {
+        match event {
+            Event::Start(tag) => {
+                if let Tag::Heading { level, .. } = &tag {
+                    let top_level = nesting.is_empty();
+                    if top_level && *level <= HeadingLevel::H2 && in_section {
+                        ensure!(
+                            has_content,
+                            "the Standards And Protocols section is empty; describe the owner's supported standards and protocol profiles"
+                        );
+                        return Ok(());
+                    }
+                    heading = Some(DesignHeading {
+                        level: *level,
+                        top_level,
+                        text: String::new(),
+                    });
+                }
+                nesting.push(tag.to_end());
+            }
+            Event::End(tag) => {
+                if matches!(tag, TagEnd::Heading(_)) {
+                    let finished = heading.take().expect("parser opened a heading");
+                    if finished.top_level
+                        && finished.level == HeadingLevel::H2
+                        && finished.text.trim() == "Standards And Protocols"
+                    {
+                        in_section = true;
+                    }
+                }
+                nesting.pop();
+            }
+            Event::Text(text) | Event::Code(text) => {
+                if let Some(heading) = &mut heading {
+                    heading.text.push_str(&text);
+                } else if in_section && !text.trim().is_empty() {
+                    has_content = true;
+                }
+            }
+            Event::SoftBreak | Event::HardBreak => {
+                if let Some(heading) = &mut heading {
+                    heading.text.push(' ');
+                }
+            }
+            _ => {}
+        }
+    }
+    ensure!(
+        in_section,
+        "requires a top-level level-two Standards And Protocols section; add ## Standards And Protocols outside examples, code and comments"
+    );
+    ensure!(
+        has_content,
+        "the Standards And Protocols section is empty; describe the owner's supported standards and protocol profiles"
     );
     Ok(())
 }
@@ -279,6 +360,117 @@ fn replace_marked(source: &str, start: &str, end: &str, replacement: &str) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn owning_standards_section_uses_real_markdown_structure_and_content() {
+        for design in [
+            "# Owner\n\n## Standards And Protocols\n\nJSON Schema 2020-12.\n",
+            "## **Standards** And `Protocols` ##\n\n| Protocol | Profile |\n|---|---|\n| MCP | 2026-07-28 |\n\n## Other\n",
+            "Standards And Protocols\n-----------------------\n\nThe owner supports JSON.\n",
+            "````markdown\n```\n## Standards And Protocols\nexample\n````\n\n## Standards And Protocols\n\nHTTP/2.\n",
+        ] {
+            validate_standards_section(design).unwrap();
+        }
+        for design in [
+            "# Owner\n\nProtocol prose without its required section.\n",
+            "### Standards And Protocols\nJSON.\n",
+            "```markdown\n## Standards And Protocols\nJSON.\n```\n",
+            "~~~~markdown\n~~~\n## Standards And Protocols\nJSON.\n~~~~\n",
+            "    ## Standards And Protocols\n    JSON.\n",
+            "> ## Standards And Protocols\n> JSON.\n",
+            "- ## Standards And Protocols\n\n  JSON.\n",
+            "<!--\n## Standards And Protocols\nJSON.\n-->\n",
+        ] {
+            let error = validate_standards_section(design).unwrap_err();
+            assert!(
+                error.to_string().contains("add ## Standards And Protocols"),
+                "{design:?}: {error}"
+            );
+        }
+        for design in [
+            "## Standards And Protocols\n",
+            "## Standards And Protocols\n\n  \n\n## Other\nContent belongs to another section.\n",
+            "## Standards And Protocols\n\n<!-- TODO: protocols -->\n",
+            "## Standards And Protocols\n\n### Empty Subsection\n\n## Other\nContent.\n",
+        ] {
+            let error = validate_standards_section(design).unwrap_err();
+            assert!(
+                error.to_string().contains("section is empty"),
+                "{design:?}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn missing_owner_design_reports_its_path() {
+        let fixture = tempfile::tempdir().unwrap();
+        let owner = fixture.path().join("independent-mcp");
+        let error = validate_owner_designs(std::slice::from_ref(&owner)).unwrap_err();
+        assert!(error.to_string().contains(&owner.display().to_string()));
+        assert!(error.to_string().contains("adjacent UTF-8 DESIGN.md"));
+    }
+
+    #[test]
+    fn invalid_later_owner_prevents_all_generation_writes() {
+        let fixture = tempfile::tempdir().unwrap();
+        crate::process::output("git", ["init", "--quiet"], Some(fixture.path())).unwrap();
+        let repository = RepositoryContext::discover(fixture.path()).unwrap();
+        let mut manuals = Vec::new();
+        for name in ["first", "second"] {
+            let owner = fixture.path().join("servers").join(name);
+            fs::create_dir_all(owner.join("src")).unwrap();
+            fs::write(
+                owner.join("Cargo.toml"),
+                format!("[package]\nname = '{name}-mcp'\nversion = '0.1.0'\n"),
+            )
+            .unwrap();
+            fs::write(
+                owner.join("src/lib.rs"),
+                "fn docs() { server_docs!(\"observatory\"); }\n",
+            )
+            .unwrap();
+            fs::write(
+                owner.join("contract-compliance.json"),
+                include_bytes!("../../../../testing/fixtures/modular-mcp/contract-compliance.json"),
+            )
+            .unwrap();
+            let manual = format!("# Owner\n\n{COMPLIANCE_START}\nstale\n{COMPLIANCE_END}\n");
+            let path = owner.join("AGENTS.md");
+            fs::write(&path, &manual).unwrap();
+            manuals.push((path, manual));
+            fs::write(
+                owner.join("DESIGN.md"),
+                if name == "first" {
+                    "## Standards And Protocols\n\nMCP 2026-07-28.\n"
+                } else {
+                    "```markdown\n## Standards And Protocols\nMCP 2026-07-28.\n```\n"
+                },
+            )
+            .unwrap();
+        }
+        for check in [false, true] {
+            let error = run(&repository, check).unwrap_err();
+            assert!(error.to_string().contains("servers/second/DESIGN.md"));
+            for (path, original) in &manuals {
+                assert_eq!(fs::read_to_string(path).unwrap(), *original);
+            }
+            for directory in ["mcp", "sdk", "servers/chart-mcp"] {
+                assert!(!fixture.path().join(directory).exists());
+            }
+        }
+    }
+
+    #[test]
+    fn check_rejects_stale_and_missing_outputs_without_writes() {
+        let fixture = tempfile::tempdir().unwrap();
+        let existing = fixture.path().join("output.md");
+        fs::write(&existing, "original").unwrap();
+        assert!(emit(&existing, b"updated", true).is_err());
+        assert_eq!(fs::read(&existing).unwrap(), b"original");
+        let missing = fixture.path().join("missing/output.md");
+        assert!(emit(&missing, b"new", true).is_err());
+        assert!(!missing.parent().unwrap().exists());
+    }
+
     #[test]
     fn marked_projection_preserves_surrounding_bytes_and_rejects_bad_markers() {
         assert_eq!(

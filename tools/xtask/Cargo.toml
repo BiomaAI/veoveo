@@ -42,6 +42,8 @@ veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 
 # Reuse the workspace-qualified parser; source-file policy is qualified by native tests.
 syn = { workspace = true, features = ["full", "visit", "parsing"] }
+# CommonMark events distinguish owning sections from quoted or fenced examples.
+pulldown-cmark = { version = "=0.13.4", default-features = false }
 
 veoveo-view-mcp = { path = "../../servers/view-mcp", default-features = false, features = ["contract"] }
 veoveo-stream-mcp = { path = "../../servers/stream-mcp", default-features = false, features = ["contract"] }

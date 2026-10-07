@@ -18367,6 +18367,7 @@ dependencies = [
  "clap",
  "hex",
  "protoc-bin-vendored",
+ "pulldown-cmark",
  "rcgen",
  "schemars 1.2.2",
  "serde",
