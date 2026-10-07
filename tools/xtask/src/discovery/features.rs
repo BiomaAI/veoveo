@@ -205,22 +205,40 @@ fn admit_native_configuration(
     }
     Ok(())
 }
+fn native_cargo_home(
+    repository: &Path,
+    configured: Option<&std::ffi::OsStr>,
+    user_home: Option<std::path::PathBuf>,
+) -> Result<std::path::PathBuf> {
+    // Match Cargo's home resolver: ignore an empty override, preserve relative paths,
+    // and use the platform home lookup (including its account-database fallback).
+    match configured.filter(|home| !home.is_empty()) {
+        Some(home) => {
+            let home = std::path::PathBuf::from(home);
+            Ok(if home.is_absolute() {
+                home
+            } else {
+                repository.join(home)
+            })
+        }
+        None => user_home
+            .map(|home| home.join(".cargo"))
+            .context("native smoke cannot resolve the user's Cargo home"),
+    }
+}
 fn admit_native_profile(repository: &Path) -> Result<()> {
-    let cargo_home = std::env::var_os("CARGO_HOME")
-        .map(std::path::PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|p| std::path::PathBuf::from(p).join(".cargo")))
-        .context("native smoke requires HOME or CARGO_HOME to admit Cargo configuration")?;
-    let cargo_home = if cargo_home.is_absolute() {
-        cargo_home
-    } else {
-        repository.join(cargo_home)
-    };
+    let configured = std::env::var_os("CARGO_HOME");
+    // This is also the Unix home lookup used by Cargo's maintained home resolver.
+    #[allow(deprecated)]
+    let user_home = std::env::home_dir();
+    let cargo_home = native_cargo_home(repository, configured.as_deref(), user_home)?;
     admit_native_configuration(
         repository,
         &cargo_home,
         std::env::var_os("CARGO_BUILD_TARGET").is_some(),
     )
 }
+
 fn resolve(
     repository: &Path,
     metadata: &CargoMetadata,
@@ -546,6 +564,42 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn native_profile_empty_cargo_home_uses_global_configuration() {
+        let temporary = tempfile::tempdir().unwrap();
+        let repository = temporary.path().join("repository");
+        let user_home = temporary.path().join("user");
+        let global = user_home.join(".cargo");
+        std::fs::create_dir_all(&repository).unwrap();
+        std::fs::create_dir_all(&global).unwrap();
+        std::fs::write(global.join("config.toml"), "[build]\ntarget='foreign'\n").unwrap();
+        for configured in [None, Some(std::ffi::OsStr::new(""))] {
+            let resolved =
+                native_cargo_home(&repository, configured, Some(user_home.clone())).unwrap();
+            assert_eq!(resolved, global);
+            assert!(
+                admit_native_configuration(&repository, &resolved, false)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("explicit execution profile")
+            );
+        }
+        assert_eq!(
+            native_cargo_home(
+                &repository,
+                Some(std::ffi::OsStr::new("relative/../home")),
+                None
+            )
+            .unwrap(),
+            repository.join("relative/../home")
+        );
+        assert_eq!(
+            native_cargo_home(&repository, Some(global.as_os_str()), None).unwrap(),
+            global
+        );
+        assert!(native_cargo_home(&repository, Some(std::ffi::OsStr::new("")), None).is_err());
     }
 
     #[test]
