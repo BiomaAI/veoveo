@@ -811,9 +811,9 @@ mod task_tests {
         );
         let artifact: veoveo_artifact_contract::ArtifactMetadata =
             serde_json::from_value(serde_json::json!({
-                "artifact_id":"01983da0-0000-7000-8000-000000000001",
-                "artifact_uri":"artifact://01983da0-0000-7000-8000-000000000001",
-                "byte_len":1,"createdAt":"2026-09-29T00:00:00Z"
+                "artifactId":"01983da0-0000-7000-8000-000000000001",
+                "artifactUri":"artifact://01983da0-0000-7000-8000-000000000001",
+                "byteLen":1,"createdAt":"2026-09-29T00:00:00Z"
             }))
             .unwrap();
         let mut published = first.clone();
