@@ -19,6 +19,7 @@ mod support;
 mod template;
 #[path = "support/terminal_hops.rs"]
 mod terminal_hops;
+use futures::FutureExt;
 use std::{
     sync::{
         Arc,
@@ -211,7 +212,10 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         )
         .await
         .unwrap();
-    let (left, right) = tokio::join!(worker_a.step(create.clone()), worker_b.step(create.clone()));
+    let (left, right) = tokio::join!(
+        worker_a.step(create.clone()).boxed(),
+        worker_b.step(create.clone()).boxed()
+    );
     assert!(
         matches!(left, Ok(WorkerStep::Settled)) || matches!(right, Ok(WorkerStep::Settled)),
         "a worker must settle the native Create: left={left:?}, right={right:?}"
@@ -253,7 +257,10 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         .await
         .unwrap();
     home.stop_service().await;
-    assert_eq!(worker_b.step(stop).await.unwrap(), WorkerStep::Settled);
+    assert_eq!(
+        worker_b.step(stop).boxed().await.unwrap(),
+        WorkerStep::Settled
+    );
     home.start_service().await;
     let start = a
         .queue_operation(
@@ -264,7 +271,10 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         )
         .await
         .unwrap();
-    assert_eq!(worker_a.step(start).await.unwrap(), WorkerStep::Settled);
+    assert_eq!(
+        worker_a.step(start).boxed().await.unwrap(),
+        WorkerStep::Settled
+    );
     let restarted = a.get(&actor, computer.computer_id).await.unwrap();
     assert_ne!(ready.process_id, restarted.process_id);
     shell(
@@ -312,7 +322,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
     expire(&tasks_a, &stop).await;
     let preparations = gate.preparations.load(Ordering::SeqCst);
     assert_eq!(
-        worker_b.step(stop.clone()).await.unwrap(),
+        worker_b.step(stop.clone()).boxed().await.unwrap(),
         WorkerStep::Settled
     );
     assert_eq!(
@@ -354,7 +364,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             support::policy::install(&db.b, denied).await;
         }
         assert_eq!(
-            worker_a.step(start.clone()).await.unwrap(),
+            worker_a.step(start.clone()).boxed().await.unwrap(),
             WorkerStep::Settled
         );
         let result = tasks_a.get(start.task_id()).await.unwrap().unwrap();
@@ -416,12 +426,12 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
             .check()
             .unwrap();
         assert_eq!(
-            worker_b.step(start.clone()).await.unwrap(),
+            worker_b.step(start.clone()).boxed().await.unwrap(),
             WorkerStep::Waiting
         );
     }
     assert_eq!(
-        worker_b.step(start.clone()).await.unwrap(),
+        worker_b.step(start.clone()).boxed().await.unwrap(),
         WorkerStep::RecoveryRequired
     );
     assert_eq!(gate.preparations.load(Ordering::SeqCst), preparations);
